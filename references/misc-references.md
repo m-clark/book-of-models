@@ -4,6 +4,7 @@ misc-references
 Just add as stuff comes to mind
 
 ## Basic Linear Models
+https://bookdown.org/roback/bookdown-BeyondMLR/
 
 ## R
 R4DS: https://r4ds.had.co.nz/
