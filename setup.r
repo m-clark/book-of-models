@@ -58,6 +58,12 @@ theme_clean <- function (
   )
 }
 
+theme_other  <-  theme_clean <- function (
+) {
+
+ 
+}
+
 # set the theme as default
 theme_set(theme_clean())
 
