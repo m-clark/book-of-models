@@ -59,10 +59,7 @@ $$
 r = \frac{\Sigma(x_i-\bar{x})(y_i-\bar{y})}{\sqrt{\Sigma(x_i-\bar{x})^2\Sigma(y_i-\bar{y})^2}}
 $$
 
-
-? If we show a formula in this chapter, let's compare to code and emphasize that we will be using code to show how these formulas work.
-
-You don't need to memorize this formula to interpret the correlation results, but knowing how those individual pieces work together only helps to deepen your understanding of the model. Diving into the internal workings of the models also allows you to see how models connect to each other -- this provides a nice roadmap from chapter to chapter. 
+You don't need to memorize this formula to interpret the correlation results, but knowing how those individual pieces work together only helps to deepen your understanding of the model -- we will take a look at the code later in the chapter. Diving into the internal workings of models also allows you to see how they connect to each other -- this provides a nice roadmap from chapter to chapter. 
 
 For each model that we cover, you can expect to see the standard formula. Moving beyond that formula, though, we will guide you through what each part of the formula is doing and tie that back to code. When showing you how to use a model, we will do it in two ways:
 
@@ -70,7 +67,7 @@ For each model that we cover, you can expect to see the standard formula. Moving
 
 2. the complete steps to recreate the formula
 
-We are taking this approach for one reason: so that you can go as deep as you wish. If you are looking for a quick tutorial on helpful models, then you might not find yourself going any deeper than the standard functions. If you want to really dive into these models, then you might find yourself working through the complete steps. Another approach is to allow yourself some time between the standard functions and complete steps. You could work through the standard functions of every chapter, give it some time to sink in, and then work back through the complete steps. While we certainly recommend working through the chapters in order, we want to give you the flexibility to choose your own depth within each.
+We are taking this approach for one reason: so that you can go as deep as you wish. If you are looking for a quick tutorial on helpful models, then you might not find yourself going any deeper than the standard functions. If you want to really dive into these models, then you might find yourself working through the complete steps. Another approach is to allow yourself some time between the standard functions and complete steps. You could work through the standard functions of every chapter, give it some time to marinate, and then work back through the complete steps. While we certainly recommend working through the chapters in order, we want to give you the flexibility to choose your own depth within each.
 
 We hope that this book can serve as a "choose your own adventure" statistical reference. Whether you want a surface-level understanding, a deeper dive, or just want to be able to understand what the analysts in your organization are talking about, this book is for you. While we assume that you have a basic familiarity with coding, that doesn't mean that you need to work through every line of code to understand the fundamental principles of every model.
 
@@ -78,41 +75,123 @@ We hope that this book can serve as a "choose your own adventure" statistical re
 
 You've probably noticed a trend in books, blogs, and courses of choosing R or Python. While practitioners, authors, scholars, and professors alike often choose one over the other, we take a different approach -- both languages are great and it is in your best interest to flip back and forth between the two. Throughout this book, we will be presenting ideas in both R and Python; you can use both or take your pick, but we want to give you both. Our goal isn't to obscure the ideas behind packages and specialty functions, but to show you the most basic functions behind big model ideas. 
 
-When presenting code, we will be specific and tell you which language we are using before we get to the coding. For example, we will use R to load the `ggplot2` package and produce a visualization:
+When presenting code, we will be specific and tell you which language we are using before we get to the coding. Let's look at the correlation formula again:
+
+$$
+r = \frac{\Sigma(x_i-\bar{x})(y_i-\bar{y})}{\sqrt{\Sigma(x_i-\bar{x})^2\Sigma(y_i-\bar{y})^2}}
+$$
+
+We can start by generating *x* as a random sample from a standard normal distribution:
 
 ```{r}
-library(ggplot2)
+set.seed(seed = 1001)
 
-ggplot(data = diamonds, 
-       mapping = aes(x = carat, y = price)) +
-  geom_point(alpha = .5) +
-  theme_minimal()
+x <- rnorm(n = 1000, mean = 0, sd = 1)
 ```
 
-Now, we will use Python to import `seaborn` and create a visualization:
+And we can create a vector for *y*:
+
+```{r}
+set.seed(seed = 1001)
+
+y <- rnorm(n = 1000, mean = 5, sd = 2)
+```
+
+Before we break it down into the long form, let's see what R's `cor` function gives us:
+
+```{r}
+cor(x, y)
+```
+
+We have a negative value, but this correlation is certainly nothing impressive -- we wouldn't expect impressive results with random sample! We already know the answer, so let's make sure that we can get the same answer by working through the formula.
+
+Since we have our x and y vectors, we can compute the averages -- representing $\bar{x}$ and $\bar{y}$ -- for both:
+
+```{r}
+x_bar <- mean(x)
+
+y_bar <- mean(y)
+```
+
+Let's work through the numerator first. For the first term, $x_i-\bar{x}$, we can subtract `x_bar` from every value of `x`:
+
+```{r}
+x_minus_x_mean <- x - x_bar
+```
+
+And then repeat that for `y`:
+
+```{r}
+y_minus_y_mean <- y - y_bar
+```
+
+We can wrap up the numerator by summing those multiplied values:
+
+```{r}
+numerator <- sum(x_minus_x_mean * y_minus_y_mean)
+
+numerator
+```
+
+Shifting to the denominator, we see that we have already completed a large portion of the work; we can take our `x_minus_x_mean` and `y_minus_y_mean` values, square each to make make them positive, and then sum each:
+
+```{r}
+x_minus_x_mean_squared <- sum(x_minus_x_mean^2)
+
+y_minus_y_mean_squared <- sum(y_minus_y_mean^2)
+```
+
+To finish up the denominator, all we need to do is to multiply those terms and take the square root:
+
+```{r}
+denominator <- sqrt(x_minus_x_mean_squared * y_minus_y_mean_squared)
+```
+
+And we can finish it up:
+
+```{r}
+numerator / denominator
+```
+
+While the long form certainly took more lines of code, we can see that breaking it down into smaller steps isn't difficult. For the sake of completeness, let's see how we would do the same thing with Python:
 
 ```{python}
-import plotnine as pn
+import numpy as np
 
-diamonds = pn.diamonds
+x = np.random.normal(loc=0, scale=1, size=1000)
 
-pn.ggplot(data=diamonds, 
-          mapping=pn.aes(x="carat", y="price")) + \
-  pn.geom_point(alpha = .5) + \
-  pn.theme_minimal()
+y = np.random.normal(loc=5, scale=2, size=1000)
+
+np.corrcoef(x, y)
 ```
 
-```{python, fig.width = 6}
-import seaborn as sns
-import matplotlib.pyplot as plt
-sns.set_theme(style="whitegrid")
+Now we can expand into the long form:
 
-diamonds = sns.load_dataset("diamonds")
+```{python}
+x_bar = x.mean()
 
-sns.scatterplot(data=diamonds, 
-                x="carat", y="price",
-                alpha = .5)
+y_bar = y.mean()
 
-plt.show()
+x_minus_x_mean = x - x_bar
+
+y_minus_y_mean = y - y_bar
+
+numerator = sum(x_minus_x_mean * y_minus_y_mean)
+```
+
+So far so good! Let's put everything together for the denominator:
+
+```{python}
+x_minus_x_mean_squared = np.sum(x_minus_x_mean**2)
+
+y_minus_y_mean_squared = np.sum(y_minus_y_mean**2)
+
+denominator = np.sqrt(x_minus_x_mean_squared * y_minus_y_mean_squared)
+```
+
+The last step is still to divide the numerator by the denominator:
+
+```{python}
+numerator / denominator
 ```
 
