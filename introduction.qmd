@@ -42,7 +42,7 @@ $$
 r = \frac{\Sigma(x_i-\bar{x})(y_i-\bar{y})}{\sqrt{\Sigma(x_i-\bar{x})^2\Sigma(y_i-\bar{y})^2}}
 $$
 
-You don't need to memorize this formula to interpret the correlation results. We are the first to admit that we have long dumped the ability to pull formulas out of our brain folds; however, knowing how those individual pieces work together only helps to deepen your understanding of the model. Diving into the internal workings of models also allows you to see how they connect to each other -- this provides a nice roadmap from chapter to chapter. 
+Whether you poured over the formula or pretended like you didn't see it and skipped over it, we promise that you won't need to memorize this formula to interpret the correlation results. We are the first to admit that we have long dumped the ability to pull formulas out of our brain folds; however, knowing how those individual pieces work together only helps to deepen your understanding of the model. Diving into the internal workings of models also allows you to see how they connect to each other -- this provides a nice roadmap from chapter to chapter. 
 
 ## Book Structure
 
@@ -76,13 +76,17 @@ We hope that this book can serve as a "choose your own adventure" statistical re
 
 You've probably noticed a trend in books, blogs, and courses of choosing R or Python. While practitioners, authors, scholars, and professors alike often take an opinionated approach towards teaching one over the other, we eschew dogmatic approaches and language flame wars. R and Python are great languages (and equally flawed in unique ways) and it is in your best interest to be able to flip back and forth between the two. Throughout this book, we will be presenting ideas in both R and Python; you can use both or take your pick, but we want to leave that choice up to you. Our goal isn't to obscure the ideas behind packages and specialty functions or tell you why one languages is superior to the other (they aren't), but to show you the most basic functions behind big model ideas. 
 
-### A Code Example: Correlation
+## Correlation Demonstration: Choose Your Own Adventure
 
 Before we get into some more interesting things in the next chapters, let's warm up a bit by looking at that correlation formula again and working through it together:
 
 $$
 r = \frac{\Sigma(x_i-\bar{x})(y_i-\bar{y})}{\sqrt{\Sigma(x_i-\bar{x})^2\Sigma(y_i-\bar{y})^2}}
 $$
+
+As we mentioned earlier, we want to give you the choice to dive in as deep as you want. If you want just a little bit of background, you can read through the *Overview* section. If you want to see the an easy way to use the model, you can work through the *Standard Function* section. If you want to see the method from start to finish, feel free to work through the *Long Form* section. If all of that sounds like a lot of work and you'd rather make pictures, check out the *Visualization* section.
+
+### Overview
 
 Just as a reminder, this correlation will give us an idea about the linear relationship between two continuous variables; we will get a value between -1 and 1, with values closer to 0 indicating that there is no linear relationship between the two variables. As values get closer to 1, we have a *positive correlation* -- as values for one variable increase, values for the other variable increase along with it. As values get closer to -1, we have a *negative correlation* -- as values for one variable increase, values for the other variable decrease along with it. Correlations can be useful for quickly exploring linear relationships, but let's not get too excited about it -- they aren't going to help you answer any big questions! We also don't want to get too carried away with "statistical significance" yet -- once samples get large, even small correlations become "significant". Instead, just use correlations to explore the patterns within your data and leave worries about significance for other methods.
 
@@ -100,6 +104,8 @@ And we can create a vector for *y*:
 y <- rnorm(n = 1000, mean = 5, sd = 2)
 ```
 
+### Standard Function
+
 Before we break it down into the long form, let's see what R's `cor` function gives us:
 
 ```{r}
@@ -107,6 +113,8 @@ cor(x, y)
 ```
 
 We have a negative value, but with a value so close to 0, this correlation is certainly nothing impressive -- we wouldn't expect impressive results with random numbers! We already know the answer, so let's make sure that we can get the same answer by working through the formula.
+
+### Long Form
 
 Since we have our x and y vectors already, we can compute the averages -- representing $\bar{x}$ and $\bar{y}$ -- for both:
 
@@ -170,11 +178,15 @@ x = np.random.normal(loc=0, scale=1, size=1000)
 y = np.random.normal(loc=5, scale=2, size=1000)
 ```
 
+### Standard Function
+
 Now we can easily get the correlation value:
 
 ```{python}
 np.corrcoef(x, y)
 ```
+
+### Long Form
 
 Now we can go through the same steps to get the numerator value:
 
@@ -208,5 +220,58 @@ numerator / denominator
 
 It doesn't matter which language we use, the steps are largely the same when we break it down into the individual pieces!
 
-## Wrapping Up
+### Visualization
 
+Before gray started creeping into facial hair, the authors of this book worked together. While there were many great learning opportunities, working with clients showed us all of the help that people really needed in working with data and models. There were many requests that made us grimace, but one request stood atop Mount Ridiculous: a correlation matrix with 115 variables. Since we were in the business of helping people do their work better, the obvious suggestion was a *corrplot*.
+
+We don't want to pass along that pain to you, so we will make a smaller data frame:
+
+```{r}
+set.seed(1001)
+
+correlation_data <- data.frame(a = rnorm(n = 1000, mean = 0, sd = 1), 
+                               b = rnorm(n = 1000, mean = 5, sd = 2), 
+                               c = rnorm(n = 1000, mean = 10, sd = 4))
+```
+
+Let's add a few more variables to our data frame:
+
+```{r}
+correlation_data$x <- correlation_data$a + 
+  runif(n = 1000, min = 0, max = 5)
+
+correlation_data$y <- correlation_data$b + 
+  runif(n = 1000, min = 0, max = 10)
+
+correlation_data$z <- correlation_data$c / 
+  sample(x = -10:0, size = 1000, replace = TRUE)
+```
+
+And then we can take a quick look at the correlation matrix:
+
+```{r}
+correlation_matrix <- cor(correlation_data)
+
+correlation_matrix
+```
+
+Now we have the pairwise correlations between all six of our variables, with 1's on the diagonals (naturally, a variable has a perfect correlation with itself). You can check out the lower diagonal or the upper diagonal, because they contain the exact same information.
+
+Even with six variables, you can see that you'll need to spend more than a few seconds on finding the interesting patterns within the data. Our brains are oriented towards vision, so we can use preattentive processing elements to make finding interesting patterns easier. 
+
+```{r}
+library(corrplot)
+
+corrplot.mixed(correlation_matrix)
+```
+
+Let's break down what we're seeing just a little bit. The lower triangle has the correlation values. It adds information, though, by changing the font color by correlation value -- red for negative values and blue for positive values -- and increasing the saturation as the correlation value becomes stronger. The upper triangle contains the same information, but the size of the circle is tied directly to the strength of the correlation. You'll also notice that the weaker correlations are essentially hidden in the visualization, allowing us to focus only on those interesting relationships.
+
+Let's see how we can handle this same task in Python. 
+
+```{python}
+
+```
+
+
+## Wrapping Up
