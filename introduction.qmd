@@ -1,6 +1,7 @@
 # Introduction
 
 ```{r}
+library(tidyverse)
 library(reticulate)
 use_condaenv('book-of-models')
 ```
@@ -16,21 +17,84 @@ Our approach here is first and foremost a practical one, as models themselves ar
 
 ## Who Should Use This Book?
 
-This book is intended for every type of *data dabbler*, no matter what part of the data world you call home. If you consider yourself a data scientist, a business analyst, or a statistical hobbyist, you already know that the best part of a good dive into data is the modeling. No matter what your data undertaking, models give us the possibility to answer questions, make predictions, and understand what we're interested in a little bit better. But no matter who you are, it isn't always easy to understand *how the models work*. Even when you do get a good grasp of a modeling approach, it can still get complicated, and there are a lot of details. In other cases, maybe you just have other things going on in your life and have forgotten a few things. We find that it's always good to remind yourself of the basics! So if you're just interested in data and hoping to understand it a little better, then it's likely you'll find something useful in this book.m
+This book is intended for every type of *data dabbler*, no matter what part of the data world you call home. If you consider yourself a data scientist, a business analyst, or a statistical hobbyist, you already know that the best part of a good dive into data is the modeling. But whatever your data persuasion, models give us the possibility to answer questions, make predictions, and understand what we're interested in a little bit better. And no matter who you are, it isn't always easy to understand *how the models work*. Even when you do get a good grasp of a modeling approach, it can still get complicated, and there are a lot of details to keep track of. In other cases, maybe you just have other things going on in your life and have forgotten a few things. We find that it's always good to remind yourself of the basics! So if you're just interested in data and hoping to understand it a little better, then it's likely you'll find something useful in this book!
 
 Your humble authors have struggled mightily themselves throughout the course of their data history, and still do! We were initially taught by those that weren't exactly experts, and often found it difficult to get a good grasp of statistical modeling and machine learning. We've had to learn how to use the tools, how to interpret the results, and possibly the most difficult, how to explain what we're doing to others! We've forgotten a lot, confused ourselves, and made some happy accidents in the process. That's okay! Our goal here is to help you avoid some of those pitfalls, help you understand the basics of how models work, and get a sense of how most modeling endeavors have a lot of things in common. 
 
-Let's look at the following equation for Pearson's correlation coefficient:
-
-Formula for pearson correlation:
+As an example, let's look at the different ways we might express a relationship. Here is a formula for the Pearson-Product-Moment correlation coefficient:
 
 $$
 \rho = \frac{\Sigma(x_i-\bar{x})(y_i-\bar{y})}{\sqrt{\Sigma(x_i-\bar{x})^2\Sigma(y_i-\bar{y})^2}}
-$$
+$${#eq-pearson}
 
-Whether you enthusiastically poured over the formula or pretended like you didn't see it and skipped over it, we promise that you don't need to memorize this formula to interpret the a correlation. We are the first to admit that we have long dumped the ability to pull formulas out of our brain folds; however, knowing how those individual pieces work together only helps to deepen your understanding of the model. Diving into the internal workings of models also allows you to see how they connect to each other -- this provides a nice roadmap from chapter to chapter. 
+Here is some code to calculate the Pearson-Product-Moment correlation coefficient by hand:
 
-## Book Structure
+
+:::{.panel-tabset}
+
+############ R
+
+```{r}
+my_cor <- function(x, y) {
+  x_bar <- mean(x)
+  y_bar <- mean(y)
+  numerator <- sum((x - x_bar) * (y - y_bar))
+  denominator <- sqrt(sum((x - x_bar)^2) * sum((y - y_bar)^2))
+  numerator / denominator
+}
+```
+
+############ Python
+
+```{python}
+def my_cor(x, y):
+    x_bar = np.mean(x)
+    y_bar = np.mean(y)
+    numerator = np.sum((x - x_bar) * (y - y_bar))
+    denominator = np.sqrt(np.sum((x - x_bar)**2) * np.sum((y - y_bar)**2))
+    numerator / denominator
+``` 
+:::
+
+
+Here is some code to get a correlation how we might typically do it.
+
+```{r}
+#| echo: false
+#| results: "hide"
+df = mgcv::gamSim(n = 100)
+x <- df$x2
+y <- df$y
+```
+
+```{r}
+cor(x, y, method = "pearson")
+my_cor(x, y)
+```
+
+and here in @fig-simple-corr is a plot of the relationship between two variables[^badcor].
+
+[^badcor]: The visualization reveals that the standard Pearson correlation coefficient is not the best choice for this relationship. 
+
+```{r simple-corr}
+#| echo: false
+#| fig-cap: 'Example relationship between two variables.'
+#| label: fig-simple-corr
+#| out.width: '100%'
+#| fig.width: 3
+
+ggplot(data = tibble(x, y), aes(x = x, y = y)) +
+  geom_point() +
+  geom_smooth(se = FALSE)
+```
+
+
+
+Whether you enthusiastically poured over the formula or pretended like you didn't see it and skipped over it, we promise that you don't need to memorize this formula to interpret the a correlation.  We are the first to admit that we have long dumped the ability to pull formulas out of our brain folds[^formulas]; however, knowing how those individual pieces work together only helps to deepen your understanding of the model. Typically using code puts the formula into more concrete terms that you can then use in different ways to solidify and expand your knowledge. Sometimes you just need a reminder or want to see what function you'd use.  And often, the visualization will reveal even more about what's going than the formula or the code.  In short, there are a lot of tools at your disposal to help learn modeling in a way that works for you.  We hope that diving into the internal workings of models also allows you to see how they connect to each other if you choose that route, and this provides a nice roadmap from chapter to chapter.
+
+[^formulas]: We actually never had this ability.
+
+## What You Can Expect
 
 For each model that we cover, you can expect the following in terms of content:
 
@@ -61,9 +125,10 @@ We hope that this book can serve as a "choose your own adventure" statistical re
 
 ## Which Language?
 
-You've probably noticed a trend in books, blogs, and courses of choosing R or Python. While practitioners, authors, scholars, and professors alike often take an opinionated approach towards teaching one over the other, we eschew dogmatic approaches and language flame wars. R and Python are great languages (and equally flawed in unique ways) and it is advantageous to be knowledgeable of both, even if you focus on one specifically. Throughout this book, we will be presenting demonstrations in both R and Python; you can use both or take your pick, but we want to leave that choice up to you. Our goal isn't to obscure the ideas behind packages and specialty functions or tell you why one languages is superior to the other (they aren't), but to show you the most basic functions behind big model ideas. 
+You've probably noticed most books, blogs, and courses on data science choose R or Python. While many individuals often take an opinionated approach towards teaching and using one over the other, we eschew dogmatic approaches and language flame wars. R and Python are both great languages (and equally flawed in unique ways), and it is advantageous to be knowledgeable of both, even if you focus on one specifically, as they are the most popular languages for statistical modeling and machine learning. We use both extensively in our own work and for teaching, for personal use, and for production level code, and have found both are up to whatever task you have in mind.  Throughout this book, we will be presenting demonstrations in both R and Python, and you can use both or take your pick, but we want to leave that choice up to you. Our goal isn't to obscure the ideas behind packages and specialty functions or tell you why one languages is superior to the other (they aren't), but to show you the most basic functions behind big model ideas. 
 
 While we want to provide you choice, we truly hope that displaying both languages can help people to "convert" from one to the other. We have spent countless hours, slumped over our computers, debugging errors and figuring things out. If we can take away one source of pain for you, that would be great! We'd like to consider this as a resource for the R user, who knows exactly what they want to do in R, but could use a little help translating their R knowledge to Python; we'd also like this book to be a resource for the Python user, who sees the value in R's statistical modeling abilities.
+
 
 ## Choose Your Own Adventure
 
@@ -187,7 +252,7 @@ While the long form certainly took more lines of code, we can see that breaking 
 
 For the sake of completeness, let's see how we would do the same thing with Python. We can start by generating our *x* and *y* vectors with `numpy`:
 
-```{python}
+```{python gen-xy}
 import numpy as np
 
 np.random.seed(seed=1001)
@@ -316,7 +381,7 @@ What do you think? Was it easier to spot the points of interest?
 Let's see how we can handle this same task in Python. We will start by creating a `pandas` data frame.
 
 ```{python}
-from biokit.viz import corrplot
+# from biokit.viz import corrplot
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -365,6 +430,7 @@ plt.show()
 We could also use the `corrplot` function from `biokit` to get something a little nicer out of the box:
 
 ```{python}
+#| eval: false 
 c = corrplot.Corrplot(correlation_matrix)
 
 c.plot(lower='text', upper='circle')
