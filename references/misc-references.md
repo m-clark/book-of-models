@@ -15,6 +15,7 @@ Advanced R: https://adv-r.hadley.nz/
 ## ML
 
 Probabilistic Machine Learning: https://probml.github.io/pml-book/book1.html
+An overview of gradient descent optimization algorithms https://arxiv.org/pdf/1609.04747.pdf (Ruder)
 
 ## DL
 
