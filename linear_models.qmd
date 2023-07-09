@@ -3,7 +3,7 @@
 > It is the chief characteristic of data science that it works.
 ― Isaac Asimov (paraphrased)
 
-```{r, include = FALSE}
+```{r setup-lm, include = FALSE}
 source("load_packages.R")
 source("setup.R")
 
@@ -12,7 +12,7 @@ reticulate::use_condaenv("book-of-models")
 
 Packages needed or useful for this chapter include:
 
-```{r, include = FALSE}
+```{r, echo = TRUE, eval = FALSE}
 library(tidyverse)
 ```
 
@@ -29,11 +29,11 @@ Now that you have some idea of what you're getting into, it's time to dive in! W
 
 ### What is a Model?
 
-At its core, a model is just an **idea**. It's a way of thinking about the world, about how things work, about how things are related to each other, about how things change over time, how things are different from each other, and how they are similar. The underlying thread here is that **a model expresses relationships** about things in the world around us.  And just like other ideas, models have consequences in the real world, and they can be used prudently or foolishly. 
+At its core, a model is just an **idea**. It's a way of thinking about the world, about how things work, how things change over time, how things are different from each other, and how they are similar. The underlying thread here is that **a model expresses relationships** about things in the world around us. One can also think of a model as a **tool**, one that allows us to take information, in the form of data, and act on it in some way. Just like other ideas (and tools), models have consequences in the real world, and they can be used wisely or foolishly.  
 
-On a practical level, the model is expressed through a particular language, math, but don't let that worry you if you're not so inclined. As it's still just an idea at its core, the idea is the most important thing to understand about a model. The **math is just a way of expressing the idea** in a way that can be communicated and understood by others in a standard way, as well as helping make the idea precise. But in everyday terms, we're trying to understand things like how the amount of sleep relates to congnitive functioning, how the weather affects the number of people who visit a park, how much money to spend on advertising to increase sales, how to detect fraud, and so on.  Any of these  could form the basis of a model, as they stem from scientifically testable ideas, and they all express relationships between things we are interested in, possibly even with an implication of causal relations. 
+On a practical level, a model is expressed through a particular language, math, but don't let that worry you if you're not so inclined. As it's still just an idea at its core, the idea is the most important thing to understand about a model. The **math is just a way of expressing the idea** in a way that can be communicated and understood by others in a standard way, as well as helping make the idea precise. But in everyday terms, we're trying to understand things like how the amount of sleep relates to cognitive functioning, how the weather affects the number of people who visit a park, how much money to spend on advertising to increase sales, how to detect fraud, and so on.  Any of these  could form the basis of a model, as they stem from scientifically testable ideas, and they all express relationships between things we are interested in, possibly even with an implication of causal relations. 
 
-If you wanted to run a linear model to understand the relationship between sleep and cognitive functioning, you might express it as:
+If you wanted to run a linear model to understand the relationship between sleep and cognitive functioning, you might express it in code as:
 
 :::{.panel-tabset}
 
@@ -56,7 +56,7 @@ model = ols('cognitive_functioning ~ sleep', data=df).fit()
 :::
 
 
-Very easy! But that's all it takes to express a simple linear relationship.  In this case, we're saying that cognitive functioning is a linear (function) of sleep.  By the end of this chapter you'll also know why R's function is `lm` and the [statsmodels]{.pack} function is `ols`. 
+Very easy! But that's all it takes to express a simple linear relationship.  In this case, we're saying that cognitive functioning is a linear (function) of sleep.  By the end of this chapter you'll also know why R's function is `lm` (linear model) and the [statsmodels]{.pack} function is `ols`, but both are doing the same thing. 
 
 <!-- 
 We can also express this as a simple equation:
@@ -72,14 +72,16 @@ But we'll get more into that later. -->
 
 We can pose a few concepts key to understanding models. This is not an exhaustive list, but it's a good start.  We'll cover each of these in turn.
 
-- Features, targets, and input-output mappings
-- Model estimation
-- Prediction
-- Assumptions, probabilistic outcomes, uncertainty
+- What a model is: The model as an idea
+- Features, targets, and input-output mappings: how do we get from input to output?
+- Model estimation: how do we find the best model?
+- Prediction: how do we use a model?
+- Assumptions, probabilistic outcomes, uncertainty: how do we know if we can trust a model?
+
+As we go along and cover these concepts, be sure that you feel you have the 'gist' of what we're talking about.  Almost everything of what comes after linear models builds on these ideas, so it's important to have a firm grasp before climbing to new heights.
 
 
-
-### Features and Targets
+## Features and Targets
 
 In the context of a model, how we specify the nature of the relationship depends on the context. In the interest of generality, we'll refer to the **target** as what we want to explain, and **features** as those aspects of the data we will use to explain it. Because people come at data from a variety of contexts, they often use different terminology to mean the same thing. Some of these actually suggest a particular type of relationship (e.g., a causal relationship, an experimental setting), but we'll ignore that for now.  The table below shows some of the common terms used to refer to features and targets.
 
@@ -107,7 +109,7 @@ We may use any or all of these words to describe things so that you are comforta
 
 As noted,  a model is a way of expressing a relationship between a set of features and a target, and one way of expressing them is as inputs and outputs. But how can we go from input to output?  Well to begin, we assume that the features and target are **correlated**, i.e. that there is some relationship between the x and y.  If so, then we can ulitmately use the features to **predict** the target.  In the simplest setting a correlation implies a  relationship where x and y typically move up and down together (left plot) or they move in opposite directions where x goes up and y goes down.
 
-```{r corr-plot}
+```{r corr-plot, cache.rebuild=TRUE}
 #| echo: false
 #| label: fig-corr-plot
 #| fig-cap: Correlation
@@ -140,121 +142,240 @@ p1 + p2
 
 
 
-### *THE* Linear Model
-
-
+## *THE* Linear Model
 
 
 The linear model is perhaps the simplest *functional* model we can use to express a relationship between features and targets.  It's possibly still the most common model used in practice, and it is the basis for many types of models.  Why don't we run one now?
+
+The following dataset contains movie individual [movie reviews][app-data-review] and contains the rating (1-5 stars scale) along with features pertaining to the review (e.g. gender, education) and features about the movie (e.g. genre, year).  We'll use the linear model to predict the rating from the length of the review.
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: import-review
+library(tidyverse)
+
+df_reviews <- read_csv("data/review_data.csv")
+
+skimr::skim(df_reviews)
+```
+
+For our first linear model, we'll keep things simple.  Let's predict the rating from the length of the review.  We'll use the `lm()` function in R and the `ols()` function in Python to fit the model.  The `lm()` function takes a formula as its first argument, which is a way of expressing the relationship between the features and target.  The formula is expressed as `y ~ x`, where `y` is the target and `x` is the feature.  The `ols()` function takes the same formula, but it also requires a `data` argument that specifies the data frame containing the features and target.
 
 :::{.panel-tabset}
 ##### R
 
 ```{r my-first-model}
-#| eval: false
 #| label: r-my-first-model
-library(tidyverse)
+df_reviews <- read_csv("data/review_data.csv")
 
-df = read_csv("")
+model_reviews = lm(rating ~ review_length, data = df_reviews)
 
-my_model = lm(y ~ x, data = df)
-
-summary(my_model)
+summary(model_reviews)
 ```
+
+```{r}
+#| label: r-my-first-model-output
+
+# gt(broom::tidy(model_reviews))
+```
+
 
 
 ##### Python
 
 ```{python}
-#| eval: false
 #| label: py-my-first-model
-#| code-fold: true
 import pandas as pd
 import statsmodels.formula.api as smf
 
-df = pd.read_csv('')
-my_model = smf.ols('y ~ x', data = df).fit()
+df_reviews = pd.read_csv('data/review_data.csv')
+model_reviews = smf.ols('rating ~ review_length', data = df_reviews).fit()
 
-my_model.summary()
+print(model_reviews.summary())
 ```
+
+:::
+
+For such a simple model, we certainly get a lot of output! Don't worry, you'll eventually come to know what it all means. But it's nice to know how easy it is to get the results!
+
+The linear model posits a **linear combination** of the features.  A linear combination is just a sum of the features, each of which has been multiplied by some specific value.  That value is often called a **coefficient** or possibly **weight**.  The linear model is expressed as (math incoming!):
+
+$$y = b_0 + b_1x_1 + b_2x_2 + ... + b_nx_n$$
+
+- $y$ is the target.
+- $x_1, x_2, ... x_n$ are the features.
+- $b_0$ is the intercept, which is kind of like a baseline value or offset. If we has no inputs at all it would just be the mean of the target.
+- $b_1, b_2, ... b_n$ are the coefficients or weights for each feature.
+
+But lets start with something simpler, let's say you want to take a sum of several features. In math you would write it as:
+
+$$x_1 + x_2 + ... + x_n$$
+
+In the previous equation, x is the feature and n is the number of features. $x_1$ is the first feature, $x_2$ the second, and so on.  $x$ is an arbitrary designation, you could use any letter, symbol you want, or better would be the actual name. Now look at the linear model.
+
+```{r, attr.output='.details summary="Output"'}
+#| eval: false
+#| echo: false
+#| code-fold: true
+#| code-summary: 'Math!'
+#| results: 'asis'
+
+# failed attempt to fold output; see https://github.com/quarto-dev/quarto-cli/issues/341;
+# despite implication on GH issue, there is no solution for not showing code but toggling output
+
+cat("$$y = x_1 + x_2 + ... + x_n$$")
+```
+
+$$y = x_1 + x_2 + ... + x_n$$
+
+
+In this case, the function is *just a sum*, something so simple we do it all the time. In the linear model sense though, we're actually saying a bit more. Another way to understand that equation is that *y is a function of x*.  We don't show any coefficients, but technically it's as if each coefficient was a value of 1.  In other words, for this simple linear model, we're saying that each feature contributes equally to the target. 
+
+In practice, features will not contribute in the same ways. If we want to relate some feature, x1, and some other feature, x2, to target y, we probably would not assume that they both contribute in the same way from the beginning.  We might give more weight to x1 than x2.  In the linear model, we express this by multiplying each feature by a different coefficient. So the linear model is really just a sum of the features multiplied by their coefficients. In fact, we're saying that each feature contributes to the target in proportion to the coefficient. So if we have a feature x1 and a coefficient b1, then the contribution of x1 to the target is b1\*x1. If we have a feature x2 and a coefficient b2, then the contribution of x2 to the target is b2\*x2. And so on.  So the linear model is really just a sum of the features multiplied by their coefficients.  
+
+For our model, here is the mathemtical represenation:
+
+$$\textrm{rating} = b_0 + b_1 \cdot \textrm{review\_length}$$
+
+And with the actual results of our model:
+
+$$\textrm{rating} = -1.2 + .09 \cdot \textrm{review\_length}$$
+
+Not too complicated we hope!  But let's make sure we see what's going on here just a little bit more. 
+
+- Our *idea* is that the length of the review is in some way related to the eventual rating given to the movie. 
+- Our *target* is rating, and the *feature* is the review length
+- We *map the feature to the target* via the linear model, which provies an initial understanding of how the feature is related to the target.  In this case, we start with a baseline of -1.2.  This makes sense only in the case of a rating with no review, which is required for this data.  We'll talk about ways to get a more meaningful intercept later, but for now, that is our starting point.
+ if we add a single character to the review, we expect the rating to increase by .09. If we add 10 characters, we expect the rating to increase by .9. If we add 20 characters, we expect the rating to increase by 1.8.
+
+
+> In chapter 0, maybe say something about science = prediction, but maybe also stay away from academic treament
+
+::: {.callout-note collapse="true" appearance="minimal"}
+## Matrix Represenation of a Linear Model
+
+Here we'll show the matrix represenation form of the linear model, for the typical case where we have more than one feature in the model. In the following, y is a vector of all target observations, and likewise each x is a (row) vector of all observations for that feature.  The b vector is the vector of coefficients.  The 1 serves as a means to incorporate the intercept. It's just a feature that always has a value of 1.  The matrix multiplication is just a compact way of expressing the sum of the features multiplied by their coefficients.  We can even do it more
+
+Here is y as a vector of observerations, n x 1.
+
+$$
+\textbf{y} = \begin{bmatrix}
+y_1 \\
+y_2 \\
+\vdots \\
+y_n
+\end{bmatrix}
+$$ {#eq-lm-mat-y}
+
+Here is the vector for x, including the intercept:
+
+$$
+\textbf{X} = \begin{bmatrix}
+1 & x_{11} & x_{12} & \dots & x_{1p} \\
+1 & x_{21} & x_{22} & \dots & x_{2p} \\
+\vdots & \vdots & \vdots & \ddots & \vdots \\
+1 & x_{n1} & x_{n2} & \dots & x_{np}
+\end{bmatrix}
+$$ {#eq-lm-mat-x}
+
+And finally, here is the vector of coefficients:
+
+$$
+\textbf{b} = \begin{bmatrix}
+b_0 \\
+b_1 \\
+\vdots \\
+b_p
+\end{bmatrix}
+$$ {#eq-lm-mat-b}
+
+
+Putting it all together, we get the linear model in matrix form:
+
+$$
+\textbf{y = Xb }
+$$ {#eq-lm-mat-mult}
 
 :::
 
 
 
 
+## Prediction
 
+Once we have a working model, we can use it to make predictions.  We can do this by plugging in values for the features and using the corresponding weights. Let's go back to our results, starting with a simpler depiction.
 
-The linear model posits a **linear combination** of the features.  A linear combination is just a sum of the features, each of which has been multiplied by some constant value.  In the case of the linear model, the constant is often called a **coefficient** or possibly **weight**.  The linear model is expressed as (math incoming!):
-
-$$y = b_0 + b_1x_1 + b_2x_2 + ... + b_nx_n$$
-
-- y is the target
-- x1, x2, ... xn are the features
-- b0 is the intercept
-- b1, b2, ... bn are the coefficients
-
-
-
-But lets start with something simpler, let's say you want to take a sum of several features. In OMG MATH you would write it as:
-
-$$x_1 + x_2 + ... + x_n$$
-
-In the previous equation, x is the feature and n is the number of features. `x` is an arbitrary designation, you could use any letter, symbol you want, or better would be the actual name. Now look at the linear model.
-
-
-$$y = x_1 + x_2 + ... + x_n$$
-
-In this case, the function is *just a sum*, something so simple we do it all the time. In the linear model sense though, we're actually saying a bit more. Another way to understand that equation is that *y is a function of x*.  We don't show any coefficients, but technically it's as if each coefficient was a value of `1`.  In other words, for this simple linear model, we're saying that each feature contributes equally to the target. 
-
-In the linear model, we're saying that each feature contributes to the target, but in practice feature never contribute in the same way. If we want to relate some cool x1 and some other cool x2 to hot target y, we probably would not assume that they both contribute in the same way.  We might give more weight to cool x1 than cool x2.  In the linear model, we express this by multiplying each feature by a differnt coefficient.  So the linear model is really just a sum of the features multiplied by their coefficients.  In math, we would write it as:
-
-$$y = b_0 + b_1x_1 + b_2x_2 + ... + b_nx_n$$
-
-For starters, features are typically on different scales
-
-In fact, we're saying that each feature contributes to the target in proportion to the coefficient.  So if we have a feature x1 and a coefficient b1, then the contribution of x1 to the target is b1*x1.  If we have a feature x2 and a coefficient b2, then the contribution of x2 to the target is b2*x2.  And so on.  So the linear model is really just a sum of the features multiplied by their coefficients.  In math, we would write it as:
-
-
-> In chapter 0, maybe say something about science = prediction, but maybe also stay away from academic treament
-
-
-Here is a matrix multiplication formula:
-$$
-\begin{bmatrix} 1 & x_1 & x_2 & ... & x_n \end{bmatrix} \begin{bmatrix} b_0 \\ b_1 \\ b_2 \\ ... \\ b_n \end{bmatrix}
-$$ {#eq-lm-mat-mult}
-
-
-Here is test reference to the previous table See @tbl-feature-target-names . But this equation reference wroks work in quarto (@eq-lm-mat-mult). does this figure @fig-corr-plot work?  How about this one @fig-corr-plot2?
-
-```{r corr-plot2}
+```{r}
 #| echo: false
-#| label: fig-corr-plot2
-#| fig-cap: Correlation
+#| label: my-first-model-output
 
-
-plot(rnorm(10))
+gt(broom::tidy(model_reviews, conf.int = TRUE) |> rename(feature = term))
+int = round(coef(model_reviews)[1], 2)
+rl_coef = round(coef(model_reviews)[2], 2)
+rl_ci = round(confint(model_reviews)[2, ], 2)
+n_char = 50
 ```
 
 
-### Prediction
+ The table shows the **coefficient** for each feature including the intercept.  In this case, the coefficient is `r rl_coef`, which means that for every additional word in the review, the rating goes up by `r rl_coef` stars.  So if we had a review that was `r n_char` characters long, we would predict a rating of `r paste(int)` + `r glue("{n_char}*{rl_coef}")` = `r round(predict(model_reviews, newdata = data.frame(review_length = n_char)), 1)` stars.
 
-Once we have a working model, we can use it to make predictions.  We can do this by plugging in values for the features.  For example, if we have a model that predicts the price of a house based on the number of bedrooms and the square footage, we can plug in the number of bedrooms and the square footage for a house we're interested in and get a predicted price.  When we're talking about predictions we usually will see this as:
+When we're talking about predictions we usually will see this as:
 
 $$\hat{y} = b_0 + b_1x_1 + b_2x_2 + ... + b_nx_n$$
 
-Where $\hat{y}$ is the predicted value of the target.  The hat over the $y$ just means that it's a predicted value.  We can also express this as a matrix multiplication:
+What is $\hat{y}$? The hat over the $y$ just means that it's a predicted value of the model, rather than the one we actually observe. In fact, we were missing something in our previous depictions of the linear model.  We need to add an error term, $\epsilon$, to account for the fact that our predictions will not be perfect[^perfect_prediction].  So the full linear model is:
 
-$$\hat{y} = \begin{bmatrix} 1 & x_1 & x_2 & ... & x_n \end{bmatrix} \begin{bmatrix} b_0 \\ b_1 \\ b_2 \\ ... \\ b_n \end{bmatrix}$$
+[^perfect_prediction]: In most circumstances, if you ever have perfect prediction, or even near perfect prediction, you have either asked a rather obvious question of your data or have accidentally included the target in your features (or a combination of them).
 
+$$y = b_0 + b_1x_1 + b_2x_2 + ... + b_nx_n + \epsilon$$
 
-
-### Estimation
-
-But how do we know what the coefficients are?  We can guess, but how would we know what to guess? How would we know which guesses are better than others?  There's got to be a better way, and there is- we need to estimate them!
+The error term is a random variable that represents the difference between the actual value and the predicted value.  We can't know what the error term is, but we can estimate it.  We'll talk more about that in the section on Estimation.
 
 
-#### Ordinary Least Squares
+### Prediction vs. Explanation
+
+In our view, one can't stress enough the importance of a model's ability to predict the target.  It can be a poor model, maybe because the data is not great, or we're exploring a new area, but we'll always be interested in how well a model **fits** the observed data, and predicts new data.
+
+As strange as it may sound, you can read whole journal articles and business reports in many fields with hardly any mention of prediction. Instead, the focus is on the **explanation** of the model, and this is where the coefficients come in. They are used to explain how the features are related to the target, and we may use terms like saying a feature 'strongly' correlates, or 'negatively' correlates to the target.  In our case, we can say that for every additional word in the review, we *expect* the rating to go up by `r rl_coef` stars.  We might even use our background knowledge and context to say this is a 'strong' relationship.  
+
+Additionally, the extra information in the table shows that review length is **statistically significant**, which is a very loaded description.  For our purposes right now, we'll interpret it as follows: if we expected the coefficient to be zero, the probability of seeing a coefficient as large as `r rl_coef` or larger is very small.  In fact, the probability is so small (rounded to zero), we might conclude that the coefficient is not zero, and that the feature is related to the target.  Unfortunately, statistical significance is affected by other things besides the size of the coefficient, and without an understanding of the context of the features (like how long typical reveiws are, what their range is, what variability of ratings is, etc.), the information it provides is extremely limited, and many would argue, not even useful at all.
+
+In the past, and even the present, statistical is focused on a great deal, even to the point that a papers are written about models that have no predictive power at all. In those settings, statistical significance is often used as a proxy for importance, which it should never be. If we are very interested in the coefficient, it is better to focus on the range of possible values, which is provided by the **confidence interval**.  While a confidence interval is also a loaded description of a feature's relationship to the target, we can use it in a very practical way as a range of possible values for that weight. Here we see that the coefficient could be as low as `r rl_ci[1]` or as high as `r rl_ci[2]`, which might interpret as a relatively narrow range, giving us some 'confidence' that we should expect a non-zero value when assessing this particular relationship. Like statistical significance though, it is affected by many things, and without context, is limited in the information it can provide.
+
+Suffice it to say at this point that how much one focuses on prediction vs. explanation depends on the context and goals of the data endeavor.  There are cases where predictive capability is of utmost importance, and we care less about the explanation, but not to the point of ignoring it. Even with deep learning models for image classification, where the inputs are just RGB values, we'd still like to know what the (notably complex) model is picking up on, otherwise we may be classifying images based on background nonsense.  In some business settings, we are very or even mostly interested in the weights, which might indicate how to allocate resources in some fashion, but if they come from a model with no predictive power, this may be a fruitless endeavor.
+
+
+
+### Prediction Error
+
+## Estimation
+
+In our linear model, one of, and so far the only, key **parameter** is the coefficient for each feature. But how do we know what the coefficients are? When we run a linear model using some function, they appear magically, but it's worth knowing a little bit about how they come to be.
+
+### Guessing
+
+As a starting point we can guess, but how would we know what to guess? How would we know which guesses are better than others?  Let's try a few guesses and see how they do.  We'll start with a guess of 0 for all the coefficients.  We can plug this into the model and see what we get: 
+
+$$\hat{y} = 0 + 0x_1 + 0x_2 + ... + 0x_n$$
+
+That's just going to equal zero, which we know would not be a good guess.  A better guess would just be the mean of the target.  We can plug that into the model and see what we get:
+
+$$\hat{y} = \bar{y} + 0x_1 + 0x_2 + ... + 0x_n$$
+
+In this case, our guess for the coefficients are still zero, but our offset (or intercept) is the mean of the target.  This is a better guess, but it's still not great.  How do we know it's better?  We can compare the predictions from each guess to the actual values of the target.  We can do this by calculating the **prediction error** or **residuals**.  The residual is the difference between the actual value of the target and the predicted value of the target.  We can express this as:
+
+$$e = y - \hat{y}$$
+
+Where $e_i$ is the residual for observation, which we can think of as e for error.
+
+
+
+
+There's got to be a better way, and there is!
+
+
+### Ordinary Least Squares
 
 We can do this in a few ways, but the most common is to use the **Ordinary Least Squares (OLS)** method.  OLS is a method of estimating the coefficients that minimizes the sum of the squared errors.  In other words, it finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.  We can express this as:
 
@@ -262,16 +383,16 @@ $$\sum_{i=1}^{n} (y_i - \hat{y_i})^2$$
 
 Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value of the target for observation $i$.  The hat over the $y$ means that it's a predicted value.  The sum of the squared errors is also called the **residual sum of squares** (RSS).  The OLS method finds the coefficients that minimize the RSS, or in other words, it finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.  
 
-#### Maximum Likelihood 
+### Maximum Likelihood 
 
-#### Estimation as 'Learning'
+### Estimation as 'Learning'
 
-#### Gradient Descent?
+### Gradient Descent?
 
-#### Other Loss Functions Quick Demo
+### Other Loss Functions Quick Demo
 
 
-### Assumptions and More
+## Assumptions and More
 
 ## Commentary
 
