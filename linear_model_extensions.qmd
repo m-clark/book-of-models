@@ -1,0 +1,200 @@
+# Beyond The Basics
+
+## Quantile Regression
+
+> Oh, you think the mean is your ally. But you merely adopted the mean; I was born in it, molded by it. I didn’t see the median until I was already a man. And by then, it was nothing to me but illuminating.
+
+> -- <cite>Bane (probably)</cite>
+
+```{r, include = FALSE}
+source("load_packages.R")
+source("setup.R")
+
+reticulate::use_condaenv("book-of-models")
+```
+
+People generally understand the concept of the arithmetic mean. You see it sometime during elementary school, it gets tossed around in daily language (usually using the word "average"), and it is statistically important. After all, where would the normal distribution be without a mean? 
+
+In a perfect data world, the mean is equal to the middle observation of the data: the *median*. That is only in the perfect world, though, and usually our data comes loaded with challenges. Extreme scores in your data will cause a rift between the median and the mean. 
+
+Let's say we take the integers between 1 and 10, and find the mean. 
+
+$$\frac{1+2+3+4+5+6+7+8+9+10}{10} =  5.5$$
+The middle value in that vector of numbers would also be 5.5. 
+
+What happens we replace the 1 with a -10?
+
+$$\frac{-10+2+3+4+5+6+7+8+9+10}{10} =  4.5$$
+With just one dramatic change, our mean went down by a whole point. The median observation, though, is still 5.5. In short, the median is invariant to wild swings out in the tails of your numbers.  
+
+You might be saying to yourself, "Why should I care about this central tendency chicanery?" Let us tell you why you should care -- the least squares approach to the standard linear model dictates that the regression line needs to be fit through the means of the variables. If you have extreme scores that influence the mean, then your regression line will also be influence by those extreme scores.
+
+Let's look at a few different regression lines:
+
+```{r}
+library(ggplot2)
+
+set.seed(123)
+N <- 1000 
+k <- 2   
+X <- matrix(rnorm(N * k), ncol = k)  
+y <- -.5 + .2*X[, 1] + .1*X[, 2] + rnorm(N, sd = .5)  
+
+dfXy <- data.frame(X, y)
+
+ggplot(dfXy, aes(x = X1, y = y)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  xlab("x") +
+  ylab("y") +
+  theme_minimal()
+```
+
+This gives us the following:
+
+$$y = -.51 + .2X_1$$
+
+Now, what would happen if we replaced a few of our observations with extreme scores?
+
+```{r}
+new_df <- dfXy
+
+new_df$y[dfXy$y > quantile(dfXy$y, .95) & 
+         dfXy$X1 > quantile(dfXy$X1, .95)] <- rnorm(10, 2.5, .1)
+
+new_df$X1[dfXy$y > quantile(dfXy$y, .95) & 
+         dfXy$X1 > quantile(dfXy$X1, .95)] <- rnorm(10, 2.5, .1)
+
+ggplot(new_df, aes(x = X1, y = y)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  xlab("x") +
+  ylab("y") +
+  theme_minimal()
+```
+
+Yielding the following equation:
+
+$$y = -.49 + .24X_1$$
+
+Pictures are always better, so let's put those lines in the same space:
+
+```{r}
+ggplot() +
+  geom_smooth(aes(X1, y, color = "No extreme scores"), 
+              data = dfXy, method = 'lm', 
+              se = FALSE) +
+  geom_smooth(aes(X1, y, color = "Extreme scores"), 
+              data = new_df, method = 'lm', 
+              se = FALSE) +
+  xlab("x") +
+  ylab("y") +
+  theme_minimal() +
+  scale_color_manual(name='Data',
+                     breaks=c('No extreme scores', 'Extreme scores'),
+                     values=c('No extreme scores'='red', 'Extreme scores'='blue'))
+```
+
+With 1000 observations, we see that having just 10 extreme scores is enough to change the regression line, even if just a little. There are a few approaches we could take here, with common approaches being dropping those observations or Windsorizing them. Throwing away data because you don't like the way it behaves is nearing on statistical abuse and Windsorization is just replacing those extreme values with numbers that you like a little bit better.
+
+A better answer to this challenge might be to not fit the regression line through the mean, but the median instead. This is where quantile regression become handy. With quantile regression, we are given an extra parameter for the model: *tau*. The tau parameter let's us choose which quantile we want to use for our line fitting. Since the median splits the data in half, we can translate that to a quantile of .5. 
+
+Let's bring in some data about movie reviews and get it ready:
+
+```{r}
+reviews <- read.csv("review_data.csv")
+```
+
+Let's say that we are curious about the relationship between the `user_age` variable and the `rating` variable. First, we need to get our data ready for our homebrewed functions.
+
+```{r}
+reviews <- na.omit(reviews)
+
+y <- reviews$rating
+
+X <- cbind(intercept = 1, 
+           user_age = reviews$user_age)
+```
+
+
+### Loss Function
+
+Let's return to the least squares loss function:
+
+```{r}
+lm_ls <- function(par, X, y) {
+  lp = X %*% par
+  mu = lp   
+  L = crossprod(y - mu)
+}
+```
+
+```{r}
+quantile_loss <- function(par, X, y, tau) {
+  lp = X %*% par
+  res = y - lp
+  loss = ifelse(res < 0 , 
+                (-1 + tau)*res, 
+                tau*res)
+  sum(loss)
+}
+```
+
+You'll notice right away that we have that extra *tau* argument, which will let us set our quantile of interest. The residual is multiplied by the tau value, only if the residual is greater than 0. If the residual is negative, we need to add tau to -1. Since we need a positive value for our loss values, we will multiply our negative residuals by the negative value produced from -1 plus our tau value. After that, we just sum all of those positive loss values and do our best to minimize that summed value. 
+
+### Model Fitting
+
+Now that we have our data and our loss function, we can fit the model almost exactly like our standard linear model. Again, note the difference here with our tau value, which we've set to .5 to represent the median.
+
+```{r}
+optim(
+  par = c(intercept = 0, user_age = 0),
+  fn  = quantile_loss,
+  X   = X,
+  y   = y,
+  tau = .5
+)$par
+```
+
+Fortunately, our interpretation of this result isn't all that different from a standard linear model -- the rating should increase by .08 for every year older that people get. However, this is at the median, not the mean, like the standard linear model. 
+
+Let's check out results against those produced by `quantreg`:
+
+```{r}
+library(quantreg)
+
+median_test <- rq(rating ~ user_age, tau = .5, 
+                data = reviews)
+
+summary(median_test)
+```
+
+Our home-brewed function returned the same results as the guy who "created" quantile regression.
+
+Quantile regression is not a one-trick-pony. Remember, it is called quantile regression -- not median regression. Being able to compute a median regression is just a nice by-product. What we can do with quantile regression is to model different quantiles of the same data. It gives us the ability to answer brand new questions -- does the relationship between user age and their ratings change at different quantiles of rating?
+
+```{r}
+tau_values <- c(.1, .3, .5, .7, .9)
+
+quant_values <- purrr::map_df(tau_values, ~{
+  result <- coef(rq(rating ~ user_age, tau = .x, 
+                    data = reviews))
+  result$tau <- .x
+  result
+})
+
+colnames(quant_values) <- c("intercept", "user_age", "tau")
+
+quant_values$tau <- as.factor(quant_values$tau)
+
+ggplot() +
+  geom_point(data = reviews, mapping = aes(user_age, rating)) +
+  geom_abline(mapping = aes(slope = user_age, 
+                            intercept = intercept, 
+                            color = tau),
+              data = quant_values) +
+  theme_minimal()
+
+```
+
+## Additive Models
