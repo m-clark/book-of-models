@@ -412,10 +412,10 @@ Not only does this tell us how far off our model prediction is, it gives us a wa
 y = df_reviews$rating
 
 # Calculate the error for the guess of all zeros
-error_zeros <- sum(y - 0)^2
+error_zeros <- sum((y - 0)^2)
 
 # Calculate the error for the guess of the mean
-error_mean <- sum(y - mean(y))^2
+error_mean <- sum((y - mean(y))^2)
 ```
 
 
@@ -426,9 +426,10 @@ error_mean <- sum(y - mean(y))^2
 y = df_reviews['rating']
 
 # Calculate the error for the guess of all zeros
-error_zeros = np.sum(y - 0)**2
+error_zeros = np.sum((y - 0)**2)
+
 # Calculate the error for the guess of the mean
-error_mean = np.sum(y - y.mean())**2
+error_mean = np.sum((y - y.mean())**2)
 
 ```
 
@@ -438,8 +439,8 @@ error_mean = np.sum(y - y.mean())**2
 #| echo: false
 #| label: compare-error
 tibble(
-    zero_sq_sum = sum(error_zeros^2),
-    mean_sq_sum = sum(error_mean^2)
+    zero_sq_sum = error_zeros,
+    mean_sq_sum = error_mean
 ) |>
     gt()
 ```
@@ -454,7 +455,9 @@ Well, this is useful, but you're probably hoping there is an easier way to do th
 
 ### Ordinary (?) Least Squares
 
-For a simple linear model, we can estimate the parameters in several ways, but the most common is to use the **Ordinary Least Squares (OLS)** method.  OLS is a method of estimating the coefficients that minimizes the sum of the squared errors, which we've just been doing.  In other words, it finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.  We can express this as:
+For a simple linear model, we can estimate the parameters in several ways, but the most common is to use the **Ordinary Least Squares (OLS)** method. OLS is a method of estimating the coefficients that minimizes the sum of the squared errors, which we've just been doing[^notamodel].  In other words, it finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.  We can express this as:
+
+[^notamodel]: Some disciplines seem confuse models with estimation methods and link functions. It doesn't really make sense nor is informative to call something an OLS model or a logit model. Many models are estimated using a least squares approach, and different types of models use a logit link.
 
 $$\textrm{Loss} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2$$
 
@@ -462,7 +465,7 @@ Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i
 
 It's called *ordinary* least squares becuase there are other least squares- generalized least squares, weighted least squares, and others, but this doesn't really matter. What matters is that we have a way to estimate the coefficients that minimizes the sum of the squared errors. 
 
-The resulting value - the sum or mean of the squared errors, is sometimes referred to as our **objective** or **loss** function.  We can use this value to find the best parameters for a specific model, as well as compare different models with different parameters, such as a model with different features.  We can also use this value to compare different types of models, such as a linear model and a decision tree model.  
+The resulting value - the sum or mean of the squared errors, is sometimes referred to as our **objective** function, or **loss** function (if we are minimizing it), or even target function.  We can use this value to find the best parameters for a specific model, as well as compare different models with different parameters, such as a model with different features.  We can also use this value to compare different types of models, such as a linear model and a decision tree model.  
 
 Let's calculate the OLS estimate for our model. From our steps above, we need guesses and a way to update them.  Well, we can provide a bunch of guesses, and just move along from one set to the next until we find the best one.
 
@@ -472,7 +475,6 @@ Let's calculate the OLS estimate for our model. From our steps above, we need gu
 ##### R
 ```{r}
 #| label: r-ols
-
 ols <- function(x, y, b0, b1, sum = TRUE) {
     # Calculate the predicted values
     y_hat <- b0 + b1 * x
@@ -480,15 +482,15 @@ ols <- function(x, y, b0, b1, sum = TRUE) {
     # Calculate the error
     error <- y - y_hat
     
-    # Calculate the loss as sum or average
+    # Calculate the value as sum or average
     if (sum) {
-        loss <- sum(error^2, na.rm = TRUE)
+        value <- sum(error^2, na.rm = TRUE)
     } else {
-        loss <- mean(error^2, na.rm = TRUE)
+        value <- mean(error^2, na.rm = TRUE)
     }
 
-    # Return the loss
-    return(loss)
+    # Return the value
+    return(value)
 }
 
 # create a grid of guesses
@@ -504,6 +506,7 @@ ols(
     b0 = guesses$b0[1],
     b1 = guesses$b1[1]
 )
+
 ```
 
 ##### Python
@@ -519,14 +522,14 @@ def ols(x, y, b0, b1, sum = True):
     # Calculate the error
     error = y - y_hat
     
-    # # Calculate the loss as sum or average
+    # # Calculate the value as sum or average
     if sum:
-        loss = np.sum(error**2)
+        value = np.sum(error**2)
     else:
-        loss = np.mean(error**2)
+        value = np.mean(error**2)
     
-    # Return the loss
-    return(loss)
+    # Return the value
+    return(value)
 
 # create a grid of guesses
 
@@ -544,62 +547,102 @@ ols(
     x = df_reviews['review_length'],
     y = df_reviews['rating'],
     b0 = guesses['b0'][0],
-    b1 = guesses['b1'][0]
+    b1 = guesses['b1'][0],
+    sum = False
 )
 ```
 
 :::
 
-
+Now we want to calculate the loss for each guess and find which one gives us the minimum function value.
 
 ```{r}
 #| label: r-ols-apply
 #| echo: false
 
-# Calculate the loss for each guess
+# Calculate the ols function value for each guess
 guesses <- guesses %>%
-    mutate(loss = map2_dbl(
+    mutate(objective = map2_dbl(
         guesses$b0, guesses$b1,
         \(b0, b1) ols(b0 = b0, b1 = b1, x = df_reviews$review_length, y = df_reviews$rating)
     ))
 
+min_loss = guesses %>% filter(objective == min(objective))
+
+predictions = min_loss$b0 + min_loss$b1 * df_reviews$review_length
 
 guesses |>
-    ggplot(aes(x = b0, y = b1, fill = loss)) +
-    geom_tile() +
+    ggplot(aes(x = b0, y = b1)) +
+    geom_tile(aes(fill = objective), show.legend = FALSE) +
     geom_point(
-        data = guesses %>% filter(loss == min(loss)),
+        data = min_loss,
         size = 6,
         color = "white"
     ) +
     geom_text(
-        data = guesses %>% filter(loss == min(loss)),
-        aes(label = paste0("Minimum at (", round(b0, 2), ", ", round(b1, 2), ")")),
-        size = 6,
-        hjust = -0.1,
-        color = "white"
+        data = min_loss,
+        aes(label = glue("Minimum at ({round(b0, 2)}, {round(b1, 2)})\nObjective value = {round(objective, 2)}")),
+        size = 3,
+        hjust = -0.0,
+        color = "gray50"
     ) +
-    scale_fill_viridis_c() +
+    annotate(
+        geom = "text",
+        x = intercept,
+        y = rl_coef,
+        label = glue("OLS estimate at ({intercept}, {rl_coef})\nObjective value = {round(summary(model_reviews)$sigma^2*nrow(df_reviews), 2)}"),
+        size = 3,
+        hjust = -0.1,
+        color = "gray50"
+    ) +
+    # coord_cartesian(
+    #     # xlim = c(-1, 1),
+    #     ylim = c(-1, 1)
+    # ) +
+    scico::scale_fill_scico() +
     labs(
         x = "b0",
         y = "b1",
-        title = "Loss for different guesses of b0 and b1"
+        title = "Objective value (loss) for different guesses of b0 and b1"
     )
 ```
 
-Returning to our results from the built-in functions, we had estimates of ...
+Returning to our results from the built-in functions, we had estimates of `r intercept` and `r rl_coef` for our coefficients. These are similar but not exactly the same, but we are very close on the weight for review length, and not wildly off on the intercept.
 
 ```{r}
-#| echo: false
-paste(round(coef(model_reviews), 3))
+p1 = df_reviews |> 
+    mutate(prediction = predictions)  |> 
+    ggplot(aes(x = prediction, y = rating)) + 
+    geom_point(alpha = 0.5, size = 4) +
+    geom_abline(
+        intercept = 0,
+        slope = 1,
+        color = okabe_ito[2],
+        linewidth = 2
+    )
+
+# compare densities
+p2 = df_reviews |> 
+    mutate(prediction = predictions) |> 
+    select(rating, prediction) |>
+    pivot_longer(everything()) |>
+    ggplot(aes(x = value)) +
+    geom_density(aes(fill = name), alpha = 0.5) 
+
+p1  + p2
 ```
 
 
- We'll use the `lm()` function in R and the `LinearRegression()` function in Python.  We'll also use the `summary()` function in R and the `statsmodels.summary()` function in Python to get a summary of the results.
+
+
+### Estimation as 'Learning'
+
+
+
 
 ### Maximum Likelihood 
 
-### Estimation as 'Learning'
+
 
 ### Gradient Descent?
 
