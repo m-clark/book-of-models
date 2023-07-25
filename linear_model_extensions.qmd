@@ -1,37 +1,44 @@
-# Beyond The Basics
+# Extending Beyond Regression Means
+
+People generally understand the concept of the arithmetic mean. You see it some time during elementary school, it gets tossed around in daily language (usually using the word "average"), and it is statistically important. After all, where would the normal distribution be without a mean? Why, though, do we feel so tied to it from a regression modeling perspective? Yes, it has handy features, but it is also a bit restrictive to the types of relationships that it can actually model well. 
+
+In this chapter, we want to show you what to do when the mean betrays you -- and trust us, the mean will betray you at some point. 
 
 ## Quantile Regression
 
-> Oh, you think the mean is your ally. But you merely adopted the mean; I was born in it, molded by it. I didn’t see the median until I was already a man. And by then, it was nothing to me but illuminating.
-
-> -- <cite>Bane (probably)</cite>
-
+> Oh, you think the mean is your ally. But you merely adopted the mean; I was born in it, molded by it. I didn’t see anything interesting until I was already a man. And by then, it was nothing to me but illuminating.
+> -- Bane (probably)
+  
 ```{r, include = FALSE}
-source("load_packages.R")
-source("setup.R")
+# source("load_packages.R")
+# source("setup.R")
 
 reticulate::use_condaenv("book-of-models")
 ```
-
-People generally understand the concept of the arithmetic mean. You see it sometime during elementary school, it gets tossed around in daily language (usually using the word "average"), and it is statistically important. After all, where would the normal distribution be without a mean? 
 
 In a perfect data world, the mean is equal to the middle observation of the data: the *median*. That is only in the perfect world, though, and usually our data comes loaded with challenges. Extreme scores in your data will cause a rift between the median and the mean. 
 
 Let's say we take the integers between 1 and 10, and find the mean. 
 
 $$\frac{1+2+3+4+5+6+7+8+9+10}{10} =  5.5$$
+
 The middle value in that vector of numbers would also be 5.5. 
 
-What happens we replace the 1 with a -10?
+What happens we replace the 1 with a more extreme value, like -10?
 
 $$\frac{-10+2+3+4+5+6+7+8+9+10}{10} =  4.5$$
+
 With just one dramatic change, our mean went down by a whole point. The median observation, though, is still 5.5. In short, the median is invariant to wild swings out in the tails of your numbers.  
 
-You might be saying to yourself, "Why should I care about this central tendency chicanery?" Let us tell you why you should care -- the least squares approach to the standard linear model dictates that the regression line needs to be fit through the means of the variables. If you have extreme scores that influence the mean, then your regression line will also be influence by those extreme scores.
+You might be saying to yourself, "Why should I care about this central tendency chicanery?" Let us tell you why you should care -- the least squares approach to the standard linear model dictates that the regression line needs to be fit through the means of the variables. If you have extreme scores that influence the mean, then your regression line will also be influenced by those extreme scores.
 
 Let's look at a few different regression lines:
+  
+```{r, linear_line_no_extremes}
+#| echo: false
+#| label: linear_line_no_extremes
+#| tbl-cap: Linear line without extreme scores
 
-```{r}
 library(ggplot2)
 
 set.seed(123)
@@ -50,20 +57,19 @@ ggplot(dfXy, aes(x = X1, y = y)) +
   theme_minimal()
 ```
 
-This gives us the following:
-
-$$y = -.51 + .2X_1$$
-
 Now, what would happen if we replaced a few of our observations with extreme scores?
-
-```{r}
+  
+```{r linear_line_extremes}
+#| echo: false
+#| label: linear_line_extremes
+#| tbl-cap: Linear line with extreme scores
 new_df <- dfXy
 
 new_df$y[dfXy$y > quantile(dfXy$y, .95) & 
-         dfXy$X1 > quantile(dfXy$X1, .95)] <- rnorm(10, 2.5, .1)
+           dfXy$X1 > quantile(dfXy$X1, .95)] <- rnorm(10, 2.5, .1)
 
 new_df$X1[dfXy$y > quantile(dfXy$y, .95) & 
-         dfXy$X1 > quantile(dfXy$X1, .95)] <- rnorm(10, 2.5, .1)
+            dfXy$X1 > quantile(dfXy$X1, .95)] <- rnorm(10, 2.5, .1)
 
 ggplot(new_df, aes(x = X1, y = y)) +
   geom_point() +
@@ -73,13 +79,13 @@ ggplot(new_df, aes(x = X1, y = y)) +
   theme_minimal()
 ```
 
-Yielding the following equation:
+With just a casual glance, it doesn't look like our two regression lines are that different. They both look like they have a similar positive slope, so all should be good. To offer a bit more clarity, though, let's put those lines in the same space:
+  
+```{r, both_lines_plotted}
+#| echo: false
+#| label: both_linear_lines
+#| tbl-cap: Line lines with and without extreme scores
 
-$$y = -.49 + .24X_1$$
-
-Pictures are always better, so let's put those lines in the same space:
-
-```{r}
 ggplot() +
   geom_smooth(aes(X1, y, color = "No extreme scores"), 
               data = dfXy, method = 'lm', 
@@ -97,17 +103,35 @@ ggplot() +
 
 With 1000 observations, we see that having just 10 extreme scores is enough to change the regression line, even if just a little. There are a few approaches we could take here, with common approaches being dropping those observations or Windsorizing them. Throwing away data because you don't like the way it behaves is nearing on statistical abuse and Windsorization is just replacing those extreme values with numbers that you like a little bit better.
 
-A better answer to this challenge might be to not fit the regression line through the mean, but the median instead. This is where quantile regression become handy. With quantile regression, we are given an extra parameter for the model: *tau*. The tau parameter let's us choose which quantile we want to use for our line fitting. Since the median splits the data in half, we can translate that to a quantile of .5. 
+A better answer to this challenge might be to not fit the regression line through the mean, but the median instead. This is where quantile regression becomes handy. Formally, this model can be expressed as:
 
-Let's bring in some data about movie reviews and get it ready:
+$$
+Q_{Y\vert X}(\tau) = X\beta_\tau
+$$
 
-```{r}
-reviews <- read.csv("review_data.csv")
+Where we can find the estimation of $\beta_\tau$ as:
+
+$$
+\hat\beta_\tau = \arg \min_{\beta \in \mathbb{R}^k} \sum_{i-1}^n(\rho_\tau(Y_i-X_i\beta))
+$$
+
+With quantile regression, we are given an extra parameter for the model: $\tau$ or *tau*. The tau parameter let's us choose which quantile we want to use for our line fitting. Since the median splits the data in half, we can translate that to a quantile of .5. 
+
+Let's bring in our movie reviews data. Let's say that we are curious about the relationship between the `user_age` variable and the `rating` variable. First, we need to get our data ready for our home-brewed functions.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r, r_data_read}
+#| echo: true
+#| label: r_data_read
+reviews <- read.csv("data/review_data.csv")
 ```
 
-Let's say that we are curious about the relationship between the `user_age` variable and the `rating` variable. First, we need to get our data ready for our homebrewed functions.
-
-```{r}
+```{r, r_data_prep}
+#| echo: true
+#| label: r_data_prep
 reviews <- na.omit(reviews)
 
 y <- reviews$rating
@@ -117,36 +141,58 @@ X <- cbind(intercept = 1,
 ```
 
 
+##### Python
+
+
+:::
+
+
 ### Loss Function
 
-Let's return to the least squares loss function:
+Let's see one way that we can create a least squares loss function for fitting a linear regression model:
 
-```{r}
-lm_ls <- function(par, X, y) {
-  lp = X %*% par
-  mu = lp   
-  L = crossprod(y - mu)
+```{r, r_lsl_function}
+#| echo: true
+#| eval: false
+#| label: least_squares_loss
+least_square_loss <- function(par, X, y) {
+  
+  linear_parameters <- X %*% par
+  
+  mu <- linear_parameters   
+  
+  loss <- crossprod(y - mu)
 }
 ```
 
-```{r}
+And compare it with a function for quantile loss:
+
+```{r, r_quantile_loss}
+#| echo: true
+#| label: quantile_loss
 quantile_loss <- function(par, X, y, tau) {
-  lp = X %*% par
-  res = y - lp
-  loss = ifelse(res < 0 , 
-                (-1 + tau)*res, 
-                tau*res)
+  
+  linear_parameters <- X %*% par
+  
+  residual <- y - linear_parameters
+  
+  loss <- ifelse(residual < 0 , 
+                (-1 + tau)*residual, 
+                tau*residual)
+  
   sum(loss)
 }
 ```
 
-You'll notice right away that we have that extra *tau* argument, which will let us set our quantile of interest. The residual is multiplied by the tau value, only if the residual is greater than 0. If the residual is negative, we need to add tau to -1. Since we need a positive value for our loss values, we will multiply our negative residuals by the negative value produced from -1 plus our tau value. After that, we just sum all of those positive loss values and do our best to minimize that summed value. 
+You'll notice right away that we have a few differences. Our quantile loss function includes the *tau* argument, which will let us set our quantile of interest; naturally, it can be any value between 0 and 1. In our quantile loss function, we are also calculating the The residual is multiplied by the tau value, only if the residual is greater than 0. If the residual is negative, we need to add tau to -1. Since we need a positive value for our loss values, we will multiply our negative residuals by the negative value produced from -1 plus our tau value. After that, we just sum all of those positive loss values and do our best to minimize that summed value. 
 
 ### Model Fitting
 
 Now that we have our data and our loss function, we can fit the model almost exactly like our standard linear model. Again, note the difference here with our tau value, which we've set to .5 to represent the median.
 
-```{r}
+```{r, r_quantile_optim}
+#| echo: true
+#| label: r_quantile_optim
 optim(
   par = c(intercept = 0, user_age = 0),
   fn  = quantile_loss,
@@ -160,7 +206,9 @@ Fortunately, our interpretation of this result isn't all that different from a s
 
 Let's check out results against those produced by `quantreg`:
 
-```{r}
+```{r, r_quantreg}
+#| echo: true
+#| label: r_quantreg
 library(quantreg)
 
 median_test <- rq(rating ~ user_age, tau = .5, 
@@ -169,11 +217,14 @@ median_test <- rq(rating ~ user_age, tau = .5,
 summary(median_test)
 ```
 
-Our home-brewed function returned the same results as the guy who "created" quantile regression.
+Our home-brewed function returned the same results as the guy who created quantile regression.
 
 Quantile regression is not a one-trick-pony. Remember, it is called quantile regression -- not median regression. Being able to compute a median regression is just a nice by-product. What we can do with quantile regression is to model different quantiles of the same data. It gives us the ability to answer brand new questions -- does the relationship between user age and their ratings change at different quantiles of rating?
 
-```{r}
+```{r, quantile_lines}
+#| echo: false
+#| label: quantile_lines
+#| fig-cap: Quantile regression lines
 tau_values <- c(.1, .3, .5, .7, .9)
 
 quant_values <- purrr::map_df(tau_values, ~{
@@ -188,7 +239,9 @@ colnames(quant_values) <- c("intercept", "user_age", "tau")
 quant_values$tau <- as.factor(quant_values$tau)
 
 ggplot() +
-  geom_point(data = reviews, mapping = aes(user_age, rating)) +
+  geom_point(data = reviews, 
+             mapping = aes(user_age, rating), 
+             alpha = .5) +
   geom_abline(mapping = aes(slope = user_age, 
                             intercept = intercept, 
                             color = tau),
@@ -197,4 +250,306 @@ ggplot() +
 
 ```
 
+Instead of a single model to capture the trend through the mean of the data, we can now examine the trends within 5 different quantiles of the data (we aren't limited to just those quantiles, though, and you can examine any of them that you might find interesting). If we had to put some words to our visualization, we could say that all of the quantiles show a positive relationship.  The 30th, 50th, and 70th quantiles all look very close together and appear to have very similar slopes. We can also observe that the 90th quantile appears to be a little flatter than the others, but still positive.
+
 ## Additive Models
+
+> Wiggle, wiggle, wiggle, yeah!
+> -- LMFAO
+  
+Fitting a line through your data is always going to be useful, regardless of whether you are using the median or the mean. Those lines give us a wonderful ability to say important things about the relationships between variables and how one variable might influence another. What if we just want to dispense with the notion that we need to fit a straight line through some mass of the data? What if we relax the idea that we need a straight line and think in terms of fitting something curvy through the data.
+
+In other words, we can go from this:
+  
+```{r, regular_linear_line}
+#| echo: false
+#| label: regular_linear_line
+#| fig-cap: A standard linear model
+ggplot(reviews, aes(user_age, rating)) +
+  geom_smooth(method = "lm", se = FALSE) +
+  theme_minimal()
+```
+
+To this:
+  
+```{r, gam_model_line}
+#| echo: false
+#| label: gam_model_line
+#| fig-cap: A generalized additive model
+ggplot(reviews, aes(user_age, rating)) +
+  geom_smooth(method = "gam", se = FALSE) +
+  theme_minimal()
+```
+
+That wiggly line is called a spline. Oddly enough, we can still use a linear model to fit this spline through the data. While this might not give us the same tidy explanation that a typical line would offer, we will certainly get better prediction. 
+
+These models belong to a broad group of *generalized additive models*. 
+
+### Functions
+
+We are going to need to generate several functions to make this work. The first will be to produce the *cubic spline*. Do take note that there are many different types of splines that could be used.
+
+```{r, r_cubic_spline}
+#| echo: true
+#| label: r_cubic_spline
+cubic_spline <- function(x, z) {
+  ((z - 0.5)^2 - 1/12) * ((x - 0.5)^2 - 1/12)/4 -
+    ((abs(x - z) - 0.5)^4 - (abs(x - z) - 0.5)^2 / 2 + 7/240) / 24
+}
+```
+
+Then we a function to produce the model matrix:
+  
+```{r, r_model_matrix}
+#| echo: true
+#| label: r_model_matrix
+splX <- function(x, knots) {
+  q <- length(knots) + 2        # number of parameters
+  n <- length(x)                # number of observations
+  X <- matrix(1, n, q)          # initialized model matrix
+  X[ ,2] <- x                   # set second column to x
+  X[ ,3:q] <- outer(x, knots, FUN = cubic_spline) 
+  X
+}
+```
+
+This is referred to as an *unpenalized cubic spline*. 
+
+Now that we have our functions, let's get our data ready to go. It is usually a good idea to scale your predictors.
+
+```{r, r_min_max_scale}
+#| echo: true
+#| label: r_min_max_scale
+x <- reviews$user_age - min(reviews$user_age)
+x <- x / max(x)
+rating <- reviews$rating
+```
+
+We can create a model with 4 knots -- you can think of knots as places where individual regression lines will get joined together. You can always experiment with more or less knots. 
+
+```{r, r_knots}
+#| echo: true
+#| label: r_knots
+knots <- 1:4/5
+```
+
+With our knots ready, we can create the model matrix:
+
+```{r, r_model_matrix_spline}
+#| echo: true
+#| label: r_model_matrix_spline
+X <- splX(x, knots)            
+```
+
+A little more clarity arrives when we take a quick look at the new model matrix:
+
+```{r, model_matrix_head}
+#| echo: true
+#| label: model_matrix_head
+head(X)
+```
+
+As always, the first column contains 1's for the intercept. The second column contains the original values for user_age. The 3rd and 4th columns, though, contain the cubic spline values for 1 and 2 knots, respectively. 
+
+Now that we have a model matrix, we can pass that right onto our `lm` function:
+  
+```{r, r_cubic_model_fitting}
+#| echo: true
+#| label: r_cubic_model_fitting
+fit_lm <- lm(rating ~ X - 1)
+
+fit_lm
+```
+
+All of the hard work was done in creating the model matrix
+
+We can set some prediction values for this model:
+  
+```{r, r_predictions}
+#| echo: true
+#| label: r_predictions
+xp <- seq(0, 1, by = .01)
+Xp <- splX(xp, knots)  
+```
+
+And then visualize:
+  
+```{r, spline_viz}
+#| echo: false
+#| label: spline_viz
+#| fig-cap: Visualizing cubic regression spline
+ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
+  geom_point(color = "#FF5500") +
+  geom_line(aes(x = xp, y = Xp %*% coef(fit_lm)),
+            data = data.frame(xp, Xp),
+            color = "#00AAFF") +
+  theme_minimal()
+```
+
+It is always worth checking our solution against a known function. 
+
+```{r, mgcv_check}
+#| echo: true
+#| label: mgcv_check
+library(mgcv)
+summary(gam(rating ~ X-1))
+```
+
+It looks like our estimation provided an exact match to a much-used function. 
+
+Typically, you don't need to go through the whole mess of creating a model matrix by hand and can use additional 
+
+```{r, r_gam_demo}
+#| echo: true
+#| label: r_gam_demo
+gam_model <- gam(rating ~ s(x, bs = "cr"))
+
+summary(gam_model)
+```
+
+
+Recall that this is an unpenalized cubic spline. If we want to have a finer degree of control over that wiggly line, we can include a *lambda penalty*. 
+
+We'll need to change up our spline function just a bit:
+  
+```{r, r_spline_penalty}
+#| echo: true
+#| label: r_spline_penalty
+splS <- function(knots) {
+  q <- length(knots) + 2
+  S <- matrix(0, q, q) 
+  S[3:q, 3:q] <- outer(knots, knots, FUN = cubic_spline)
+  S
+}
+```
+
+We also need to be able to take the square root of our entire matrix 
+
+```{r, r_matrix_square}
+#| echo: true
+#| label: r_matrix_square
+mat_sqrt <- function(S) {
+  d <- eigen(S, symmetric = TRUE)
+  rS <- d$vectors %*% diag(d$values^.5) %*% t(d$vectors)
+  rS
+}
+```
+
+With those functions in hand, we can create the function to fit the entire model:
+  
+```{r, r_penalized_fit}
+#| echo: true
+#| label: r_penalized_fit
+prs_fit <- function(y, x, knots, lambda) {
+  q  = length(knots) + 2    # dimension of basis
+  n  = length(x)            # number of observations
+  Xa = rbind(splX(x, knots), mat_sqrt(splS(knots))*sqrt(lambda)) # augmented model matrix
+  y[(n + 1):(n+q)] = 0      # augment the data vector
+  
+  lm(y ~ Xa - 1) # fit and return penalized regression spline
+}
+```
+
+Notice again that magic happens in the model matrix, but that we are still just using `lm` to fit the model.
+
+Let's stick with 4 knots:
+
+```{r, r_penalized_knots}
+#| echo: true
+#| label: r_penalized_knots
+knots = 1:4/5
+```
+
+Let's observe what happens when we set our lamba to .1:
+  
+```{r, r_lambda_1}
+#| echo: true
+#| label: r_lambda_1
+fit_penalized <- prs_fit(
+  y <- rating,
+  x <- x,
+  knots <- knots,
+  lambda <- .1
+) 
+
+Xp <- splX(xp, knots) 
+```
+
+```{r, r_lambda_1_viz}
+#| echo: false
+#| label: r_lambda_1_viz
+#| fig-cap: GAM model with lambda set to .1
+ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
+  geom_point(color = "#FF5500") +
+  geom_line(aes(x = xp, y = Xp %*% coef(fit_penalized)),
+            data = data.frame(xp, Xp),
+            color = "#00AAFF") +
+  theme_minimal()
+```
+
+There is definitely some wiggly to that line, but it is not as extreme as what we saw with our unpenalized cubic spline. We can test out what happens at different lambda values:
+  
+```{r, lambda_value_viz}
+#| echo: false
+#| label: lambda_value_viz
+#| fig-cap: GAM model with different lambda values
+plot_data <- purrr::map_df(c(.9, .5, .1, .01, .001), ~{
+  fit_penalized = prs_fit(
+    y = rating,
+    x = x,
+    knots = knots,
+    lambda = .x
+  ) 
+  Xp = splX(xp, knots)
+  
+  results <- data.frame(
+    x = xp,
+    y = Xp %*% coef(fit_penalized),
+    lambda = as.factor(.x)
+  )
+  
+  return(results)
+})
+
+ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
+  geom_point() +
+  geom_line(aes(x = x, y = y, color = lambda),
+            data = plot_data) +
+  theme_minimal()
+```
+
+What can we take from this? As lambda values get closer to 1, we see lines that look very similar to a standard linear model. If you recall the our function to fit the model, we multiplied the square root of the matrix by the square root of the lambda value; since the square root of 1 is 1, we wouldn't see anything too interesting happen. As our lambda value gets lower, we see an increasing amount of wiggle happen. 
+
+Naturally, this is a great time to think about how these models would work on new data. As lambda gets smaller, we are fitting our in-sample data much better. How do you think this would fare with unseen data? If you'd say that we would do well with training and horrible on testing, we'd likely agree with you. 
+
+Just for giggles, we should see how all of our models perform:
+
+```{r, model_performace_comp}
+#| echo: false
+#| label: model_performance_comp
+#| fig-cap: Comparing model performance with RMSE
+library(mgcv)
+model_data <- data.frame(rating = rating, 
+                         age = x)
+lm_test <- lm(rating ~ age, 
+              data = model_data) 
+median_test <- rq(rating ~ age, 
+                  data = model_data) 
+gam_test <- gam(rating ~ 
+                  s(age, bs = "cr", fx = FALSE, m = .001), 
+                data = model_data) 
+
+knitr::kable(
+  data.frame(model = c("standard", "median", "gam"), 
+             rmse = c(modelr::rmse(lm_test, model_data),
+                      modelr::rmse(median_test, model_data),
+                      modelr::rmse(gam_test, model_data))
+  )
+)
+```
+
+Unsurprisingly, gam was the best performer of the bunch. The results of our median regression and standard linear model are pretty similar, with a slight edge to the standard model.
+
+## Concluding Ramblings
+
+The standard linear model is useful across many different data situations. It does, unfortunately, have some issues when data becomes a little bit more "real". When you have extreme scores or relationships that a standard model might miss, you don't need to abandon your linear model in favor of something more exotic. Instead, you might just need to think about how you are actually fitting the line through your data. 
