@@ -1,0 +1,660 @@
+---
+title: "Untitled"
+format: html
+---
+
+
+## How do we obtain a model? Estimation
+
+In our linear model, one of, and so far the only, key **parameter** is the coefficient for each feature. But how do we know what the coefficients are? When we run a linear model using some program function, they appear magically, but it's worth knowing a little bit about how they come to be.
+
+
+In **model estimation**, we can break things down into the following steps:
+
+1. Start with an initial guess for the parameters
+2. Calculate the **prediction error** or some function of it
+3. **Update** the guess
+4. Repeat steps 2 & 3 until we find a 'best' guess
+
+
+:::{.callout type="info" title="Estimation vs. Optimization"}
+We can use **estimation** as general term for finding parameters, while **optimization** can be seen as a term for finding parameters that maximize or minimize some function.  In some cases we can estimate parameters without optimization, because there is a known way of solving the problem, but in most modeling situations we are going to use some optimization approach.
+:::
+
+
+
+### Guessing
+
+As a starting point we can just guess what the parameter should be, but how would we know what to guess? How would we know which guesses are better than others?  Let's try a few guesses and see how they do.  We'll start with a guess of 0 for all the coefficients.  We can plug this into the model and see what we get: 
+
+$$
+\textrm{prediction} = 0 + 0\cdot\textrm{review\_length}
+$$
+
+But that's just going to equal zero, which we know would not be a good guess.  A better guess would just be the mean of the target.  We can plug that into the model and see what we get:
+
+$$
+\textrm{prediction} = \bar{rating} + 0\cdot\textrm{review\_length}
+$$
+
+In this case, our guess for the coefficients are still zero, but our offset (or intercept) is the mean of the target. This is a better guess, and is at least data driven, but it's still not great. How do we know it's better?  
+
+### Prediction Error
+
+We can compare the predictions from each guess to the actual values of the target.  We can do this by calculating the **prediction error**, or in the context of a linear model, they are also called **residuals**.  The prediction error is the difference between the actual value of the target and the predicted value of the target.  We can express this as:
+
+$$
+\epsilon = y - \hat{y}
+$$
+$$ 
+\textrm{error} = \textrm{target} - \textrm{(model based) guess}
+$$
+
+Not only does this tell us how far off our model prediction is, it gives us a way to compare models.  With a measure of prediction error, we can get a **metric** for total, or maybe the average error, and if one model has less total/average error, we can say it's a better model.  Ideally we'd like to choose a model with the least error, but we'll see that this is not always possible[^neverbest].  For now, let's calculate the error for our two guesses. One thing though, if we miss the mark above or below our target, we still want it to count the same in terms of prediction error. In other words, if the true rating is 3 and our model predicts 3.5 or 2.5, we want those to count the same when we total up our error[^absloss]. One way we can do this is to use the squared error, or use absolute value.  We'll use squared error here, and we'll calculate the sum of the squared errors for all our predictions.  We'll do this in R and Python, and then compare the results.
+
+[^absloss]: We don't have to do it this way, but it's the default in most scenarios. As an example, maybe for your situation overshooting is worse than undershooting, and so you might want to use an approach that would weight those errors more heavily.
+
+[^neverbest]: It turns out that our error value is an estimate itself of the true error, and we'll talk more about this later. For now, this means that we can't ever know the true error, and so we can't ever know the best model. We can still get a good or better model relative to others.
+
+:::{panel-tabset}
+
+###### R
+
+```{r}
+#| label: r-error
+y = df_reviews$rating
+
+# Calculate the error for the guess of all zeros
+error_zeros <- sum((y - 0)^2)
+
+# Calculate the error for the guess of the mean
+error_mean <- sum((y - mean(y))^2)
+```
+
+
+###### Python
+
+```{python}
+#| label: py-error
+y = df_reviews['rating']
+
+# Calculate the error for the guess of all zeros
+error_zeros = np.sum((y - 0)**2)
+
+# Calculate the error for the guess of the mean
+error_mean = np.sum((y - y.mean())**2)
+
+```
+
+:::
+
+```{r}
+#| echo: false
+#| label: compare-error
+tibble(
+    zero_sq_sum = error_zeros,
+    mean_sq_sum = error_mean
+) |>
+    gt()
+```
+
+Well, this is useful, but you're probably hoping there is an easier way to do this, and there is!
+
+
+- OBJECTIVE FUNCTION
+- LOSS FUNCTION
+- COST FUNCTION
+
+
+### Ordinary (?) Least Squares
+
+For a simple linear model, we can estimate the parameters in several ways, but the most common is to use the **Ordinary Least Squares (OLS)** method. OLS is a method of estimating the coefficients that minimizes the sum of the squared errors, which we've just been doing[^notamodel].  In other words, it finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.  We can express this as:
+
+[^notamodel]: Some disciplines seem confuse models with estimation methods and link functions. It doesn't really make sense nor is informative to call something an OLS model or a logit model. Many models are estimated using a least squares approach, and different types of models use a logit link.
+
+$$
+\textrm{Loss} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2
+$$
+
+Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model.  The sum of the squared errors is also called the **residual sum of squares** (RSS). The OLS method finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.
+
+It's called *ordinary* least squares becuase there are other least squares- generalized least squares, weighted least squares, and others, but this doesn't really matter. What matters is that we have a way to estimate the coefficients that minimizes the sum of the squared errors. 
+
+The resulting value - the sum or mean of the squared errors, is sometimes referred to as our **objective** function, or **loss** function (if we are minimizing it), or even target function.  We can use this value to find the best parameters for a specific model, as well as compare different models with different parameters, such as a model with different features.  We can also use this value to compare different types of models, such as a linear model and a decision tree model.  
+
+Let's calculate the OLS estimate for our model. From our steps above, we need guesses and a way to update them.  For now, we can just provide a bunch of guesses, and just move along from one set to the next until we find the best one.
+
+
+:::{.panel-tabset}
+
+##### R
+```{r}
+#| label: r-ols
+ols <- function(x, y, b0, b1, sum = FALSE) {
+    # Calculate the predicted values
+    y_hat <- b0 + b1 * x
+
+    # Calculate the error
+    error <- y - y_hat
+
+    # Calculate the value as sum or mean squared error
+    if (sum) {
+        value <- sum(error^2, na.rm = TRUE)
+    } else {
+        value <- mean(error^2, na.rm = TRUE)
+    }
+
+    # Return the value
+    return(value)
+}
+
+# create a grid of guesses
+guesses <- crossing(
+    b0 = seq(-2, 2, 0.1),
+    b1 = seq(-2, 2, 0.1)
+)
+
+# Example for one guess
+ols(
+    x = df_reviews$review_length,
+    y = df_reviews$rating,
+    b0 = guesses$b0[1],
+    b1 = guesses$b1[1]
+)
+
+```
+
+##### Python
+```{python}
+#| label: py-ols
+#| 
+from itertools import product # to create our grid of guesses
+
+def ols(x, y, b0, b1, sum = False):
+    # Calculate the predicted values
+    y_hat = b0 + b1 * x
+    
+    # Calculate the error
+    error = y - y_hat
+    
+    # # Calculate the value as sum or average
+    if sum:
+        value = np.sum(error**2)
+    else:
+        value = np.mean(error**2)
+    
+    # Return the value
+    return(value)
+
+# create a grid of guesses
+
+guesses = pd.DataFrame(
+    product(
+        np.arange(-2, 2, 0.1),
+        np.arange(-2, 2, 0.1)
+    ),
+    columns = ['b0', 'b1']
+)
+
+
+# Example for one guess
+ols(
+    x = df_reviews['review_length'],
+    y = df_reviews['rating'],
+    b0 = guesses['b0'][0],
+    b1 = guesses['b1'][0],
+    sum = False
+)
+```
+
+:::
+
+Now we want to calculate the loss for each guess and find which one gives us the minimum function value.  Note that above we could get the total or mean squared error by setting the `sum` parameter to `TRUE` or `FALSE`.  Either is fine, but it's more common to use the mean, which is a little more understandable - how far are we off on average?
+
+```{r}
+#| label: r-ols-apply
+#| echo: false
+
+# Calculate the ols function value for each guess
+guesses <- guesses %>%
+    mutate(objective = map2_dbl(
+        guesses$b0, guesses$b1,
+        \(b0, b1) ols(b0 = b0, b1 = b1, x = df_reviews$review_length, y = df_reviews$rating)
+    ))
+
+min_loss = guesses %>% filter(objective == min(objective))
+
+predictions = min_loss$b0 + min_loss$b1 * df_reviews$review_length
+
+guesses |>
+    ggplot(aes(x = b0, y = b1)) +
+    geom_tile(aes(fill = objective), show.legend = FALSE) +
+    geom_point(
+        data = min_loss,
+        size = 6,
+        color = "white"
+    ) +
+    geom_text(
+        data = min_loss,
+        aes(label = glue("Minimum at ({round(b0, 2)}, {round(b1, 2)})\nObjective value = {round(objective, 2)}")),
+        size = 3,
+        hjust = -0.0,
+        color = "gray50"
+    ) +
+    annotate(
+        geom = "text",
+        x = intercept,
+        y = rl_coef,
+        label = glue("OLS estimate at ({intercept}, {rl_coef})\nObjective value = {round(summary(model_reviews)$sigma^2*nrow(df_reviews), 2)}"),
+        size = 3,
+        hjust = -0.1,
+        color = "gray50"
+    ) +
+    # coord_cartesian(
+    #     # xlim = c(-1, 1),
+    #     ylim = c(-1, 1)
+    # ) +
+    scico::scale_fill_scico() +
+    labs(
+        x = "b0",
+        y = "b1",
+        title = "Objective value (loss) for different guesses of b0 and b1"
+    )
+```
+
+
+
+Returning to our results from the built-in functions, we had estimates of `r intercept` and `r rl_coef` for our coefficients. These are similar but not exactly the same, but we are very close on the weight for review length, and not wildly off on the intercept.  In general we have pretty good, but not great, correspondence between our guesses and the built-in functions.  
+
+
+```{r}
+#| label: ols-compare-prediction-vs-observed
+p1 = df_reviews |>
+    mutate(prediction = predictions) |>
+    ggplot(aes(x = prediction, y = rating)) +
+    geom_point(alpha = 0.5, size = 4) +
+    geom_abline(
+        intercept = 0,
+        slope = 1,
+        color = okabe_ito[2],
+        linewidth = 2
+    )
+
+# compare densities
+p2 = df_reviews |>
+    mutate(prediction = predictions) |>
+    select(rating, prediction) |>
+    pivot_longer(everything()) |>
+    ggplot(aes(x = value)) +
+    geom_density(aes(fill = name), alpha = 0.5)
+
+
+p1 + p2
+```
+
+
+
+
+### Estimation as 'Learning'
+
+Estimation can be seen as the process of a model learning which parameters will best allow the predictions to match the observed data, and hopefully, predict as-yet-unseen future data.  This is a very common way to think about estimation in machine learning, and it is a useful way to think about our simple linear model also.  
+
+One thing to keep in mind is that it is not a magical process. It takes good data, a good idea (model), and an appropriate estimation method to get good results.  
+
+MAYBE TURN INTO NOTE (not sure what else needs to be said here)
+
+
+
+
+### Maximum Likelihood 
+
+In our example thus far, we have been minimizing the specific objective (or loss) function, which basically takes our parameter estimates, produces a prediction, and returns the sum or mean of the squared errors. But this is just one approach among many we could take.
+
+Now we'd like you to think about the **data generating process**.  We have a model that says the rating is a function of the review length, but more specifically, let's think about how the observed value of the rating is generated in a statistical sense. In particular, what kind of probability distribution might be involved?  Ignoring the model, we might think that each rating value is generated by some random process, and that the process is the same for each rating. Let's assume that random process is a normal distribution. So something like this would describe it mathematically:
+
+$$
+\textrm{rating} \sim N(\mu, \sigma)
+$$
+
+where $\mu$ is the mean of the rating and $\sigma$ is the standard deviation, or in other words, we can think of rating as a random variable that is drawn from a normal distribution with $\mu$ and $\sigma$ as the parameters of that distribution.  
+
+Let's apply this idea to our linear model setting. In this case, the mean is a function of the review length, and we're not sure what the standard deviation is, but we can go ahead and write our model as follows.
+
+$$
+\mu = \beta_0 + \beta_1 * \textrm{review\_length}
+$$
+$$
+\textrm{rating} \sim N(\mu, \sigma)
+$$
+
+
+Now, we can think of the model as a way to estimate the parameters of the normal distribution, but we have an additional parameter to estimate. We still have our prevous coefficients, but now we need to estimate $\sigma$ as well. But we still have to think of things a little differently. When we compare our prediction to the observed value, we don't look at the simple difference, but we are still interested in the discrepancy between the two.  So now we think about the **likelihood** of observing the rating given our prediction, which is based on the estimated parameters, i.e. given the $\mu$ and $\sigma$, and mu is a function of the coefficients and review length.  We can write this as:
+
+
+
+$$
+\textrm{Pr}(\textrm{rating} \mid \textrm{review\_length}, \beta_0, \beta_1, \sigma)
+$$
+
+$$
+\textrm{Pr}(\textrm{rating} \mid \mu, \sigma)
+$$
+
+Even more generally, the likelihood gives us a sense of the probability given the parameter estimates $\theta$.
+$$
+\textrm{Pr}(\textrm{Data} \mid \theta)
+$$
+
+
+Here is a simple code demo to get a likelihood in the context of our model. The values you see are referred to statistically as probability density values, and they are technically not probabilities, but rather the probability density, or **relative likelihood**, at that point[^probzero]. For your conceptual understanding, if it makes it easier, you can think of them in the same was as you do probabilities, but just know that technically they are not.
+
+[^probzero]:The actual probability of a *specific value* is 0, but the probability of a range of values is not 0. You can find out more about likelihoods and probabilities at the discussion [here](https://stats.stackexchange.com/questions/2641/what-is-the-difference-between-likelihood-and-probability), but in general many traditional statistical texts will have a discussion of this.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-demo-likelihood
+review_length <- c(50, 60) # two example review lengths
+rating <- c(3, 4) # two example ratings
+mu <- -1.2 + .09 * review_length # predicted rating
+sigma <- .5 # just a guess
+L <- dnorm(rating, mean = mu, sd = sigma)
+L
+```
+
+##### Python
+
+```{python}
+#| label: py-demo-likelihood
+# import numpy as np
+from scipy import stats
+
+review_length = np.array([50, 60])   # two example review lengths
+rating = np.array([3, 4])            # two example ratings
+mu = -1.2 + .09 * review_length  # predicted rating
+sigma = .5 # just a guess
+L = stats.norm.pdf(rating, loc = mu, scale = sigma)
+L
+```
+:::
+
+
+
+
+Given a guess at the paramters, and an assumption about the distribution of the data, we can calculate the likelihood of observing each data point and total those sum those up, just like we did with our squared errors.  In theory, we'd deal with the product of each likelihood, but in practice we sum the log of the likelihood, otherwise values would get too small for our computers to handle. Here is a corresponding function we can use to calculate the likelihood of the data given our parameters.  Note that the actual likelihood value returned isn't really interpretable, we just use it to compare models.  Even if our total likelihoods under comparison are negative, we prefer the model with the relatively higher likelihood.
+
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-likelihood
+likelihood = function(x, y, beta0, beta1, sigma) {
+    mu = beta0 + beta1 * x
+    ll = dnorm(y, mean = mu, sd = sigma, log = TRUE)
+
+    return(sum(ll))
+}
+
+likelihood(rating, review_length, -1.2, .09, .5)
+```
+
+##### Python
+
+```{python}
+#| label: py-likelihood
+#| 
+
+def likelihood(x, y, beta0, beta1, sigma):
+    mu = beta0 + beta1 * x
+    ll = stats.norm.logpdf(y, loc = mu, scale = sigma)
+
+    return(np.sum(ll))
+
+likelihood(rating, review_length, -1.2, .09, .5)
+```
+
+:::
+
+Let's apply it to our grid of parameter guesses as we did before. But remember that we're not just estimating the coefficients, but also the standard deviation of the normal distribution.  So we'll need to add that to our grid of guesses.  In this particular model, the maximum standard deviation/variance would just be that of the ratings themselves, which is `r round(sd(df_reviews$rating), 2)`.  So if our model is doing anything at all, the leftover, i.e. residual, variance that the model does not explain should be less than that.  And to futher keep things simple we'll just try two guesses for sigma - .5 and .25.  
+
+Here is plot that basically is the same as before, but now regards the likelihood instead of sum of the squared errors, and splits the plot into our two guesses for the standard deviation. Because some of the guesses are rather poor, I limit the plot to better get a sense of how our guesses relate to the likelood. This eliminates about half the plot for a sigma of .25, and in general we can see that the parameters for sigma = .5 will result in a higher likelihood.  Once we get in the realm of our previous best guess for the coefficients, we can see that the likelihood is much higher as it was before.
+
+
+```{r}
+#| echo: false
+#| label: r-likelihood-apply
+#| cache: false
+
+init = guesses |>
+    mutate(sigma = .5) |>
+    bind_rows(guesses |> mutate(sigma = .25))
+
+init = init |>
+    mutate(ll = pmap_dbl(
+        list(b0 = init$b0, b1 = init$b1, sigma = init$sigma),
+        \(b0, b1, sigma) likelihood(df_reviews$review_length, df_reviews$rating, b0, b1, sigma)
+    ))
+
+# check
+# max_like = likelihood(df_reviews$review_length, df_reviews$rating, coef(model_reviews)[1], coef(model_reviews)[2], summary(model_reviews)$sigma)
+# c(max_like, logLik(model_reviews))
+
+max_like = init |>
+    filter(ll == max(ll)) |>
+    mutate(sig_lab = glue("{expression(sigma)} = {sigma}"))
+
+init |>
+    filter(ll > -1e6) |>
+    mutate(sig_lab = glue("{expression(sigma)} = {sigma}")) |>
+    ggplot(aes(b0, b1)) +
+    geom_tile(aes(fill = ll), show.legend = FALSE) +
+    scico::scale_fill_scico() +
+    geom_text(
+        data = max_like,
+        aes(label = glue("Minimum at (b0 = {round(b0, 2)}, b1= {round(b1, 2)}, sigma=.5)\nObjective value = {round(ll, 2)}")),
+        size = 3,
+        hjust = -0.0,
+        color = "gray92"
+    ) +
+    facet_wrap(~sig_lab) +
+    labs(x = expression(beta[0]), y = expression(beta[1]), fill = "Likelihood")
+```
+
+How would we switch to a maximum likelihood approach using readily available functions?  In both R and Python you can switch to using `glm` and `GLM` respectively would be the place to start.  We can use different likelihoods distributions corresponding to the binomial, poisson and others. Still other packages would allow even more distributions for consideration. In general, we choose a distribution that we feel best reflects the data generating process. For binary targets for example, we typically would feel a bernoulli or binomial distribution is appropriate.  For count data, we might choose a poisson or negative binomial distribution.  For targets that fall between 0 and 1, we might go for a beta distribution.  There are many distributions, and even when some might feel more appropriate, we might choose another for convenience.  Some distributions tend toward a normal (a.k.a. gaussian) distribution depending on their parameters, others are special cases of more general distributions.  For example, the exponential distribution is a special case of the gamma distribution, and a cauchy is equivalent to a t distribution with 1 degree of freedom, and the t tends toward a normal with increasing degrees of freedom.
+
+One of the key things to note is that maximum likelihood is an estimation technique that relies on specifying the probability distribution that serves as the data generating process. Maximum likelihood allows us to be precise in why we think those target values are the way they are. The likelihood also serves as a fundamental part of Bayesian analysis, which we'll discuss more later. 
+
+```{r}
+#| echo: false
+
+knitr::include_graphics("img/distribution_relationships.jpg")
+
+# https://commons.wikimedia.org/wiki/File:Relationships_among_some_of_univariate_probability_distributions.jpg
+```
+
+
+
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| eval: false
+#| label: r-glm
+
+glm(rating ~ review_length, data = df_reviews, family = gaussian)
+glm(binary_target ~ x1 + x2, data = df_reviews, family = binomial)
+glm(count ~ x1 + x2, data = df_reviews, family = poisson)
+```
+
+##### Python
+
+```{python}
+#| eval: false
+#| label: py-glm
+
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+
+smf.glm('rating ~ review_length', data = df_reviews, family = sm.families.Gaussian())
+smf.glm('binary_target ~ x1 + x2', data = df_reviews, family = sm.families.Binomial())
+smf.glm('count ~ x1 + x2', data = df_reviews, family = sm.families.Poisson())
+```
+
+:::
+
+
+
+
+#### Additional Thoughts on Maximum Likelihood 
+
+It turns out that in the case of a normal distribution, the maximum likelihood estimate of the standard deviation is the estimate as the standard deviation of the residuals. Furthermore, the maximum likelihood estimates and OLS estimates converge to the same estimates as the sample size increases. For any data of significance, these estimates are indistinguishable, and the OLS estimate is the maximum likelihood estimate for linear regression.
+
+-----
+Why didn't we have to do this before? Because sigma was actually the value of our loss function.  We were minimizing the sum of the squared errors, and the sum of the squared errors is also the variance of the normal distribution.  So we were actually estimating the variance of the normal distribution. 
+
+
+
+
+
+#### Quick Review: Interpreting our results
+
+At this point we understand a few things:
+
+- Coefficients or weights allow us to understand how a feature relates to the target.
+- R-squared is the correlation of the target and the predictions (squared). By squaring we understand the proportion of variance in the target explained by the model.
+- The residual variance is a summary of how well our model fits the data, and is basically the part our model doesn't explain.
+- The likelihood is an alternate way to assess the match of data and model, and allows us to compare the relative fits of models
+- Estimation is a way of finding the best fitting model.
+
+
+
+
+## Optimization
+
+Previously we created a set of guesses to search over to see which set of parameters resulted in prediction that matched the data best. What we did is called a grid search, and it is a bit of a brute force approach to finding the best fitting model.  You can imagine that a couple of unfortunate or problematic scenarios, such as a very large number of parameters, or that our specified range doesn't get to the right sets of parameters, or we specify a very large range, but the best fitting model is within a very narrow part of that range.
+
+In general, we can think of **optimization** as a way to find the best parameters for our model. We start with an initial guess, see how well it does in terms of our objective function, and then try to improve it with a new guess. We continue to do so until a stopping point is reached.  Here is an example.
+
+- **Start with an initial guess** for the parameters
+- Calculate the objective function given the parameters
+- **Update the parameters** to a new guess (that hopefully improves the objective function)
+- Calculate the objective function given the new parameters
+- **Repeat** until the improvement is small enough or we reach a maximum number of iterations we want to attempt
+
+This is what we described before with esitmation in general. The key idea now is how we update the parameters.  Guessing simply isn't viable, it is just too inefficient and may never even get close. So now what? Well people have been working on this problem forever, and there are a lot of viable solutions.
+
+### Gradient Descent
+
+One of the most common approaches is called gradient descent.  The idea is that we can use the gradient of the objective function to guide us to the best fitting parameters.  The gradient is the vector of partial derivatives of the objective function with respect to each parameter.  The gradient is a vector that points in the direction of steepest ascent.  So if we want to maximize the objective function, we can take a step in the direction of the gradient.  If we want to minimize the objective function, we can take a step in the opposite direction of the gradient.  The size of the step is called the learning rate, and it is a **hyperparameter** that we can tune.  If the learning rate is too small, it will take a long time to converge.  If the learning rate is too large, we might overshoot the minimum and never converge.  There are a number of variations on gradient descent, but the basic idea is the same. **Stochastic gradient descent** is a variation on gradient descent that uses a random sample of the data to estimate the gradient.  
+
+Here is a function to illustrate the process.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| eval: false
+
+# gradient descent
+gradient_descent <- function(par, x, y, learning_rate = 0.01, max_iter = 1000, tol = 1e-6) {
+  
+  # initialize parameters
+  b0 <- par[1]
+  b1 <- par[2]
+  
+  # initialize gradient
+  grad <- c(1, 1)
+  
+  # initialize iteration counter
+  iter <- 0
+  
+  # iterate until convergence
+  while (iter < max_iter & sum(grad^2) > tol) {
+    
+    # calculate predictions
+    y_hat <- b0 + b1 * x
+    
+    # calculate residuals
+    res <- y - y_hat
+    
+    # calculate gradient
+    grad <- c(-2 * sum(res), -2 * sum(res * x))
+    
+    # update parameters
+    b0 <- b0 - learning_rate * grad[1]
+    b1 <- b1 - learning_rate * grad[2]
+    
+    # update iteration counter
+    iter <- iter + 1
+    
+  }
+  
+  # return parameters
+  return(c(b0, b1))
+  
+}
+```
+
+##### Python
+
+```{python}
+#| eval: false
+
+def gradient_descent(par, x, y, learning_rate = 0.01, max_iter = 1000, tol = 1e-6):
+    
+    # initialize parameters
+    b0 = par[0]
+    b1 = par[1]
+    
+    # initialize gradient
+    grad = np.array([1, 1])
+    
+    # initialize iteration counter
+    iter = 0
+    
+    # iterate until convergence
+    while iter < max_iter and sum(grad**2) > tol:
+        
+        # calculate predictions
+        y_hat = b0 + b1 * x
+        
+        # calculate residuals
+        res = y - y_hat
+        
+        # calculate gradient
+        grad = np.array([-2 * sum(res), -2 * sum(res * x)])
+        
+        # update parameters
+        b0 = b0 - learning_rate * grad[0]
+        b1 = b1 - learning_rate * grad[1]
+        
+        # update iteration counter
+        iter = iter + 1
+        
+    # return parameters
+    return np.array([b0, b1])
+```
+
+:::
+
+### Stochastic Gradient Descent
+
+Another approach is called stochastic gradient descent.  Stochastic gradient descent is a variation on gradient descent that uses a random sample of the data to estimate the gradient.  The idea is that we can use a random sample of the data to estimate the gradient, and we can use the gradient to update the parameters.  We can repeat this process until the parameters converge.  The advantage of stochastic gradient descent is that it is faster than gradient descent.  The disadvantage of stochastic gradient descent is that it is less accurate than gradient descent.  The reason is that stochastic gradient descent uses a random sample of the data to estimate the gradient, and the gradient is an estimate of the true gradient.  The true gradient is the gradient of the objective function with respect to all of the data.  The true gradient is more accurate than the estimated gradient, and stochastic gradient descent is less accurate than gradient descent.
+
+### Newton's Method
+
+Another approach is called Newton's method.  Newton's method is a way to find the roots of a function.  The roots of a function are the values of the parameters that make the objective function equal to zero.  So if we can find the roots of the objective function, we can find the parameters that minimize the objective function.  Newton's method is an iterative approach that uses the first and second derivatives of the objective function to find the roots.  The first derivative is the gradient, and the second derivative is called the Hessian.  The Hessian is a matrix of second derivatives, and it tells us how the gradient changes as we change the parameters.  The Hessian is a measure of curvature, and it tells us how quickly the gradient changes.  If the Hessian is large, the gradient changes quickly, and we can take a large step.  If the Hessian is small, the gradient changes slowly, and we should take a small step.  Newton's method is a way to find the roots of the objective function, and it is a way to find the parameters that minimize the objective function.
+
+### Other Approaches
+
+Method of moments, bayesian
+
+### Other Loss Functions Quick Demo
+
