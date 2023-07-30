@@ -1,0 +1,1199 @@
+# The Foundation
+
+> It is the chief characteristic of data science that it works.
+― Isaac Asimov (paraphrased)
+
+```{r setup-lm, include = FALSE}
+source("load_packages.R")
+source("setup.R")
+source("functions/utils.R")
+
+reticulate::use_condaenv("book-of-models")
+```
+
+Packages needed or useful for this chapter include:
+
+```{r}
+#| echo: true
+#| eval: false
+#|
+library(tidyverse)
+```
+
+```{r}
+#| echo: false
+#| label: r-display-setup
+
+options(digits = 4) # number of digits of precision for floating point output
+
+```
+
+```{python}
+#| echo: false
+#| label: py-display-setup
+import numpy as np
+import pandas as pd
+
+np.set_printoptions(precision=4, suppress=True) # suppress is for whether to use scientific notation for otherwise rounded to zero numbers
+pd.set_option('display.precision', 4) # number of digits of precision for floating point output
+```
+
+
+
+## Introducing the Greatest Of All Time
+
+Now that you have some idea of what you're getting into, it's time to dive in! We'll start things off by covering the building block of all modeling, and a solid understanding here will provide you the basis for just about anything that comes after, no matter how complex it gets. The **linear model** is our starting point. At first glance, it may seem like a very simple model, but it's actually quite powerful and flexible, able to take in different types of inputs, handle nonlinear relationships, temporal and spatial relations, clustering, and more. Linear models have a long history, with even the formal and scientific idea behind correlation and linear regression being well over a century old[^corbypeirce]! And in that time, the linear model is far and away the most used model out there. But before we start talking about the *linear* model, we need to talk about what a **model** is in general.
+
+
+[^corbypeirce]: Peirce & Bowditch were well ahead of Pearson and Galton [@rovine2004peirce].
+
+
+### What is a Model?
+
+At its core, a model is just an **idea**. It's a way of thinking about the world, about how things work, how things change over time, how things are different from each other, and how they are similar. The underlying thread here is that **a model expresses relationships** about things in the world around us. One can also think of a **model as a tool**, one that allows us to take information, in the form of data, and act on it in some way. Just like other ideas (and tools), models have consequences in the real world, and they can be used wisely or foolishly.  
+
+On a practical level, a model is expressed through a particular language, math, but don't let that worry you if you're not so inclined. As it's still just an idea at its core, the idea is the most important thing to understand about a model. The **math is just a way of expressing the idea** in a way that can be communicated and understood by others in a standard way, as well as helping make the idea precise. But in everyday terms, we're trying to understand things like how the amount of sleep relates to cognitive functioning, how the weather affects the number of people who visit a park, how much money to spend on advertising to increase sales, how to detect fraud, and so on.  Any of these  could form the basis of a model, as they stem from scientifically testable ideas, and they all express relationships between things we are interested in, possibly even with an implication of causal relations. 
+
+If you wanted to run a linear model to understand the relationship between sleep and cognitive functioning, you might express it in code as:
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| eval: false
+#| label: lm-sleep-cog-func
+lm(cognitive_functioning ~ sleep)
+```
+
+##### Python
+
+```{python}
+#| eval: false
+#| label: ols-sleep-cog-func
+from statsmodels.formula.api import ols
+
+model = ols('cognitive_functioning ~ sleep', data=df).fit()
+```
+
+:::
+
+
+Very easy! But that's all it takes to express a simple linear relationship.  In this case, we're saying that cognitive functioning is a linear (function) of sleep.  By the end of this chapter you'll also know why R's function is `lm` (linear model) and the [statsmodels]{.pack} function is `ols`, but both are doing the same thing. 
+
+<!-- 
+We can also express this as a simple equation:
+
+$$ 
+\textrm{cog\_func} = \beta_0 + \beta_1 \cdot \textrm{sleep}
+$$
+
+But we'll get more into that later. -->
+
+
+## Key ideas
+
+We can pose a few concepts key to understanding models. This is not an exhaustive list, but it's a good start.  We'll cover each of these in turn.
+
+- What a model is: The model as an idea
+- Features, targets, and input-output mappings: how do we get from input to output?
+- Model estimation: how do we find the best model?
+- Prediction: how do we use a model?
+- Assumptions, probabilistic outcomes, uncertainty: how do we know if we can trust a model?
+
+As we go along and cover these concepts, be sure that you feel you have the 'gist' of what we're talking about.  Almost everything of what comes after linear models builds on these ideas, so it's important to have a firm grasp before climbing to new heights.
+
+
+## What goes into a model? Features and Targets
+
+In the context of a model, how we specify the nature of the relationship depends on the context. In the interest of generality, we'll refer to the **target** as what we want to explain, and **features** as those aspects of the data we will use to explain it. Because people come at data from a variety of contexts, they often use different terminology to mean the same thing. Some of these actually suggest a particular type of relationship (e.g., a causal relationship, an experimental setting), but we'll ignore that for now.  The table below shows some of the common terms used to refer to features and targets.
+
+```{r tbl-feat-target, cache=FALSE}
+#| echo: false
+#| label: tbl-feature-target-names
+#| tbl-cap: Common Terms for Features and Targets
+
+
+tbl_feat_targ = tibble(
+    Feature = c("independent variable", "predictor variable", "explanatory variable", "covariate", "x", "input", "right-hand side"),
+    Target  = c("dependent variable", "response", "outcome", "label", "y", "output", "left-hand side"),
+) |>
+    gt() |>
+    rm_caption() # does nothing
+
+tbl_feat_targ
+```
+
+We may use any or all of these words to describe things so that you are comfortable with the terminology, but we'll stick with **features** and **targets** for the most part.  In our opinion, this terminology has the least hidden assumptions/implications.
+
+
+### Expressing Relationships
+
+
+As noted,  a model is a way of expressing a relationship between a set of features and a target, and one way of expressing them is as inputs and outputs. But how can we go from input to output?  Well to begin, we assume that the features and target are **correlated**, i.e. that there is some relationship between the x and y.  If so, then we can ulitmately use the features to **predict** the target.  In the simplest setting a correlation implies a  relationship where x and y typically move up and down together (left plot) or they move in opposite directions where x goes up and y goes down.
+
+```{r corr-plot, cache.rebuild=TRUE}
+#| echo: false
+#| label: fig-corr-plot
+#| fig-cap: Correlation
+
+p_dat = tibble(
+    x = rnorm(50),
+    y = .75 * x + rnorm(50, sd = .5),
+    yneg = -.75 * x + rnorm(50, sd = .5)
+)
+
+p1 = ggplot(p_dat, aes(x, y)) +
+    geom_point() +
+    labs(subtitle = "Positive Correlation")
+
+p2 = ggplot(p_dat, aes(x, yneg)) +
+    geom_point() +
+    labs(subtitle = "Negative Correlation")
+
+p1 + p2
+```
+
+In addition, the typical correlation suggests a linear relationship.  There are many types of correlation metrics, but the most common one, the Pearson correlation, is explicitly a measure of the linear relationship between two variables.  It's expressed as a number between -1 and 1, where 0 means there is no linear relationship. As we move closer to 1, we would see a tighter scatterplot like the one on the left, until it became a straight line.  The same happens for the negative relationship as we get closer to a value of -1.  If we have only one feature and target, the Pearson correlation reflects the exact result of the linear model we'd conduct.  Even with multiple features, we often lean a version of the Pearson R to help us understand how the features account for the target's variability.
+
+```{r}
+#| echo: false
+#| label: fig-corr-line-plot
+p1 = p1 + geom_smooth(method = "lm", se = FALSE)
+p2 = p2 + geom_smooth(method = "lm", se = FALSE)
+p1 + p2
+```
+
+
+
+## *THE* Linear Model
+
+
+The linear model is perhaps the simplest *functional* model we can use to express a relationship between features and targets.  It's possibly still the most common model used in practice, and it is the basis for many types of models.  Why don't we run one now?
+
+The following dataset contains movie individual [movie reviews][app-data-review] and contains the rating (1-5 stars scale) along with features pertaining to the review (e.g. gender, education) and features about the movie (e.g. genre, year).  We'll use the linear model to predict the rating from the length of the review.
+
+```{r}
+#| echo: false
+#| eval: false
+#| cache: false
+#| label: import-review
+library(tidyverse)
+
+df_reviews <- read_csv("data/review_data.csv")
+
+skimr::skim(df_reviews)
+```
+
+For our first linear model, we'll keep things simple.  Let's predict the rating from the length of the review.  We'll use the `lm()` function in R and the `ols()` function in Python to fit the model.  The `lm()` function takes a formula as its first argument, which is a way of expressing the relationship between the features and target.  The formula is expressed as `y ~ x`, where `y` is the target and `x` is the feature.  The `ols()` function takes the same formula, but it also requires a `data` argument that specifies the data frame containing the features and target.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r my-first-model}
+#| label: r-my-first-model
+df_reviews <- read_csv("data/review_data.csv") |>
+    drop_na()
+
+model_reviews = lm(rating ~ review_length, data = df_reviews)
+
+summary(model_reviews)
+```
+
+```{r}
+#| echo: false
+#| label: save model_reviews
+
+save(model_reviews, file = "data/model_reviews.RData")
+
+```
+
+```{r}
+#| label: r-my-first-model-output
+
+# gt(broom::tidy(model_reviews))
+```
+
+
+
+##### Python
+
+```{python}
+#| label: py-my-first-model
+# import pandas as pd
+# import numpy as np
+import statsmodels.formula.api as smf
+
+df_reviews = pd.read_csv('data/review_data.csv').dropna()
+model_reviews = smf.ols('rating ~ review_length', data = df_reviews).fit()
+
+print(model_reviews.summary())
+```
+
+:::
+
+For such a simple model, we certainly get a lot of output! Don't worry, you'll eventually come to know what it all means. But it's nice to know how easy it is to get the results!
+
+The linear model posits a **linear combination** of the features.  A linear combination is just a sum of the features, each of which has been multiplied by some specific value.  That value is often called a **coefficient** or possibly **weight**.  The linear model is expressed as (math incoming!):
+
+$$
+y = b_0 + b_1x_1 + b_2x_2 + ... + b_nx_n
+$$
+
+- $y$ is the target.
+- $x_1, x_2, ... x_n$ are the features.
+- $b_0$ is the intercept, which is kind of like a baseline value or offset. If we has no inputs at all it would just be the mean of the target.
+- $b_1, b_2, ... b_n$ are the coefficients or weights for each feature.
+
+But lets start with something simpler, let's say you want to take a sum of several features. In math you would write it as:
+
+$$
+x_1 + x_2 + ... + x_n
+$$
+
+In the previous equation, x is the feature and n is the number of features. $x_1$ is the first feature, $x_2$ the second, and so on.  $x$ is an arbitrary designation, you could use any letter, symbol you want, or better would be the actual name. Now look at the linear model.
+
+
+$$
+y = x_1 + x_2 + ... + x_n
+$$
+
+
+In this case, the function is *just a sum*, something so simple we do it all the time. In the linear model sense though, we're actually saying a bit more. Another way to understand that equation is that *y is a function of x*.  We don't show any coefficients, but technically it's as if each coefficient was a value of 1.  In other words, for this simple linear model, we're saying that each feature contributes equally to the target. 
+
+In practice, features will not contribute in the same ways. If we want to relate some feature, x1, and some other feature, x2, to target y, we probably would not assume that they both contribute in the same way from the beginning.  We might give more weight to x1 than x2.  In the linear model, we express this by multiplying each feature by a different coefficient. So the linear model is really just a sum of the features multiplied by their coefficients. In fact, we're saying that each feature contributes to the target in proportion to the coefficient. So if we have a feature x1 and a coefficient b1, then the contribution of x1 to the target is b1\*x1. If we have a feature x2 and a coefficient b2, then the contribution of x2 to the target is b2\*x2. And so on.  So the linear model is really just a sum of the features multiplied by their coefficients.  
+
+For our model, here is the mathemtical represenation:
+
+$$
+\textrm{rating} = b_0 + b_1 \cdot \textrm{review\_length}
+$$
+
+And with the actual results of our model:
+
+$$
+\textrm{rating} = -1.2 + .09 \cdot \textrm{review\_length}
+$$
+
+Not too complicated we hope!  But let's make sure we see what's going on here just a little bit more. 
+
+- Our *idea* is that the length of the review is in some way related to the eventual rating given to the movie. 
+- Our *target* is rating, and the *feature* is the review length
+- We *map the feature to the target* via the linear model, which provies an initial understanding of how the feature is related to the target.  In this case, we start with a baseline of -1.2.  This makes sense only in the case of a rating with no review, which is required for this data.  We'll talk about ways to get a more meaningful intercept later, but for now, that is our starting point.
+ if we add a single character to the review, we expect the rating to increase by .09. If we add 10 characters, we expect the rating to increase by .9. If we add 20 characters, we expect the rating to increase by 1.8.
+
+
+> In chapter 0, maybe say something about science = prediction, but maybe also stay away from academic treament
+
+::: {.callout-note collapse="true" appearance="minimal"}
+## Matrix Represenation of a Linear Model
+
+Here we'll show the matrix represenation form of the linear model, for the typical case where we have more than one feature in the model. In the following, y is a vector of all target observations, and likewise each x is a (row) vector of all observations for that feature.  The b vector is the vector of coefficients.  The 1 serves as a means to incorporate the intercept. It's just a feature that always has a value of 1.  The matrix multiplication is just a compact way of expressing the sum of the features multiplied by their coefficients.  We can even do it more
+
+Here is y as a vector of observerations, n x 1.
+
+$$
+\textbf{y} = \begin{bmatrix}
+y_1 \\
+y_2 \\
+\vdots \\
+y_n
+\end{bmatrix}
+$$ {#eq-lm-mat-y}
+
+Here is the vector for x, including the intercept:
+
+$$
+\textbf{X} = \begin{bmatrix}
+1 & x_{11} & x_{12} & \dots & x_{1p} \\
+1 & x_{21} & x_{22} & \dots & x_{2p} \\
+\vdots & \vdots & \vdots & \ddots & \vdots \\
+1 & x_{n1} & x_{n2} & \dots & x_{np}
+\end{bmatrix}
+$$ {#eq-lm-mat-x}
+
+And finally, here is the vector of coefficients:
+
+$$
+\textbf{b} = \begin{bmatrix}
+b_0 \\
+b_1 \\
+\vdots \\
+b_p
+\end{bmatrix}
+$$ {#eq-lm-mat-b}
+
+
+Putting it all together, we get the linear model in matrix form:
+
+$$
+\textbf{y = Xb }
+$$ {#eq-lm-mat-mult}
+
+:::
+
+### Intepretation
+
+```{r}
+#| echo: false
+#| label: my-first-model-coefs-etc
+
+
+intercept = round(coef(model_reviews)[1], 2)
+rl_coef = round(coef(model_reviews)[2], 2)
+sd_y = round(sd(df_reviews$rating), 2)
+sd_x = round(sd(df_reviews$review_length), 2)
+rl_ci = round(confint(model_reviews)[2, ], 2)
+n_char = 50
+```
+
+Let's try and use some context to interpret the coefficient. The size for the coefficient is `r round(rl_coef, 2)`, and the standard deviation of the target, i.e. how much it moves around naturally on its own, is `r sd_y`.  So the coefficient is about `r round(rl_coef / sd_y * 100, 0)`% of the standard deviation of the target.  In other words, a single character addition to a review results in an expected increase of `r round(rl_coef / sd_y * 100, 0)`% of what the review would normally bounce around in value. Most would think this is not negligible, and by some standards maybe even large [CITATION NEEDED- COHEN?].  Why? Because that's just for a single character increase in the review length.  Well, what would be a notable increase in review length?  An easy and straightforward measure would be the standard deviation of the feature. In this case it's `r sd_x`.  So if we increase the review length by one standard deviation, we expect the rating to increase by `r round(rl_coef * sd_x, 2)`, which is `r  round(sd_x/sd_y * rl_coef, 2)` of the standard deviation of the target.  That's a pretty big jump!  So we can see that the coefficient is probably not what we'd call negligible, and that the feature is indeed related to the target.  But we can also see that the coefficient is not so large that it's not believable.
+
+::: {.callout-tip}
+The calculation we just did results in what's often called a 'standardized' coefficient.  In the case of the simplest model with one feature like this one, it is identical to the Pearson r correlation metric, which we invite you to check and confirm on your own. In the case of multiple features, it is the correlation between the target and the feature, after adjusting for the other features.  But before you start thinking of it as a measure of *importance*, it is not. It provides some measure of the feature-target linear relationship, but that doesn't not entail practical importance, nor assess nonlinear relationships, interactions, and a host of other interesting things.
+:::
+
+
+## What do we do with a model? Prediction
+
+Once we have a working model, we can use it to make predictions.  We can do this by plugging in values for the features and using the corresponding weights. Let's go back to our results, starting with a simpler depiction.
+
+```{r}
+#| echo: false
+#| label: my-first-model-output
+
+broom::tidy(model_reviews, conf.int = TRUE) |>
+    janitor::clean_names() |>
+    rename(feature = term) |>
+    mutate(feature = ifelse(feature == "(Intercept)", "intercept", feature)) |>
+    gt()
+```
+
+The table shows the **coefficient** for each feature including the intercept.  In this case, the coefficient is `r rl_coef`, which means that for every additional word in the review, the rating goes up by `r rl_coef` stars.  So if we had a review that was `r n_char` characters long, we would predict a rating of `r paste(intercept)` + `r glue("{n_char}*{rl_coef}")` = `r round(predict(model_reviews, newdata = data.frame(review_length = n_char)), 1)` stars.
+
+When we're talking about predictions we usually will see this as:
+
+$$
+\hat{y} = b_0 + b_1x_1 + b_2x_2 + ... + b_nx_n
+$$
+
+What is $\hat{y}$? The hat over the $y$ just means that it's a predicted value of the model, rather than the one we actually observe. In fact, we were missing something in our previous depictions of the linear model.  We need to add an error term, $\epsilon$, to account for the fact that our predictions will not be perfect[^perfect_prediction].  So the full linear model is:
+
+[^perfect_prediction]: In most circumstances, if you ever have perfect prediction, or even near perfect prediction, you have either asked a rather obvious question of your data or have accidentally included the target in your features (or a combination of them).
+
+$$
+y = b_0 + b_1x_1 + b_2x_2 + ... + b_nx_n + \epsilon
+$$
+
+The error term is a random variable that represents the difference between the actual value and the predicted value.  We can't know what the error term is, but we can estimate it.  We'll talk more about that in the section on Estimation.
+
+
+### Prediction vs. Explanation
+
+In our view, one can't stress enough the importance of a model's ability to predict the target.  It can be a poor model, maybe because the data is not great, or we're exploring a new area, but we'll always be interested in how well a model **fits** the observed data, and predicts new data.
+
+As strange as it may sound, you can read whole journal articles and business reports in many fields with hardly any mention of prediction. Instead, the focus is on the **explanation** of the model, and this is where the coefficients come in. They are used to explain how the features are related to the target, and we may use terms like saying a feature 'strongly' correlates, or 'negatively' correlates to the target.  In our case, we can say that for every additional word in the review, we *expect* the rating to go up by `r rl_coef` stars.  We might even use our background knowledge and context to say this is a 'strong' relationship.  
+
+Additionally, the extra information in the table shows that review length is **statistically significant**, which is a very loaded description.  For our purposes right now, we'll interpret it as follows: if we expected the coefficient to be zero, the probability of seeing a coefficient as large as `r rl_coef` or larger is very small.  In fact, the probability is so small (rounded to zero), we might conclude that the coefficient is not zero, and that the feature is related to the target.  Unfortunately, statistical significance is affected by other things besides the size of the coefficient, and without an understanding of the context of the features (like how long typical reveiws are, what their range is, what variability of ratings is, etc.), the information it provides is extremely limited, and many would argue, not even useful at all.
+
+In the past, and unfortunately even the present, statistical significance is focused on a great deal, even to the point that a papers are written about models that have no predictive power at all. In those settings, statistical significance is often used as a proxy for importance, which it never should be. If we are very interested in the coefficient, it is better to focus on the range of possible values, which is provided by the **confidence interval**.  While a confidence interval is also a loaded description of a feature's relationship to the target, we can use it in a very practical way as a range of possible values for that weight. Here we see that the coefficient could be as low as `r rl_ci[1]` or as high as `r rl_ci[2]`, which we might interpret as a relatively narrow range, since the , giving us some 'confidence' that we should expect a non-zero value when assessing this particular relationship. Like statistical significance though, it is affected by many things, and without context, is limited in the information it can provide.  
+
+Suffice it to say at this point that how much one focuses on prediction vs. explanation depends on the context and goals of the data endeavor.  There are cases where predictive capability is of utmost importance, and we care less about the explanation, but not to the point of ignoring it. Even with deep learning models for image classification, where the inputs are just RGB values, we'd still like to know what the (notably complex) model is picking up on, otherwise we may be classifying images based on background nonsense.  In some business settings, we are very or even mostly interested in the weights, which might indicate how to allocate resources in some fashion, but if they come from a model with no predictive power, this may be a fruitless endeavor.
+
+
+
+
+
+### Prediction Error
+
+## How do we obtain a model? Estimation
+
+In our linear model, one of, and so far the only, key **parameter** is the coefficient for each feature. But how do we know what the coefficients are? When we run a linear model using some program function, they appear magically, but it's worth knowing a little bit about how they come to be.
+
+
+In **model estimation**, we can break things down into the following steps:
+
+1. Start with an initial guess for the parameters
+2. Calculate the **prediction error** or some function of it
+3. **Update** the guess
+4. Repeat steps 2 & 3 until we find a 'best' guess
+
+
+:::{.callout type="info" title="Estimation vs. Optimization"}
+We can use **estimation** as general term for finding parameters, while **optimization** can be seen as a term for finding parameters that maximize or minimize some function.  In some cases we can estimate parameters without optimization, because there is a known way of solving the problem, but in most modeling situations we are going to use some optimization approach.
+:::
+
+
+
+### Guessing
+
+As a starting point we can just guess what the parameter should be, but how would we know what to guess? How would we know which guesses are better than others?  Let's try a few guesses and see how they do.  We'll start with a guess of 0 for all the coefficients.  We can plug this into the model and see what we get: 
+
+$$
+\textrm{prediction} = 0 + 0\cdot\textrm{review\_length}
+$$
+
+But that's just going to equal zero, which we know would not be a good guess.  A better guess would just be the mean of the target.  We can plug that into the model and see what we get:
+
+$$
+\textrm{prediction} = \bar{rating} + 0\cdot\textrm{review\_length}
+$$
+
+In this case, our guess for the coefficients are still zero, but our offset (or intercept) is the mean of the target. This is a better guess, and is at least data driven, but it's still not great. How do we know it's better?  
+
+### Prediction Error
+
+We can compare the predictions from each guess to the actual values of the target.  We can do this by calculating the **prediction error**, or in the context of a linear model, they are also called **residuals**.  The prediction error is the difference between the actual value of the target and the predicted value of the target.  We can express this as:
+
+$$
+\epsilon = y - \hat{y}
+$$
+$$ 
+\textrm{error} = \textrm{target} - \textrm{(model based) guess}
+$$
+
+Not only does this tell us how far off our model prediction is, it gives us a way to compare models.  With a measure of prediction error, we can get a **metric** for total, or maybe the average error, and if one model has less total/average error, we can say it's a better model.  Ideally we'd like to choose a model with the least error, but we'll see that this is not always possible[^neverbest].  For now, let's calculate the error for our two guesses. One thing though, if we miss the mark above or below our target, we still want it to count the same in terms of prediction error. In other words, if the true rating is 3 and our model predicts 3.5 or 2.5, we want those to count the same when we total up our error[^absloss]. One way we can do this is to use the squared error, or use absolute value.  We'll use squared error here, and we'll calculate the sum of the squared errors for all our predictions.  We'll do this in R and Python, and then compare the results.
+
+[^absloss]: We don't have to do it this way, but it's the default in most scenarios. As an example, maybe for your situation overshooting is worse than undershooting, and so you might want to use an approach that would weight those errors more heavily.
+
+[^neverbest]: It turns out that our error value is an estimate itself of the true error, and we'll talk more about this later. For now, this means that we can't ever know the true error, and so we can't ever know the best model. We can still get a good or better model relative to others.
+
+:::{panel-tabset}
+
+###### R
+
+```{r}
+#| label: r-error
+y = df_reviews$rating
+
+# Calculate the error for the guess of all zeros
+error_zeros <- sum((y - 0)^2)
+
+# Calculate the error for the guess of the mean
+error_mean <- sum((y - mean(y))^2)
+```
+
+
+###### Python
+
+```{python}
+#| label: py-error
+y = df_reviews['rating']
+
+# Calculate the error for the guess of all zeros
+error_zeros = np.sum((y - 0)**2)
+
+# Calculate the error for the guess of the mean
+error_mean = np.sum((y - y.mean())**2)
+
+```
+
+:::
+
+```{r}
+#| echo: false
+#| label: compare-error
+tibble(
+    zero_sq_sum = error_zeros,
+    mean_sq_sum = error_mean
+) |>
+    gt()
+```
+
+Well, this is useful, but you're probably hoping there is an easier way to do this, and there is!
+
+
+- OBJECTIVE FUNCTION
+- LOSS FUNCTION
+- COST FUNCTION
+
+
+### Ordinary (?) Least Squares
+
+For a simple linear model, we can estimate the parameters in several ways, but the most common is to use the **Ordinary Least Squares (OLS)** method. OLS is a method of estimating the coefficients that minimizes the sum of the squared errors, which we've just been doing[^notamodel].  In other words, it finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.  We can express this as:
+
+[^notamodel]: Some disciplines seem confuse models with estimation methods and link functions. It doesn't really make sense nor is informative to call something an OLS model or a logit model. Many models are estimated using a least squares approach, and different types of models use a logit link.
+
+$$
+\textrm{Loss} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2
+$$
+
+Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model.  The sum of the squared errors is also called the **residual sum of squares** (RSS). The OLS method finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.
+
+It's called *ordinary* least squares becuase there are other least squares- generalized least squares, weighted least squares, and others, but this doesn't really matter. What matters is that we have a way to estimate the coefficients that minimizes the sum of the squared errors. 
+
+The resulting value - the sum or mean of the squared errors, is sometimes referred to as our **objective** function, or **loss** function (if we are minimizing it), or even target function.  We can use this value to find the best parameters for a specific model, as well as compare different models with different parameters, such as a model with different features.  We can also use this value to compare different types of models, such as a linear model and a decision tree model.  
+
+Let's calculate the OLS estimate for our model. From our steps above, we need guesses and a way to update them.  For now, we can just provide a bunch of guesses, and just move along from one set to the next until we find the best one.
+
+
+:::{.panel-tabset}
+
+##### R
+```{r}
+#| label: r-ols
+ols <- function(x, y, b0, b1, sum = FALSE) {
+    # Calculate the predicted values
+    y_hat <- b0 + b1 * x
+
+    # Calculate the error
+    error <- y - y_hat
+
+    # Calculate the value as sum or mean squared error
+    if (sum) {
+        value <- sum(error^2, na.rm = TRUE)
+    } else {
+        value <- mean(error^2, na.rm = TRUE)
+    }
+
+    # Return the value
+    return(value)
+}
+
+# create a grid of guesses
+guesses <- crossing(
+    b0 = seq(-2, 2, 0.1),
+    b1 = seq(-2, 2, 0.1)
+)
+
+# Example for one guess
+ols(
+    x = df_reviews$review_length,
+    y = df_reviews$rating,
+    b0 = guesses$b0[1],
+    b1 = guesses$b1[1]
+)
+
+```
+
+##### Python
+```{python}
+#| label: py-ols
+#| 
+from itertools import product # to create our grid of guesses
+
+def ols(x, y, b0, b1, sum = False):
+    # Calculate the predicted values
+    y_hat = b0 + b1 * x
+    
+    # Calculate the error
+    error = y - y_hat
+    
+    # # Calculate the value as sum or average
+    if sum:
+        value = np.sum(error**2)
+    else:
+        value = np.mean(error**2)
+    
+    # Return the value
+    return(value)
+
+# create a grid of guesses
+
+guesses = pd.DataFrame(
+    product(
+        np.arange(-2, 2, 0.1),
+        np.arange(-2, 2, 0.1)
+    ),
+    columns = ['b0', 'b1']
+)
+
+
+# Example for one guess
+ols(
+    x = df_reviews['review_length'],
+    y = df_reviews['rating'],
+    b0 = guesses['b0'][0],
+    b1 = guesses['b1'][0],
+    sum = False
+)
+```
+
+:::
+
+Now we want to calculate the loss for each guess and find which one gives us the minimum function value.  Note that above we could get the total or mean squared error by setting the `sum` parameter to `TRUE` or `FALSE`.  Either is fine, but it's more common to use the mean, which is a little more understandable - how far are we off on average?
+
+```{r}
+#| label: r-ols-apply
+#| echo: false
+
+# Calculate the ols function value for each guess
+guesses <- guesses %>%
+    mutate(objective = map2_dbl(
+        guesses$b0, guesses$b1,
+        \(b0, b1) ols(b0 = b0, b1 = b1, x = df_reviews$review_length, y = df_reviews$rating)
+    ))
+
+min_loss = guesses %>% filter(objective == min(objective))
+
+predictions = min_loss$b0 + min_loss$b1 * df_reviews$review_length
+
+guesses |>
+    ggplot(aes(x = b0, y = b1)) +
+    geom_tile(aes(fill = objective), show.legend = FALSE) +
+    geom_point(
+        data = min_loss,
+        size = 6,
+        color = "white"
+    ) +
+    geom_text(
+        data = min_loss,
+        aes(label = glue("Minimum at ({round(b0, 2)}, {round(b1, 2)})\nObjective value = {round(objective, 2)}")),
+        size = 3,
+        hjust = -0.0,
+        color = "gray50"
+    ) +
+    annotate(
+        geom = "text",
+        x = intercept,
+        y = rl_coef,
+        label = glue("OLS estimate at ({intercept}, {rl_coef})\nObjective value = {round(summary(model_reviews)$sigma^2*nrow(df_reviews), 2)}"),
+        size = 3,
+        hjust = -0.1,
+        color = "gray50"
+    ) +
+    # coord_cartesian(
+    #     # xlim = c(-1, 1),
+    #     ylim = c(-1, 1)
+    # ) +
+    scico::scale_fill_scico() +
+    labs(
+        x = "b0",
+        y = "b1",
+        title = "Objective value (loss) for different guesses of b0 and b1"
+    )
+```
+
+
+
+Returning to our results from the built-in functions, we had estimates of `r intercept` and `r rl_coef` for our coefficients. These are similar but not exactly the same, but we are very close on the weight for review length, and not wildly off on the intercept.  In general we have pretty good, but not great, correspondence between our guesses and the built-in functions.  
+
+
+```{r}
+#| label: ols-compare-prediction-vs-observed
+p1 = df_reviews |>
+    mutate(prediction = predictions) |>
+    ggplot(aes(x = prediction, y = rating)) +
+    geom_point(alpha = 0.5, size = 4) +
+    geom_abline(
+        intercept = 0,
+        slope = 1,
+        color = okabe_ito[2],
+        linewidth = 2
+    )
+
+# compare densities
+p2 = df_reviews |>
+    mutate(prediction = predictions) |>
+    select(rating, prediction) |>
+    pivot_longer(everything()) |>
+    ggplot(aes(x = value)) +
+    geom_density(aes(fill = name), alpha = 0.5)
+
+
+p1 + p2
+```
+
+
+
+
+### Estimation as 'Learning'
+
+Estimation can be seen as the process of a model learning which parameters will best allow the predictions to match the observed data, and hopefully, predict as-yet-unseen future data.  This is a very common way to think about estimation in machine learning, and it is a useful way to think about our simple linear model also.  
+
+One thing to keep in mind is that it is not a magical process. It takes good data, a good idea (model), and an appropriate estimation method to get good results.  
+
+MAYBE TURN INTO NOTE (not sure what else needs to be said here)
+
+
+
+
+### Maximum Likelihood 
+
+In our example thus far, we have been minimizing the specific objective (or loss) function, which basically takes our parameter estimates, produces a prediction, and returns the sum or mean of the squared errors. But this is just one approach among many we could take.
+
+Now we'd like you to think about the **data generating process**.  We have a model that says the rating is a function of the review length, but more specifically, let's think about how the observed value of the rating is generated in a statistical sense. In particular, what kind of probability distribution might be involved?  Ignoring the model, we might think that each rating value is generated by some random process, and that the process is the same for each rating. Let's assume that random process is a normal distribution. So something like this would describe it mathematically:
+
+$$
+\textrm{rating} \sim N(\mu, \sigma)
+$$
+
+where $\mu$ is the mean of the rating and $\sigma$ is the standard deviation, or in other words, we can think of rating as a random variable that is drawn from a normal distribution with $\mu$ and $\sigma$ as the parameters of that distribution.  
+
+Let's apply this idea to our linear model setting. In this case, the mean is a function of the review length, and we're not sure what the standard deviation is, but we can go ahead and write our model as follows.
+
+$$
+\mu = \beta_0 + \beta_1 * \textrm{review\_length}
+$$
+$$
+\textrm{rating} \sim N(\mu, \sigma)
+$$
+
+
+Now, we can think of the model as a way to estimate the parameters of the normal distribution, but we have an additional parameter to estimate. We still have our prevous coefficients, but now we need to estimate $\sigma$ as well. But we still have to think of things a little differently. When we compare our prediction to the observed value, we don't look at the simple difference, but we are still interested in the discrepancy between the two.  So now we think about the **likelihood** of observing the rating given our prediction, which is based on the estimated parameters, i.e. given the $\mu$ and $\sigma$, and mu is a function of the coefficients and review length.  We can write this as:
+
+
+
+$$
+\textrm{Pr}(\textrm{rating} \mid \textrm{review\_length}, \beta_0, \beta_1, \sigma)
+$$
+
+$$
+\textrm{Pr}(\textrm{rating} \mid \mu, \sigma)
+$$
+
+Even more generally, the likelihood gives us a sense of the probability given the parameter estimates $\theta$.
+$$
+\textrm{Pr}(\textrm{Data} \mid \theta)
+$$
+
+
+Here is a simple code demo to get a likelihood in the context of our model. The values you see are referred to statistically as probability density values, and they are technically not probabilities, but rather the probability density, or **relative likelihood**, at that point[^probzero]. For your conceptual understanding, if it makes it easier, you can think of them in the same was as you do probabilities, but just know that technically they are not.
+
+[^probzero]:The actual probability of a *specific value* is 0, but the probability of a range of values is not 0. You can find out more about likelihoods and probabilities at the discussion [here](https://stats.stackexchange.com/questions/2641/what-is-the-difference-between-likelihood-and-probability), but in general many traditional statistical texts will have a discussion of this.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-demo-likelihood
+review_length <- c(50, 60) # two example review lengths
+rating <- c(3, 4) # two example ratings
+mu <- -1.2 + .09 * review_length # predicted rating
+sigma <- .5 # just a guess
+L <- dnorm(rating, mean = mu, sd = sigma)
+L
+```
+
+##### Python
+
+```{python}
+#| label: py-demo-likelihood
+# import numpy as np
+from scipy import stats
+
+review_length = np.array([50, 60])   # two example review lengths
+rating = np.array([3, 4])            # two example ratings
+mu = -1.2 + .09 * review_length  # predicted rating
+sigma = .5 # just a guess
+L = stats.norm.pdf(rating, loc = mu, scale = sigma)
+L
+```
+:::
+
+
+
+
+Given a guess at the paramters, and an assumption about the distribution of the data, we can calculate the likelihood of observing each data point and total those sum those up, just like we did with our squared errors.  In theory, we'd deal with the product of each likelihood, but in practice we sum the log of the likelihood, otherwise values would get too small for our computers to handle. Here is a corresponding function we can use to calculate the likelihood of the data given our parameters.  Note that the actual likelihood value returned isn't really interpretable, we just use it to compare models.  Even if our total likelihoods under comparison are negative, we prefer the model with the relatively higher likelihood.
+
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-likelihood
+likelihood = function(x, y, beta0, beta1, sigma) {
+    mu = beta0 + beta1 * x
+    ll = dnorm(y, mean = mu, sd = sigma, log = TRUE)
+
+    return(sum(ll))
+}
+
+likelihood(rating, review_length, -1.2, .09, .5)
+```
+
+##### Python
+
+```{python}
+#| label: py-likelihood
+#| 
+
+def likelihood(x, y, beta0, beta1, sigma):
+    mu = beta0 + beta1 * x
+    ll = stats.norm.logpdf(y, loc = mu, scale = sigma)
+
+    return(np.sum(ll))
+
+likelihood(rating, review_length, -1.2, .09, .5)
+```
+
+:::
+
+Let's apply it to our grid of parameter guesses as we did before. But remember that we're not just estimating the coefficients, but also the standard deviation of the normal distribution.  So we'll need to add that to our grid of guesses.  In this particular model, the maximum standard deviation/variance would just be that of the ratings themselves, which is `r round(sd(df_reviews$rating), 2)`.  So if our model is doing anything at all, the leftover, i.e. residual, variance that the model does not explain should be less than that.  And to futher keep things simple we'll just try two guesses for sigma - .5 and .25.  
+
+Here is plot that basically is the same as before, but now regards the likelihood instead of sum of the squared errors, and splits the plot into our two guesses for the standard deviation. Because some of the guesses are rather poor, I limit the plot to better get a sense of how our guesses relate to the likelood. This eliminates about half the plot for a sigma of .25, and in general we can see that the parameters for sigma = .5 will result in a higher likelihood.  Once we get in the realm of our previous best guess for the coefficients, we can see that the likelihood is much higher as it was before.
+
+
+```{r}
+#| echo: false
+#| label: r-likelihood-apply
+#| cache: false
+
+init = guesses |>
+    mutate(sigma = .5) |>
+    bind_rows(guesses |> mutate(sigma = .25))
+
+init = init |>
+    mutate(ll = pmap_dbl(
+        list(b0 = init$b0, b1 = init$b1, sigma = init$sigma),
+        \(b0, b1, sigma) likelihood(df_reviews$review_length, df_reviews$rating, b0, b1, sigma)
+    ))
+
+# check
+# max_like = likelihood(df_reviews$review_length, df_reviews$rating, coef(model_reviews)[1], coef(model_reviews)[2], summary(model_reviews)$sigma)
+# c(max_like, logLik(model_reviews))
+
+max_like = init |>
+    filter(ll == max(ll)) |>
+    mutate(sig_lab = glue("{expression(sigma)} = {sigma}"))
+
+init |>
+    filter(ll > -1e6) |>
+    mutate(sig_lab = glue("{expression(sigma)} = {sigma}")) |>
+    ggplot(aes(b0, b1)) +
+    geom_tile(aes(fill = ll), show.legend = FALSE) +
+    scico::scale_fill_scico() +
+    geom_text(
+        data = max_like,
+        aes(label = glue("Minimum at (b0 = {round(b0, 2)}, b1= {round(b1, 2)}, sigma=.5)\nObjective value = {round(ll, 2)}")),
+        size = 3,
+        hjust = -0.0,
+        color = "gray92"
+    ) +
+    facet_wrap(~sig_lab) +
+    labs(x = expression(beta[0]), y = expression(beta[1]), fill = "Likelihood")
+```
+
+How would we switch to a maximum likelihood approach using readily available functions?  In both R and Python you can switch to using `glm` and `GLM` respectively would be the place to start.  We can use different likelihoods distributions corresponding to the binomial, poisson and others. Still other packages would allow even more distributions for consideration. In general, we choose a distribution that we feel best reflects the data generating process. For binary targets for example, we typically would feel a bernoulli or binomial distribution is appropriate.  For count data, we might choose a poisson or negative binomial distribution.  For targets that fall between 0 and 1, we might go for a beta distribution.  There are many distributions, and even when some might feel more appropriate, we might choose another for convenience.  Some distributions tend toward a normal (a.k.a. gaussian) distribution depending on their parameters, others are special cases of more general distributions.  For example, the exponential distribution is a special case of the gamma distribution, and a cauchy is equivalent to a t distribution with 1 degree of freedom, and the t tends toward a normal with increasing degrees of freedom.
+
+One of the key things to note is that maximum likelihood is an estimation technique that relies on specifying the probability distribution that serves as the data generating process. Maximum likelihood allows us to be precise in why we think those target values are the way they are. The likelihood also serves as a fundamental part of Bayesian analysis, which we'll discuss more later. 
+
+```{r}
+#| echo: false
+
+knitr::include_graphics("img/distribution_relationships.jpg")
+
+# https://commons.wikimedia.org/wiki/File:Relationships_among_some_of_univariate_probability_distributions.jpg
+```
+
+
+
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| eval: false
+#| label: r-glm
+
+glm(rating ~ review_length, data = df_reviews, family = gaussian)
+glm(binary_target ~ x1 + x2, data = df_reviews, family = binomial)
+glm(count ~ x1 + x2, data = df_reviews, family = poisson)
+```
+
+##### Python
+
+```{python}
+#| eval: false
+#| label: py-glm
+
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+
+smf.glm('rating ~ review_length', data = df_reviews, family = sm.families.Gaussian())
+smf.glm('binary_target ~ x1 + x2', data = df_reviews, family = sm.families.Binomial())
+smf.glm('count ~ x1 + x2', data = df_reviews, family = sm.families.Poisson())
+```
+
+:::
+
+
+
+
+#### Additional Thoughts on Maximum Likelihood 
+
+It turns out that in the case of a normal distribution, the maximum likelihood estimate of the standard deviation is the estimate as the standard deviation of the residuals. Furthermore, the maximum likelihood estimates and OLS estimates converge to the same estimates as the sample size increases. For any data of significance, these estimates are indistinguishable, and the OLS estimate is the maximum likelihood estimate for linear regression.
+
+-----
+Why didn't we have to do this before? Because sigma was actually the value of our loss function.  We were minimizing the sum of the squared errors, and the sum of the squared errors is also the variance of the normal distribution.  So we were actually estimating the variance of the normal distribution. 
+
+
+
+
+
+#### Quick Review: Interpreting our results
+
+At this point we understand a few things:
+
+- Coefficients or weights allow us to understand how a feature relates to the target.
+- R-squared is the correlation of the target and the predictions (squared). By squaring we understand the proportion of variance in the target explained by the model.
+- The residual variance is a summary of how well our model fits the data, and is basically the part our model doesn't explain.
+- The likelihood is an alternate way to assess the match of data and model, and allows us to compare the relative fits of models
+- Estimation is a way of finding the best fitting model.
+
+## Adding Complexity
+
+We've seen how to fit a model with a single feature, but we'll always have more than one feature for a model except under some very specific circumstances, such as exploratory data analysis.  Let's see how we can do that.
+
+### Multiple Features
+
+We can add more features to our model very simply. Using the standard functions we just add them to the formala (both R and statsmodels)
+
+```{python}
+#| eval: false
+'y ~ feature_1 + feature_2 + feature_3'
+```
+
+We might have a lot of features, and even for linear models this could be dozens in some scenarios.  How would we update our previous functions? This is where a little bit of matrix algebra comes in handy.  Please visit the section on \@matrix for a bit more detail, but really all you need to know is that this:
+
+$$
+y = X\beta 
+$$ 
+
+is the same as this:
+
+$$
+y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \beta_3 x_3 \dots
+$$
+
+where $X$ is a matrix of features, and $\beta$ is a vector of coefficients. Matrix multiplication allows us an efficient way to get our predictions.  Knowing this, let's update our previous functions, using the ols function in particular. We use `X` to denote the matrix of features rather than `x` to denote a single feature.  We also use `par` to denote the vector of parameters, which in this case is just the set of coefficients.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+ols <- function(X, y, par, sum_sq = FALSE) {
+    # Calculate the predicted values
+    y_hat <- X %*% par # this is literally the only change needed; %*% is matrix multiplication
+
+    # Calculate the error
+    error <- y - y_hat
+
+    # Calculate the value as sum or mean squared error
+    value <- crossprod(error) # crossprod is matrix multiplication
+
+    if (!sum_sq) {
+        value <- value / nrow(X)
+    }
+
+    # Return the value
+    return(value)
+}
+
+```
+
+To test our result, let's compare with the `lm` function
+
+```{r}
+X = df_reviews |>
+    select(review_length, number_of_reviews, year_of_release) |>
+    as.matrix()
+X = cbind(1, X) # add a column so we can estimate the intercept
+
+
+model_reviews = lm(
+    rating ~ review_length + number_of_reviews + year_of_release,
+    data = df_reviews
+)
+
+our_estimate = ols(X = X, y = df_reviews$rating, par = coef(model_reviews))
+lm_estimate = mean(resid(model_reviews)^2)
+```
+
+
+##### Python
+
+```{python}
+def ols(X, y, par, sum_sq = False):
+    # Calculate the predicted values
+    y_hat = X @ par  # this is literally the only change needed; @ is matrix multiplication
+    
+    # Calculate the error
+    error = y - y_hat
+    
+    # Calculate the value as sum or mean squared error
+    value = error.T @ error # @ is matrix multiplication
+
+    if not sum_sq: 
+        value =  value / X.shape[0]
+
+    # Return the value
+    return(value)
+```
+
+To test our result, let's compare with the `ols` function from statsmodels
+
+```{python}
+X = df_reviews[['review_length', 'number_of_reviews', 'year_of_release']].to_numpy()
+X = np.hstack((np.ones((X.shape[0], 1)), X)) # add a column so we can estimate the intercept
+
+model_reviews = smf.ols(
+    'rating ~ review_length + number_of_reviews + year_of_release', 
+    data = df_reviews
+).fit()
+
+our_estimate = ols(X = X, y = df_reviews['rating'].to_numpy(), par = model_reviews.params.to_numpy())
+
+# sm provides the mean squared error, but uses a slightly different 
+# denominator which won't matter with any sample size of significance; 
+# sm_estimate = model_reviews.mse_resid 
+sm_estimate = model_reviews.ssr / model_reviews.nobs
+```
+
+
+```{r}
+#| echo: false
+# pd.DataFrame({'our_estimate': our_estimate, 'sm_estimate': sm_estimate}, index = ['mse'])
+
+tibble(
+    ` ` = "mse",
+    `our estimate` = our_estimate,
+    `lm estimate` = lm_estimate
+) |>
+    gt() |>
+    fmt_number(decimals = 5)
+```
+
+
+
+
+:::
+
+
+
+## Optimization
+
+Previously we created a set of guesses to search over to see which set of parameters resulted in prediction that matched the data best. What we did is called a grid search, and it is a bit of a brute force approach to finding the best fitting model.  You can imagine that a couple of unfortunate or problematic scenarios, such as a very large number of parameters, or that our specified range doesn't get to the right sets of parameters, or we specify a very large range, but the best fitting model is within a very narrow part of that range.
+
+In general, we can think of **optimization** as a way to find the best parameters for our model. We start with an initial guess, see how well it does in terms of our objective function, and then try to improve it with a new guess. We continue to do so until a stopping point is reached.  Here is an example.
+
+- **Start with an initial guess** for the parameters
+- Calculate the objective function given the parameters
+- **Update the parameters** to a new guess (that hopefully improves the objective function)
+- Calculate the objective function given the new parameters
+- **Repeat** until the improvement is small enough or we reach a maximum number of iterations we want to attempt
+
+This is what we described before with esitmation in general. The key idea now is how we update the parameters.  Guessing simply isn't viable, it is just too inefficient and may never even get close. So now what? Well people have been working on this problem forever, and there are a lot of viable solutions.
+
+### Gradient Descent
+
+One of the most common approaches is called gradient descent.  The idea is that we can use the gradient of the objective function to guide us to the best fitting parameters.  The gradient is the vector of partial derivatives of the objective function with respect to each parameter.  The gradient is a vector that points in the direction of steepest ascent.  So if we want to maximize the objective function, we can take a step in the direction of the gradient.  If we want to minimize the objective function, we can take a step in the opposite direction of the gradient.  The size of the step is called the learning rate, and it is a **hyperparameter** that we can tune.  If the learning rate is too small, it will take a long time to converge.  If the learning rate is too large, we might overshoot the minimum and never converge.  There are a number of variations on gradient descent, but the basic idea is the same. **Stochastic gradient descent** is a variation on gradient descent that uses a random sample of the data to estimate the gradient.  
+
+Here is a function to illustrate the process.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| eval: false
+
+# gradient descent
+gradient_descent <- function(par, x, y, learning_rate = 0.01, max_iter = 1000, tol = 1e-6) {
+  
+  # initialize parameters
+  b0 <- par[1]
+  b1 <- par[2]
+  
+  # initialize gradient
+  grad <- c(1, 1)
+  
+  # initialize iteration counter
+  iter <- 0
+  
+  # iterate until convergence
+  while (iter < max_iter & sum(grad^2) > tol) {
+    
+    # calculate predictions
+    y_hat <- b0 + b1 * x
+    
+    # calculate residuals
+    res <- y - y_hat
+    
+    # calculate gradient
+    grad <- c(-2 * sum(res), -2 * sum(res * x))
+    
+    # update parameters
+    b0 <- b0 - learning_rate * grad[1]
+    b1 <- b1 - learning_rate * grad[2]
+    
+    # update iteration counter
+    iter <- iter + 1
+    
+  }
+  
+  # return parameters
+  return(c(b0, b1))
+  
+}
+```
+
+##### Python
+
+```{python}
+#| eval: false
+
+def gradient_descent(par, x, y, learning_rate = 0.01, max_iter = 1000, tol = 1e-6):
+    
+    # initialize parameters
+    b0 = par[0]
+    b1 = par[1]
+    
+    # initialize gradient
+    grad = np.array([1, 1])
+    
+    # initialize iteration counter
+    iter = 0
+    
+    # iterate until convergence
+    while iter < max_iter and sum(grad**2) > tol:
+        
+        # calculate predictions
+        y_hat = b0 + b1 * x
+        
+        # calculate residuals
+        res = y - y_hat
+        
+        # calculate gradient
+        grad = np.array([-2 * sum(res), -2 * sum(res * x)])
+        
+        # update parameters
+        b0 = b0 - learning_rate * grad[0]
+        b1 = b1 - learning_rate * grad[1]
+        
+        # update iteration counter
+        iter = iter + 1
+        
+    # return parameters
+    return np.array([b0, b1])
+```
+
+:::
+
+### Stochastic Gradient Descent
+
+Another approach is called stochastic gradient descent.  Stochastic gradient descent is a variation on gradient descent that uses a random sample of the data to estimate the gradient.  The idea is that we can use a random sample of the data to estimate the gradient, and we can use the gradient to update the parameters.  We can repeat this process until the parameters converge.  The advantage of stochastic gradient descent is that it is faster than gradient descent.  The disadvantage of stochastic gradient descent is that it is less accurate than gradient descent.  The reason is that stochastic gradient descent uses a random sample of the data to estimate the gradient, and the gradient is an estimate of the true gradient.  The true gradient is the gradient of the objective function with respect to all of the data.  The true gradient is more accurate than the estimated gradient, and stochastic gradient descent is less accurate than gradient descent.
+
+### Newton's Method
+
+Another approach is called Newton's method.  Newton's method is a way to find the roots of a function.  The roots of a function are the values of the parameters that make the objective function equal to zero.  So if we can find the roots of the objective function, we can find the parameters that minimize the objective function.  Newton's method is an iterative approach that uses the first and second derivatives of the objective function to find the roots.  The first derivative is the gradient, and the second derivative is called the Hessian.  The Hessian is a matrix of second derivatives, and it tells us how the gradient changes as we change the parameters.  The Hessian is a measure of curvature, and it tells us how quickly the gradient changes.  If the Hessian is large, the gradient changes quickly, and we can take a large step.  If the Hessian is small, the gradient changes slowly, and we should take a small step.  Newton's method is a way to find the roots of the objective function, and it is a way to find the parameters that minimize the objective function.
+
+### Other Approaches
+
+Method of moments, bayesian
+
+### Other Loss Functions Quick Demo
+
+
+## Assumptions and More
+
+## Commentary
+
+- Opinions
+- Limitations/Failure points
+- Summary
