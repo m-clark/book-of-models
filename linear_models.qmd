@@ -16,7 +16,7 @@ Packages needed or useful for this chapter include:
 ```{r}
 #| echo: true
 #| eval: false
-#| 
+#|
 library(tidyverse)
 ```
 
@@ -193,12 +193,20 @@ For our first linear model, we'll keep things simple.  Let's predict the rating 
 
 ```{r my-first-model}
 #| label: r-my-first-model
-df_reviews <- read_csv("data/review_data.csv") |> 
+df_reviews <- read_csv("data/review_data.csv") |>
     drop_na()
 
 model_reviews = lm(rating ~ review_length, data = df_reviews)
 
 summary(model_reviews)
+```
+
+```{r}
+#| echo: false
+#| label: save model_reviews
+
+save(model_reviews, file = "data/model_reviews.RData")
+
 ```
 
 ```{r}
@@ -528,10 +536,10 @@ Let's calculate the OLS estimate for our model. From our steps above, we need gu
 ols <- function(x, y, b0, b1, sum = FALSE) {
     # Calculate the predicted values
     y_hat <- b0 + b1 * x
-    
+
     # Calculate the error
     error <- y - y_hat
-    
+
     # Calculate the value as sum or mean squared error
     if (sum) {
         value <- sum(error^2, na.rm = TRUE)
@@ -664,9 +672,9 @@ Returning to our results from the built-in functions, we had estimates of `r int
 
 ```{r}
 #| label: ols-compare-prediction-vs-observed
-p1 = df_reviews |> 
-    mutate(prediction = predictions)  |> 
-    ggplot(aes(x = prediction, y = rating)) + 
+p1 = df_reviews |>
+    mutate(prediction = predictions) |>
+    ggplot(aes(x = prediction, y = rating)) +
     geom_point(alpha = 0.5, size = 4) +
     geom_abline(
         intercept = 0,
@@ -676,15 +684,15 @@ p1 = df_reviews |>
     )
 
 # compare densities
-p2 = df_reviews |> 
-    mutate(prediction = predictions) |> 
+p2 = df_reviews |>
+    mutate(prediction = predictions) |>
     select(rating, prediction) |>
     pivot_longer(everything()) |>
     ggplot(aes(x = value)) +
-    geom_density(aes(fill = name), alpha = 0.5) 
+    geom_density(aes(fill = name), alpha = 0.5)
 
 
-p1  + p2
+p1 + p2
 ```
 
 
@@ -751,11 +759,11 @@ Here is a simple code demo to get a likelihood in the context of our model. The 
 
 ```{r}
 #| label: r-demo-likelihood
-review_length = c(50, 60)   # two example review lengths
-rating = c(3, 4)            # two example ratings
-mu = -1.2 + .09 * review_length  # predicted rating
-sigma = .5 # just a guess
-L = dnorm(rating, mean = mu, sd = sigma)
+review_length <- c(50, 60) # two example review lengths
+rating <- c(3, 4) # two example ratings
+mu <- -1.2 + .09 * review_length # predicted rating
+sigma <- .5 # just a guess
+L <- dnorm(rating, mean = mu, sd = sigma)
 L
 ```
 
@@ -824,31 +832,30 @@ Here is plot that basically is the same as before, but now regards the likelihoo
 #| label: r-likelihood-apply
 #| cache: false
 
-init = guesses |> 
-    mutate(sigma = .5) |> 
-    bind_rows(guesses |> mutate(sigma = .25)) 
+init = guesses |>
+    mutate(sigma = .5) |>
+    bind_rows(guesses |> mutate(sigma = .25))
 
-init = init |> 
+init = init |>
     mutate(ll = pmap_dbl(
-        list(b0 = init$b0, b1 = init$b1, sigma = init$sigma),  
-        \(b0, b1, sigma) likelihood(df_reviews$review_length, df_reviews$rating,  b0, b1, sigma)
-        )
-    )
+        list(b0 = init$b0, b1 = init$b1, sigma = init$sigma),
+        \(b0, b1, sigma) likelihood(df_reviews$review_length, df_reviews$rating, b0, b1, sigma)
+    ))
 
 # check
 # max_like = likelihood(df_reviews$review_length, df_reviews$rating, coef(model_reviews)[1], coef(model_reviews)[2], summary(model_reviews)$sigma)
 # c(max_like, logLik(model_reviews))
 
-max_like = init |> 
-    filter(ll == max(ll))  |> 
-    mutate(sig_lab = glue('{expression(sigma)} = {sigma}'))
+max_like = init |>
+    filter(ll == max(ll)) |>
+    mutate(sig_lab = glue("{expression(sigma)} = {sigma}"))
 
-init |> 
-    filter(ll > -1e6) |> 
-    mutate(sig_lab = glue('{expression(sigma)} = {sigma}')) |>
-    ggplot(aes(b0, b1)) + 
-    geom_tile(aes(fill = ll), show.legend = FALSE) + 
-    scico::scale_fill_scico() + 
+init |>
+    filter(ll > -1e6) |>
+    mutate(sig_lab = glue("{expression(sigma)} = {sigma}")) |>
+    ggplot(aes(b0, b1)) +
+    geom_tile(aes(fill = ll), show.legend = FALSE) +
+    scico::scale_fill_scico() +
     geom_text(
         data = max_like,
         aes(label = glue("Minimum at (b0 = {round(b0, 2)}, b1= {round(b1, 2)}, sigma=.5)\nObjective value = {round(ll, 2)}")),
@@ -962,16 +969,17 @@ where $X$ is a matrix of features, and $\beta$ is a vector of coefficients. Matr
 ```{r}
 ols <- function(X, y, par, sum_sq = FALSE) {
     # Calculate the predicted values
-    y_hat <- X %*% par  # this is literally the only change needed; %*% is matrix multiplication
-    
+    y_hat <- X %*% par # this is literally the only change needed; %*% is matrix multiplication
+
     # Calculate the error
     error <- y - y_hat
-    
+
     # Calculate the value as sum or mean squared error
     value <- crossprod(error) # crossprod is matrix multiplication
 
-    if (!sum_sq) 
-        value <-  value / nrow(X)
+    if (!sum_sq) {
+        value <- value / nrow(X)
+    }
 
     # Return the value
     return(value)
@@ -982,14 +990,14 @@ ols <- function(X, y, par, sum_sq = FALSE) {
 To test our result, let's compare with the `lm` function
 
 ```{r}
-X = df_reviews |> 
-    select(review_length, number_of_reviews, year_of_release) |> 
+X = df_reviews |>
+    select(review_length, number_of_reviews, year_of_release) |>
     as.matrix()
 X = cbind(1, X) # add a column so we can estimate the intercept
 
 
 model_reviews = lm(
-    rating ~ review_length + number_of_reviews + year_of_release, 
+    rating ~ review_length + number_of_reviews + year_of_release,
     data = df_reviews
 )
 
@@ -1043,11 +1051,11 @@ sm_estimate = model_reviews.ssr / model_reviews.nobs
 # pd.DataFrame({'our_estimate': our_estimate, 'sm_estimate': sm_estimate}, index = ['mse'])
 
 tibble(
-    ` ` = 'mse',
+    ` ` = "mse",
     `our estimate` = our_estimate,
     `lm estimate` = lm_estimate
-    ) |> 
-    gt() |> 
+) |>
+    gt() |>
     fmt_number(decimals = 5)
 ```
 
