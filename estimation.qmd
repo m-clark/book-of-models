@@ -1,45 +1,76 @@
----
-title: "Untitled"
-format: html
----
+```{r}
+#| label: r-setup-Estimation
+#| echo: false
 
 
-## How do we obtain a model? Estimation
+library(tidyverse)
+load("linear_models/data/model_reviews.RData")
+df_reviews = read_csv("data/review_data.csv") |>
+    drop_na()
 
-In our linear model, one of, and so far the only, key **parameter** is the coefficient for each feature. But how do we know what the coefficients are? When we run a linear model using some program function, they appear magically, but it's worth knowing a little bit about how they come to be.
+source("load_packages.R")
+source("setup.R")
+source("functions/utils.R")
+reticulate::use_condaenv("book-of-models")
+
+intercept = round(coef(model_reviews)[1], 2)
+rl_coef = round(coef(model_reviews)[2], 2)
+sd_y = round(sd(df_reviews$rating), 2)
+sd_x = round(sd(df_reviews$review_length), 2)
+rl_ci = round(confint(model_reviews)[2, ], 2)
+n_char = 50
+```
+
+```{python}
+#| label: py-setup-Estimation
+#| echo: false
+
+import pandas as pd
+import numpy as np
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+
+df_reviews = pd.read_csv('data/review_data.csv').dropna()
+model_reviews = sm.load('linear_models/data/model_reviews.pickle') # pkl later
+```
+
+
+# How do we obtain a model? 
+
+In our initial linear model, one of, and so far the only, key **parameter** is the coefficient for each feature. But how do we know what the coefficients are? When we run a linear model using some program function, they appear magically, but it's worth knowing a little bit about how they come to be, so let's try and dive a little deeper!
 
 
 In **model estimation**, we can break things down into the following steps:
 
 1. Start with an initial guess for the parameters
-2. Calculate the **prediction error** or some function of it
+2. Calculate the **prediction error**, or some function of it, or some other value that represents our model's **objective**
 3. **Update** the guess
 4. Repeat steps 2 & 3 until we find a 'best' guess
 
 
 :::{.callout type="info" title="Estimation vs. Optimization"}
-We can use **estimation** as general term for finding parameters, while **optimization** can be seen as a term for finding parameters that maximize or minimize some function.  In some cases we can estimate parameters without optimization, because there is a known way of solving the problem, but in most modeling situations we are going to use some optimization approach.
+We can use **estimation** as general term for finding parameters, while **optimization** can be seen as a term for finding parameters that maximize or minimize some **objective function**.  In some cases we can estimate parameters without optimization, because there is a known way of solving the problem, but in most modeling situations we are going to use some optimization approach to find a 'best' set of parameters.
 :::
 
 
 
-### Guessing
+## Guessing
 
-As a starting point we can just guess what the parameter should be, but how would we know what to guess? How would we know which guesses are better than others?  Let's try a few guesses and see how they do.  We'll start with a guess of 0 for all the coefficients.  We can plug this into the model and see what we get: 
-
-$$
-\textrm{prediction} = 0 + 0\cdot\textrm{review\_length}
-$$
-
-But that's just going to equal zero, which we know would not be a good guess.  A better guess would just be the mean of the target.  We can plug that into the model and see what we get:
+As a starting point we can just guess what the parameter should be, but how would we know what to guess? How would we know which guesses are better than others?  Let's try a few guesses and see how they do. Let's say that we don't think review length matters, and that most people just rate everything a 3. We can plug this into the model and see what we get: 
 
 $$
-\textrm{prediction} = \bar{rating} + 0\cdot\textrm{review\_length}
+\textrm{prediction} = 3 + 0\cdot\textrm{review\_length}
 $$
 
-In this case, our guess for the coefficients are still zero, but our offset (or intercept) is the mean of the target. This is a better guess, and is at least data driven, but it's still not great. How do we know it's better?  
+Alternatively we could use the data to inform our guess. We still think that review length is negligible, but nowe we'll guess the mean of the target.  We can plug that into the model and see what we get:
 
-### Prediction Error
+$$
+\textrm{prediction} = \overline{\textrm{rating}} + 0\cdot\textrm{review\_length}
+$$
+
+In this case, our guess for the review length coefficient is still zero, but our offset (or intercept) is the mean of the target. This is probably a better guess, since it is at least data driven, but it's still not great. But how do we know it's better?  
+
+## Prediction Error
 
 We can compare the predictions from each guess to the actual values of the target.  We can do this by calculating the **prediction error**, or in the context of a linear model, they are also called **residuals**.  The prediction error is the difference between the actual value of the target and the predicted value of the target.  We can express this as:
 
@@ -50,13 +81,13 @@ $$
 \textrm{error} = \textrm{target} - \textrm{(model based) guess}
 $$
 
-Not only does this tell us how far off our model prediction is, it gives us a way to compare models.  With a measure of prediction error, we can get a **metric** for total, or maybe the average error, and if one model has less total/average error, we can say it's a better model.  Ideally we'd like to choose a model with the least error, but we'll see that this is not always possible[^neverbest].  For now, let's calculate the error for our two guesses. One thing though, if we miss the mark above or below our target, we still want it to count the same in terms of prediction error. In other words, if the true rating is 3 and our model predicts 3.5 or 2.5, we want those to count the same when we total up our error[^absloss]. One way we can do this is to use the squared error, or use absolute value.  We'll use squared error here, and we'll calculate the sum of the squared errors for all our predictions.  We'll do this in R and Python, and then compare the results.
+Not only does this tell us how far off our model prediction is, it gives us a way to compare models.  With a measure of prediction error, we can get a **metric** for total error for all observations/predictions, or similarly the average error, and if one model has less total or average error, we can say it's a better model than one that has more. Ideally we'd like to choose a model with the least error, but we'll see that this is not always possible[^neverbest].  For now, let's calculate the error for our two guesses. One thing though, if we miss the mark above or below our target, we still want it to count the same in terms of prediction error. In other words, if the true rating is 3 and our model predicts 3.5 or 2.5, we want those to count the same when we total up our error[^absloss]. One way we can do this is to use the squared error, or maybe the absolute value.  We'll use squared error here, and we'll calculate the mean of the squared errors for all our predictions.  We'll do this for two models, one where we guess three for all observations, and one where we guess the mean of the target.
 
 [^absloss]: We don't have to do it this way, but it's the default in most scenarios. As an example, maybe for your situation overshooting is worse than undershooting, and so you might want to use an approach that would weight those errors more heavily.
 
-[^neverbest]: It turns out that our error value is an estimate itself of the true error, and we'll talk more about this later. For now, this means that we can't ever know the true error, and so we can't ever know the best model. We can still get a good or better model relative to others.
+[^neverbest]: It turns out that our error metric is itself an estimate of the true error.  We'll get more into this later, but for now this means that we can't ever know the true error, and so we can't ever really know the best or true model. However we can still get a good or better model relative to others in our current data setting.
 
-:::{panel-tabset}
+:::{.panel-tabset}
 
 ###### R
 
@@ -64,11 +95,11 @@ Not only does this tell us how far off our model prediction is, it gives us a wa
 #| label: r-error
 y = df_reviews$rating
 
-# Calculate the error for the guess of all zeros
-error_zeros <- sum((y - 0)^2)
+# Calculate the error for the guess of three
+error_three <- mean((y - 3)^2)
 
 # Calculate the error for the guess of the mean
-error_mean <- sum((y - mean(y))^2)
+error_mean <- mean((y - mean(y))^2)
 ```
 
 
@@ -78,27 +109,29 @@ error_mean <- sum((y - mean(y))^2)
 #| label: py-error
 y = df_reviews['rating']
 
-# Calculate the error for the guess of all zeros
-error_zeros = np.sum((y - 0)**2)
+# Calculate the error for the guess of three
+error_three = np.mean((y - 3)**2)
 
 # Calculate the error for the guess of the mean
-error_mean = np.sum((y - y.mean())**2)
-
+error_mean = np.mean((y - y.mean())**2)
 ```
 
 :::
+
+Looking at our **mean squared error**, we can see that we are off on average by over a point for our '#3' model, but less than half a point when guessing
 
 ```{r}
 #| echo: false
 #| label: compare-error
 tibble(
-    zero_sq_sum = error_zeros,
-    mean_sq_sum = error_mean
+    `#3 Model Error` = error_three,
+    `Mean Model Error` = error_mean
 ) |>
-    gt()
+    gt() |>
+    cols_align("center")
 ```
 
-Well, this is useful, but you're probably hoping there is an easier way to do this, and there is!
+Well, this is useful, and at least we can say one model is better than another. But you're probably hoping there is an easier way to do this, especially when we have possibly dozens of features and/or parameters to keep track of, and there is!
 
 
 - OBJECTIVE FUNCTION
@@ -106,7 +139,7 @@ Well, this is useful, but you're probably hoping there is an easier way to do th
 - COST FUNCTION
 
 
-### Ordinary (?) Least Squares
+## Ordinary (?) Least Squares
 
 For a simple linear model, we can estimate the parameters in several ways, but the most common is to use the **Ordinary Least Squares (OLS)** method. OLS is a method of estimating the coefficients that minimizes the sum of the squared errors, which we've just been doing[^notamodel].  In other words, it finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.  We can express this as:
 
@@ -295,7 +328,7 @@ p1 + p2
 
 
 
-### Estimation as 'Learning'
+## Estimation as 'Learning'
 
 Estimation can be seen as the process of a model learning which parameters will best allow the predictions to match the observed data, and hopefully, predict as-yet-unseen future data.  This is a very common way to think about estimation in machine learning, and it is a useful way to think about our simple linear model also.  
 
@@ -306,7 +339,7 @@ MAYBE TURN INTO NOTE (not sure what else needs to be said here)
 
 
 
-### Maximum Likelihood 
+## Maximum Likelihood 
 
 In our example thus far, we have been minimizing the specific objective (or loss) function, which basically takes our parameter estimates, produces a prediction, and returns the sum or mean of the squared errors. But this is just one approach among many we could take.
 
@@ -498,7 +531,6 @@ glm(count ~ x1 + x2, data = df_reviews, family = poisson)
 #| eval: false
 #| label: py-glm
 
-import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
 smf.glm('rating ~ review_length', data = df_reviews, family = sm.families.Gaussian())
@@ -549,7 +581,7 @@ In general, we can think of **optimization** as a way to find the best parameter
 
 This is what we described before with esitmation in general. The key idea now is how we update the parameters.  Guessing simply isn't viable, it is just too inefficient and may never even get close. So now what? Well people have been working on this problem forever, and there are a lot of viable solutions.
 
-### Gradient Descent
+## Gradient Descent
 
 One of the most common approaches is called gradient descent.  The idea is that we can use the gradient of the objective function to guide us to the best fitting parameters.  The gradient is the vector of partial derivatives of the objective function with respect to each parameter.  The gradient is a vector that points in the direction of steepest ascent.  So if we want to maximize the objective function, we can take a step in the direction of the gradient.  If we want to minimize the objective function, we can take a step in the opposite direction of the gradient.  The size of the step is called the learning rate, and it is a **hyperparameter** that we can tune.  If the learning rate is too small, it will take a long time to converge.  If the learning rate is too large, we might overshoot the minimum and never converge.  There are a number of variations on gradient descent, but the basic idea is the same. **Stochastic gradient descent** is a variation on gradient descent that uses a random sample of the data to estimate the gradient.  
 
@@ -644,17 +676,127 @@ def gradient_descent(par, x, y, learning_rate = 0.01, max_iter = 1000, tol = 1e-
 
 :::
 
-### Stochastic Gradient Descent
+## Stochastic Gradient Descent
 
 Another approach is called stochastic gradient descent.  Stochastic gradient descent is a variation on gradient descent that uses a random sample of the data to estimate the gradient.  The idea is that we can use a random sample of the data to estimate the gradient, and we can use the gradient to update the parameters.  We can repeat this process until the parameters converge.  The advantage of stochastic gradient descent is that it is faster than gradient descent.  The disadvantage of stochastic gradient descent is that it is less accurate than gradient descent.  The reason is that stochastic gradient descent uses a random sample of the data to estimate the gradient, and the gradient is an estimate of the true gradient.  The true gradient is the gradient of the objective function with respect to all of the data.  The true gradient is more accurate than the estimated gradient, and stochastic gradient descent is less accurate than gradient descent.
 
-### Newton's Method
+## Newton's Method
 
 Another approach is called Newton's method.  Newton's method is a way to find the roots of a function.  The roots of a function are the values of the parameters that make the objective function equal to zero.  So if we can find the roots of the objective function, we can find the parameters that minimize the objective function.  Newton's method is an iterative approach that uses the first and second derivatives of the objective function to find the roots.  The first derivative is the gradient, and the second derivative is called the Hessian.  The Hessian is a matrix of second derivatives, and it tells us how the gradient changes as we change the parameters.  The Hessian is a measure of curvature, and it tells us how quickly the gradient changes.  If the Hessian is large, the gradient changes quickly, and we can take a large step.  If the Hessian is small, the gradient changes slowly, and we should take a small step.  Newton's method is a way to find the roots of the objective function, and it is a way to find the parameters that minimize the objective function.
 
-### Other Approaches
+## Other Approaches
 
 Method of moments, bayesian
 
-### Other Loss Functions Quick Demo
+## Other Loss Functions Quick Demo
 
+
+
+
+ADD THIS BACK ABOVE
+
+
+
+
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+ols <- function(X, y, par, sum_sq = FALSE) {
+    # Calculate the predicted values
+    y_hat <- X %*% par # this is literally the only change needed; %*% is matrix multiplication
+
+    # Calculate the error
+    error <- y - y_hat
+
+    # Calculate the value as sum or mean squared error
+    value <- crossprod(error) # crossprod is matrix multiplication
+
+    if (!sum_sq) {
+        value <- value / nrow(X)
+    }
+
+    # Return the value
+    return(value)
+}
+
+```
+
+To test our result, let's compare with the `lm` function
+
+```{r}
+X = df_reviews |>
+    select(review_length, number_of_reviews, year_of_release) |>
+    as.matrix()
+X = cbind(1, X) # add a column so we can estimate the intercept
+
+
+model_reviews = lm(
+    rating ~ review_length + number_of_reviews + year_of_release,
+    data = df_reviews
+)
+
+our_estimate = ols(X = X, y = df_reviews$rating, par = coef(model_reviews))
+lm_estimate = mean(resid(model_reviews)^2)
+```
+
+
+##### Python
+
+```{python}
+def ols(X, y, par, sum_sq = False):
+    # Calculate the predicted values
+    y_hat = X @ par  # this is literally the only change needed; @ is matrix multiplication
+    
+    # Calculate the error
+    error = y - y_hat
+    
+    # Calculate the value as sum or mean squared error
+    value = error.T @ error # @ is matrix multiplication
+
+    if not sum_sq: 
+        value =  value / X.shape[0]
+
+    # Return the value
+    return(value)
+```
+
+To test our result, let's compare with the `ols` function from statsmodels
+
+```{python}
+X = df_reviews[['review_length', 'number_of_reviews', 'year_of_release']].to_numpy()
+X = np.hstack((np.ones((X.shape[0], 1)), X)) # add a column so we can estimate the intercept
+
+model_reviews = smf.ols(
+    'rating ~ review_length + number_of_reviews + year_of_release', 
+    data = df_reviews
+).fit()
+
+our_estimate = ols(X = X, y = df_reviews['rating'].to_numpy(), par = model_reviews.params.to_numpy())
+
+# sm provides the mean squared error, but uses a slightly different 
+# denominator which won't matter with any sample size of significance; 
+# sm_estimate = model_reviews.mse_resid 
+sm_estimate = model_reviews.ssr / model_reviews.nobs
+```
+
+
+```{r}
+#| echo: false
+# pd.DataFrame({'our_estimate': our_estimate, 'sm_estimate': sm_estimate}, index = ['mse'])
+
+tibble(
+    ` ` = "mse",
+    `our estimate` = our_estimate,
+    `lm estimate` = lm_estimate
+) |>
+    gt() |>
+    fmt_number(decimals = 5)
+```
+
+
+
+
+:::
