@@ -110,6 +110,14 @@ gt <- function(..., decimals = 2, title = NULL, subtitle = NULL) {
       columns = where(is.numeric),
       decimals = decimals
     ) %>%
+    gt::tab_style(
+      style = gt::cell_text(color = "gray25"),
+      locations = gt::cells_body(
+        columns = gt::vars(
+          where(is.numeric)
+        )
+      )
+    ) %>%
     gt::tab_header(title = title, subtitle = subtitle) %>%
     gtExtras::gt_theme_nytimes()
 }
