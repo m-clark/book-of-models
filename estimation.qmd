@@ -1,11 +1,20 @@
+
+# How do we obtain a model? 
+
+
+
 ```{r}
 #| label: r-setup-Estimation
+#| include: false
 #| echo: false
+#| cache: false
 
 
 library(tidyverse)
 load("linear_models/data/model_reviews.RData")
-df_reviews = read_csv("data/review_data.csv") |>
+df_reviews = read_csv("data/movie_reviews.csv") |>
+    drop_na()
+df_reviews_pr = read_csv("data/movie_reviews_processed.csv") |>
     drop_na()
 
 source("load_packages.R")
@@ -16,7 +25,7 @@ reticulate::use_condaenv("book-of-models")
 intercept = round(coef(model_reviews)[1], 2)
 rl_coef = round(coef(model_reviews)[2], 2)
 sd_y = round(sd(df_reviews$rating), 2)
-sd_x = round(sd(df_reviews$review_length), 2)
+sd_x = round(sd(df_reviews$word_count), 2)
 rl_ci = round(confint(model_reviews)[2, ], 2)
 n_char = 50
 ```
@@ -30,17 +39,21 @@ import numpy as np
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
-df_reviews = pd.read_csv('data/review_data.csv').dropna()
+df_reviews = pd.read_csv('data/movie_reviews.csv').dropna()
+df_reviews_pr = pd.read_csv('data/movie_reviews_processed.csv').dropna()
 model_reviews = sm.load('linear_models/data/model_reviews.pickle') # pkl later
 ```
 
 
-# How do we obtain a model? 
 
 In our initial linear model, one of, and so far the only, key **parameter** is the coefficient for each feature. But how do we know what the coefficients are? When we run a linear model using some program function, they appear magically, but it's worth knowing a little bit about how they come to be, so let's try and dive a little deeper!
 
+## Introduction to Model Estimation
 
-In **model estimation**, we can break things down into the following steps:
+**Model estimation** is the process of finding the parameters associated with a model.  Different types of models will have different parameters to estimate, and there are different ways to estimate them.  In general though, the goal is the same, find the set of parameters that will lead to the best predictions under the current data modeling context.
+
+
+With estimation, we can break things down into the following steps:
 
 1. Start with an initial guess for the parameters
 2. Calculate the **prediction error**, or some function of it, or some other value that represents our model's **objective**
@@ -49,9 +62,17 @@ In **model estimation**, we can break things down into the following steps:
 
 
 :::{.callout type="info" title="Estimation vs. Optimization"}
-We can use **estimation** as general term for finding parameters, while **optimization** can be seen as a term for finding parameters that maximize or minimize some **objective function**.  In some cases we can estimate parameters without optimization, because there is a known way of solving the problem, but in most modeling situations we are going to use some optimization approach to find a 'best' set of parameters.
+We can use **estimation** as general term for finding parameters, while **optimization** can be seen as a term for finding parameters that maximize or minimize some **objective function**, or even a combination of objectives.  In some cases we can estimate parameters without optimization, because there is a known way of solving the problem, but in most modeling situations we are going to use some optimization approach to find a 'best' set of parameters.
 :::
 
+## Key ideas
+
+- **Parameters** are the values associated with a model
+- **Estimation** is the process of finding the parameters associated with a model
+- The **objective function** produces a value that we want to, for example, maximize or minimize
+- **Prediction error** is the difference between the actual value of the target and the predicted value of the target, and is often used to calculate the objective function
+- **Optimization** is the process of finding the parameters that maximize or minimize some objective function
+- **Model Selection** is the process of choosing the best model from a set of models
 
 
 ## Guessing
@@ -70,6 +91,7 @@ $$
 
 In this case, our guess for the review length coefficient is still zero, but our offset (or intercept) is the mean of the target. This is probably a better guess, since it is at least data driven, but it's still not great. But how do we know it's better?  
 
+
 ## Prediction Error
 
 We can compare the predictions from each guess to the actual values of the target.  We can do this by calculating the **prediction error**, or in the context of a linear model, they are also called **residuals**.  The prediction error is the difference between the actual value of the target and the predicted value of the target.  We can express this as:
@@ -81,7 +103,7 @@ $$
 \textrm{error} = \textrm{target} - \textrm{(model based) guess}
 $$
 
-Not only does this tell us how far off our model prediction is, it gives us a way to compare models.  With a measure of prediction error, we can get a **metric** for total error for all observations/predictions, or similarly the average error, and if one model has less total or average error, we can say it's a better model than one that has more. Ideally we'd like to choose a model with the least error, but we'll see that this is not always possible[^neverbest].  For now, let's calculate the error for our two guesses. One thing though, if we miss the mark above or below our target, we still want it to count the same in terms of prediction error. In other words, if the true rating is 3 and our model predicts 3.5 or 2.5, we want those to count the same when we total up our error[^absloss]. One way we can do this is to use the squared error, or maybe the absolute value.  We'll use squared error here, and we'll calculate the mean of the squared errors for all our predictions.  We'll do this for two models, one where we guess three for all observations, and one where we guess the mean of the target.
+Not only does this tell us how far off our model prediction is, it gives us a way to compare models.  With a measure of prediction error, we can get a **metric** for total error for all observations/predictions, or similarly the average error. If one model or parameter set has less total or average error, we can say it's a better model than one that has more. Ideally we'd like to choose a model with the least error, but we'll see that this is not always possible[^neverbest]. For now, let's calculate the error for our two guesses. One thing though, if we miss the mark above or below our target, we still want it to count the same in terms of prediction error. In other words, if the true rating is 3 and our model predicts 3.5 or 2.5, we want those to count the same when we total up our error[^absloss]. One way we can do this is to use the squared error value, or maybe the absolute value.  We'll use squared error here, and we'll calculate the mean of the squared errors for all our predictions.  We'll do this for two models, one where we guess three for all observations, and one where we guess the mean of the target.
 
 [^absloss]: We don't have to do it this way, but it's the default in most scenarios. As an example, maybe for your situation overshooting is worse than undershooting, and so you might want to use an approach that would weight those errors more heavily.
 
@@ -96,10 +118,10 @@ Not only does this tell us how far off our model prediction is, it gives us a wa
 y = df_reviews$rating
 
 # Calculate the error for the guess of three
-error_three <- mean((y - 3)^2)
+error_three = mean((y - 3)^2)
 
 # Calculate the error for the guess of the mean
-error_mean <- mean((y - mean(y))^2)
+error_mean = mean((y - mean(y))^2)
 ```
 
 
@@ -118,30 +140,45 @@ error_mean = np.mean((y - y.mean())**2)
 
 :::
 
-Looking at our **mean squared error**, we can see that we are off on average by over a point for our '#3' model, but less than half a point when guessing
+Now let's look at our **Mean Squared Error** (MSE), and we'll also inspect the square root of it, or the **Root Mean Squared Error**, as that puts things back on the original target scale.  Inspecting the latter, we can see that we are off on average by over a point for our '#3' model, but notably less than a point when guessing the mean. 
 
 ```{r}
 #| echo: false
 #| label: compare-error
-tibble(
-    `#3 Model Error` = error_three,
-    `Mean Model Error` = error_mean
+mse_tab = tibble(
+    Model = c("#3", "Mean"),
+    MSE = c(error_three, error_mean),
+    RMSE = sqrt(MSE),
+    `RMSE % drop` = c(NA, round((RMSE[2] - RMSE[1]) / error_three * 100, 1))
 ) |>
+    mutate(,
+        `RMSE % drop` = c("", scales::percent(`RMSE % drop`[2] / -100))
+    )
+
+mse_tab |>
     gt() |>
     cols_align("center")
 ```
 
+We can see that the mean model is not only better, but results in a `r mse_tab[['RMSE % drop']][2]` drop in error.  We'd definitely prefer the mean model over the '#3' model. Furthermore, this has shown us how we can see how we can compare models in a general fashion.
+
 Well, this is useful, and at least we can say one model is better than another. But you're probably hoping there is an easier way to do this, especially when we have possibly dozens of features and/or parameters to keep track of, and there is!
 
 
-- OBJECTIVE FUNCTION
-- LOSS FUNCTION
-- COST FUNCTION
+MOVE THIS TO LATER
+
+:::{.callout type="info" title="A Note on Terminology"}
+The objective function is often called the **loss function**, and sometimes the **cost function**. However, these both imply that we are trying to minimize the function, which is not always the case[^sklearnnomax].  As such we'll try to stick to the more neutral term objective function, but you may see the other terms used interchangeably in this text.  In addition, some packages will use the term **metric** to refer a value that you might want to examine as well, or even use to compare models.  For example, the MSE is a metric, but it may also be the objective function we are trying to minimize. Other metrics we could calculate without being the objective might be Adjusted R-squared and median absolute error. We could also use MSE as the objective, but use percentage drop in error from baseline when selecting among several models that minimized MSE. This can be very confusing when starting out! We'll try to stick to the term metric for additional values that we might want to examine separate from the objective function value.
+:::
 
 
-## Ordinary (?) Least Squares
+[^sklearnnomax]: You may find that some packages will only minimize (or maximize) a function, possibly one that you come up with yourself. It'd be nice if they did this internally, or allowed the user to specify the direction like most packages, but you'll need to take care when implementing your own metrics.
 
-For a simple linear model, we can estimate the parameters in several ways, but the most common is to use the **Ordinary Least Squares (OLS)** method. OLS is a method of estimating the coefficients that minimizes the sum of the squared errors, which we've just been doing[^notamodel].  In other words, it finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.  We can express this as:
+
+
+## Ordinary Least Squares
+
+For a simple linear model, we can estimate the parameters in several ways, but the most common is to use the **Ordinary Least Squares (OLS)** method. OLS is a method of estimating the coefficients that minimizes the sum of the squared errors, which we've just been doing in the previous section[^notamodel]. In other words, it finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.  We can express this as:
 
 [^notamodel]: Some disciplines seem confuse models with estimation methods and link functions. It doesn't really make sense nor is informative to call something an OLS model or a logit model. Many models are estimated using a least squares approach, and different types of models use a logit link.
 
@@ -149,13 +186,11 @@ $$
 \textrm{Loss} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2
 $$
 
-Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model.  The sum of the squared errors is also called the **residual sum of squares** (RSS). The OLS method finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.
+Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model.  The sum of the squared errors is also called the **residual sum of squares** (RSS), as opposed to the total sums of squares (i.e. the variance of the target), and the part explained by the model (model or explained sums of squares). The OLS method finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values. It's called *ordinary* least squares becuase there are other least squares methods - generalized least squares, weighted least squares, and others, but this doesn't really matter. What matters is that we have a way to estimate the coefficients that minimizes the sum of the squared errors. 
 
-It's called *ordinary* least squares becuase there are other least squares- generalized least squares, weighted least squares, and others, but this doesn't really matter. What matters is that we have a way to estimate the coefficients that minimizes the sum of the squared errors. 
+The resulting value - the sum or mean of the squared errors, as we noted can be referred to as our **objective** value, while the function is just the process of taking the predictions and observed target values and totaling up their squared differences.  We can use this value to find the best parameters for a specific model, as well as compare models with different parameters, such as a model with additional features versus one with fewer.  We can also use this value to compare different types of models that are using the same objective function, such as a linear model and a decision tree model.  
 
-The resulting value - the sum or mean of the squared errors, is sometimes referred to as our **objective** function, or **loss** function (if we are minimizing it), or even target function.  We can use this value to find the best parameters for a specific model, as well as compare different models with different parameters, such as a model with different features.  We can also use this value to compare different types of models, such as a linear model and a decision tree model.  
-
-Let's calculate the OLS estimate for our model. From our steps above, we need guesses and a way to update them.  For now, we can just provide a bunch of guesses, and just move along from one set to the next until we find the best one.
+Let's calculate the OLS estimate for our model. From our steps above, we need guesses and a way to update them.  For now, we can just provide a bunch of guesses, and just move along from one set to the next, and ultimately just choose whichever has the lowest value.
 
 
 :::{.panel-tabset}
@@ -163,18 +198,19 @@ Let's calculate the OLS estimate for our model. From our steps above, we need gu
 ##### R
 ```{r}
 #| label: r-ols
-ols <- function(x, y, b0, b1, sum = FALSE) {
+ols <- function(X, y, par, sum_sq = FALSE) {
+    X <- cbind(1, X)
     # Calculate the predicted values
-    y_hat <- b0 + b1 * x
+    y_hat <- X %*% par # %*% is matrix multiplication
 
     # Calculate the error
     error <- y - y_hat
 
     # Calculate the value as sum or mean squared error
-    if (sum) {
-        value <- sum(error^2, na.rm = TRUE)
-    } else {
-        value <- mean(error^2, na.rm = TRUE)
+    value <- crossprod(error) # crossprod is matrix multiplication
+
+    if (!sum_sq) {
+        value <- value / nrow(X)
     }
 
     # Return the value
@@ -189,37 +225,35 @@ guesses <- crossing(
 
 # Example for one guess
 ols(
-    x = df_reviews$review_length,
+    X = df_reviews$word_count,
     y = df_reviews$rating,
-    b0 = guesses$b0[1],
-    b1 = guesses$b1[1]
+    par = unlist(guesses[1, ])
 )
-
 ```
 
 ##### Python
 ```{python}
 #| label: py-ols
-#| 
-from itertools import product # to create our grid of guesses
 
-def ols(x, y, b0, b1, sum = False):
+def ols(X, y, par, sum = False):
+    # add a column of 1s for the intercept
+    X = np.c_[np.ones(X.shape[0]), X]
+
     # Calculate the predicted values
-    y_hat = b0 + b1 * x
+    y_hat = X @ par
     
     # Calculate the error
-    error = y - y_hat
+    value = np.sum((y - y_hat)**2)
     
-    # # Calculate the value as sum or average
-    if sum:
-        value = np.sum(error**2)
-    else:
-        value = np.mean(error**2)
+    # Calculate the value as sum or average
+    if not sum:
+        value = value / X.shape[0]
     
     # Return the value
     return(value)
 
 # create a grid of guesses
+from itertools import product
 
 guesses = pd.DataFrame(
     product(
@@ -231,33 +265,32 @@ guesses = pd.DataFrame(
 
 
 # Example for one guess
+
 ols(
-    x = df_reviews['review_length'],
+    X = df_reviews['word_count'],
     y = df_reviews['rating'],
-    b0 = guesses['b0'][0],
-    b1 = guesses['b1'][0],
-    sum = False
+    par = guesses.iloc[0,:]
 )
 ```
 
 :::
 
-Now we want to calculate the loss for each guess and find which one gives us the minimum function value.  Note that above we could get the total or mean squared error by setting the `sum` parameter to `TRUE` or `FALSE`.  Either is fine, but it's more common to use the mean, which is a little more understandable - how far are we off on average?
+Now we want to calculate the loss for each guess and find which one gives us the minimum function value.  Note that above, we could get the total or mean squared error by setting the `sum` parameter to `TRUE` or `FALSE`.  Either is fine, but it's more common to use the mean, which is a little more understandable - how far are we off on average?
 
 ```{r}
 #| label: r-ols-apply
 #| echo: false
 
 # Calculate the ols function value for each guess
-guesses <- guesses %>%
+guesses = guesses %>%
     mutate(objective = map2_dbl(
         guesses$b0, guesses$b1,
-        \(b0, b1) ols(b0 = b0, b1 = b1, x = df_reviews$review_length, y = df_reviews$rating)
+        \(b0, b1) ols(par = c(b0, b1), X = df_reviews$word_count, y = df_reviews$rating)
     ))
 
 min_loss = guesses %>% filter(objective == min(objective))
 
-predictions = min_loss$b0 + min_loss$b1 * df_reviews$review_length
+predictions = min_loss$b0 + min_loss$b1 * df_reviews$word_count
 
 guesses |>
     ggplot(aes(x = b0, y = b1)) +
@@ -297,10 +330,11 @@ guesses |>
 
 
 
-Returning to our results from the built-in functions, we had estimates of `r intercept` and `r rl_coef` for our coefficients. These are similar but not exactly the same, but we are very close on the weight for review length, and not wildly off on the intercept.  In general we have pretty good, but not great, correspondence between our guesses and the built-in functions.  
+Returning to our results from the built-in functions, we had estimates of `r intercept` and `r rl_coef` for our coefficients. These are similar but not exactly the same, but we are very close on the weight for review length, and not wildly off on the intercept.  In general, we have pretty good, but not great, correspondence between our guesses and the built-in function results. Here we depict the results of our model guesses.  
 
 
 ```{r}
+#| echo: false
 #| label: ols-compare-prediction-vs-observed
 p1 = df_reviews |>
     mutate(prediction = predictions) |>
@@ -319,7 +353,8 @@ p2 = df_reviews |>
     select(rating, prediction) |>
     pivot_longer(everything()) |>
     ggplot(aes(x = value)) +
-    geom_density(aes(fill = name), alpha = 0.5)
+    geom_density(aes(color = name, fill = name), alpha = 0.5) +
+    scale_fill_manual(values = c(okabe_ito[1], okabe_ito[2]), aesthetics = c("fill", "color"))
 
 
 p1 + p2
@@ -328,15 +363,11 @@ p1 + p2
 
 
 
-## Estimation as 'Learning'
-
+::: {.callout type="info" title="Estimation as 'Learning'"}
 Estimation can be seen as the process of a model learning which parameters will best allow the predictions to match the observed data, and hopefully, predict as-yet-unseen future data.  This is a very common way to think about estimation in machine learning, and it is a useful way to think about our simple linear model also.  
 
-One thing to keep in mind is that it is not a magical process. It takes good data, a good idea (model), and an appropriate estimation method to get good results.  
-
-MAYBE TURN INTO NOTE (not sure what else needs to be said here)
-
-
+One thing to keep in mind is that it is not a magical process. It takes good data, a good idea (model), and an appropriate estimation method to get good results.
+:::
 
 
 ## Maximum Likelihood 
@@ -389,9 +420,9 @@ Here is a simple code demo to get a likelihood in the context of our model. The 
 
 ```{r}
 #| label: r-demo-likelihood
-review_length <- c(50, 60) # two example review lengths
+word_count <- c(50, 60) # two example review lengths
 rating <- c(3, 4) # two example ratings
-mu <- -1.2 + .09 * review_length # predicted rating
+mu <- -1.2 + .09 * word_count # predicted rating
 sigma <- .5 # just a guess
 L <- dnorm(rating, mean = mu, sd = sigma)
 L
@@ -404,9 +435,9 @@ L
 # import numpy as np
 from scipy import stats
 
-review_length = np.array([50, 60])   # two example review lengths
+word_count = np.array([50, 60])   # two example review lengths
 rating = np.array([3, 4])            # two example ratings
-mu = -1.2 + .09 * review_length  # predicted rating
+mu = -1.2 + .09 * word_count  # predicted rating
 sigma = .5 # just a guess
 L = stats.norm.pdf(rating, loc = mu, scale = sigma)
 L
@@ -432,7 +463,7 @@ likelihood = function(x, y, beta0, beta1, sigma) {
     return(sum(ll))
 }
 
-likelihood(rating, review_length, -1.2, .09, .5)
+likelihood(rating, word_count, -1.2, .09, .5)
 ```
 
 ##### Python
@@ -447,7 +478,7 @@ def likelihood(x, y, beta0, beta1, sigma):
 
     return(np.sum(ll))
 
-likelihood(rating, review_length, -1.2, .09, .5)
+likelihood(rating, word_count, -1.2, .09, .5)
 ```
 
 :::
@@ -469,11 +500,11 @@ init = guesses |>
 init = init |>
     mutate(ll = pmap_dbl(
         list(b0 = init$b0, b1 = init$b1, sigma = init$sigma),
-        \(b0, b1, sigma) likelihood(df_reviews$review_length, df_reviews$rating, b0, b1, sigma)
+        \(b0, b1, sigma) likelihood(df_reviews$word_count, df_reviews$rating, b0, b1, sigma)
     ))
 
 # check
-# max_like = likelihood(df_reviews$review_length, df_reviews$rating, coef(model_reviews)[1], coef(model_reviews)[2], summary(model_reviews)$sigma)
+# max_like = likelihood(df_reviews$word_count, df_reviews$rating, coef(model_reviews)[1], coef(model_reviews)[2], summary(model_reviews)$sigma)
 # c(max_like, logLik(model_reviews))
 
 max_like = init |>
@@ -520,7 +551,7 @@ knitr::include_graphics("img/distribution_relationships.jpg")
 #| eval: false
 #| label: r-glm
 
-glm(rating ~ review_length, data = df_reviews, family = gaussian)
+glm(rating ~ word_count, data = df_reviews, family = gaussian)
 glm(binary_target ~ x1 + x2, data = df_reviews, family = binomial)
 glm(count ~ x1 + x2, data = df_reviews, family = poisson)
 ```
@@ -533,7 +564,7 @@ glm(count ~ x1 + x2, data = df_reviews, family = poisson)
 
 import statsmodels.formula.api as smf
 
-smf.glm('rating ~ review_length', data = df_reviews, family = sm.families.Gaussian())
+smf.glm('rating ~ word_count', data = df_reviews, family = sm.families.Gaussian())
 smf.glm('binary_target ~ x1 + x2', data = df_reviews, family = sm.families.Binomial())
 smf.glm('count ~ x1 + x2', data = df_reviews, family = sm.families.Poisson())
 ```
@@ -567,6 +598,186 @@ At this point we understand a few things:
 
 
 
+
+## Classification
+
+So far we've been assuming a continuous target, but what if we have a categorical target? When we want to model categorical targets, conceptually nothing changes- we can still have an objective function that maximizes or minimizes some goal. However, we need to think about how we can do this in a way that makes sense for the target.
+
+### Misclassification
+
+Let's just make our current target a rating of good if the rating is 3 or greater, and bad otherwise.  A simple correspondence to MSE is a function that minimized classification error or rate.  In other words, we can think of the objective function as the proportion of incorrect classifications.  This is called the **misclassification rate**.  We can write this as:
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-misclassification
+#| eval: false
+#| cache: false
+
+# misclassification rate
+misclassification = function(par, x, y) {
+  
+    X = cbind(1, X)
+    # Calculate the predicted values
+    y_hat = X %*% par # %*% is matrix multiplication
+
+    # Convert to a probability
+    y_hat = 1 / (1 + exp(-y_hat))
+
+    # Convert to a class
+    y_hat = as.integer(ifelse(y_hat > 0.5, "good", "bad"))
+
+    # Calculate the error
+    error = y - y_hat 
+
+    return(mean(error))
+}
+```
+
+##### Python
+
+```{python}
+#| label: py-misclassification
+#| eval: false
+#| cache: false
+
+def misclassification_rate(par, x, y):
+    # add a column of 1s for the intercept
+    X = np.c_[np.ones(X.shape[0]), X]
+
+    # Calculate the predicted values
+    y_hat = X @ par
+    
+    # Convert to a probability
+    y_hat = 1 / (1 + np.exp(-y_hat))
+    
+    # Convert to a class
+    y_hat = np.where(y_hat > 0.5, 1, 0)
+    
+    # Calculate the error
+    error = y - y_hat 
+    
+    return(np.mean(error))
+}
+```
+
+### Log loss
+
+Another approach is to use the **log loss**, sometimes called logistic loss or cross-entropy. If we have just the binary case it is:
+
+$$
+\textrm{Loss} = -\sum_{i=1}^{n} y_i \log(\hat{y_i}) + (1 - y_i) \log(1 - \hat{y_i})
+$$
+
+Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model (essentially a probability). It turns out that this is the same as log-likelihood used in a maximum likelihood approach for logistic regression.
+
+:::{.panel-tabset}
+
+##### R
+
+
+```{r}
+objective = function(par, X, y) {
+  
+    X = cbind(1, X)
+
+    # Calculate the predicted values on the raw scale
+    y_hat = X %*% par
+
+    # Convert to a probability
+    y_hat = 1 / (1 + exp(-y_hat))
+
+    # likelihood
+    ll = y * log(y_hat) + (1 - y) * log(1 - y_hat)
+
+    return(sum(-ll))
+}
+```
+
+##### Python
+
+```{python}
+def objective(par, X, y):
+    # add a column of 1s for the intercept
+    X = np.c_[np.ones(X.shape[0]), X]
+
+    # Calculate the predicted values
+    y_hat = X @ par
+    
+    # Convert to a probability
+    y_hat = 1 / (1 + np.exp(-y_hat))
+    
+    # likelihood
+    ll = y * np.log(y_hat) + (1 - y) * np.log(1 - y_hat)
+    
+    return(-np.sum(ll))
+
+```
+
+
+
+
+We have a binary rating in the processed version of our data. Let's use optim to get the best parameters for a model. We'll compare our results to the built-in `glm` function to get the same results.  We can see that the results are very similar, but not exactly the same.  We would not worry about such differences in practice
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+mod_logloss = optim(
+    par = c(0, 0, 0, 0),
+    fn = objective,
+    X = df_reviews_pr |> select(review_year_0, age_sc, word_count_sc) |> as.matrix(),
+    y = df_reviews_pr$rating_good
+)
+
+mod_glm = glm(
+    rating_good ~ review_year_0 + age_sc + word_count_sc,
+    data   = df_reviews_pr,
+    family = binomial
+)
+```
+
+##### Python
+
+```{python}
+from scipy.optimize import minimize
+
+mod_logloss = minimize(
+    objective,
+    x0 = np.array([0, 0, 0, 0]),
+    args = (
+        df_reviews_pr[['review_year_0', 'age_sc', 'word_count_sc']], 
+        df_reviews_pr['rating_good']
+    )
+)
+
+mod_glm = smf.glm(
+    'rating_good ~ review_year_0 + age_sc + word_count_sc',
+    data = df_reviews_pr,
+    family = sm.families.Binomial()
+).fit(method = 'lbfgs')
+```
+
+
+
+```{r}
+#| echo: false
+
+# compare
+
+tibble(
+    LogLike = c(mod_logloss$value, -logLik(mod_glm)),
+    int = c(mod_logloss$par[1], coef(mod_glm)[1]),
+    review_year_0 = c(mod_logloss$par[2], coef(mod_glm)[2]),
+    age_sc = c(mod_logloss$par[3], coef(mod_glm)[3]),
+    word_count_sc = c(mod_logloss$par[4], coef(mod_glm)[4])
+) |>
+    gt()
+```
+
 ## Optimization
 
 Previously we created a set of guesses to search over to see which set of parameters resulted in prediction that matched the data best. What we did is called a grid search, and it is a bit of a brute force approach to finding the best fitting model.  You can imagine that a couple of unfortunate or problematic scenarios, such as a very large number of parameters, or that our specified range doesn't get to the right sets of parameters, or we specify a very large range, but the best fitting model is within a very narrow part of that range.
@@ -580,6 +791,7 @@ In general, we can think of **optimization** as a way to find the best parameter
 - **Repeat** until the improvement is small enough or we reach a maximum number of iterations we want to attempt
 
 This is what we described before with esitmation in general. The key idea now is how we update the parameters.  Guessing simply isn't viable, it is just too inefficient and may never even get close. So now what? Well people have been working on this problem forever, and there are a lot of viable solutions.
+
 
 ## Gradient Descent
 
@@ -595,36 +807,36 @@ Here is a function to illustrate the process.
 #| eval: false
 
 # gradient descent
-gradient_descent <- function(par, x, y, learning_rate = 0.01, max_iter = 1000, tol = 1e-6) {
+gradient_descent = function(par, x, y, learning_rate = 0.01, max_iter = 1000, tol = 1e-6) {
   
   # initialize parameters
-  b0 <- par[1]
-  b1 <- par[2]
+  b0 = par[1]
+  b1 = par[2]
   
   # initialize gradient
-  grad <- c(1, 1)
+  grad = c(1, 1)
   
   # initialize iteration counter
-  iter <- 0
+  iter = 0
   
   # iterate until convergence
   while (iter < max_iter & sum(grad^2) > tol) {
     
     # calculate predictions
-    y_hat <- b0 + b1 * x
+    y_hat = b0 + b1 * x
     
     # calculate residuals
-    res <- y - y_hat
+    res = y - y_hat
     
     # calculate gradient
-    grad <- c(-2 * sum(res), -2 * sum(res * x))
+    grad = c(-2 * sum(res), -2 * sum(res * x))
     
     # update parameters
-    b0 <- b0 - learning_rate * grad[1]
-    b1 <- b1 - learning_rate * grad[2]
+    b0 = b0 - learning_rate * grad[1]
+    b1 = b1 - learning_rate * grad[2]
     
     # update iteration counter
-    iter <- iter + 1
+    iter = iter + 1
     
   }
   
@@ -680,11 +892,25 @@ def gradient_descent(par, x, y, learning_rate = 0.01, max_iter = 1000, tol = 1e-
 
 Another approach is called stochastic gradient descent.  Stochastic gradient descent is a variation on gradient descent that uses a random sample of the data to estimate the gradient.  The idea is that we can use a random sample of the data to estimate the gradient, and we can use the gradient to update the parameters.  We can repeat this process until the parameters converge.  The advantage of stochastic gradient descent is that it is faster than gradient descent.  The disadvantage of stochastic gradient descent is that it is less accurate than gradient descent.  The reason is that stochastic gradient descent uses a random sample of the data to estimate the gradient, and the gradient is an estimate of the true gradient.  The true gradient is the gradient of the objective function with respect to all of the data.  The true gradient is more accurate than the estimated gradient, and stochastic gradient descent is less accurate than gradient descent.
 
-## Newton's Method
 
-Another approach is called Newton's method.  Newton's method is a way to find the roots of a function.  The roots of a function are the values of the parameters that make the objective function equal to zero.  So if we can find the roots of the objective function, we can find the parameters that minimize the objective function.  Newton's method is an iterative approach that uses the first and second derivatives of the objective function to find the roots.  The first derivative is the gradient, and the second derivative is called the Hessian.  The Hessian is a matrix of second derivatives, and it tells us how the gradient changes as we change the parameters.  The Hessian is a measure of curvature, and it tells us how quickly the gradient changes.  If the Hessian is large, the gradient changes quickly, and we can take a large step.  If the Hessian is small, the gradient changes slowly, and we should take a small step.  Newton's method is a way to find the roots of the objective function, and it is a way to find the parameters that minimize the objective function.
+## Other Optimization Approaches
 
-## Other Approaches
+There are lots of other approaches to optimization. The main reason to choose one method over another usually is some sort of computational gain, e.g. memory or speed. In general, we want to use the simplest method that will get the job done, and in practice, we can always try a few different methods to see which works best. For statistical problems, many GLM-type functions appear to use Newton's as a default, but more complicated models may implement other means, and even then might best be served by a different approach.
+
+ Here are some other approaches to optimization:
+
+- Newton's method
+- Nelder-Mead
+- L-BFGS
+- Conjugate gradient
+- Quasi-Newton
+- Simulated annealing
+- Genetic algorithms
+
+##
+
+
+## Other Estimation Approaches
 
 Method of moments, bayesian
 
@@ -728,13 +954,13 @@ To test our result, let's compare with the `lm` function
 
 ```{r}
 X = df_reviews |>
-    select(review_length, number_of_reviews, year_of_release) |>
+    select(word_count, total_reviews, release_year) |>
     as.matrix()
 X = cbind(1, X) # add a column so we can estimate the intercept
 
 
 model_reviews = lm(
-    rating ~ review_length + number_of_reviews + year_of_release,
+    rating ~ word_count + total_reviews + release_year,
     data = df_reviews
 )
 
@@ -766,11 +992,11 @@ def ols(X, y, par, sum_sq = False):
 To test our result, let's compare with the `ols` function from statsmodels
 
 ```{python}
-X = df_reviews[['review_length', 'number_of_reviews', 'year_of_release']].to_numpy()
+X = df_reviews[['word_count', 'total_reviews', 'release_year']].to_numpy()
 X = np.hstack((np.ones((X.shape[0], 1)), X)) # add a column so we can estimate the intercept
 
 model_reviews = smf.ols(
-    'rating ~ review_length + number_of_reviews + year_of_release', 
+    'rating ~ word_count + total_reviews + release_year', 
     data = df_reviews
 ).fit()
 
