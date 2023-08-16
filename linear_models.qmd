@@ -114,8 +114,9 @@ We can pose a few concepts key to understanding models. This is not an exhaustiv
 
 - What a model is: The model as an idea
 - Features, targets, and input-output mappings: how do we get from input to output?
-- Model estimation: how do we find the best model?
+- Interpretation: what does a model tell us?
 - Prediction: how do we use a model?
+- Prediction underlies all interpretation
 - Assumptions, probabilistic outcomes, uncertainty: how do we know if we can trust a model?
 
 As we go along and cover these concepts, be sure that you feel you have the 'gist' of what we're talking about.  Almost everything of what comes after linear models builds on these ideas, so it's important to have a firm grasp before climbing to new heights.
@@ -363,8 +364,9 @@ $$ {#eq-lm-mat-mult}
 
 ### Feature Level 
 
+#### Basics
 
-Let's look again at our coefficient table. The following is a programming language agnostic presentation, but you can verify that it follows the previous output.
+Let's look again at our coefficient table from the model output. The following is a programming language agnostic presentation, but you can verify that it follows the previous output.
 
 ```{r}
 #| echo: false
@@ -383,7 +385,7 @@ We can start out our interpretation of results at the feature level. Here, the m
 
 Let's try and use some context to interpret the coefficient. The size for the coefficient is `r round(wc_coef, 2)`, and the standard deviation of the target, i.e. how much it moves around naturally on its own, is `r sd_y`.  So the coefficient is about `r round(wc_coef / sd_y * 100, 0)`% of the standard deviation of the target.  In other words, the addition of a single word to a review results in an expected `r ifelse(sign(wc_coef)==1, 'increase', 'decrease')` of `r round(wc_coef / sd_y * 100, 0)`% of what the review would normally bounce around in value. Most would think this is not negligible, and by some standards maybe even large [CITATION NEEDED- COHEN?].  Why? Because that's just for a single word increase in the word count.  Well, what would be a notable increase in word count?  An additional measure to consider is the standard deviation of the feature. In this case it's `r sd_x` for word count.  So if we increase the word count by one standard deviation, we expect the rating to `r ifelse(sign(wc_coef)==1, 'increase', 'decrease')` by `r glue('{wc_coef} * {sd_x} = {round(wc_coef * sd_x, 2)}')`, and this results in to a change of `r  round(sd_x/sd_y * wc_coef, 2)` standard deviation units of the target.  That's a pretty big jump!  So we can see that the coefficient is not negligible, and that the feature is indeed related to the target.  But we can also see that the coefficient is not so large that it's not believable.
 
-::: {.callout-tip, title="Standardized Coefficients"}
+::: {.callout-tip title='Standardized Coefficients'}
 The calculation we just did results in what's often called a 'standardized' or 'normalized' coefficient. In the case of the simplest model with only one feature like this, it is identical to the Pearson r correlation metric, which we invite you to check and confirm on your own, which should roughly equal our calculation of `r  round(sd_x/sd_y * wc_coef, 2)` . In the case of multiple features, it is the (partial) correlation between the target and the feature, after adjusting for the other features. But before you start thinking of it as a measure of *importance*, it is not. It provides some measure of the feature-target linear relationship, but that doesn't not entail practical importance, nor assess nonlinear relationships, interactions, and a host of other interesting things.
 :::
 
@@ -400,11 +402,47 @@ Aside from the coefficients, the most important output is the **confidence inter
 
 ```{r}
 #| echo: false
+#| label: fig-ci-plot
 # from https://en.wikipedia.org/wiki/Horseshoes_(game)
 knitr::include_graphics('img/horseshoes.jpeg')
 ```
 :::
 
+
+MOVE TO MULTIPLE FEATURES??
+
+#### SHAP Values
+
+Some models are more complicated than can be explained by a simple coefficient, e.g. nonlinear effects in generalized additive models, or may not even have coefficients, like gradient boosting models.  Such models typically won't come with statistical output like standard errors and confidence intervals either. But we'll still have some tricks up our sleeve, though they won't come without some caveats. 
+
+ A very common interpretation tool is called a **SHAP value**. SHAP stands for **SHapley Additive exPlanations**, and it provides a means to understand how much each feature contributes to a specific prediction. The basic process is,
+ 
+ In short, the SHAP values are expressed for the prediction of a given observation at a specific feature value.  
+
+ ```{r}
+explainer <- DALEX::explain(model_reviews)
+iBreakDown::break_down_uncertainty(
+    model_reviews,
+    data = df_reviews,
+    new_observation = tibble(word_count = 10)
+)
+pred <- predict(model_reviews, newdata = tibble(word_count = 10))
+pred - mean(fitted(model_reviews))
+coef(model_reviews)["word_count"]
+
+```
+
+We can ultimately get a shap value for every value of a feature, and take the average. If we do this for each feature, we can use it as a measure of **feature importance**.
+
+
+#### Visualization
+
+##### Partial Dependency and ALE Plots
+
+We can also look at the **partial dependency plot** (PDP).  The partial dependency plot shows the relationship between the feature and the target, but it does so by holding all other features constant. In this case, we can see that the relationship between word count and rating is negative, and that it's linear as it should be. PDPs are interesting in that, for the linear model setting, they plot the SHAP value for each feature value.  Related to PDPs are **individual conditional expectation** (ICE) plots, which are just a PDP for a specific observation, i.e. the plot of the SHAP values for a specific observation, if it had different values of the feature. A similar plot to the PDP is the **accumulated local effect** (ALE) plot, which is a bit more robust to correlated features, but is not so great with categorical features.
+
+
+Unfortunately, PDPs are not as straightforward to interpret when we have correlated features and, though still applicable, become more difficult to interpret with interactions. **ALE** plots are a bit more robust to correlated features, but they are not so great with categorical features, and likewise still difficult to interpret in complicated feature settings.  We'll talk more about these later, but for now, we can see that the relationship between word count and rating is negative, and that it's linear as it should be. 
 
 
 
@@ -427,39 +465,49 @@ Transforming variables can provide a few benefits in modeling, whether applied t
 - Easier convergence
 - Help with heteroscedasticity
 
-For example, merely centering predictor variables, i.e. subtracting the mean, provides a more interpretable intercept that will fall within the actual range of the target variable, telling us what the value of the target variable is when the covariates are at their means (or reference value if categorical).
+For example, merely centering predictor variables, i.e. subtracting the mean, provides a more interpretable intercept that will fall within the actual range of the target variable, telling us what the value of the target variable is when the covariates are at their means (or reference value if categorical). But even if easier interepretation isn't a major concern, variable transformations can help with convergence and speed up estimation, so can always be of benefit.
 
 #### Numeric variables
 
-The following table shows the interpretation of two extremely common transformations applied to numeric variables- logging and scaling (i.e. standardizing to mean zero, standard deviation one).
+The following table shows the interpretation of some very common transformations applied to numeric variables- logging and standardization, (i.e. standardizing to mean zero, standard deviation one).
 
-UPDATE THIS TABLE, NOT CLEAR ENOUGH
 
 ```{r}
 #| echo: false
-#| eval: false
-# gt doesn't seem to have an actual working answer to latex within cells, though kabel_extra and modelsummary appear to handle it as expected.
+#| eval: true
+#| label: tbl-transformation
+#|
+# gt doesn't seem to have an actual working answer to latex within cells, though kabel_extra and modelsummary appear to handle it as expected, at least if you just run it. Rendering seems to fail.
+# tibble(
+#     Target = c("y", "y", "log(y)", "log(y)", "y", "scale(y)", "scale(y)"),
+#     Feature = c("x", "log(x)", "x", "log(x)", "scale(x)", "x", "scale(x)"),
+#     Interpretation = c(
+#         "$\\Delta y = \\beta\\Delta x$",
+#         "$\\Delta y \\approx (\\beta/100)\\%\\Delta x$",
+#         "$\\%\\Delta y \\approx 100\\cdot \\beta\\%\\Delta x$",
+#         "$\\%\\Delta y = \\beta\\%\\Delta x$",
+#         "$\\Delta y =  \\beta\\sigma\\Delta x$",
+#         "$\\sigma\\Delta y =  \\beta\\Delta x$",
+#         "$\\sigma\\Delta y =  \\beta\\sigma\\Delta x$"
+#     ),
+# ) |>
+#     modelsummary::datasummary_df()
+# kableExtra::kable()
+# christ what year is this?
 tibble(
-    Target = c("y", "y", "log(y)", "log(y)", "y", "scale(y)", "scale(y)"),
-    Feature = c("x", "log(x)", "x", "log(x)", "scale(x)", "x", "scale(x)"),
-    Interpretation = c(
-        "$\\Delta y = \\beta\\Delta x$",
-        "$\\Delta y \\approx (\\beta/100)\\%\\Delta x$",
-        "$\\%\\Delta y \\approx 100\\cdot \\beta\\%\\Delta x$",
-        "$\\%\\Delta y = \\beta\\%\\Delta x$",
-        "$\\Delta y =  \\beta\\sigma\\Delta x$",
-        "$\\sigma\\Delta y =  \\beta\\Delta x$",
-        "$\\sigma\\Delta y =  \\beta\\sigma\\Delta x$"
-    ),
+    Target = c("y", "log(y)", "log(y)", "y", "scale(y)"),
+    Feature = c("x", "x", "log(x)", "scale(x)", "scale(x)"),
+    `Change in X` = c("1 unit", "1 unit", "1 % change", "1 standard deviation", "1 standard deviation"),
+    `Change in Y` = c("\U03B2 unit", "100 * (exp(\U03B2) -1) %", "\U03B2 % change", "\U03B2 unit", "\U03B2 standard deviation"),
+    Benefits = c("Interpretation", "Heteroscedasticity in y", "Interpretation, deal with feature extremes", "Interpretation, estimation", "Interpretation, estimation"),
 ) |>
-    modelsummary::datasummary_df()
+    gt()
+
 ```
 
-For example, to start with the normal linear model situation, a one-unit change in $x$, i.e. $\Delta x =1$, leads to $\beta$ unit change in $y$. If we log the target variable $y$, the interpretation of the coefficient for $x$ is that a one-unit change in $x$ leads to an (approximately) 100$\cdot$$\beta$% change in $y$. The 100 changes the result from a proportion to percentage change. More concretely, if $\beta$ was .5, a unit change in $x$ leads to (roughly) a 50% change in $y$. If both were logged, a percentage change in $x$ leads to a $\beta$ percentage change in y.  These percentage change interpretations are called [elasticities](https://en.wikipedia.org/wiki/Elasticity_(economics)) in econometrics and areas trained similarly.
+For example, it is very common to use **standardized** variables, also called **normalizing**, or simply scaling. If $y$ and $x$ are both standardized, a one unit (i.e. one standard deviation) change in $x$ leads to a $\beta$ standard deviation change in $y$. Again, if $\beta$ was .5, a standard deviation change in $x$ leads to a half standard deviation change in $y$. In general, there is nothing to lose by standardizing, so you should employ it often.
 
-It is very common to use **standardized** variables as well, also called normalizing, or simply scaling. If $y$ and $x$ are both standardized, a one unit (i.e. one standard deviation) change in $x$ leads to a $\beta$ standard deviation change in $y$.  Again, if $\beta$ was .5, a standard deviation change in $x$ leads to a half standard deviation change in $y$.  In general, there is nothing to lose by standardizing, so you should employ it often.
-
-Another common transformation, particularly in machine learning, is the *min-max normalization*, changing variables to range from some minimum to some maximum, usually zero to one.
+Another common transformation, particularly in machine learning, is the **min-max normalization**, changing variables to range from some minimum to some maximum, which is almost always zero to one.  This can make numeric and categorical indicators more comparable, and can help with convergence and speed up estimation. 
 
 #### Categorical variables
 
@@ -475,9 +523,11 @@ model.matrix(rating ~ -1 + season, df_reviews) |>
     gt()
 ```
 
-When doing statistical models, all relevant information is incorporated in k-1 groups, so one category will be dropped. For example, in a linear model, the intercept is the mean of the target for the dropped category, and the coefficients for the other categories are the difference between the mean for the dropped category and the mean the category being considered. As an example, in the case of the `season` feature, if the dropped category is `winter`, the intercept tells us the mean rating for `winter`, and the coefficients for the other categories are the difference between the value for `winter` and the mean of the target for the included category.  
+:::{.callout-note}
+When doing statistical models, all relevant information is incorporated in k-1 groups, so one category will be dropped. For example, in a linear model, the intercept is the mean of the target for the dropped category, and the coefficients for the other categories are the difference between the mean for the dropped, a.k.a. **reference**, category and the mean the category being considered. As an example, in the case of the `season` feature, if the dropped category is `winter`, the intercept tells us the mean rating for `winter`, and the coefficients for the other categories are the difference between the value for `winter` and the mean of the target for the included category. For other modeling approaches, all categories are included, and the model will learn the best way to use them, and may even only consider some or one of them at a particular iteration of estimation.
+:::
 
-For other modeling approaches, all categories are included, and the model will learn the best way to use them, and may even only consider some or one of them at a particular iteration of estimation. Another important way to encode categorical information is through an **embedding**.  This is a way of representing the categories as a vector of numbers, at which point the embedding feature is used in the model like anything else. The way to do this usually involves a model itself, one that learns the best way to represent the categories as numbers. This is a very common approach in deep learning, but can potentially be used in any modeling situation as an initial data processing step.
+ Another important way to encode categorical information is through an **embedding**.  This is a way of representing the categories as a vector of numbers, at which point the embedding feature is used in the model like anything else. The way to do this usually involves a model itself, one that learns the best way to represent the categories as numbers. This is a very common approach in deep learning, and can be done simultaneously with the rest of the model, but can potentially be used in any modeling situation as an initial data processing step.
 
 
 
