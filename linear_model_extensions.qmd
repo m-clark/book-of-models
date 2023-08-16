@@ -117,21 +117,20 @@ $$
 
 With quantile regression, we are given an extra parameter for the model: $\tau$ or *tau*. The tau parameter let's us choose which quantile we want to use for our line fitting. Since the median splits the data in half, we can translate that to a quantile of .5. 
 
+
+### Data Import and Preparation
+
 Let's bring in our movie reviews data. Let's say that we are curious about the relationship between the `user_age` variable and the `rating` variable. First, we need to get our data ready for our home-brewed functions.
 
 :::{.panel-tabset}
 
 ##### R
 
-```{r, r_data_read}
-#| echo: true
-#| label: r_data_read
-reviews <- read.csv("data/review_data.csv")
-```
-
 ```{r, r_data_prep}
 #| echo: true
 #| label: r_data_prep
+reviews <- read.csv("data/review_data.csv")
+
 reviews <- na.omit(reviews)
 
 y <- reviews$rating
@@ -140,22 +139,39 @@ X <- cbind(intercept = 1,
            user_age = reviews$user_age)
 ```
 
-
 ##### Python
 
+```{python}
+import pandas as pd
+import numpy as np
+reviews = pd.read_csv("~/Documents/book-of-models/data/review_data.csv")
+```
 
-:::
 
+```{python}
+reviews = reviews.dropna()
 
-### Loss Function
+y = reviews['rating']
 
-Let's see one way that we can create a least squares loss function for fitting a linear regression model:
+X = pd.DataFrame(
+  {'intercept': 1, 
+  'user_age': reviews['user_age']}
+)
+```
+
+### Quantile Loss Function
+
+Let's see one way that we can create a least squares loss function for fitting a linear regression model and compare it with a function for quantile loss.
+
+:::{.panel-tabset}
+
+##### R
 
 ```{r, r_lsl_function}
 #| echo: true
 #| eval: false
 #| label: least_squares_loss
-least_square_loss <- function(par, X, y) {
+least_squares_loss <- function(par, X, y) {
   
   linear_parameters <- X %*% par
   
@@ -164,8 +180,6 @@ least_square_loss <- function(par, X, y) {
   loss <- crossprod(y - mu)
 }
 ```
-
-And compare it with a function for quantile loss:
 
 ```{r, r_quantile_loss}
 #| echo: true
@@ -184,11 +198,44 @@ quantile_loss <- function(par, X, y, tau) {
 }
 ```
 
-You'll notice right away that we have a few differences. Our quantile loss function includes the *tau* argument, which will let us set our quantile of interest; naturally, it can be any value between 0 and 1. In our quantile loss function, we are also calculating the The residual is multiplied by the tau value, only if the residual is greater than 0. If the residual is negative, we need to add tau to -1. Since we need a positive value for our loss values, we will multiply our negative residuals by the negative value produced from -1 plus our tau value. After that, we just sum all of those positive loss values and do our best to minimize that summed value. 
+##### Python
+
+```{python}
+def least_squares_loss(par, X, y):
+# Use matrix multiplication between X and par:
+  linear_parameters = X.dot(par)
+  
+  mu = linear_parameters
+  
+  loss = np.dot(y - mu, y - mu)
+  
+  return loss
+```
+
+```{python}
+def quantile_loss(par, X, y, tau):
+# Use matrix multiplication between X and par:
+  linear_parameters = X.dot(par)
+  
+  residual = y - linear_parameters
+  
+  if residual < 0: 
+    loss = (-1 + tau)*residual 
+  else: loss = tau*residual
+  
+  sum(loss)
+```
+
+
+You'll notice right away that we have a few differences. Our quantile loss function includes the *tau* argument, which will let us set our quantile of interest; naturally, it can be any value between 0 and 1. The residual is multiplied by the tau value, only if the residual is greater than 0. If the residual is negative, we need to add tau to -1. Since we need a positive value for our loss values, we will multiply our negative residuals by the negative value produced from -1 plus our tau value. After that, we just sum all of those positive loss values and do our best to minimize that summed value. 
 
 ### Model Fitting
 
 Now that we have our data and our loss function, we can fit the model almost exactly like our standard linear model. Again, note the difference here with our tau value, which we've set to .5 to represent the median.
+
+:::{.panel-tabset}
+
+##### R
 
 ```{r, r_quantile_optim}
 #| echo: true
@@ -202,10 +249,27 @@ optim(
 )$par
 ```
 
+##### Python
+
+```{python}
+from scipy.optimize import minimize
+
+minimize(quantile_loss, 
+         x0 = np.array([0, 0]), 
+         args = (X, y, .5))
+```
+
+:::
+
 Fortunately, our interpretation of this result isn't all that different from a standard linear model -- the rating should increase by .08 for every year older that people get. However, this is at the median, not the mean, like the standard linear model. 
 
-Let's check out results against those produced by `quantreg`:
+### Checking Results
 
+Let's check out results against those produced by `quantreg` and `statsmodels`.
+
+:::{.panel-tabset}
+
+##### R
 ```{r, r_quantreg}
 #| echo: true
 #| label: r_quantreg
@@ -217,7 +281,16 @@ median_test <- rq(rating ~ user_age, tau = .5,
 summary(median_test)
 ```
 
-Our home-brewed function returned the same results as the guy who created quantile regression.
+##### Python
+
+```{python} 
+import statsmodels.formula.api as smf
+
+median_test = smf.quantreg('rating ~ user_age', 
+                           data = reviews).fit(q = .5)
+```
+
+Our home-brewed function returned the same results.
 
 Quantile regression is not a one-trick-pony. Remember, it is called quantile regression -- not median regression. Being able to compute a median regression is just a nice by-product. What we can do with quantile regression is to model different quantiles of the same data. It gives us the ability to answer brand new questions -- does the relationship between user age and their ratings change at different quantiles of rating?
 
@@ -291,9 +364,13 @@ $$
 
 These additive features have no concern about linearity with the outcome and will capture nonlinearities in our data very nicely. At this point, you might be asking yourself, "Couldn't I just use some type of polynomial regression or even a nonlinear regression?" Of course you could, but both have pretty serious limitations. The typical polynomial regression likely doesn't fit beyond the data that you currently have and **you** are forcing curves to fit through the data. To use a nonlinear model, you need to know what the underlying nonlinear form actually looks like before you can even specify the model. A GAM will do away with both of these issues; it will produce a curve that will best fit through the data, without the need to know the underlying linear form. 
 
-### Functions
+### Splines
 
 We are going to need to generate several functions to make this work. The first will be to produce the *cubic spline*. Do take note that there are many different types of splines that could be used.
+
+:::{.panel-tabset}
+
+##### R
 
 ```{r, r_cubic_spline}
 #| echo: true
@@ -304,8 +381,26 @@ cubic_spline <- function(x, z) {
 }
 ```
 
+##### Python
+
+```{python, python_cubic_spline}
+#| echo: true
+#| label: python_cubic_spline
+import numpy as np
+
+def cubic_spline(x,z):
+    return (((z - 0.5)**2 - 1/12) * ((x - 0.5)**2 - 1/12)/4 -
+            ((np.abs(x - z) - 0.5)**4 - (np.abs(x - z) - 0.5)**2 / 2 + 7/240) / 24)
+```
+
+:::
+
+### Model Matrix Function
+
 Then we a function to produce the model matrix:
-  
+:::{.panel-tabset}
+
+##### R
 ```{r, r_model_matrix}
 #| echo: true
 #| label: r_model_matrix
@@ -319,9 +414,33 @@ splX <- function(x, knots) {
 }
 ```
 
-This is referred to as an *unpenalized cubic spline*. 
+##### Python
+
+```{python, python_model_matrix}
+#| echo: true
+#| label: python_model_matrix
+
+def splX(x, knots):
+    q = len(knots) + 2
+    n = len(x)
+    X = np.ones((n, q))
+    X[:,1] = x
+    for i in range(2, q):
+        X[:,i] = cubic_spline(x, knots[i-2])
+    return X
+```
+
+This model matrix will help us to produce an *unpenalized spline*. 
+
+:::
+
+### Data Prep
 
 Now that we have our functions, let's get our data ready to go. It is usually a good idea to scale your predictors.
+
+:::{.panel-tabset}
+
+##### R
 
 ```{r, r_min_max_scale}
 #| echo: true
@@ -331,7 +450,27 @@ x <- x / max(x)
 rating <- reviews$rating
 ```
 
-We can create a model with 4 knots -- you can think of knots as places where individual regression lines will get joined together. You can always experiment with more or less knots. 
+##### Python
+
+```{python, python_min_max_scale} 
+#| echo: true
+#| label: python_min_max_scale
+x = reviews['user_age'] - reviews['user_age'].min()
+x = x / x.max()
+rating = reviews['rating']
+```
+
+:::
+
+### Model Matrix
+
+We can create a model with 4 knots -- you can think of knots as places where individual regression lines will get joined together. You can always experiment with more or less knots. Once we have our knots ready, we can create the model matrix.
+
+As soon as you create your `X` object, you should take a look at it. It will be a matrix with 4 columns. The first column will be all 1s, the second column will be the scaled `user_age`, and the last two columns will be the cubic splines.
+
+:::{.panel-tabset}
+
+##### R
 
 ```{r, r_knots}
 #| echo: true
@@ -339,15 +478,11 @@ We can create a model with 4 knots -- you can think of knots as places where ind
 knots <- 1:4/5
 ```
 
-With our knots ready, we can create the model matrix:
-
 ```{r, r_model_matrix_spline}
 #| echo: true
 #| label: r_model_matrix_spline
 X <- splX(x, knots)            
 ```
-
-A little more clarity arrives when we take a quick look at the new model matrix:
 
 ```{r, model_matrix_head}
 #| echo: true
@@ -355,10 +490,38 @@ A little more clarity arrives when we take a quick look at the new model matrix:
 head(X)
 ```
 
-As always, the first column contains 1's for the intercept. The second column contains the original values for user_age. The 3rd and 4th columns, though, contain the cubic spline values for 1 and 2 knots, respectively. 
+##### Python
 
-Now that we have a model matrix, we can pass that right onto our `lm` function:
+```{python, python_knots}
+#| echo: true
+#| label: python_knots
+
+knots = np.arange(1, 5) / 5
+```
+
+```{python, python_model_matrix_spline}
+#| echo: true
+#| label: python_model_matrix_spline
+
+X = splX(x, knots)
+```
+
+```{python, model_matrix_head}
+#| echo: true
+#| label: model_matrix_head
+
+X[:5,:]
+```
+
+:::
+
+### Model Fitting
+
+Now that we have a model matrix, `X`, we can fit the model. All of the hardwork was done in creating the model matrix and we can just use `lm` or `OLS` to fit the model.
   
+:::{.panel-tabset}
+
+##### R
 ```{r, r_cubic_model_fitting}
 #| echo: true
 #| label: r_cubic_model_fitting
@@ -367,9 +530,25 @@ fit_lm <- lm(rating ~ X - 1)
 fit_lm
 ```
 
-All of the hard work was done in creating the model matrix
+##### Python
+
+```{python, python_cubic_model_fitting}
+#| echo: true
+#| label: python_cubic_model_fitting
+fit_lm = sm.OLS(rating, X).fit()
+
+fit_lm.summary()
+```
+
+:::
+
+### Prediction
 
 We can set some prediction values for this model:
+
+:::{.panel-tabset}
+
+##### R
   
 ```{r, r_predictions}
 #| echo: true
@@ -378,7 +557,17 @@ xp <- seq(0, 1, by = .01)
 Xp <- splX(xp, knots)  
 ```
 
-And then visualize:
+##### Python
+
+```{python, python_predictions} 
+#| echo: true
+
+xp = np.arange(0, 1, 0.01)
+Xp = splX(xp, knots)
+```
+:::
+
+While creating those predictions is nice, using them to visualize the model is far more helpful.
   
 ```{r, spline_viz}
 #| echo: false
@@ -392,8 +581,14 @@ ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
   theme_minimal()
 ```
 
-It is always worth checking our solution against a known function. 
 
+### Checking Results
+
+It is always worth checking our solution against known functions. Let's see how our model compares to the `mgcv` package in R and the `statsmodels` package in Python. 
+
+:::{.panel-tabset}
+
+##### R
 ```{r, mgcv_check}
 #| echo: true
 #| label: mgcv_check
@@ -401,10 +596,26 @@ library(mgcv)
 summary(gam(rating ~ X-1))
 ```
 
-It looks like our estimation provided an exact match to a much-used function. 
+##### Python
 
-Typically, you don't need to go through the whole mess of creating a model matrix by hand and can use additional 
+```{python, python_mgcv_check}  
+#| echo: true
+#| label: python_mgcv_check
+import statsmodels.api as sm
 
+Xp = sm.add_constant(Xp)
+fit_gam = sm.GLM(rating, X, family=sm.families.Gaussian()).fit()
+
+fit_gam.summary()
+```
+:::
+
+
+Typically, you don't need to go through the whole mess of creating a model matrix by hand and can use additional functions to fit a spline to your regression. In R, you can use the `gam` function from the `mgcv` package. In Python, you can use the `GAM` function from the `pygam` package.
+
+:::{.panel-tabset}
+
+##### R
 ```{r, r_gam_demo}
 #| echo: true
 #| label: r_gam_demo
@@ -413,10 +624,30 @@ gam_model <- gam(rating ~ s(x, bs = "cr"))
 summary(gam_model)
 ```
 
+##### Python
+
+```{python, python_gam_demo}  
+#| echo: true
+#| label: python_gam_demo
+
+from pygam import LinearGAM, s
+
+gam_model = LinearGAM(s(0)).fit(x, rating)
+
+gam_model.summary()
+```
+
+:::
+
+### Penalized Cubic Spline
 
 Recall that this is an unpenalized cubic spline. If we want to have a finer degree of control over that wiggly line, we can include a *lambda penalty*. 
 
-We'll need to change up our spline function just a bit:
+We'll need to change up our spline function just a bit.
+
+:::{.panel-tabset}
+
+##### R
   
 ```{r, r_spline_penalty}
 #| echo: true
@@ -429,7 +660,26 @@ splS <- function(knots) {
 }
 ```
 
-We also need to be able to take the square root of our entire matrix 
+##### Python
+
+```{python, python_spline_penalty}
+#| echo: true
+#| label: python_spline_penalty
+
+def splS(knots):
+    q = len(knots) + 2
+    S = np.zeros((q, q))
+    S[2:, 2:] = np.outer(knots, knots).apply(cubic_spline)
+    return S
+```
+
+:::
+
+We also need to be able to take the square root of our entire matrix. This is a bit more complicated than it sounds. We need to take the eigenvalue decomposition of the matrix, take the square root of the eigenvalues, and then recombine the matrix.
+
+:::{.panel-tabset}
+
+##### R
 
 ```{r, r_matrix_square}
 #| echo: true
@@ -441,7 +691,27 @@ mat_sqrt <- function(S) {
 }
 ```
 
-With those functions in hand, we can create the function to fit the entire model:
+##### Python
+
+```{python, python_matrix_square}
+#| echo: true
+#| label: python_matrix_square
+
+def mat_sqrt(S):
+    d = np.linalg.eig(S)
+    rS = d.vectors @ np.diag(d.values**.5) @ d.vectors.T
+    return rS
+```
+
+:::
+
+### Penalized Model Fitting Function
+
+With those functions in hand, we can create the function to fit the entire model.
+
+:::{.panel-tabset}
+
+##### R
   
 ```{r, r_penalized_fit}
 #| echo: true
@@ -456,21 +726,37 @@ prs_fit <- function(y, x, knots, lambda) {
 }
 ```
 
-Notice again that magic happens in the model matrix, but that we are still just using `lm` to fit the model.
+##### Python
 
-Let's stick with 4 knots:
-
-```{r, r_penalized_knots}
+```{python, python_penalized_fit} 
 #| echo: true
-#| label: r_penalized_knots
-knots = 1:4/5
+#| label: python_penalized_fit
+
+def prs_fit(y, x, knots, lamba):
+    q = len(knots) + 2
+    n = len(x)
+    Xa = np.vstack((splX(x, knots), mat_sqrt(splS(knots))*np.sqrt(lamba)))
+    y[(n + 1):(n+q)] = 0
+    return sm.OLS(y, Xa).fit()
 ```
 
-Let's observe what happens when we set our lamba to .1:
+:::
+
+Notice again that magic happens in the model matrix, but that we are still just using `lm` or `OLS` to fit the model.
+
+### Penalized Model Fitting
+
+Let's stick with 4 knots and see what happens when we set our lambda to .1:
+
+:::{.panel-tabset}
+
+##### R
   
 ```{r, r_lambda_1}
 #| echo: true
 #| label: r_lambda_1
+knots <- 1:4/5
+
 fit_penalized <- prs_fit(
   y <- rating,
   x <- x,
@@ -481,6 +767,27 @@ fit_penalized <- prs_fit(
 Xp <- splX(xp, knots) 
 ```
 
+##### Python
+
+```{python, python_lambda_1}
+#| echo: true
+#| label: python_lambda_1
+
+knots = np.arange(1, 5)/5
+
+fit_penalized = prs_fit(
+    y = rating,
+    x = x,
+    knots = knots,
+    lamba = .1
+)
+
+Xp = splX(xp, knots)
+```
+
+There is definitely some wiggly to that line, but it is not as extreme as what we saw with our unpenalized cubic spline. 
+
+:::
 ```{r, r_lambda_1_viz}
 #| echo: false
 #| label: r_lambda_1_viz
@@ -493,7 +800,7 @@ ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
   theme_minimal()
 ```
 
-There is definitely some wiggly to that line, but it is not as extreme as what we saw with our unpenalized cubic spline. We can test out what happens at different lambda values:
+We can test out what happens at different lambda values:
   
 ```{r, lambda_value_viz}
 #| echo: false
@@ -528,6 +835,221 @@ What can we take from this? As lambda values get closer to 1, we see lines that 
 
 Naturally, this is a great time to think about how these models would work on new data. As lambda gets smaller, we are fitting our in-sample data much better. How do you think this would fare with unseen data? If you'd say that we would do well with training and horrible on testing, we'd likely agree with you. 
 
+## Mixed Models
+
+As much fun as modeling is, knowing your data is far more important. You can throw any model you want at your data, from simple to fancy, but you can count on disappointment if you don't fundamentally know the structures that live within your data. Let's take a quick look at the following visualizations:
+
+```{r}
+#| echo: false
+#| label: year-release-rating
+#| fig-cap: Linear relationship between year of movie release and rating.
+ggplot(reviews, aes(user_age, rating)) +
+  geom_point() +
+  geom_smooth(method="lm", se = FALSE) +
+  theme_minimal()
+```
+
+In this visualization, we don't see much of a relationship between user age and ratings. We could probably just stop there, but we might be ignoring something substantial within our data: year of release We might want to ask a question, "Does this relationship work the same way across the different years?"
+
+```{r}
+#| echo: false
+#| label: year-release-genre-rating
+#| fig-cap: Linear relationship between year of movie release and rating, with genre.
+ggplot(reviews, aes(user_age, rating, color = as.factor(year_of_release))) +
+  # geom_point() +
+  geom_smooth(method="lm", se = FALSE) +
+  theme_minimal()
+```
+
+A very quick examination of the visualization might suggest that the relationship between user age and rating varies significantly over the different release years. Some years show a positive relationship, while some show a negative relationship, and all with various levels of strength.
+
+Just for fun, try to group by release year and summarize it by the mean rating. You'll find that the averages are very different across the years! Then, subtract the overal mean rating from those values. Keep them handy!
+
+Clearly, release year is offering some type of additional information to the model, but how can we incorporate that information into our model? An interaction might come to find at first, but that becomes a tricky interpretation endeavour. Instead, the **mixed model** can be used to incorporate that information into our model, without much hassle and with a huge boost in explanability. 
+
+The term **mixed model** is as vanilla as we can possibly make it,but you might have heard of different flavors of them before. If you've come from the Social Sciences, you might have heard of *Hierarchical Linear Models*. You might have even heard the words *multilevel models* or *mixed-effects models* tossed around before. Maybe you've even be exposed to ideas like *random effects* or *random slopes*. No matter what word you say, they are all instances of a **mixed model**. 
+
+What makes a model a mixed model? The mixed model is characterized by the idea that a model can have *fixed* and *random* effects. Fortunately, you've already encountered *fixed* effects -- those are the features that we have been using in all of our models so far! The *random effect*, though, is typically some type of grouping-based variable that contributes to unique variance in the outcome and we are going to let them vary from the rest of the model. Grouping variables can be actual groups, with the classic example being students in a classroom. Those groups can also be next within larger groups -- students nested within classrooms, nested within schools, nested within districts. These groups can also capture the notion of a repeated measure for an individual, like repeated test scores. 
+
+While we aren't rejecting the idea of a mean with these mixed-models, we are implying that each group (whether it is a group, nested group, or repeated observations from a person) has its own unique mean that can be useful for modeling the target. Formally, we might specify something like this:
+
+$$
+rating = b_{\text{0_genre}} + b_{year}*\text{year}
+$$
+
+We are explicitly saying that genre has its own unique slope for this model, where $b_{\text{0_genre}} ~ \eta(b_{intercept}, \tau)$, meaning that the random intercepts will be normally distributed and the overall intercept is just the mean of those random intercepts. 
+
+Before we go to modeling our reviews, let's consider an exmaple training program to increase vertical jump, with average vertical increases of 2 inches. That really doesn't sound all that impressive; however, that increase came across 5 distinct groups: NBA players, NFL players, NHL players, MLB players, and data analysts. We can be pretty certain that each group has a very different vertical jump distribution coming into this training program. Given the amount of jumping that NBA players do, this program is unlikely to produce dramatic increases in vertical jump for them. We would probably expect modest gains in the NFL and even greater gains within NHL and MLB players. Where we are going to see the best gains, though, is from data analysts -- they might want to jump to conclusions, but don't need to jump over their computers very often. Now that we know the additional information, can we just look at the average increase and be satisfied? Probably not. Instead, we need to look at the group that we might be in and judge accordingly. A mixed-model is going to let us to model all of this without too much work.
+
+### Model Matrix
+
+Before we can fit our mixed model, we need to create a model matrix. We are going to use the `model.matrix()` function to create our model matrix. We are going to use the `user_age` variable as our fixed effect and the `year_of_release` as our random effect. We are going to use the `factor()` function to make sure that `year_of_release` is treated as a categorical variable. We are also going to use the `-1` to remove the intercept from the model matrix. 
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| echo: true
+#| label: mixed_model_prep
+
+X <- model.matrix(~user_age, reviews)
+Z <- model.matrix(~factor(reviews$year_of_release) - 1)
+
+colnames(Z) <- paste0("released_", sort(unique(reviews$year_of_release)))
+
+y <- reviews$rating
+```
+
+##### Python
+
+```{python}
+#| echo: true
+#| label: mixed_model_prep
+
+X = reviews[['user_age']]
+X = sm.add_constant(X)
+
+Z = pd.get_dummies(reviews['year_of_release'], drop_first=True)
+
+y = reviews['rating']
+```
+
+:::
+
+### Likelihood Function
+
+:::{.panel-tabset}
+
+##### R
+
+```{r, r_data_read}
+#| echo: true
+#| label: mixed_model_ll
+
+mixed_log_likelihood <- function(y, X, Z, theta) {
+  tau   = exp(theta[1])
+  sigma = exp(theta[2])
+  n = length(y)
+  
+  # evaluate covariance matrix for y
+  e  = tcrossprod(Z)*tau^2 + diag(n)*sigma^2
+  b  = coef(lm.fit(X, y))
+  mu = X %*% b
+
+  ll = mvtnorm::dmvnorm(y, mu, e, log = TRUE)
+  -ll
+}
+```
+
+##### Python
+
+```{python}
+#| echo: true
+#| label: mixed_model_ll
+
+def mixed_log_likelihood(y, X, Z, theta):
+    tau = np.exp(theta[0])
+    sigma = np.exp(theta[1])
+    n = len(y)
+    
+    # evaluate covariance matrix for y
+    e = np.matmul(Z, Z.T) * tau**2 + np.eye(n) * sigma**2
+    b = np.linalg.lstsq(X, y, rcond=None)[0]
+    mu = np.matmul(X, b)
+    
+    ll = stats.multivariate_normal.logpdf(y, mu, e)
+    return -ll
+```
+
+### Model Fitting
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+param_init <- c(0, 0)
+
+names(param_init) <- c('tau', 'sigma')
+
+fit <- optim(
+  fn  = mixed_log_likelihood,
+  X   = X,
+  y   = y,
+  Z   = Z,
+  par = param_init,
+  control = list(reltol = 1e-10)
+)
+
+fit
+```
+
+##### Python
+
+```{python}
+#| echo: true
+#| label: mixed_model_fit
+
+param_init = np.array([0, 0])
+
+fit = opt.minimize(
+    fun=mixed_log_likelihood,
+    x0=param_init,
+    args=(X, Z, y),
+    method='BFGS',
+    tol=1e-10
+)
+
+fit
+```
+
+### Model Checking
+
+Let's see if we can get a match from `lme4` or `statsmodels`.
+
+:::{.panel-tabset}
+
+##### R
+```{r}
+library(lme4)
+
+fit_mer = lmer(rating ~ user_age + (1 | year_of_release), 
+               reviews, 
+               REML = FALSE)
+
+summary(fit_mer)
+```
+
+##### Python
+
+```{python}
+import statsmodels.api as sm
+
+fit_mer = sm.MixedLM.from_formula("rating ~ user_age", reviews, 
+                                  groups=reviews["year_of_release"])
+
+fit_mer = fit_mer.fit()
+
+fit_mer.summary()
+```
+
+:::
+
+Now that we know our homemade methods can match the others, what does this model really offer us?
+
+```{r}
+#| echo: false
+library(sjPlot)
+
+sjPlot::plot_model(fit_mer, type = "re") +
+  theme_minimal()
+```
+
+Remember your group-by and summarize task earlier? Each point is the difference between the year's average and the overall average -- values in blue are higher than the average and values in red are lower than the average. With that, the average rating for 2001 is much better than the global average rating, while 2019 is much worse than the global average rating. 
+
+## Performance Comparisons
+
 Just for giggles, we should see how all of our models perform:
 
 ```{r, model_performace_comp}
@@ -536,7 +1058,8 @@ Just for giggles, we should see how all of our models perform:
 #| fig-cap: Comparing model performance with RMSE
 library(mgcv)
 model_data <- data.frame(rating = rating, 
-                         age = x)
+                         age = x, 
+                         year_of_release = year_of_release)
 lm_test <- lm(rating ~ age, 
               data = model_data) 
 median_test <- rq(rating ~ age, 
@@ -545,16 +1068,22 @@ gam_test <- gam(rating ~
                   s(age, bs = "cr", fx = FALSE, m = .001), 
                 data = model_data) 
 
+fit_mer = lmer(rating ~ user_age + (1 | year_of_release), 
+               reviews, 
+               REML = FALSE)
+
 knitr::kable(
-  data.frame(model = c("standard", "median", "gam"), 
+  data.frame(model = c("standard", "median", "gam", "mixed"), 
              rmse = c(modelr::rmse(lm_test, model_data),
                       modelr::rmse(median_test, model_data),
-                      modelr::rmse(gam_test, model_data))
+                      modelr::rmse(gam_test, model_data), 
+                      modelr::rmse(fit_mer, model_data))
   )
 )
 ```
 
-Unsurprisingly, gam was the best performer of the bunch. The results of our median regression and standard linear model are pretty similar, with a slight edge to the standard model.
+Unsurprisingly, gam was the best performer of the bunch. The results of our median regression and standard linear model are pretty similar, with a slight edge to the standard model. This finding may or may not surprise you -- as you spend more time with models, you often encounter situations where the linear model performs just as well as a model that should, in theory, do much better. The linear model is the **the linear model** for a reason!
+
 
 ## Concluding Ramblings
 
