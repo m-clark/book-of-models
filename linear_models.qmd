@@ -13,6 +13,8 @@ source("functions/utils.R")
 reticulate::use_condaenv("book-of-models")
 ```
 
+:::{.aside}
+
 Packages needed or useful for this chapter include:
 
 
@@ -55,7 +57,7 @@ pd.set_option('display.precision', 4) # number of digits of precision for floati
 
 :::
 
-
+:::
 
 ## Introducing the Greatest Of All Time
 
@@ -148,7 +150,7 @@ We may use any or all of these words to describe things so that you are comforta
 ### Expressing Relationships
 
 
-As noted,  a model is a way of expressing a relationship between a set of features and a target, and one way of expressing them is as inputs and outputs. But how can we go from input to output?  Well to begin, we assume that the features and target are **correlated**, i.e. that there is some relationship between the x and y.  If so, then we can ulitmately use the features to **predict** the target.  In the simplest setting a correlation implies a  relationship where x and y typically move up and down together (left plot) or they move in opposite directions where x goes up and y goes down.
+As noted,  a model is a way of expressing a relationship between a set of features and a target, and one way of expressing them is as inputs and outputs. But how can we go from input to output?  Well to begin, we assume that the features and target are **correlated**, i.e. that there is some relationship between the x and y.  If so, then we can ultimately use the features to **predict** the target.  In the simplest setting a correlation implies a  relationship where x and y typically move up and down together (left plot) or they move in opposite directions where x goes up and y goes down.
 
 ```{r corr-plot, cache.rebuild=TRUE}
 #| echo: false
@@ -187,9 +189,9 @@ p1 + p2
 ## *THE* Linear Model
 
 
-The linear model is perhaps the simplest *functional* model we can use to express a relationship between features and targets.  It's possibly still the most common model used in practice, and it is the basis for many types of models.  Why don't we run one now?
+The linear model is perhaps the simplest *functional* model we can use to express a relationship between features and targets. And because of that, it's possibly still the most common model used in practice, and it is the basis for many types of other models.  Why don't we run one now?
 
-The following dataset contains movie individual [movie reviews][app-data-review] and contains the rating (1-5 stars scale) along with features pertaining to the review (e.g. gender, education) and features about the movie (e.g. genre, year).  We'll use the linear model to predict the rating from the length of the review in terms of word count.
+The following dataset has individual [movie reviews][app-data-review] and contains the rating (1-5 stars scale), along with features pertaining to the review (e.g., word count, etc.), those that regard the reviewer (e.g., age) and features about the movie (e.g., genre, release year).  We'll use the linear model to predict the rating from the length of the review in terms of word count.
 
 ```{r}
 #| echo: false
@@ -203,7 +205,9 @@ df_reviews = read_csv("data/movie_reviews.csv")
 skimr::skim(df_reviews)
 ```
 
-For our first linear model, we'll keep things simple.  Let's predict the rating from the length of the review.  We'll use the `lm()` function in R and the `ols()` function in Python to fit the model.  The `lm()` function takes a formula as its first argument, which is a way of expressing the relationship between the features and target.  The formula is expressed as `y ~ x`, where `y` is the target and `x` is the feature. We also need to specify what the data object is.  For Python, the `ols()` function in Python works largely the same way.
+For our first linear model, we'll keep things simple.  Let's predict the rating from the length of the review in terms of word count.  We'll use the `lm()` function in R and the `ols()` function in Python[^smfolsR] to fit the model.  Both functions take a formula as the first argument, which is a way of expressing the relationship between the features and target.  The formula is expressed as `y ~ x1 + x2 + ...`, where `y` is the target name and `x` are the feature names. We also need to specify what the data object is, typically a data frame. 
+
+[^smfolsR]: We actually are using the `smf.ols` approach because it is modeled on the R approach.
 
 :::{.panel-tabset}
 
@@ -233,9 +237,10 @@ save(model_reviews, file = "data/model_reviews.RData")
 #| label: py-my-first-model
 #| 
 df_reviews = pd.read_csv('data/movie_reviews.csv')
+
 model_reviews = smf.ols('rating ~ word_count', data = df_reviews).fit()
 
-print(model_reviews.summary())
+model_reviews.summary()
 ```
 
 ```{python}
@@ -292,7 +297,7 @@ In this case, the function is *just a sum*, something so simple we do it all the
 
 In practice, features will not contribute in the same ways. If we want to relate some feature, x1, and some other feature, x2, to target y, we probably would not assume that they both contribute in the same way from the beginning.  We might give more weight to x1 than x2.  In the linear model, we express this by multiplying each feature by a different coefficient. So the linear model is really just a sum of the features multiplied by their coefficients. In fact, we're saying that each feature contributes to the target in proportion to the coefficient. So if we have a feature x1 and a coefficient b1, then the contribution of x1 to the target is b1\*x1. If we have a feature x2 and a coefficient b2, then the contribution of x2 to the target is b2\*x2. And so on.  So the linear model is really just a sum of the features multiplied by their coefficients.  
 
-For our model, here is the mathemtical represenation:
+For our model, here is the mathematical representation:
 
 $$
 \textrm{rating} = b_0 + b_1 \cdot \textrm{word\_count}
@@ -308,17 +313,17 @@ Not too complicated we hope!  But let's make sure we see what's going on here ju
 
 - Our *idea* is that the length of the review is in some way related to the eventual rating given to the movie. 
 - Our *target* is rating, and the *feature* is the word count
-- We *map the feature to the target* via the linear model, which provies an initial understanding of how the feature is related to the target.  In this case, we start with a baseline of `r intercept`.  This value makes sense only in the case of a rating with no review, but we have reviews for every observation, so it's not very meanginful.  We'll talk about ways to get a more meaningful intercept later, but for now, that is our starting point.  Moving on, if we add a single word to the review, we expect the rating to go down by `r wc_coef` stars.  So if we had a review that was `r n_words` characters long, we would predict a rating of `r paste(intercept)` + `r glue("{n_words}*{wc_coef}")` = `r round(predict(model_reviews, newdata = data.frame(word_count = n_words)), 1)` stars.
+- We *map the feature to the target* via the linear model, which provides an initial understanding of how the feature is related to the target.  In this case, we start with a baseline of `r intercept`.  This value makes sense only in the case of a rating with no review, but we have reviews for every observation, so it's not very meaningful.  We'll talk about ways to get a more meaningful intercept later, but for now, that is our starting point.  Moving on, if we add a single word to the review, we expect the rating to go down by `r wc_coef` stars.  So if we had a review that was `r n_words` characters long, we would predict a rating of `r paste(intercept)` + `r glue("{n_words}*{wc_coef}")` = `r round(predict(model_reviews, newdata = data.frame(word_count = n_words)), 1)` stars.
 
 
-> In chapter 0, maybe say something about science = prediction, but maybe also stay away from academic treament
+> In chapter 0, maybe say something about science = prediction, but maybe also stay away from academic treatment
 
 ::: {.callout-note collapse="true" appearance="minimal"}
-## Matrix Represenation of a Linear Model
+## Matrix Representation of a Linear Model
 
-Here we'll show the matrix represenation form of the linear model, for the typical case where we have more than one feature in the model. In the following, y is a vector of all target observations, and likewise each x is a (row) vector of all observations for that feature.  The b vector is the vector of coefficients.  The 1 serves as a means to incorporate the intercept. It's just a feature that always has a value of 1.  The matrix multiplication is just a compact way of expressing the sum of the features multiplied by their coefficients.  We can even do it more
+Here we'll show the matrix representation form of the linear model, for the typical case where we have more than one feature in the model. In the following, y is a vector of all target observations, and likewise each x is a (row) vector of all observations for that feature.  The b vector is the vector of coefficients.  The 1 serves as a means to incorporate the intercept. It's just a feature that always has a value of 1.  The matrix multiplication is just a compact way of expressing the sum of the features multiplied by their coefficients.  We can even do it more
 
-Here is y as a vector of observerations, n x 1.
+Here is y as a vector of observations, n x 1.
 
 $$
 \textbf{y} = \begin{bmatrix}
@@ -360,7 +365,7 @@ $$ {#eq-lm-mat-mult}
 
 :::
 
-## Intepretation
+## Interpretation
 
 ### Feature Level 
 
@@ -380,7 +385,7 @@ broom::tidy(model_reviews, conf.int = TRUE) |>
 ```
 
 
-We can start out our interpretation of results at the feature level. Here, the main thing to look at are the actual feature coefficients and the direction of their relationship, positive or negative.  We saw before that the coefficient for word count is `r wc_coef`, and this means that for every additional word in the review, the rating goes up by `r wc_coef`.  So if we had a review that was `r n_words` characters long, we would predict a rating of `r paste(intercept)` + `r glue("{n_words}*{wc_coef}")` = `r round(predict(model_reviews, newdata = data.frame(word_count = n_words)), 1)` stars.
+We can start out our interpretation of results at the feature level. Here, the main thing to look at are the actual feature coefficients and the direction of their relationship, positive or negative.  We saw before that the coefficient for word count is `r wc_coef`, and this means that for every additional word in the review, the rating goes `r ifelse(sign(wc_coef) == 1, 'up', 'down')` by `r wc_coef`.  So if we had a review that was `r n_words` characters long, we would predict a rating of `r paste(intercept)` + `r glue("{n_words}*{wc_coef}")` = `r round(predict(model_reviews, newdata = data.frame(word_count = n_words)), 1)` stars.
 
 
 Let's try and use some context to interpret the coefficient. The size for the coefficient is `r round(wc_coef, 2)`, and the standard deviation of the target, i.e. how much it moves around naturally on its own, is `r sd_y`.  So the coefficient is about `r round(wc_coef / sd_y * 100, 0)`% of the standard deviation of the target.  In other words, the addition of a single word to a review results in an expected `r ifelse(sign(wc_coef)==1, 'increase', 'decrease')` of `r round(wc_coef / sd_y * 100, 0)`% of what the review would normally bounce around in value. Most would think this is not negligible, and by some standards maybe even large [CITATION NEEDED- COHEN?].  Why? Because that's just for a single word increase in the word count.  Well, what would be a notable increase in word count?  An additional measure to consider is the standard deviation of the feature. In this case it's `r sd_x` for word count.  So if we increase the word count by one standard deviation, we expect the rating to `r ifelse(sign(wc_coef)==1, 'increase', 'decrease')` by `r glue('{wc_coef} * {sd_x} = {round(wc_coef * sd_x, 2)}')`, and this results in to a change of `r  round(sd_x/sd_y * wc_coef, 2)` standard deviation units of the target.  That's a pretty big jump!  So we can see that the coefficient is not negligible, and that the feature is indeed related to the target.  But we can also see that the coefficient is not so large that it's not believable.
@@ -390,7 +395,7 @@ The calculation we just did results in what's often called a 'standardized' or '
 :::
 
 
-After assessing the coefficients, next up is the **standard error**. The standard error is a measure of how much the coefficient varies from sample to sample.  If we colledcted the data multiple times, even under identical circumstances, we wouldn't get the same value each time- it would bounce around a bit, and the standard error is an estimate of how much it would bounce around. In other words, ot's a measure of **uncertainty**, and along with the coefficients, it's used to calculate everything else in the table.  The statistic, here a t-statistic from the student t distribution[^coefstats],  is the ratio of the coefficient to the standard error. With that in hand, we  used to calculate the p-value, which is the probability of seeing a coefficient as large as the one we have if we assume the true value of the coefficient is zero.  In this case, the p-value is `r round(summary(model_reviews)$coefficients[2, 4], 4)`, which is very small.  We can conclude that the coefficient is not zero, and that the feature is related to the target, at least statisically.  We'll talk more about this later, but for now, we can see that the coefficient is not zero, and that the feature is related to the target.
+After assessing the coefficients, next up is the **standard error**. The standard error is a measure of how much the coefficient varies from sample to sample.  If we collected the data multiple times, even under identical circumstances, we wouldn't get the same value each time- it would bounce around a bit, and the standard error is an estimate of how much it would bounce around. In other words, ot's a measure of **uncertainty**, and along with the coefficients, it's used to calculate everything else in the table.  The statistic, here a t-statistic from the student t distribution[^coefstats],  is the ratio of the coefficient to the standard error. With that in hand, we  used to calculate the p-value, which is the probability of seeing a coefficient as large as the one we have if we assume the true value of the coefficient is zero.  In this case, the p-value is `r round(summary(model_reviews)$coefficients[2, 4], 4)`, which is very small.  We can conclude that the coefficient is not zero, and that the feature is related to the target, at least statistically.  We'll talk more about this later, but for now, we can see that the coefficient is not zero, and that the feature is related to the target.
 
 [^coefstats]: Most statistical tables of this sort will use a t (t distribution), Z (normal distribution), or F (F distribution) statistic.  It doesn't really matter for your purposes which is used by default, they provide the p-value of interest to claim statistical significance. 
 
@@ -420,14 +425,21 @@ Some models are more complicated than can be explained by a simple coefficient, 
  In short, the SHAP values are expressed for the prediction of a given observation at a specific feature value.  
 
  ```{r}
+#| echo: false
+#| eval: false
+#|
 explainer <- DALEX::explain(model_reviews)
+
 iBreakDown::break_down_uncertainty(
     model_reviews,
     data = df_reviews,
     new_observation = tibble(word_count = 10)
 )
+
 pred <- predict(model_reviews, newdata = tibble(word_count = 10))
+
 pred - mean(fitted(model_reviews))
+
 coef(model_reviews)["word_count"]
 
 ```
@@ -451,9 +463,80 @@ Unfortunately, PDPs are not as straightforward to interpret when we have correla
 
 ### Model Level
 
+```{r}
+#| echo: false
+#| label: model-metrics
+rsq = round(summary(model_reviews)$r.squared, 2)
+rsq_perc = 100 * rsq
+rmse = round(performance::rmse(model_reviews), 2)
+mae = round(performance::mae(model_reviews), 2)
+aic = round(AIC(model_reviews), 2)
+```
+
+Thus far, we've focused on interpretation at the feature level. But knowing the interpretation of a feature doesn't do you much good if the model itself is poor!  So we also need to assess the model as a whole.  We can do this in a few ways. First, we can start with the **residuals**. As noted previously, the residuals are the difference between the observed target values and the predicted target values. How well the predictions and target line up is a measure of how well the model fits the data. Most model-level interpretation involves assessing and comparing model fit, and can be seen as variations on this theme. One of the better ways to assess model fit is visually so let's look at our predictions vs. the target.
+
+::: {.panel-tabset}
+
+##### R
+
+```{r}
+#| echo: true
+#| eval: false
+predictions = predict(model_reviews)
+y = df_reviews$rating
+```
+
+##### Python
+
+```{python}
+#| echo: true
+#| eval: false
+
+predictions = model_reviews.predict()
+y = df_reviews.rating
+```
+
+:::
+
+
+```{r}
+#| echo: false
+#| label: fig-pp-scatter
+p1 <- df_reviews |>
+    mutate(pred = predict(model_reviews)) |>
+    ggplot(aes(pred, rating)) +
+    geom_point() +
+    # geom_point(position = position_jitter()) +
+    geom_abline() +
+    labs(
+        x = "Predicted Rating",
+        y = "Observed Rating",
+        subtitle = "Raw values"
+    )
+
+p2 <- df_reviews |>
+    mutate(pred = predict(model_reviews)) |>
+    ggplot(aes(pred, rating)) +
+    geom_point(position = position_jitter()) +
+    geom_abline() +
+    labs(
+        x = "Predicted Rating",
+        y = "Observed Rating",
+        subtitle = "Jittered values"
+    )
+
+p1 + p2
+
+```
+
+The one on the left is using the raw target and predictions- very stripey! The reason is that our ratings are only at the single decimal place precision, and our word count is at the integer level precision, so we have a lot of ties. The right side jitters the data randomly a bit so we can see a better pattern, but is otherwise the same.  In general, the closer to a line this plot becomes the better, so we can tell already there is still a lot of noise left to explain beyond our model.
+
+For a basic linear regression, **R-squared** is one of the most popular measures we look at. It represents the square of the correlation of the predictions on the current data and the observed target values. Before squaring, it's just the correlation of the values we see in the plot above. But by squaring we get a sense of the variance shared between all features in the model and the target, however complex the model gets.  In this case, our model shows the R-squared is `r rsq`, which is pretty good for a single feature model, and tells us that `r rsq_perc`% of the target is explained by our model.
+
+
 rss, rsq, pp_check, compare model
 
-We can also look at the **residual variance** and **R-squared**.  The residual variance is a measure of how well the model fits the data.  It's the sum of the squared differences between the actual target values and the predicted target values.  The R-squared is a measure of how much of the variance in the target is explained by the model.  It's the proportion of the variance in the target that is explained by the model.  In this case, the residual variance is `r round(sum(resid(model_reviews)^2), 2)`, and the R-squared is `r round(summary(model_reviews)$r.squared, 2)`.  We can see that the model explains `r round(summary(model_reviews)$r.squared * 100, 2)`% of the variance in the target, which is pretty good for a single feature model.  We'll talk more about these later, but for now, we can see that the model fits the data pretty well.
+
 
 ### Feature & Target Transformations
 
@@ -465,7 +548,7 @@ Transforming variables can provide a few benefits in modeling, whether applied t
 - Easier convergence
 - Help with heteroscedasticity
 
-For example, merely centering predictor variables, i.e. subtracting the mean, provides a more interpretable intercept that will fall within the actual range of the target variable, telling us what the value of the target variable is when the covariates are at their means (or reference value if categorical). But even if easier interepretation isn't a major concern, variable transformations can help with convergence and speed up estimation, so can always be of benefit.
+For example, merely centering predictor variables, i.e. subtracting the mean, provides a more interpretable intercept that will fall within the actual range of the target variable, telling us what the value of the target variable is when the covariates are at their means (or reference value if categorical). But even if easier interpretation isn't a major concern, variable transformations can help with convergence and speed up estimation, so can always be of benefit.
 
 #### Numeric variables
 
@@ -533,7 +616,10 @@ When doing statistical models, all relevant information is incorporated in k-1 g
 
 ## What do we do with a model? Prediction
 
-Once we have a working model, we can use it to make predictions.  We can do this by plugging in values for the features and using the corresponding weights. Let's go back to our results, starting with a simpler depiction.
+MOVE THIS TO BEFORE INTERPRETATION, TOO MUCH ASSUMES IT
+
+
+Once we have a working model, we can use it to make predictions. It may not seem like much at first, but a model is of no use if it can't be used to make predictions about what we can expect in the world around us. We can obtain our predictions by plugging in values for the features and using the corresponding weights. Let's go back to our results, starting with a simpler depiction.
 
 ```{r}
 #| echo: false
@@ -571,7 +657,7 @@ In our view, one can't stress enough the importance of a model's ability to pred
 
 As strange as it may sound, you can read whole journal articles and business reports in many fields with hardly any mention of prediction. Instead, the focus is on the **explanation** of the model, and this is where the coefficients come in. They are used to explain how the features are related to the target, and we may use terms like saying a feature 'strongly' correlates, or 'negatively' correlates to the target.  In our case, we can say that for every additional word in the review, we *expect* the rating to go up by `r wc_coef` stars.  We might even use our background knowledge and context to say this is a 'strong' relationship.  
 
-Additionally, the extra information in the table shows that word count is **statistically significant**, which is a very loaded description.  For our purposes right now, we'll interpret it as follows: if we expected the coefficient to be zero, the probability of seeing a coefficient as large as `r wc_coef` or larger is very small.  In fact, the probability is so small (rounded to zero), we might conclude that the coefficient is not zero, and that the feature is related to the target.  Unfortunately, statistical significance is affected by other things besides the size of the coefficient, and without an understanding of the context of the features (like how long typical reveiws are, what their range is, what variability of ratings is, etc.), the information it provides is extremely limited, and many would argue, not even useful at all.
+Additionally, the extra information in the table shows that word count is **statistically significant**, which is a very loaded description.  For our purposes right now, we'll interpret it as follows: if we expected the coefficient to be zero, the probability of seeing a coefficient as large as `r wc_coef` or larger is very small.  In fact, the probability is so small (rounded to zero), we might conclude that the coefficient is not zero, and that the feature is related to the target.  Unfortunately, statistical significance is affected by other things besides the size of the coefficient, and without an understanding of the context of the features (like how long typical reviews are, what their range is, what variability of ratings is, etc.), the information it provides is extremely limited, and many would argue, not even useful at all.
 
 In the past, and unfortunately even the present, statistical significance is focused on a great deal, even to the point that a papers are written about models that have no predictive power at all. In those settings, statistical significance is often used as a proxy for importance, which it never should be. If we are very interested in the coefficient, it is better to focus on the range of possible values, which is provided by the **confidence interval**.  While a confidence interval is also a loaded description of a feature's relationship to the target, we can use it in a very practical way as a range of possible values for that weight. Here we see that the coefficient could be as low as `r rl_ci[1]` or as high as `r rl_ci[2]`, which we might interpret as a relatively narrow range, since the , giving us some 'confidence' that we should expect a non-zero value when assessing this particular relationship. Like statistical significance though, it is affected by many things, and without context, is limited in the information it can provide.  
 
@@ -600,7 +686,7 @@ We've seen how to fit a model with a single feature, but we'll always have more 
 
 ### Multiple Features
 
-We can add more features to our model very simply. Using the standard functions we just add them to the formala (both R and statsmodels)
+We can add more features to our model very simply. Using the standard functions we just add them to the formula (both R and statsmodels)
 
 ```{python}
 #| eval: false
