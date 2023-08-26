@@ -57,8 +57,6 @@ pd.set_option('display.precision', 4) # number of digits of precision for floati
 
 :::
 
-:::
-
 ## Introducing the Greatest Of All Time
 
 Now that you have some idea of what you're getting into, it's time to dive in! We'll start things off by covering the building block of all modeling, and a solid understanding here will provide you the basis for just about anything that comes after, no matter how complex it gets. The **linear model** is our starting point. At first glance, it may seem like a very simple model, but it's actually quite powerful and flexible, able to take in different types of inputs, handle nonlinear relationships, temporal and spatial relations, clustering, and more. Linear models have a long history, with even the formal and scientific idea behind correlation and linear regression being well over a century old[^corbypeirce]! And in that time, the linear model is far and away the most used model out there. But before we start talking about the *linear* model, we need to talk about what a **model** is in general.
@@ -262,7 +260,7 @@ wc_coef = round(coef(model_reviews)[2], 2)
 sd_y = round(sd(df_reviews$rating), 2)
 sd_x = round(sd(df_reviews$word_count), 2)
 rl_ci = round(confint(model_reviews)[2, ], 2)
-n_words = 10
+n_words = round(mean(df_reviews$word_count))
 ```
 
 
@@ -295,7 +293,7 @@ $$
 
 In this case, the function is *just a sum*, something so simple we do it all the time. In the linear model sense though, we're actually saying a bit more. Another way to understand that equation is that *y is a function of x*.  We don't show any coefficients, but technically it's as if each coefficient was a value of 1.  In other words, for this simple linear model, we're saying that each feature contributes in an identical fashion to the target. 
 
-In practice, features will not contribute in the same ways. If we want to relate some feature, x1, and some other feature, x2, to target y, we probably would not assume that they both contribute in the same way from the beginning.  We might give more weight to x1 than x2.  In the linear model, we express this by multiplying each feature by a different coefficient. So the linear model is really just a sum of the features multiplied by their coefficients. In fact, we're saying that each feature contributes to the target in proportion to the coefficient. So if we have a feature x1 and a coefficient b1, then the contribution of x1 to the target is b1\*x1. If we have a feature x2 and a coefficient b2, then the contribution of x2 to the target is b2\*x2. And so on.  So the linear model is really just a sum of the features multiplied by their coefficients.  
+In practice, features will not contribute in the same ways. If we want to relate some feature, x1, and some other feature, x2, to target y, we probably would not assume that they both contribute in the same way from the beginning.  We might give relatively more weight to x1 than x2. In the linear model, we express this by multiplying each feature by a different coefficient. So the linear model is really just a sum of the features multiplied by their coefficients. In fact, we're saying that each feature contributes to the target in proportion to the coefficient. So if we have a feature x1 and a coefficient b1, then the contribution of x1 to the target is b1\*x1. If we have a feature x2 and a coefficient b2, then the contribution of x2 to the target is b2\*x2. And so on.  So the linear model is really just a sum of the features multiplied by their coefficients.  
 
 For our model, here is the mathematical representation:
 
@@ -313,7 +311,7 @@ Not too complicated we hope!  But let's make sure we see what's going on here ju
 
 - Our *idea* is that the length of the review is in some way related to the eventual rating given to the movie. 
 - Our *target* is rating, and the *feature* is the word count
-- We *map the feature to the target* via the linear model, which provides an initial understanding of how the feature is related to the target.  In this case, we start with a baseline of `r intercept`.  This value makes sense only in the case of a rating with no review, but we have reviews for every observation, so it's not very meaningful.  We'll talk about ways to get a more meaningful intercept later, but for now, that is our starting point.  Moving on, if we add a single word to the review, we expect the rating to go down by `r wc_coef` stars.  So if we had a review that was `r n_words` characters long, we would predict a rating of `r paste(intercept)` + `r glue("{n_words}*{wc_coef}")` = `r round(predict(model_reviews, newdata = data.frame(word_count = n_words)), 1)` stars.
+- We *map the feature to the target* via the linear model, which provides an initial understanding of how the feature is related to the target.  In this case, we start with a baseline of `r intercept`.  This value makes sense only in the case of a rating with no review, but we have reviews for every observation, so it's not very meaningful.  We'll talk about ways to get a more meaningful intercept later, but for now, that is our starting point.  Moving on, if we add a single word to the review, we expect the rating to go down by `r wc_coef` stars.  So if we had a review that was `r n_words` characters long, i.e., the mean word count, we would predict a rating of `r paste(intercept)` + `r glue("{n_words}*{wc_coef}")` = `r round(predict(model_reviews, newdata = data.frame(word_count = n_words)), 1)` stars.
 
 
 > In chapter 0, maybe say something about science = prediction, but maybe also stay away from academic treatment
@@ -382,7 +380,8 @@ broom::tidy(model_reviews, conf.int = TRUE) |>
     gt()
 ```
 
-The table shows the **coefficient** for each feature including the intercept.  In this case, the coefficient is `r wc_coef`, which means that for every additional word in the review, the rating goes up by `r wc_coef` stars.  So if we had a review that was `r n_words` characters long, we would predict a rating of `r paste(intercept)` + `r glue("{n_words}*{wc_coef}")` = `r round(predict(model_reviews, newdata = data.frame(word_count = n_words)), 1)` stars.
+The table shows the **coefficient** for each feature including the intercept.  In this case, the coefficient is `r wc_coef`, which means that for every additional word in the review, the rating goes up by `r wc_coef` stars.  So if we had a review that was `r n_words` characters long, we would *predict* a rating of `r paste(intercept)` + `r glue("{n_words}*{wc_coef}")` = `r round(predict(model_reviews, newdata = data.frame(word_count = n_words)), 1)` stars.  
+
 
 When we're talking about predictions for a linear model, we usually will see this as:
 
@@ -392,13 +391,69 @@ $$
 
 What is $\hat{y}$? The hat over the $y$ just means that it's a predicted value of the model, rather than the one we actually observe. In fact, we were missing something in our previous depictions of the linear model.  We need to add an error term, $\epsilon$, to account for the fact that our predictions will not be perfect[^perfect_prediction].  So the full linear model is:
 
-[^perfect_prediction]: In most circumstances, if you ever have perfect prediction, or even near perfect prediction, you have either asked a rather obvious question of your data or have accidentally included the target in your features (or a combination of them).
+[^perfect_prediction]: In most circumstances, if you ever have perfect prediction, or even near perfect prediction, the usual issues are that you have either asked a rather obvious/easy question of your data (e.g., predicting whether an image is a human or a car), or have accidentally included the target in your features (or a combination of them) in some way.
 
 $$
 y = b_0 + b_1x_1 + b_2x_2 + ... + b_nx_n + \epsilon
 $$
 
-The error term is a random variable that represents the difference between the actual value and the predicted value.  We can't know what the error term is, but we can estimate it.  We'll talk more about that in the section on Estimation.
+The error term is a random variable that represents the difference between the actual value and the predicted value.  We can't know what the error term is, but we can estimate it.  We'll talk more about that in the section on [estimation][#estimation].
+
+
+### What kinds of predictions can we get?
+
+We saw a prediction for a single observation, but we can also get predictions for multiple observations at once.  In fact, we can get predictions for all observations in our dataset.  We can also get predictions for observations that we don't have data for. The following shows how we can get predictions for all data, and for a single observation with a word count of 5.
+
+::: {.panel-tabset}
+
+##### R
+
+```{r}
+#| label: my-first-model-predictions
+
+all_predictions = predict(model_reviews)
+single_prediction = predict(model_reviews, newdata = data.frame(word_count = 5))
+```
+
+##### Python
+
+```{python}
+#| label: my-first-model-predictions
+
+all_predictions = model_reviews.predict()
+single_prediction = model_reviews.predict(pd.DataFrame({'word_count': [5]}))
+```
+
+Here is a plot of our predictions versus the actual ratings.  We can see that the predictions are not perfect, but they are not completely off base either.  We'll talk about how to assess the quality of our predictions later, but we can at least get a sense that we have a positive, relationship
+
+```{r}
+#| echo: false
+#| label: my-first-model-predictions-plot
+
+df_reviews |>
+    mutate(pred = all_predictions) |>
+    ggplot(aes(rating, pred)) +
+    geom_point(position = position_jitter()) +
+    # geom_abline(intercept = 0, slope = 1, color = "red") +
+    labs(x = "Actual Rating", y = "Predicted Rating", title = "Predictions vs. Actual Ratings")
+```
+
+
+but we'll talk about that later.  For now, let's just focus on the predictions we can get from our data.  We can get predictions for all observations in our dataset by using the same formula, but instead of plugging in a single value for the feature, we plug in all the values for the feature.  In our case, we can get predictions for all the reviews by plugging in all the word counts.  We can do this by using the `predict()` function in R and Python.  In R, we need to specify the `newdata` argument, which is a data frame with the same column names as the original data frame.  In Python, we need to specify the `exog` argument, which is a data frame with the same column names as the original data frame.  In both cases, we can use the original data frame, but we'll use the `newdata` argument to show how it works.  We'll also use the `tidy()` function from the `broom` package to get the predictions in a nice format.
+
+```{r}
+#| echo: false
+#| label: my-first-model-predictions
+
+df_reviews |>
+    broom::augment(model_reviews) |>
+    mutate(pred_rating = predict(model_reviews, newdata = df_reviews)) |>
+    broom::tidy() |>
+    rename(feature = term) |>
+    mutate(feature = ifelse(feature == "(Intercept)", "intercept", feature)) |>
+    gt()
+```
+
 
 
 ### Prediction vs. Explanation
