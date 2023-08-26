@@ -80,10 +80,10 @@ Note that trying to do both short and long confused ChatGPT.
 
 ```{r} 
 #| label: import-ready-made-data
-positive_reviews = readr::read_tsv("data/positive.tsv")[[1]]
-neutral_reviews  = readr::read_tsv("data/neutral.tsv")[[1]]
-negative_reviews = readr::read_tsv("data/negative.tsv")[[1]]
-movie_titles     = read_tsv("data/movie_titles.tsv") # two columns title and genre
+positive_reviews = unique(readr::read_tsv("data/positive.tsv")[[1]])
+neutral_reviews = unique(readr::read_tsv("data/neutral.tsv")[[1]])
+negative_reviews = unique(readr::read_tsv("data/negative.tsv")[[1]])
+movie_titles = read_tsv("data/movie_titles.tsv") # two columns title and genre
 ```
 
 
@@ -208,7 +208,7 @@ generate_data = function(n, seed = 42) {
         + .25 * scale(df$genre == 'Kids' & (df$children_in_home > 0))
         + .1  * scale(df$genre %in% c('Romance', 'Horror') & (df$age < 30))
         + .1  * scale(df$genre == 'Comedy' & df$work_status == 'Student')
-        + rnorm(nrow(df), 0, .5)
+        + rnorm(nrow(df), 0, .1)
     ) 
     
     df = df |> 
@@ -216,7 +216,7 @@ generate_data = function(n, seed = 42) {
             rating = round(scales::rescale(rating[, 1], to = c(1, 5)), 1),
             review_text = generate_review(rating),
             word_count  = str_count(review_text, '\\w+'),
-            character_count = nchar(review_text)
+            # character_count = nchar(review_text)
         )
     df
 }
@@ -228,13 +228,14 @@ generate_data = function(n, seed = 42) {
 df = generate_data(1000, seed = 42)
 # df$review_text
 # glimpse(df)
+df |> count(review_text, sort = TRUE)
 # hist(df$rating)
 # cor(df$rating, df$word_count)
 ```
 
 Misc checks
 ```{r}
-skimr::skim(df) 
+skimr::skim(df)
 df |>
     mutate(age = cut(age, breaks = c(0, 25, 55, 65, 100))) |>
     count(age, children_in_home)
@@ -263,7 +264,7 @@ test_mod = lm(
 )
 
 broom::tidy(test_mod) |>
-    arrange(desc(abs(statistic))) |> 
+    arrange(desc(abs(statistic))) |>
     print(n = Inf)
 
 summary(test_mod)$r.sq
@@ -317,7 +318,7 @@ ggplot(df, aes(length_minutes, rating)) +
 # Scale age, length minutes, total reviews, word count, character count
 # create a binary rating for >=3 equals good, <3 equals bad
 
-df_processed <- df |> 
+df_processed <- df |>
     mutate(
         review_year_0 = review_year - min(review_year),
         release_year_0 = release_year - min(release_year),
@@ -325,7 +326,7 @@ df_processed <- df |>
         length_minutes_sc = scale(length_minutes)[, 1],
         total_reviews_sc = scale(total_reviews)[, 1],
         word_count_sc = scale(word_count)[, 1],
-        character_count_sc = scale(character_count)[, 1],
+        # character_count_sc = scale(character_count)[, 1],
         rating_good = ifelse(rating >= 3, 1, 0)
     )
 
