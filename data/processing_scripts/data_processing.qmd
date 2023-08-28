@@ -188,26 +188,46 @@ generate_data = function(n, seed = 42) {
         left_join(df_movies, by = 'title') 
 
     # ratings and review text features
+    # main effects here will allow for whole changes (e.g. doubling) or 
+    # otherwise just add organization
+    main_effects = tibble(
+        release_year   = .2, 
+        review_year    = .1, 
+        length_minutes = .3,
+        length_minutes_sq = -.1, 
+        drama = .5, 
+        comedy = -.3,
+        summer = .2,
+        total_reviews = .5,
+        age = -.1,
+        children_in_home = .25,
+        student = .25,
+        post_graduate = -.1
+    )
+
+    multiplier = 2
+    main_effects = main_effects*multiplier
+
     rating = (
-        .1    * scale(df$release_year)
-        + .1  * scale(df$review_year)
-        + .3  * scale(df$length_minutes) - .1 * scale(df$length_minutes)^2 # will have to tinker with this
-        + .3  * scale(df$genre == 'Drama')
-        - .3  * scale(df$genre == 'Comedy')
-        + .2  * scale(df$season == 'Summer')
-        + .3  * scale(df$total_reviews)
-        - .1  * scale(df$age) 
-        + .1  * scale(df$children_in_home > 0)
-        + .25 * scale(df$work_status == 'Student')
-        - .1  * scale(df$education == 'Post-Graduate')
+        main_effects$release_year * scale(df$release_year)
+        + main_effects$review_year  * scale(df$review_year)
+        + main_effects$length_minutes * scale(df$length_minutes) - main_effects$length_minutes_sq * scale(df$length_minutes)^2 # will have to tinker with this
+        + main_effects$drama  * scale(df$genre == 'Drama')
+        - main_effects$comedy  * scale(df$genre == 'Comedy')
+        + main_effects$summer  * scale(df$season == 'Summer')
+        + main_effects$total_reviews  * scale(df$total_reviews)
+        - main_effects$age  * scale(df$age) 
+        + main_effects$children_in_home  * scale(df$children_in_home > 0)
+        + main_effects$student * scale(df$work_status == 'Student')
+        - main_effects$post_graduate  * scale(df$education == 'Post-Graduate')
         # simple interactions and hidden effects
         # split the data to more high vs. low (but not too much )
-        + .5 * scale(df$reviewer_type == 'Viewer')
-        - .5 * scale(df$reviewer_type == 'Critic')
+        + .5 * multiplier * scale(df$reviewer_type == 'Viewer')
+        - .5 * multiplier * scale(df$reviewer_type == 'Critic')
         # genre interactions
-        + .25 * scale(df$genre == 'Kids' & (df$children_in_home > 0))
-        + .1  * scale(df$genre %in% c('Romance', 'Horror') & (df$age < 30))
-        + .1  * scale(df$genre == 'Comedy' & df$work_status == 'Student')
+        + .25 * multiplier * scale(df$genre == 'Kids' & (df$children_in_home > 0))
+        + .1  * multiplier * scale(df$genre %in% c('Romance', 'Horror') & (df$age < 30))
+        + .1  * multiplier * scale(df$genre == 'Comedy' & df$work_status == 'Student')
         + rnorm(nrow(df), 0, .1)
     ) 
     
@@ -228,9 +248,11 @@ generate_data = function(n, seed = 42) {
 df = generate_data(1000, seed = 42)
 # df$review_text
 # glimpse(df)
-df |> count(review_text, sort = TRUE)
+# df |> count(review_text, sort = TRUE)
 # hist(df$rating)
 # cor(df$rating, df$word_count)
+corrr::correlate(df) |>
+    autoplot()
 ```
 
 Misc checks
@@ -270,18 +292,14 @@ broom::tidy(test_mod) |>
 summary(test_mod)$r.sq
 ```
 
-```{r}
-corrr::correlate(df) |>
-    autoplot()
-```
 
 Explore nonlinear relationships here.
 
 ```{r}
-library(mgcv)
-d = gamSim(1, n = 100, dist = "normal", scale = 1)
-m = gam(y ~ s(x0) + s(x1) + s(x2) + s(x3), data = d)
-plot(m, pages = 1)
+# library(mgcv)
+# d = gamSim(1, n = 100, dist = "normal", scale = 1)
+# m = gam(y ~ s(x0) + s(x1) + s(x2) + s(x3), data = d)
+# plot(m, pages = 1)
 ```
 
 
