@@ -13,12 +13,14 @@ source("functions/utils.R")
 reticulate::use_condaenv("book-of-models")
 ```
 
+
+
 :::{.aside}
 
 Packages needed or useful for this chapter include:
 
-
 :::{.panel-tabset}
+
 ##### R
 
 ```{r}
@@ -29,15 +31,7 @@ Packages needed or useful for this chapter include:
 library(tidyverse)
 ```
 
-```{r}
-#| echo: false
-#| label: r-display-setup
-
-options(digits = 4) # number of digits of precision for floating point output
-```
-
 ##### Python
-
 
 ```{python}
 #| label: modules
@@ -47,6 +41,17 @@ import pandas as pd
 import statsmodels.formula.api as smf
 ```
 
+:::
+
+
+```{r}
+#| echo: false
+#| label: r-display-setup
+
+options(digits = 4) # number of digits of precision for floating point output
+```
+
+
 ```{python}
 #| echo: false
 #| label: py-display-setup
@@ -55,7 +60,6 @@ np.set_printoptions(precision = 4, suppress=True) # suppress is for whether to u
 pd.set_option('display.precision', 4) # number of digits of precision for floating point output
 ```
 
-:::
 
 ## Introducing the Greatest Of All Time
 
@@ -259,7 +263,7 @@ intercept = round(coef(model_reviews)[1], 2)
 wc_coef = round(coef(model_reviews)[2], 2)
 sd_y = round(sd(df_reviews$rating), 2)
 sd_x = round(sd(df_reviews$word_count), 2)
-rl_ci = round(confint(model_reviews)[2, ], 2)
+rl_ci = round(confint(model_reviews)[2, ], 3)
 n_words = round(mean(df_reviews$word_count))
 model_rmse = round(summary(model_reviews)$sigma, 2)
 model_rsq = round(summary(model_reviews)$r.squared, 2)
@@ -497,7 +501,7 @@ If we look back at our results, we can see this expressed as the part of the out
 
 ```{r}
 #| label: my-first-model-mse-r
-summary(model_reviews) # 'Residual standard error approx RMSE'
+summary(model_reviews) # 'Residual standard error' is approx RMSE
 ```
 
 ##### Python
@@ -536,6 +540,7 @@ tibble(
 ```{r}
 #| echo: false
 #| label: get_worst_prediction
+#|
 worst_prediction = df_reviews |>
     mutate(prediction = predict(model_reviews)) |>
     slice(which.max(abs(resid(model_reviews)))) |>
@@ -547,6 +552,8 @@ Looking at our worst prediction, we see the observation has a typical word count
 ```{r}
 #| echo: false
 #| label: tbl-worst-prediction
+#| tbl-cap: Worst Prediction
+
 worst_prediction |>
     gt() |>
     fmt_number(c(rating, prediction), decimals = 1) |>
@@ -556,7 +563,9 @@ worst_prediction |>
 At this point you have the gist of prediction and prediction error, but there is a lot more to it. More detail can be found in the @sec-estimation chapter, since we often estimate the parameters of our model by picking those that will reduce the prediction error the most.    For now, let's move on to the other main use of models, which is to help us understand the relationships between the features and the target, or **explanation**.
 
 :::{.callout-note title='R-squared' collapse="true" appearance="minimal"}
+
 A very popular metric for linear models is R-squared which we can think of in a variety of ways, but here are two important ones. 
+
 - The squared correlation of our predictions and true target values. 
 - 1 - the ratio of the sum of squared errors to the sum of squared deviations from the mean of the target, i.e. 1 - proportion of error variance.
 
@@ -566,11 +575,15 @@ In both cases it tells us the proportion of the variance in the target that is e
 
 ## Interpretation
 
+When it comes to interpreting the results of our model, there are a lot of tools at our disposal, though many of the tools we can ultimately use depend on the specifics of the model we have employed. In general though, we can group our understanding approach to that of the **feature level** and the **model level**. A feature level understanding is concerned with the relationship between a single feature and the target, and also attempts comparisons of feature importance. Model level interpretation is concerned with assessments of model fit and performance. We'll start with the feature level, and then move on to the model level.
+
 ### Feature Level 
+
+As mentioned, at the feature level, we are primarily concerned with the relationship between a single feature and the target. More specifically, we are interested in the direction and magnitude of the relationship, but in general, it all boils down to how a feature induces change in the target. For numeric features, we are curious about the change in the target given some amount of change in the feature. For categorical features it's the same, but often we like to express the change in terms of group mean differences or something similar, since the order of categories is not usually meaningful.  Key to the feature level interpretation is the specific predictions made at key feature values.
 
 #### Basics
 
-Let's look again at our coefficient table from the model output. The following is a programming language agnostic presentation, but you can verify that it follows the previous output.
+Let's look again at our coefficient table from the model output.
 
 ```{r}
 #| echo: false
@@ -583,33 +596,34 @@ broom::tidy(model_reviews, conf.int = TRUE) |>
     gt()
 ```
 
+Here, the main thing to look at are the actual feature coefficients and the direction of their relationship, positive or negative.  We saw before that the coefficient for word count is `r wc_coef`, and this means that for every additional word in the review, the rating goes `r ifelse(sign(wc_coef) == 1, 'up', 'down')` by `r wc_coef`.  So if we had a review that was `r n_words` words long, we would predict a rating of `r paste(intercept)` + `r glue("{n_words}*{wc_coef}")` = `r round(predict(model_reviews, newdata = data.frame(word_count = n_words)), 1)` stars.
 
-We can start out our interpretation of results at the feature level. Here, the main thing to look at are the actual feature coefficients and the direction of their relationship, positive or negative.  We saw before that the coefficient for word count is `r wc_coef`, and this means that for every additional word in the review, the rating goes `r ifelse(sign(wc_coef) == 1, 'up', 'down')` by `r wc_coef`.  So if we had a review that was `r n_words` words long, we would predict a rating of `r paste(intercept)` + `r glue("{n_words}*{wc_coef}")` = `r round(predict(model_reviews, newdata = data.frame(word_count = n_words)), 1)` stars.
-
-
-Let's try and use some context to interpret the coefficient. The size for the coefficient is `r round(wc_coef, 2)`, and the standard deviation of the target, i.e. how much it moves around naturally on its own, is `r sd_y`.  So the coefficient is about `r round(wc_coef / sd_y * 100, 0)`% of the standard deviation of the target.  In other words, the addition of a single word to a review results in an expected `r ifelse(sign(wc_coef)==1, 'increase', 'decrease')` of `r round(wc_coef / sd_y * 100, 0)`% of what the review would normally bounce around in value. Most would think this is not negligible, and by some standards maybe even large [CITATION NEEDED- COHEN?].  Why? Because that's just for a single word increase in the word count.  Well, what would be a notable increase in word count?  An additional measure to consider is the standard deviation of the feature. In this case it's `r sd_x` for word count.  So if we increase the word count by one standard deviation, we expect the rating to `r ifelse(sign(wc_coef)==1, 'increase', 'decrease')` by `r glue('{wc_coef} * {sd_x} = {round(wc_coef * sd_x, 2)}')`, and this results in to a change of `r  round(sd_x/sd_y * wc_coef, 2)` standard deviation units of the target.  That's a pretty big jump!  So we can see that the coefficient is not negligible, and that the feature is indeed related to the target.  But we can also see that the coefficient is not so large that it's not believable.
+This interpretation gives us directional information, but how would we interpret the magnitude of the coefficient? Let's try and use some context to help us. The value for the coefficient is `r round(wc_coef, 2)`, and the standard deviation of the target, i.e. how much it moves around naturally on its own, is `r sd_y`.  So the coefficient is about `r round(abs(wc_coef) / sd_y * 100, 0)`% of the standard deviation of the target.  In other words, the addition of a single word to a review results in an expected `r word_sign(wc_coef, c('increase', 'decrease'))` of `r round(abs(wc_coef) / sd_y * 100, 0)`% of what the review would normally bounce around in value. We probably wouldn't consider this negligible, but also, a single word change isn't much. What would be a significant change in word count? Let's consider the standard deviation of the feature. In this case it's `r sd_x` for word count.  So if we increase the word count by one standard deviation, we expect the rating to `r word_sign(wc_coef, c('increase', 'decrease'))` by `r glue('{wc_coef} * {sd_x} = {round(wc_coef * sd_x, 2)}')`, and this translates in to a change of `r round(wc_coef * sd_x, 2)`/`r sd_y` = `r  round(sd_x/sd_y * wc_coef, 2)` standard deviation units of the target. Without additional context, many would think that's a significant change [CITATION], or at the very least, that the coefficient is not negligible, and that the feature is indeed related to the target.  But we can also see that the coefficient is not so large that it's not believable.
 
 ::: {.callout-tip title='Standardized Coefficients'}
-The calculation we just did results in what's often called a 'standardized' or 'normalized' coefficient. In the case of the simplest model with only one feature like this, it is identical to the Pearson r correlation metric, which we invite you to check and confirm on your own, which should roughly equal our calculation of `r  round(sd_x/sd_y * wc_coef, 2)` . In the case of multiple features, it is the (partial) correlation between the target and the feature, after adjusting for the other features. But before you start thinking of it as a measure of *importance*, it is not. It provides some measure of the feature-target linear relationship, but that doesn't not entail practical importance, nor assess nonlinear relationships, interactions, and a host of other interesting things.
+The calculation we just did results in what's often called a 'standardized' or 'normalized' coefficient. In the case of the simplest model with only one feature like this, it is identical to the Pearson r correlation metric, which we invite you to check and confirm on your own, which should roughly equal our calculation using rounded values. In the case of multiple features, it represents a (partial) correlation between the target and the feature, after adjusting for the other features. But before you start thinking of it as a measure of *importance*, it is not. It provides some measure of the feature-target linear relationship, but that doesn't not entail *practical* importance, nor is it useful in the presence of nonlinear relationships, interactions, and a host of other interesting things that are typical to data and models.
 :::
 
 
-After assessing the coefficients, next up is the **standard error**. The standard error is a measure of how much the coefficient varies from sample to sample.  If we collected the data multiple times, even under identical circumstances, we wouldn't get the same value each time- it would bounce around a bit, and the standard error is an estimate of how much it would bounce around. In other words, ot's a measure of **uncertainty**, and along with the coefficients, it's used to calculate everything else in the table.  The statistic, here a t-statistic from the student t distribution[^coefstats],  is the ratio of the coefficient to the standard error. With that in hand, we  used to calculate the p-value, which is the probability of seeing a coefficient as large as the one we have if we assume the true value of the coefficient is zero.  In this case, the p-value is `r round(summary(model_reviews)$coefficients[2, 4], 4)`, which is very small.  We can conclude that the coefficient is not zero, and that the feature is related to the target, at least statistically.  We'll talk more about this later, but for now, we can see that the coefficient is not zero, and that the feature is related to the target.
+After assessing the coefficients, next up in our table is the **standard error**. The standard error is a measure of how much the coefficient varies from sample to sample.  If we collected the data multiple times, even under identical circumstances, we wouldn't get the same value each time- it would bounce around a bit, and the standard error is an estimate of how much it would bounce around. In other words, it's a measure of **uncertainty**, and along with the coefficients, it's used to calculate everything else in the table.  The statistic, here a t-statistic from the student t distribution[^coefstats], is the ratio of the coefficient to the standard error. With that in hand, we  used to calculate the p-value, which is the probability of seeing a coefficient as large as the one we have, *if* we assume the true value of the coefficient is zero.  In this case, the p-value is `r round(summary(model_reviews)$coefficients[2, 4], 4)`, which is very small.  We can conclude that the coefficient is statistically different from zero, and that the feature is related to the target, at least statistically.
 
-[^coefstats]: Most statistical tables of this sort will use a t (t distribution), Z (normal distribution), or F (F distribution) statistic.  It doesn't really matter for your purposes which is used by default, they provide the p-value of interest to claim statistical significance. 
 
-Aside from the coefficients, the most important output is the **confidence interval** (CI). The CI is a range of values that encapsulates the unceratinty we have in our guess about the coefficients.  While our best guess for the effect of word count on rating is `r round(wc_coef, 2)`, we know it's not exactly that, and the CI gives us a range of reasonable values we might expect the effect to be based on the data at hand and the model we've employed. In this case, the default is a 95% confidence interval, and we can think of the confidence interval like [throwing horseshoes](https://en.wikipedia.org/wiki/Horseshoes_(game)). If we kept collecting data and running models, 95% of our CIs would capture the true value, and this is one of them. That's the technical definition, which is a bit abstract[^whatisaci], but we can also think of it as a range of values that are good guesses for the true value.  In this case, the CI is `r paste(rl_ci[1])` to `r paste(rl_ci[2])`, and we can be 95% confident that a good range for the coefficient is between those values. We can also see that the CI is relatively narrow, which is good, as it implies that we have a good idea of what the coefficient is.  If it was very wide, we would have a lot of uncertainty about the coefficient, and we would not likely not want to base important decisions regarding it.
+[^coefstats]: Most statistical tables of this sort will use a t (student t distribution), Z (normal distribution), or F (F distribution) statistic.  It doesn't really matter for your purposes which is used by default, they provide the p-value of interest to claim statistical significance. But for t and Z, any value over two would be associated with a p-value that would be statistically significant by typical standards.
 
-[^whatisaci]: The interpretation of the range of values is more nuanced than this, but we'll leave that for later. For now, we'll just say that the CI is a range of values that are good guesses for the true value. Your authors have used frequentist and Bayesian statistics for many years, we are fine with both of them, and we just don't care about the nuance anymore because they both work well enough in the real world.
+Aside from the coefficients, the most important output is the **confidence interval** (CI). The CI is a range of values that encapsulates the unceratinty we have in our guess about the coefficients.  While our best guess for the effect of word count on rating is `r round(wc_coef, 2)`, we know it's not exactly that, and the CI gives us a range of reasonable values we might expect the effect to be based on the data at hand and the model we've employed. In this case, the default is a 95% confidence interval, and we can think of the confidence interval like [throwing horseshoes](https://en.wikipedia.org/wiki/Horseshoes_(game)). If we kept collecting data and running models, 95% of our CIs would capture the true value, and this is one of them. That's the technical definition, which is a bit abstract[^whatisaci], but we can also think of it more simply as a range of values that are good guesses for the true value.  In this case, the CI is `r paste(rl_ci[1])` to `r paste(rl_ci[2])`, and we can be 95% confident that a good range for the coefficient is between those values. We can also see that the CI is relatively narrow, which is good, as it implies that we have a good idea of what the coefficient is.  If it was very wide, we would have a lot of uncertainty about the coefficient, and we would not likely not want to base important decisions regarding it.
+
+[^whatisaci]: The interpretation regarding the CI is even more nuanced than this, but we'll leave that for another time. For now, we'll just say that the CI is a range of values that are good guesses for the true value. Your authors have used frequentist and Bayesian statistics for many years, we are fine with both of them, because they both work well enough in the real world. Despite where this ranged estimate comes from, the vast majority use CIs in the same way, and they are a useful tool for understanding the uncertainty in our estimates.
 
 :::{.aside}
 
 ```{r}
 #| echo: false
 #| label: fig-ci-plot
+#| fig-cap: Confidence Intervals as Horseshoes
 # from https://en.wikipedia.org/wiki/Horseshoes_(game)
-knitr::include_graphics('img/horseshoes.jpeg')
+knitr::include_graphics("img/horseshoes.jpeg")
 ```
+
 :::
 
 
@@ -623,7 +637,7 @@ Some models are more complicated than can be explained by a simple coefficient, 
  
  In short, the SHAP values are expressed for the prediction of a given observation at a specific feature value.  
 
- ```{r}
+```{r}
 #| echo: false
 #| eval: false
 #|
@@ -646,6 +660,126 @@ coef(model_reviews)["word_count"]
 We can ultimately get a shap value for every value of a feature, and take the average. If we do this for each feature, we can use it as a measure of **feature importance**.
 
 
+#### Feature Importance
+
+How important is a feature? It's a common question, and one that is often asked of models, but the answer ranges from 'it depends' and 'it doesn't matter'. Let's start with some hard facts:
+
+- There is no single definition of importance.
+- There is no single metric for *any* model that will definitively tell you how important a feature is.
+- There are many metrics for a given model that are equally valid, but may come to different conclusions.
+- Many metrics of importance fail to adequately capture interactions and deal with correlated features.
+- All measures of importance are measured with uncertainty, and the uncertainty can be large.
+
+
+To show just how difficult measuring feature importance is, we only have to stick with our simple linear regression. Think again about R-squared: it tells us the proportion of the target explained by our features. An ideal measure of importance would be able to tell us how much each feature contributes to that proportion, or in other words, decomposes R-squared into the relative contributions of each feature. One of the most common measures of importance in linear regression is the standardized coefficient we demonstrated earlier. You know what it doesn't do? Decompose R-squared. 
+
+Let's demonstrate things by adding more features to our model.
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: fig-rsq-decomp
+#| fig-cap: R-squared Decomposition
+
+model_reviews_extra <- lm(
+    rating ~
+        word_count
+        + age
+        + review_year
+        + release_year
+        + length_minutes
+        + children_in_home
+        + total_reviews,
+    data = df_reviews
+)
+
+library(relaimpo)
+metrics = c("lmg", "last", "first", "betasq", "pratt", "genizi", "car")
+init_rela_false <- relaimpo::calc.relimp(
+    model_reviews_extra,
+    type = metrics,
+    rela = FALSE
+)
+init_rela_true <- relaimpo::calc.relimp(
+    model_reviews_extra,
+    type = metrics,
+    rela = TRUE
+)
+
+df_rela <- map_df(metrics, \(x) slot(init_rela_false, x)) |>
+    t()
+colnames(df_rela) <- metrics
+
+decomposer2 <- names(which(round(colSums(df_rela), 3) == round(summary(model_reviews_extra)$r.squared, 3)))
+
+pdat_rela <- df_rela |>
+    as_tibble(rownames = "feature") |>
+    pivot_longer(-feature, names_to = "metric", values_to = "value") |>
+    mutate(
+        metric = fct_inorder(metric),
+        true_decompose = ifelse(metric %in% decomposer2, "Decomposes R-squared", "Does not")
+    )
+
+pdat_rela |>
+    arrange(true_decompose, metric, value) |>
+    ggplot(aes(value, fct_inorder(feature))) +
+    geom_col(
+        aes(
+            alpha = I(ifelse(true_decompose == "Decomposes R-squared", 1, .25)),
+            color = feature == "word_count",
+            fill  = feature == "word_count",
+            width = I(ifelse(feature == "word_count", .5, .25))
+        ),
+        show.legend = FALSE
+    ) +
+    scale_color_manual(
+        values = c(okabe_ito[2], okabe_ito[1]),
+        aesthetics = c("color", "fill")
+    ) +
+    ggnewscale::new_scale_color() +
+    geom_point(
+        aes(
+            # alpha = I(ifelse(true_decompose == 'Decomposes R-squared', 1, .25)),
+            color = feature == "word_count",
+            size = I(ifelse(feature == "word_count", 5, 4))
+        ),
+        alpha = 1,
+        show.legend = FALSE
+    ) +
+    scale_color_manual(
+        values = c(okabe_ito[1], okabe_ito[2]),
+        # aesthetics = c("color", "fill")
+    ) +
+    # guides(color = 'none', fill = 'none', alpha = 'none') +
+    labs(
+        x = "Contribution to R-squared",
+        y = "",
+        title = "R-squared Decomposition"
+    ) +
+    facet_wrap(vars(true_decompose, metric), scales = "free", ncol = 2, dir = "v") +
+    theme(
+        axis.ticks.y = element_blank(),
+        plot.caption = element_text(vjust = -2)
+    )
+
+```
+
+```{r}
+
+```
+
+- It rarely makes sense to drop features based on importance alone, and will typically drop performance to do so.
+
+
+It depends on what you mean by importance, and what you are trying to do with the information.  There are many ways to measure feature importance, and they all have their pros and cons.
+
+- Relative to... what?
+- What will you do with the information?
+- 
+
+
+Where to begin? Feature importance is a very popular topic, and there are many ways to measure it.  The most common way is to use the SHAP values, which we just discussed.  But there are many other ways, and they all have their pros and cons.  
+
 #### Visualization
 
 ##### Partial Dependency and ALE Plots
@@ -654,9 +788,6 @@ We can also look at the **partial dependency plot** (PDP).  The partial dependen
 
 
 Unfortunately, PDPs are not as straightforward to interpret when we have correlated features and, though still applicable, become more difficult to interpret with interactions. **ALE** plots are a bit more robust to correlated features, but they are not so great with categorical features, and likewise still difficult to interpret in complicated feature settings.  We'll talk more about these later, but for now, we can see that the relationship between word count and rating is negative, and that it's linear as it should be. 
-
-
-
 
 
 
@@ -740,7 +871,7 @@ MOVE TO AFTER INTERPRETATION
 
 In our view, one can't stress enough the importance of a model's ability to predict the target.  It can be a poor model, maybe because the data is not great, or we're exploring a new area, but we'll always be interested in how well a model **fits** the observed data, and predicts new data.
 
-As strange as it may sound, you can read whole journal articles and business reports in many fields with hardly any mention of prediction. Instead, the focus is on the **explanation** of the model, and this is where the coefficients come in. They are used to explain how the features are related to the target, and we may use terms like saying a feature 'strongly' correlates, or 'negatively' correlates to the target.  In our case, we can say that for every additional word in the review, we *expect* the rating to go up by `r wc_coef` stars.  We might even use our background knowledge and context to say this is a 'strong' relationship.  
+As strange as it may sound, you can read whole journal articles, news articles, and business reports in many fields with hardly any mention of prediction. Instead, the focus is almost entirely on the **explanation** of the model, and this is where the coefficients come in. They are used to explain how the features are related to the target, and we may use terms like saying a feature 'strongly' correlates, or 'negatively' correlates to the target.  In our case, we can say that for every additional word in the review, we *expect* the rating to go up by `r wc_coef` stars.  We might even use our background knowledge and context to say this is a 'strong' or 'weak' relationship.  
 
 Additionally, the extra information in the table shows that word count is **statistically significant**, which is a very loaded description.  For our purposes right now, we'll interpret it as follows: if we expected the coefficient to be zero, the probability of seeing a coefficient as large as `r wc_coef` or larger is very small.  In fact, the probability is so small (rounded to zero), we might conclude that the coefficient is not zero, and that the feature is related to the target.  Unfortunately, statistical significance is affected by other things besides the size of the coefficient, and without an understanding of the context of the features (like how long typical reviews are, what their range is, what variability of ratings is, etc.), the information it provides is extremely limited, and many would argue, not even useful at all.
 
