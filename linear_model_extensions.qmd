@@ -120,7 +120,7 @@ With quantile regression, we are given an extra parameter for the model: $\tau$ 
 
 ### Data Import and Preparation
 
-Let's bring in our movie reviews data. Let's say that we are curious about the relationship between the `user_age` variable and the `rating` variable. First, we need to get our data ready for our home-brewed functions.
+Let's bring in our movie reviews data. Let's say that we are curious about the relationship between the `total_reviews` variable and the `rating` variable. First, we need to get our data ready for our home-brewed functions.
 
 :::{.panel-tabset}
 
@@ -129,14 +129,14 @@ Let's bring in our movie reviews data. Let's say that we are curious about the r
 ```{r, r_data_prep}
 #| echo: true
 #| label: r_data_prep
-reviews <- read.csv("data/review_data.csv")
+reviews <- read.csv("data/movie_reviews_processed.csv")
 
 reviews <- na.omit(reviews)
 
 y <- reviews$rating
 
 X <- cbind(intercept = 1, 
-           user_age = reviews$user_age)
+           total_reviews = reviews$total_reviews)
 ```
 
 ##### Python
@@ -155,7 +155,7 @@ y = reviews['rating']
 
 X = pd.DataFrame(
   {'intercept': 1, 
-  'user_age': reviews['user_age']}
+  'total_reviews': reviews['total_reviews']}
 )
 ```
 
@@ -259,7 +259,7 @@ Now that we have our data and our loss function, we can fit the model almost exa
 #| echo: true
 #| label: r_quantile_optim
 optim(
-  par = c(intercept = 0, user_age = 0),
+  par = c(intercept = 0, total_reviews = 0),
   fn  = quantile_loss,
   X   = X,
   y   = y,
@@ -280,7 +280,7 @@ minimize(quantile_loss,
 
 :::
 
-Fortunately, our interpretation of this result isn't all that different from a standard linear model -- the rating should increase by .08 for every year older that people get. However, this is at the median, not the mean, like the standard linear model. 
+Fortunately, our interpretation of this result isn't all that different from a standard linear model -- the ratings should increase by .00007 for every additional review. However, this is at the median, not the mean, like the standard linear model. 
 
 ### Checking Results
 
@@ -294,7 +294,7 @@ Let's check out results against those produced by `quantreg` and `statsmodels`.
 #| label: r_quantreg
 library(quantreg)
 
-median_test <- rq(rating ~ user_age, tau = .5, 
+median_test <- rq(rating ~ total_reviews, tau = .5, 
                 data = reviews)
 
 summary(median_test)
@@ -305,7 +305,7 @@ summary(median_test)
 ```{python} 
 import statsmodels.formula.api as smf
 
-median_test = smf.quantreg('rating ~ user_age', 
+median_test = smf.quantreg('rating ~ total_reviews', 
                            data = reviews).fit(q = .5)
 ```
 
@@ -320,21 +320,21 @@ Quantile regression is not a one-trick-pony. Remember, it is called quantile reg
 tau_values <- c(.1, .3, .5, .7, .9)
 
 quant_values <- purrr::map_df(tau_values, ~{
-  result <- coef(rq(rating ~ user_age, tau = .x, 
+  result <- coef(rq(rating ~ total_reviews, tau = .x, 
                     data = reviews))
   result$tau <- .x
   result
 })
 
-colnames(quant_values) <- c("intercept", "user_age", "tau")
+colnames(quant_values) <- c("intercept", "total_reviews", "tau")
 
 quant_values$tau <- as.factor(quant_values$tau)
 
 ggplot() +
   geom_point(data = reviews, 
-             mapping = aes(user_age, rating), 
+             mapping = aes(total_reviews, rating), 
              alpha = .5) +
-  geom_abline(mapping = aes(slope = user_age, 
+  geom_abline(mapping = aes(slope = total_reviews, 
                             intercept = intercept, 
                             color = tau),
               data = quant_values) +
@@ -342,7 +342,7 @@ ggplot() +
 
 ```
 
-Instead of a single model to capture the trend through the mean of the data, we can now examine the trends within 5 different quantiles of the data (we aren't limited to just those quantiles, though, and you can examine any of them that you might find interesting). If we had to put some words to our visualization, we could say that all of the quantiles show a positive relationship.  The 30th, 50th, and 70th quantiles all look very close together and appear to have very similar slopes. We can also observe that the 90th quantile appears to be a little flatter than the others, but still positive.
+Instead of a single model to capture the trend through the mean of the data, we can now examine the trends within 5 different quantiles of the data (we aren't limited to just those quantiles, though, and you can examine any of them that you might find interesting). If we had to put some words to our visualization, we could say that all of the quantiles show a positive relationship. While they all appear to have roughly the same slope, it appears that the 90th quantile has a slightly steeper slope than the other quantiles.
 
 ## Additive Models
 
@@ -357,7 +357,7 @@ In other words, we can go from this:
 #| echo: false
 #| label: regular_linear_line
 #| fig-cap: A standard linear model
-ggplot(reviews, aes(user_age, rating)) +
+ggplot(reviews, aes(total_reviews, rating)) +
   geom_smooth(method = "lm", se = FALSE) +
   theme_minimal()
 ```
@@ -368,12 +368,12 @@ To this:
 #| echo: false
 #| label: gam_model_line
 #| fig-cap: A generalized additive model
-ggplot(reviews, aes(user_age, rating)) +
+ggplot(reviews, aes(total_reviews, rating)) +
   geom_smooth(method = "gam", se = FALSE) +
   theme_minimal()
 ```
 
-That wiggly line is called a spline. Oddly enough, we can still use a linear model to fit this spline through the data. While this might not give us the same tidy explanation that a typical line would offer, we will certainly get better prediction. 
+That curved line is called a spline. Oddly enough, we can still use a linear model to fit this spline through the data. While this might not give us the same tidy explanation that a typical line would offer, we will certainly get better prediction. 
 
 These models belong to a broad group of *generalized additive models*, often shortened to GAMs. When we fit a quantile regression, we made a slight tweak to the *y*; to fit a GAM, we are going to tweak our predictors. How are we going to tweak them, you might ask? We are essentially going to let them be an *additive* function of features. We will have a model that looks like this:
 
@@ -464,7 +464,7 @@ Now that we have our functions, let's get our data ready to go. It is usually a 
 ```{r, r_min_max_scale}
 #| echo: true
 #| label: r_min_max_scale
-x <- reviews$user_age - min(reviews$user_age)
+x <- reviews$total_reviews - min(reviews$total_reviews)
 x <- x / max(x)
 rating <- reviews$rating
 ```
@@ -474,7 +474,7 @@ rating <- reviews$rating
 ```{python, python_min_max_scale} 
 #| echo: true
 #| label: python_min_max_scale
-x = reviews['user_age'] - reviews['user_age'].min()
+x = reviews['total_reviews'] - reviews['total_reviews'].min()
 x = x / x.max()
 rating = reviews['rating']
 ```
@@ -600,6 +600,7 @@ ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
   theme_minimal()
 ```
 
+We can see that the relationship starts a bit flat, increases, and then flattens out again. This is a pretty good example of a nonlinear relationship.
 
 ### Checking Results
 
@@ -629,7 +630,6 @@ fit_gam.summary()
 ```
 :::
 
-
 Typically, you don't need to go through the whole mess of creating a model matrix by hand and can use additional functions to fit a spline to your regression. In R, you can use the `gam` function from the `mgcv` package. In Python, you can use the `GAM` function from the `pygam` package.
 
 :::{.panel-tabset}
@@ -638,7 +638,10 @@ Typically, you don't need to go through the whole mess of creating a model matri
 ```{r, r_gam_demo}
 #| echo: true
 #| label: r_gam_demo
-gam_model <- gam(rating ~ s(x, bs = "cr"))
+
+reviews$total_reviews_scaled <- reviews$total_reviews - min(reviews$total_reviews)
+reviews$total_reviews_scaled <- reviews$total_reviews_scaled / max(reviews$total_reviews_scaled)
+gam_model <- gam(rating ~ s(total_reviews_scaled, bs = "cr"), data = reviews)
 
 summary(gam_model)
 ```
@@ -657,6 +660,8 @@ gam_model.summary()
 ```
 
 :::
+
+For the results of our gam model, one of the best places to look first is the `edf` column. The `edf` column is the *effective degrees of freedom*. You can think of `edf` as a measure of wiggle in the relationship between the predictor and the target. The higher the `edf`, the more wiggle you have. If you have a value close to 1, then you have a linear relationship. With an `edf` of 8.672, we can be pretty confident that a nonlinear relationship gives a better idea about the relationship between `total_reviews` and `rating` than a linear relationship.
 
 ### Penalized Cubic Spline
 
@@ -804,7 +809,7 @@ fit_penalized = prs_fit(
 Xp = splX(xp, knots)
 ```
 
-There is definitely some wiggly to that line, but it is not as extreme as what we saw with our unpenalized cubic spline. 
+There is definitely some wiggle to that line, but it is not as extreme as what we saw with our unpenalized cubic spline. 
 
 :::
 ```{r, r_lambda_1_viz}
@@ -862,33 +867,33 @@ As much fun as modeling is, knowing your data is far more important. You can thr
 #| echo: false
 #| label: year-release-rating
 #| fig-cap: Linear relationship between year of movie release and rating.
-ggplot(reviews, aes(user_age, rating)) +
+ggplot(reviews, aes(total_reviews, rating)) +
   geom_point() +
   geom_smooth(method="lm", se = FALSE) +
   theme_minimal()
 ```
 
-In this visualization, we don't see much of a relationship between user age and ratings. We could probably just stop there, but we might be ignoring something substantial within our data: year of release We might want to ask a question, "Does this relationship work the same way across the different years?"
+In this visualization, we see a pretty solid positive relationship between the total number of reviews and ratings. We could probably just stop there, but we might be ignoring something substantial within our data: year of release. We might want to ask a question, "Does this relationship work the same way across the different years?"
 
 ```{r}
 #| echo: false
 #| label: year-release-genre-rating
 #| fig-cap: Linear relationship between year of movie release and rating, with genre.
-ggplot(reviews, aes(user_age, rating, color = as.factor(year_of_release))) +
+ggplot(reviews, aes(total_reviews, rating, color = as.factor(genre))) +
   # geom_point() +
   geom_smooth(method="lm", se = FALSE) +
   theme_minimal()
 ```
 
-A very quick examination of the visualization might suggest that the relationship between user age and rating varies significantly over the different release years. Some years show a positive relationship, while some show a negative relationship, and all with various levels of strength.
+A very quick examination of the visualization might suggest that the relationship between user age and rating varies significantly over the different genres. Most genres show a positive relationship, while one (`other`) shows a negative relationship, and all with various levels of strength.
 
-Just for fun, try to group by release year and summarize it by the mean rating. You'll find that the averages are very different across the years! Then, subtract the overal mean rating from those values. Keep them handy!
+Just for fun, try to group by genre and summarize it by the mean rating. You'll find that the averages are very different across the genre! Then, subtract the overal mean rating from those values. Keep them handy!
 
-Clearly, release year is offering some type of additional information to the model, but how can we incorporate that information into our model? An interaction might come to find at first, but that becomes a tricky interpretation endeavour. Instead, the **mixed model** can be used to incorporate that information into our model, without much hassle and with a huge boost in explanability. 
+Clearly, genre is offering some type of additional information to the model, but how can we incorporate that information into our model? An interaction might come to find at first, but that becomes a tricky interpretation endeavour. Instead, the **mixed model** can be used to incorporate that information into our model, without much hassle and with a huge boost in explanability. 
 
 The term **mixed model** is as vanilla as we can possibly make it,but you might have heard of different flavors of them before. If you've come from the Social Sciences, you might have heard of *Hierarchical Linear Models*. You might have even heard the words *multilevel models* or *mixed-effects models* tossed around before. Maybe you've even be exposed to ideas like *random effects* or *random slopes*. No matter what word you say, they are all instances of a **mixed model**. 
 
-What makes a model a mixed model? The mixed model is characterized by the idea that a model can have *fixed* and *random* effects. Fortunately, you've already encountered *fixed* effects -- those are the features that we have been using in all of our models so far! The *random effect*, though, is typically some type of grouping-based variable that contributes to unique variance in the outcome and we are going to let them vary from the rest of the model. Grouping variables can be actual groups, with the classic example being students in a classroom. Those groups can also be next within larger groups -- students nested within classrooms, nested within schools, nested within districts. These groups can also capture the notion of a repeated measure for an individual, like repeated test scores. 
+What makes a model a mixed model? The mixed model is characterized by the idea that a model can have *fixed* and *random* effects. Fortunately, you've already encountered *fixed* effects -- those are the features that we have been using in all of our models so far! The *random effect*, though, is typically some type of grouping-based variable that contributes to unique variance in the outcome and we are going to let them vary from the rest of the model. Grouping variables can be actual groups, with the classic example being students in a classroom. Those groups can also be nested within larger groups -- students nested within classrooms, nested within schools, nested within districts. These groups can also capture the notion of a repeated measure for an individual, like repeated test scores. 
 
 While we aren't rejecting the idea of a mean with these mixed-models, we are implying that each group (whether it is a group, nested group, or repeated observations from a person) has its own unique mean that can be useful for modeling the target. Formally, we might specify something like this:
 
@@ -902,7 +907,7 @@ Before we go to modeling our reviews, let's consider an exmaple training program
 
 ### Model Matrix
 
-Before we can fit our mixed model, we need to create a model matrix. We are going to use the `model.matrix()` function to create our model matrix. We are going to use the `user_age` variable as our fixed effect and the `year_of_release` as our random effect. We are going to use the `factor()` function to make sure that `year_of_release` is treated as a categorical variable. We are also going to use the `-1` to remove the intercept from the model matrix. 
+Before we can fit our mixed model, we need to create a model matrix. We are going to use the `model.matrix()` function to create our model matrix. We are going to use the `user_age` variable as our fixed effect and `genre` as our random effect. We are going to use the `factor()` function to make sure that `genre` is treated as a categorical variable. We are also going to use the `-1` to remove the intercept from the model matrix. 
 
 :::{.panel-tabset}
 
@@ -912,10 +917,10 @@ Before we can fit our mixed model, we need to create a model matrix. We are goin
 #| echo: true
 #| label: mixed_model_prep
 
-X <- model.matrix(~user_age, reviews)
-Z <- model.matrix(~factor(reviews$year_of_release) - 1)
+X <- model.matrix(~total_reviews, reviews)
+Z <- model.matrix(~factor(reviews$genre) - 1)
 
-colnames(Z) <- paste0("released_", sort(unique(reviews$year_of_release)))
+colnames(Z) <- paste0("released_", sort(unique(reviews$genre)))
 
 y <- reviews$rating
 ```
@@ -929,7 +934,7 @@ y <- reviews$rating
 X = reviews[['user_age']]
 X = sm.add_constant(X)
 
-Z = pd.get_dummies(reviews['year_of_release'], drop_first=True)
+Z = pd.get_dummies(reviews['genre'], drop_first=True)
 
 y = reviews['rating']
 ```
@@ -1001,7 +1006,7 @@ fit <- optim(
   control = list(reltol = 1e-10)
 )
 
-fit
+fit$par
 ```
 
 ##### Python
@@ -1025,7 +1030,7 @@ fit
 
 ### Model Checking
 
-Let's see if we can get a match from `lme4` or `statsmodels`.
+Let's see if we can get a match from `lme4` or `statsmodels`. We will also create `null models`, since we will need some infomration from them later.
 
 :::{.panel-tabset}
 
@@ -1033,11 +1038,17 @@ Let's see if we can get a match from `lme4` or `statsmodels`.
 ```{r}
 library(lme4)
 
-fit_mer = lmer(rating ~ user_age + (1 | year_of_release), 
+fit_mer = lmer(rating ~ total_reviews_scaled + (1 | genre), 
                reviews, 
                REML = FALSE)
 
 summary(fit_mer)
+
+null_model <- lmer(rating ~ 1 + (1 | genre), 
+                   reviews, 
+                   REML = FALSE)
+
+summary(null_model)                  
 ```
 
 ##### Python
@@ -1045,27 +1056,101 @@ summary(fit_mer)
 ```{python}
 import statsmodels.api as sm
 
-fit_mer = sm.MixedLM.from_formula("rating ~ user_age", reviews, 
-                                  groups=reviews["year_of_release"])
+fit_mer = sm.MixedLM.from_formula("rating ~ total_reviews_scaled", reviews, 
+                                  groups=reviews["genre"])
 
 fit_mer = fit_mer.fit()
 
 fit_mer.summary()
+
+null_model = sm.MixedLM.from_formula("rating ~ 1", reviews, 
+                                     groups=reviews["genre"])
 ```
 
 :::
 
-Now that we know our homemade methods can match the others, what does this model really offer us?
+What can we take from these summaries and what are we getting beyond the linear model? 
+
+For starters, we should notice a change in our standard errors -- by integrating information about the groups, we are getting a better sense of how much uncertainty our model contains at the global average level.
+
+We also see some additional information for our random effects. The standard deviation is telling us how much the rating moves around based upon genre after getting the information from our fixed effects (i.e., the score can move around nearly .3 points from rating alone). 
+
+We can use information for the random effects components to get some additional information. For instance, we can calculate the proportion of variance in scores that is accounted for by the genre alone:
+
+$$\frac{\text{intercept variance}}{\text{intercept variance} + \text{residual variance}}$$
 
 ```{r}
-#| echo: false
+.08309 / (.08309 + .25482)
+```
+
+This is what is known as the intraclass correlation (ICC). It ranges from 0 (no variance between clusters) to 1 (variance between clusters). With an ICC of .25, we can say that 25% of the variance in scores is accounted for by the genre alone.
+
+We can also use various bits of information in our output to create different *R^2* values. 
+
+For the first level of the model, we can calculate the $R^2$ as:
+
+$$R^2_11 - \frac{\sigma^2_{M1} + \tau^2_{M1}}{\sigma^2_{M0} + \tau^2_{M0}}$$
+
+We can pull that information from our two model outputs:
+
+```{r}
+m1Sigma <- .08309 # full model random effect intercept
+
+m1Tau <- .25482 # full model random effect residual
+
+m0Sigma <- .07557 # null model random effect intercept
+
+m0Tau <- .31371 # null model random effect residual
+
+1 - ((m1Sigma + m1Tau) / (m0Sigma + m0Tau))
+```
+
+The fixed effect of number of reviews accounts for nearly 13% of the variation within the reviews.
+
+The second level can be calculated as:
+
+$$R^2_2 = 1 - \frac{\sigma^2_{M1} / B + \tau^2_{M1}}{\sigma^2_{M0} / B + \tau^2_{M0}}$$
+
+We see that we added a *B* into the mix here and it is just the average size of the level 2 units (1000 observations / 8 genres). 
+
+```{r}
+level2Mean <- 1000 / 8
+
+r2Numerator <- m1Sigma / level2Mean + m1Tau
+
+r2Denominator <- m0Sigma / level2Mean + m0Tau
+
+1 - (r2Numerator / r2Denominator)
+```
+
+Which gives us .18 or 18% of the variation in scores is accounted for by the genre alone.
+
+You can also get these values like this:
+
+```{r}
+MuMIn::r.squaredGLMM(fit_mer)
+```
+
+Here we have two values: the marginal R2 (R2m) and the conditional R2 (R2c). You can think of the marginal values as the standard type of R2 -- it is the variability explained by the fixed effects part of the model (it is what we have already done above). The conditional R2 is using both fixed and random effects. So in this case, we would see that we are accounting for about 11% of the variation in 
+
+We can also get a good sense of the random effect estimates:
+
+```{r}
+ranef(fit_mer)
+```
+
+And visualize them:
+
+```{r}
 library(sjPlot)
 
-sjPlot::plot_model(fit_mer, type = "re") +
+plot_model(riMod, type = "re") + 
   theme_minimal()
 ```
 
-Remember your group-by and summarize task earlier? Each point is the difference between the year's average and the overall average -- values in blue are higher than the average and values in red are lower than the average. With that, the average rating for 2001 is much better than the global average rating, while 2019 is much worse than the global average rating. 
+For the plot above, the easiest way to think about it is that the values are effects for each individual random effect (i.e., each genre's random intercept). Since we are just dealing with intercepts right now, they are the deviations from the fixed intercept. The intercept for the model is ~2.6 and the random effect for `comedy` is .48. If we wanted to predict scores for a comedy movie, we would take 2.6 + .48 for the intercept portion of the model (the same would go for any random slopes in the model). In the end, it is showing how much the intercept shifts from genre to genre, and some genres have a positive effect beyond the average and others have a negative effect (`sci-fi`, for instance, is well below the global average).
+
+Remember your group-by and summarize task earlier? Each point is the difference between a genre's average and the overall average -- values in blue are higher than the average and values in red are lower than the average. With that, the average rating for `comedy` is much better than the global average rating, while `sci-fi` is much worse than the global average rating. 
 
 ## Performance Comparisons
 
@@ -1076,19 +1161,19 @@ Just for giggles, we should see how all of our models perform:
 #| label: model_performance_comp
 #| fig-cap: Comparing model performance with RMSE
 library(mgcv)
-model_data <- data.frame(rating = rating, 
-                         age = x, 
-                         year_of_release = year_of_release)
-lm_test <- lm(rating ~ age, 
+model_data <- data.frame(rating = reviews$rating, 
+                         total_reviews = reviews$total_reviews_scaled, 
+                         genre = reviews$genre)
+lm_test <- lm(rating ~ total_reviews, 
               data = model_data) 
-median_test <- rq(rating ~ age, 
+median_test <- rq(rating ~ total_reviews, 
                   data = model_data) 
 gam_test <- gam(rating ~ 
-                  s(age, bs = "cr", fx = FALSE, m = .001), 
+                  s(total_reviews, bs = "cr", fx = FALSE, m = .001), 
                 data = model_data) 
 
-fit_mer = lmer(rating ~ user_age + (1 | year_of_release), 
-               reviews, 
+fit_mer = lmer(rating ~ total_reviews + (1 | genre), 
+               model_data, 
                REML = FALSE)
 
 knitr::kable(
@@ -1101,7 +1186,7 @@ knitr::kable(
 )
 ```
 
-Unsurprisingly, gam was the best performer of the bunch. The results of our median regression and standard linear model are pretty similar, with a slight edge to the standard model. This finding may or may not surprise you -- as you spend more time with models, you often encounter situations where the linear model performs just as well as a model that should, in theory, do much better. The linear model is the **the linear model** for a reason!
+Unsurprisingly, the standard linear model and the median regression were pretty close to each other and were the lowest of the bunch. GAM offered a small bump in performance, but our best model came from the mixed model. This finding may or may not surprise you -- as you spend more time with models, you often encounter situations where simple models outperform more complex models, or are on par with them. Here, we are seeing that the mixed model is offering us a better fit to the data than the other models. However, that doesn't mean that you can just go right to the mixed model. You need to know your data and know what you are trying to accomplish.
 
 
 ## Concluding Ramblings
