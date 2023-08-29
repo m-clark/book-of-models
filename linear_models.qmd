@@ -627,35 +627,91 @@ knitr::include_graphics("img/horseshoes.jpeg")
 :::
 
 
-MOVE TO MULTIPLE FEATURES??
+MOVE SHAP TO MULTIPLE FEATURES??
 
 #### SHAP Values
 
-Some models are more complicated than can be explained by a simple coefficient, e.g. nonlinear effects in generalized additive models, or may not even have coefficients, like gradient boosting models.  Such models typically won't come with statistical output like standard errors and confidence intervals either. But we'll still have some tricks up our sleeve, though they won't come without some caveats. 
+Some models are more complicated than can be explained by a simple coefficient, e.g. nonlinear effects in generalized additive models, or may not even have coefficients, like gradient boosting models. Such models typically won't come with statistical output like standard errors and confidence intervals either. But we'll still have some tricks up our sleeve, though they won't come without some caveats. 
 
- A very common interpretation tool is called a **SHAP value**. SHAP stands for **SHapley Additive exPlanations**, and it provides a means to understand how much each feature contributes to a specific prediction. The basic process is,
- 
- In short, the SHAP values are expressed for the prediction of a given observation at a specific feature value.  
+A very common interpretation tool is called a **SHAP value**. SHAP stands for **SHapley Additive exPlanations**, and it provides a means to understand how much each feature contributes to a specific prediction. It's based on a concept from game theory called the **Shapley value**, which is a way to understand how much each player contributes to the outcome of a game. While the computations can be tedious, the basic idea is relatively straightforward- for a given prediction at a specific feature's value, we can calculate the difference between the prediction and the average prediction. This is the **local effect** of the feature.  However, we must also consider doing this for all possible values of other features that might be in a model, as well as considering whether other features are present for the prediction or not. The initial Shapley approach is to average the local effects over all possible combinations of features, which is computationally intractable for all but the simplest models. The SHAP approach offers more computationally feasible methods for estimation which, while still computationally intensive, is doable for many models.  The SHAP approach also has the benefit of being able to be applied to any model, and it's the approach we'll use here.
+
+For a linear regression model, the SHAP value is the same as the coefficient, but for more complicated models, it's not so simple.  Let's look at the SHAP values for our model.  We'll start with a single observation, and then look at the average SHAP values for all observations.
+
+
 
 ```{r}
 #| echo: false
 #| eval: false
 #|
-explainer <- DALEX::explain(model_reviews)
+explainer = DALEX::explain(model_reviews)
 
-iBreakDown::break_down_uncertainty(
+word_count_15 = iBreakDown::break_down_uncertainty(
     model_reviews,
     data = df_reviews,
-    new_observation = tibble(word_count = 10)
+    new_observation = tibble(word_count = 15)
 )
 
-pred <- predict(model_reviews, newdata = tibble(word_count = 10))
+# plot(word_count_15)
 
-pred - mean(fitted(model_reviews))
+pred = predict(model_reviews, newdata = tibble(word_count = 15))
 
-coef(model_reviews)["word_count"]
+pred - mean(predict(model_reviews))
 
+# coef(model_reviews)["word_count"]*15 - coef(model_reviews)["word_count"]*mean(df_reviews$word_count)
+
+map_dbl(
+    unique(df_reviews$word_count),
+    \(x) predict(model_reviews, newdata = tibble(word_count = x)) - mean(predict(model_reviews))
+) |>
+    abs() |>
+    mean()
+# iml::FeatureImp()
+
+# shapper also from DrWhy group but uses shap py module, very poorly so evidently, and doesn't appear to be recently updated
+# word_count_15 <- DALEX::explain(
+#     model_reviews,
+#     data = df_reviews |> dplyr::select(word_count),
+#     y = df_reviews$rating
+# )
+# shapper::shap(explainer, new_observation = tibble(word_count = 15))
 ```
+
+```{r}
+mod_test = lm(
+    rating ~
+        word_count
+        + release_year
+        + length_minutes,
+    data = df_reviews
+)
+coef(mod_test)
+explainer <- DALEX::explain(mod_test)
+word_count_15 <- iBreakDown::break_down_uncertainty(
+    mod_test,
+    data = df_reviews,
+    new_observation = tibble(word_count = 15, release_year = 2015, length_minutes = 100)
+)
+plot(word_count_15)
+```
+
+```{r}
+pp = DALEX::predict_parts(
+    explainer,
+    tibble(word_count = 15, release_year = 2015, length_minutes = 100),
+    B = 5
+)
+pp |> plot()
+
+# shapviz works with the DALEX explainer so we can get all the usual shap plots in ggplot format
+library(shapviz)
+sv_force(shapviz(pp)) +
+    xlab("Breakdown")
+sv_waterfall(shapviz(pp)) |>
+    xlab("Waterfall")
+sv_importance(shapviz(pp)) +
+    xlab("Importance")
+```
+
 
 We can ultimately get a shap value for every value of a feature, and take the average. If we do this for each feature, we can use it as a measure of **feature importance**.
 
@@ -681,7 +737,7 @@ Let's demonstrate things by adding more features to our model.
 #| label: fig-rsq-decomp
 #| fig-cap: R-squared Decomposition
 
-model_reviews_extra <- lm(
+model_reviews_extra = lm(
     rating ~
         word_count
         + age
@@ -695,24 +751,24 @@ model_reviews_extra <- lm(
 
 library(relaimpo)
 metrics = c("lmg", "last", "first", "betasq", "pratt", "genizi", "car")
-init_rela_false <- relaimpo::calc.relimp(
+init_rela_false = relaimpo::calc.relimp(
     model_reviews_extra,
     type = metrics,
     rela = FALSE
 )
-init_rela_true <- relaimpo::calc.relimp(
+init_rela_true = relaimpo::calc.relimp(
     model_reviews_extra,
     type = metrics,
     rela = TRUE
 )
 
-df_rela <- map_df(metrics, \(x) slot(init_rela_false, x)) |>
+df_rela = map_df(metrics, \(x) slot(init_rela_false, x)) |>
     t()
-colnames(df_rela) <- metrics
+colnames(df_rela) = metrics
 
-decomposer2 <- names(which(round(colSums(df_rela), 3) == round(summary(model_reviews_extra)$r.squared, 3)))
+decomposer2 = names(which(round(colSums(df_rela), 3) == round(summary(model_reviews_extra)$r.squared, 3)))
 
-pdat_rela <- df_rela |>
+pdat_rela = df_rela |>
     as_tibble(rownames = "feature") |>
     pivot_longer(-feature, names_to = "metric", values_to = "value") |>
     mutate(
@@ -754,7 +810,7 @@ pdat_rela |>
     labs(
         x = "Contribution to R-squared",
         y = "",
-        title = "R-squared Decomposition"
+        title = "Relative Importance"
     ) +
     facet_wrap(vars(true_decompose, metric), scales = "free", ncol = 2, dir = "v") +
     theme(
@@ -762,10 +818,7 @@ pdat_rela |>
         plot.caption = element_text(vjust = -2)
     )
 
-```
-
-```{r}
-
+ggsave("img/fig-rsq-decomp.png", width = 8, height = 6)
 ```
 
 - It rarely makes sense to drop features based on importance alone, and will typically drop performance to do so.
