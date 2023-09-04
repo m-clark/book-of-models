@@ -115,12 +115,116 @@ $$
 \hat\beta_\tau = \arg \min_{\beta \in \mathbb{R}^k} \sum_{i-1}^n(\rho_\tau(Y_i-X_i\beta))
 $$
 
-With quantile regression, we are given an extra parameter for the model: $\tau$ or *tau*. The tau parameter let's us choose which quantile we want to use for our line fitting. Since the median splits the data in half, we can translate that to a quantile of .5. 
+With quantile regression, we are given an extra parameter for the model: $\tau$ or *tau*. The tau parameter let's us choose which quantile we want to use for our line fitting. Since the median splits the data in half, we can translate that to a quantile of .5. It is important to note that we have a slight shift from our OLS-based linear regression model -- the standard linear model is a **conditional mean function of y given x**, where as our quantile regression is a **conditional quantile function of y given x**.
 
 
 ### Data Import and Preparation
 
 Let's bring in our movie reviews data. Let's say that we are curious about the relationship between the `total_reviews` variable and the `rating` variable. First, we need to get our data ready for our home-brewed functions.
+
+### The Basics
+
+Performing a quantile regression at the median doesn't require too much more effort than a normal linear model. We can use the `quantreg` package in R or `statsmodels` in Python. Aside from a small function change, we also need to specify the quantile of interest -- `tau` in R and `q` in Python.
+
+:::{.panel-tabset}
+
+##### R
+```{r, r_quantreg}
+#| echo: true
+#| label: r_quantreg
+library(quantreg)
+
+reviews <- read.csv("data/movie_reviews_processed.csv")
+
+median_test <- rq(rating ~ total_reviews, tau = .5, 
+                data = reviews)
+
+summary(median_test)
+```
+
+##### Python
+
+```{python} 
+import numpy as np
+import pandas as pd
+import statsmodels.formula.api as smf
+
+reviews = pd.read_csv("~/Documents/book-of-models/data/movie_reviews_processed.csv")
+
+median_test = smf.quantreg('rating ~ total_reviews', 
+                           data = reviews).fit(q = .5)
+
+median_test.summary()
+```
+
+Fortunately, our interpretation of this result isn't all that different from a standard linear model. The intercept is the predicted value for the **tau** of y given x = 0. The feature coefficient suggests that the ratings increase by .00007 for every additional review. However, this result is interpreted as the amount of change in the conditional quantile of y given x.
+
+Quantile regression is not a one-trick-pony. Remember, it is called quantile regression -- not median regression. Being able to compute a median regression is just a nice by-product. What we can do with quantile regression is to model different quantiles of the same data. It gives us the ability to answer brand new questions -- does the relationship between user age and their ratings change at different quantiles of rating?
+
+```{r, quantile_lines}
+#| echo: false
+#| label: quantile_lines
+#| fig-cap: Quantile regression lines
+tau_values <- c(.1, .3, .5, .7, .9)
+
+quant_values <- purrr::map_df(tau_values, ~{
+  result <- coef(rq(rating ~ total_reviews, tau = .x, 
+                    data = reviews))
+  result$tau <- .x
+  result
+})
+
+colnames(quant_values) <- c("intercept", "total_reviews", "tau")
+
+quant_values$tau <- as.factor(quant_values$tau)
+
+ggplot() +
+  geom_point(data = reviews, 
+             mapping = aes(total_reviews, rating), 
+             alpha = .5) +
+  geom_abline(mapping = aes(slope = total_reviews, 
+                            intercept = intercept, 
+                            color = tau),
+              data = quant_values) +
+  theme_minimal()
+
+```
+
+Instead of a single model to capture the trend through the mean of the data, we can now examine the trends within 5 different quantiles of the data (we aren't limited to just those quantiles, though, and you can examine any of them that you might find interesting). If we had to put some words to our visualization, we could say that all of the quantiles show a positive relationship. While they all appear to have roughly the same slope, it appears that the 90th quantile has a slightly steeper slope than the other quantiles.
+
+#### Prediction
+
+In our standard, OLS-based regression model, we can use the regression results to make predictions. We can do the same thing with our quantile regression model, with some slight wrinkles to think about.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r, r_quantile_predict}
+#| echo: true
+#| label: r_quantile_predict
+
+predict(median_test)
+```
+
+##### Python
+
+```{python, python_quantile_predict}
+median_test.predict()
+```
+
+Let's look at those predictions compared to the actual values:
+
+```{r}
+ggplot() +
+  geom_point(data = reviews, 
+             mapping = aes(total_reviews, rating), 
+             alpha = .5) +
+  geom_point(data = reviews, 
+             mapping = aes(total_reviews, predict(median_test)), 
+             color = "red") +
+  theme_minimal()
+```
 
 :::{.panel-tabset}
 
@@ -245,7 +349,7 @@ for i in residual:
 sum(loss)
 ```
 
-You'll notice right away that we have a few differences. Our quantile loss function includes the *tau* argument, which will let us set our quantile of interest; naturally, it can be any value between 0 and 1. The residual is multiplied by the tau value, only if the residual is greater than 0. If the residual is negative, we need to add tau to -1. Since we need a positive value for our loss values, we will multiply our negative residuals by the negative value produced from -1 plus our tau value. After that, we just sum all of those positive loss values and do our best to minimize that summed value. 
+You'll notice right away that we have a few differences. Our quantile loss function includes the **tau** argument, which will let us set our quantile of interest; naturally, it can be any value between 0 and 1. The residual is multiplied by the tau value, only if the residual is greater than 0 -- positive values are weighted by **tau**. If the residual is negative, we need to add tau to -1 -- our negative residuals are weight by 1-**tau(**). Since we need a positive value for our loss values, we will multiply our negative residuals by the negative value produced from -1 plus our tau value. After that, we just sum all of those positive loss values and do our best to minimize that summed value. sum of weighted absolute residuals. sum of weighted absolute residuals
 
 ### Model Fitting
 
@@ -279,70 +383,6 @@ minimize(quantile_loss,
 ```
 
 :::
-
-Fortunately, our interpretation of this result isn't all that different from a standard linear model -- the ratings should increase by .00007 for every additional review. However, this is at the median, not the mean, like the standard linear model. 
-
-### Checking Results
-
-Let's check out results against those produced by `quantreg` and `statsmodels`.
-
-:::{.panel-tabset}
-
-##### R
-```{r, r_quantreg}
-#| echo: true
-#| label: r_quantreg
-library(quantreg)
-
-median_test <- rq(rating ~ total_reviews, tau = .5, 
-                data = reviews)
-
-summary(median_test)
-```
-
-##### Python
-
-```{python} 
-import statsmodels.formula.api as smf
-
-median_test = smf.quantreg('rating ~ total_reviews', 
-                           data = reviews).fit(q = .5)
-```
-
-Our home-brewed function returned the same results.
-
-Quantile regression is not a one-trick-pony. Remember, it is called quantile regression -- not median regression. Being able to compute a median regression is just a nice by-product. What we can do with quantile regression is to model different quantiles of the same data. It gives us the ability to answer brand new questions -- does the relationship between user age and their ratings change at different quantiles of rating?
-
-```{r, quantile_lines}
-#| echo: false
-#| label: quantile_lines
-#| fig-cap: Quantile regression lines
-tau_values <- c(.1, .3, .5, .7, .9)
-
-quant_values <- purrr::map_df(tau_values, ~{
-  result <- coef(rq(rating ~ total_reviews, tau = .x, 
-                    data = reviews))
-  result$tau <- .x
-  result
-})
-
-colnames(quant_values) <- c("intercept", "total_reviews", "tau")
-
-quant_values$tau <- as.factor(quant_values$tau)
-
-ggplot() +
-  geom_point(data = reviews, 
-             mapping = aes(total_reviews, rating), 
-             alpha = .5) +
-  geom_abline(mapping = aes(slope = total_reviews, 
-                            intercept = intercept, 
-                            color = tau),
-              data = quant_values) +
-  theme_minimal()
-
-```
-
-Instead of a single model to capture the trend through the mean of the data, we can now examine the trends within 5 different quantiles of the data (we aren't limited to just those quantiles, though, and you can examine any of them that you might find interesting). If we had to put some words to our visualization, we could say that all of the quantiles show a positive relationship. While they all appear to have roughly the same slope, it appears that the 90th quantile has a slightly steeper slope than the other quantiles.
 
 ## Additive Models
 
