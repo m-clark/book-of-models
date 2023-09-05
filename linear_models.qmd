@@ -635,14 +635,14 @@ Keep in mind that your model has a lot to say about what you'll be able to say a
 ```{r}
 #| echo: false
 #| label: model-metrics
-
-model_reviews_metrics = performance::performance(model_reviews)
-rsq = round(model_reviews_metrics$R2, 2)
+# need to update later usage to use mr_metrics object or named with mr_prefix
+mr_metrics = performance::performance(model_reviews)
+rsq = round(mr_metrics$R2, 2)
 rsq_perc = 100 * rsq
-mse = round(model_reviews_metrics$RMSE^2, 2)
-rmse = round(model_reviews_metrics$RMSE, 2)
+mse = round(mr_metrics$RMSE^2, 2)
+rmse = round(mr_metrics$RMSE, 2)
 mae = round(performance::mae(model_reviews), 2)
-aic = round(model_reviews_metrics$AIC, 2)
+aic = round(mr_metrics$AIC, 2)
 ```
 
 Thus far, we've focused on interpretation at the feature level. But knowing the interpretation of a feature doesn't do you much good if the model itself is poor! In that case, we also need to assess the model as a whole, and as with the feature level, we can do this in a few ways. First, we can start with the predictions of our model. As noted previously, how well the predictions and target line up is a measure of how well the model fits the data. Most model-level interpretation involves assessing and comparing model fit and variations on this theme. One of the better ways to assess model fit is visually, so let's look at our predictions vs. the target.
@@ -901,8 +901,8 @@ mre_coef = mre_table |>
     pivot_wider(names_from = feature, values_from = estimate) |>
     map_df(\(x) ifelse(round(x, 2) == 0, round(x, 4), round(x, 2)))
 
-mre_metrics = performance::performance(model_reviews_extra)
-mre_mae = performance::mae(model_reviews_extra)
+mre_metrics = round(performance::performance(model_reviews_extra), 2)
+mre_mae = round(performance::mae(model_reviews_extra), 2)
 ```
 
 There is definitely more to unpack here but it's important to note that it's just *more* stuff, not different stuff.  The model-level components are the same in that we still see R^2^ etc., although they are all 'better' (higher R^2^, lower error) because we have a more predictive model. Our coefficents look the same also, and the fact is we'd interpret the in the same way.  Starting with word count, we see that it's still statistically significant, but it has been reduced just slightly from our previous model where it was the only feature (`r wc_coef` vs. `r mre_coef['word_count']`).  Why? This suggests that word count has some non-zero correlation, sometimes called **collinearity**, with other features that are also explaining the target to some extent. Our linear model shows the effect of each feature *controlling for other features*, or, *holding other features constant*[^controllingfor]. Conceptually this means that the effect of word count is the effect of word count *after* we've accounted for the other features in the model. In this case, an increase of a single word results in a `r round(mre_coef['word_count'], 2)` `r word_sign(mre_coef['word_count'], c('bump', 'drop'))`. Looking at another feature, the addition of a child to the home is associated with `r mre_coef['children_in_home']` `r word_sign(mre_coef['children_in_home'], c('bump', 'drop'))` in rating, accounting for the other features.
@@ -1356,15 +1356,15 @@ init_rela_true = relaimpo::calc.relimp(
 )
 
 df_rela = map_df(metrics, \(x) slot(init_rela_false, x)) |>
-    t()<-
+    t()
 colnames(df_rela) = metrics
 
 decomposer2 = names(which(round(colSums(df_rela), 3) == round(summary(model_reviews_extra)$r.squared, 3)))
 
 pdat_rela = df_rela |>
-    as_tbble(rownames = "feature") |>
+    as_tibble(rownames = "feature") |>
     pivot_longer(-feature, names_to = "metric", values_to = "value") |>
-    mutate(""""
+    mutate(
         metric = fct_inorder(metric),
         true_decompose = ifelse(metric %in% decomposer2, "Decomposes R-squared", "Does not")
     ) |> 
@@ -1417,17 +1417,125 @@ ggsave("img/fig-rsq-decomp.png", width = 8, height = 6)
 
 
 
+### Model Level Interpretation
+
+As before we can move beyond feature level interpretation, but we are still going to be concerned with the same sorts of questions - how well does the model fit? Have we impoved the fit significantly? What do our predictions look like, and so on.
+
+As an example, we see that our R^2^ has gone up to `r mre_metrics$R2`, but this comes with an important caveat - adding any feature would increase our R^2^, even one that was pure noise! So while it is informative, we want to look at MSE or MAE to determine whether the model has truly improved. In both cases they've been reduced. For example, RMSE is now `r mre_metrics$RMSE` a reduction of `r scales::label_percent()(1 - mre_metrics$RMSE/mr_metrics$RMSE)`, so we can feel confident that our model has improved. While there is more a lot more to unpack, we will save doing so for the Model Criticism chapter. At least at this point, we have an idea of how to assess our this added complexity at the model level.
+
+:::{.callout-note title='Adjusted R^2^'}
+Part of the output contains an 'adjusted' R^2^.  This is a version of R^2^ that penalizes the addition of features to the model as a way to account for the fact that adding features will always increase R^2^, even if they are not useful. This is why we can't use R^2^ alone to determine whether a model has improved, and why we suggest only considering it as a descriptive statistic. But the adjusted version is kind of a hack, and can even be negative for very poor models. If you want to compare models, use MSE, MAE, and similar metrics.
+:::
+
+
+### Other Complexity
+
+#### Categorical Features
+
+Categorical features can be added to a model just like any other feature.  The main issue is that they have to be represented numerically, because models only work on numerically coded features and targets. The simplest and most common encoding is called a **one-hot encoding** scheme, which creates a new feature for each category, and assigns a 1 if the observation is in that category, and a 0 otherwise. This is also called a **dummy coding** when used for statistical models. Here is an example of what the coding looks like for the season feature. This is really all there is to it.
+
+```{r}
+#| label: one-hot-r
+#| eval: true
+#| echo: false
+
+df_reviews |> 
+    mutate(value = 1, idx = row_number()) |> 
+    select(idx, rating, season, value) |> 
+    tidyr::pivot_wider(
+        id_cols = c(idx, rating),
+        names_from = season,
+        values_from = value
+    ) |> 
+    mutate(
+        across(everything(), \(x) coalesce(x, 0)),
+        season = df_reviews$season
+    ) |> 
+    select(rating, season, everything(), -idx)  |> 
+    head(10) |>
+    gt() |> 
+    fmt_number(
+        columns = vars(-rating, -season),
+        decimals = 0
+    )
+
+```
+
+When using statistical models we don't have to do this ourselves. Even other tools for machine learning models will typically have a way to identify and appropriately handle categorical features, even in very complex ways when it comes to deep learning models.  What is important is to be aware that they require special handling, but often this is done behind the scenes.  Now let's do a quick example using a categorical feature with our data, and we'll keep a numeric feature as well just for consistency.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| eval: true
+#| label: cat-feature-r
+
+model_cat = lm(
+    rating ~ word_count + season,
+    data = df_reviews
+)
+
+summary(model_cat)
+```
+
+##### Python
+
+```{python}
+#| eval: true
+#| label: cat-feature-py
+
+model_cat = smf.ols(
+    formula = "rating ~ word_count + season",
+    data = df_reviews
+).fit()
+
+model_cat.summary()
+```
+
+:::
+
+We now see the usual output. There is word count again, with its slightly negative assocation with rating. And we have an effect for each season as well... except, wait a second, where is the fall effect? The coefficients are interepreted the same way - as we move one unit on x, we see a corresponding change in y. But moving from one category to another requires starting at some category in the first place! So one is chosen arbitrarily, but you would have control over this.  In our model, fall is chosen because its first alphabetically.  So if we look at say, the effect of summer, we see an increase in the rating of `r round(coef(model_cat)[['seasonSummer']], 2)` relative to fall. 
+
+A better approach to understanding categorical features for standard linear models is through what are called **marginal effects**, which can provide a kind of average prediction for each category while accounting for the other features in the model. Better still is to visualize these, and we can use something like our PDP approach from before to do so[^mepy]. It's actually tricky to define 'average' when there are multiple features and interactions involved, so be careful, but we'd interpret the result similarly. In this case, we expect higher ratings for summer releases.
+
+```{r}
+#| echo: false
+#| label: cat-feature-viz-r
+#| fig-cap: Marginal Effects of Season on Rating
+init = marginaleffects::marginal_means(model_cat, 'season')
+
+broom::tidy(init) |> 
+    ggplot(aes(x = value, y = estimate)) +
+    geom_linerange(
+        aes(ymin = conf.low, ymax = conf.high),
+        color = okabe_ito[1],
+        size = 0,
+        linewidth = 2
+    ) + 
+    geom_point(
+        color = okabe_ito[2],
+        size = 5,
+        alpha = 1
+    ) +
+    labs(
+        x = "",
+        y = "Rating",
+        title = "Marginal Means"
+    ) +
+    theme(
+        panel.grid.major.y = element_line(color = 'gray92'),
+    )
+```
+
+
+[^mepy]: At the time of this writing, there seems to be very little for this sort of thing in Python. statsmodels provides limited functionality, but only for logistic regression models. In R you have various tools like `marginaleffects`, `emmeans`, `ggeffects` and more.
 
 
 
+#### Interactions (a preview)
 
-
-#### Model Level Interpretation
-
-As before we can move beyond feature level interpretation
-
-
-## Model Comparison
+We'll demonstrate this more in the @sec-extensions chapter, but a common way to add complexity in linear models is through interactions.  This is where we allow the effect of a feature to vary depending on the values of another feature, or even itself! As a conceptual example, we might expect that the effect of the number of children in the home on rating is different for movies from different genres (much higher for kids movies, maybe lower for horror movies), or that genre and season work together in some way to affect rating (e.g. action movies get higher ratings in summer).  We might also consider that the length of a movie might plateau or even have a negative effect on rating after a certain point, i.e. having a curvilinear effect. All of these are types of interactions we can explore. Interactions allow us to incorporate nonlinear relationships into the model, and so greatly extend the linear model's capabilities - we basically get to use a linear model in a nonlinear way!  
 
 
 
@@ -1439,6 +1547,30 @@ Model criticism and diagnostics, but briefly note something here.
 <!---
  performance::check_model(model_reviews_extra) 
 --->
+
+## Classification
+
+We've been using a continuous target, but what about a categorical target? For example, what if we just had a binary target of whether a movie was good or bad? We will dive much more into classification models in our upcoming chapters, but it turns out that we can still formulate it as a linear model problem. The main difference is that we use a transformation of our linear combination, somtimes called a **link function**, and we'll need to use a different **loss function** rather than least squares, such as the binomial likelihood. This also means we'll move away from R^2^ as a measure of model fit, and look at something something else, like accuracy.
+
+Graphically we can see it in the following way, which when compared with our linear model, doesn't look much different.
+
+
+```{mermaid}
+%%| echo: false
+%%| fig-cap: Linear Model with Transformation
+graph LR
+    n1((X<sub>1</sub>)) --> |b<sub>1</sub>| n4((*))
+    n2((X<sub>2</sub>)) --> |b<sub>2</sub>| n4((*))
+    n3((X<sub>3</sub>)) --> |b<sub>3</sub>| n4((*))
+
+    n4 --> n5((Y))
+
+    style n1 fill:#f9f,stroke:#333,stroke-width:4px
+    %% style e3 font-size:50%
+```
+
+As soon as we move away from the standard linear model and use transformations of our linear predictor, simple coefficient interpretation becomes difficult, sometimes exceedingly so. What will help 
+
 
 ## More linear models
 
