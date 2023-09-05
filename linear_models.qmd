@@ -871,6 +871,8 @@ model_reviews_extra = smf.ols(
 model_reviews_extra.summary()
 ```
 
+
+
 :::
 
 ```{r}
@@ -916,10 +918,10 @@ Thinking about prediction, how would we get a prediction for a movie rating with
 predict_observation = tibble(
     word_count = 12,
     age = 30,
+    children_in_home = 1,
     review_year = 2020,
     release_year = 2015,
     length_minutes = 100,
-    children_in_home = 1,
     total_reviews = 10000
 )
 
@@ -937,10 +939,10 @@ predict_observation = pd.DataFrame(
     {
         'word_count': 12,
         'age': 30,
+        'children_in_home': 1,
         'review_year': 2020,
         'release_year': 2015,
         'length_minutes': 100,
-        'children_in_home': 1,
         'total_reviews': 10000
     },
     index = ['new_observation']
@@ -957,16 +959,15 @@ model_reviews_extra.predict(predict_observation)
 [^controllingfor]: A lot of statisticians and causal modeling folks get very hung up on the terminology here, but we'll leave that to them as we'd like to get on with things. For our purposes, we'll just say that we're interested in the effect of a feature *after* we've accounted for the other features in the model.  
 
 
-
 ### More Interpretation
 
 #### SHAP Values
 
 Some models are more complicated than can be explained by a simple coefficient or, e.g. nonlinear effects in generalized additive models, or may not even have feature-specific coefficients, like gradient boosting models, or may have many parameters associated with a feature, as in deep learning. Such models typically won't come with statistical output like standard errors and confidence intervals either. But we'll still have some tricks up our sleeve!
 
-A very common interpretation tool is called a **SHAP value**. SHAP stands for **SHapley Additive exPlanations**, and it provides a means to understand how much each feature contributes to a specific prediction. It's based on a concept from game theory called the **Shapley value**, which is a way to understand how much each player contributes to the outcome of a game. The reason we bring it up here is that it is has a nice intuition in the linear model case, and demonstrating it here is a good way to get a sense of how it works. While the actual computations can be tedious, the basic idea is relatively straightforward- for a given prediction at a specific observation with set feature values, we can calculate the difference between the prediction at that observation and the average prediction. This is the **local effect** of the feature.  However, we must also consider doing this for all possible values of other features that might be in a model, as well as considering whether other features are present for the prediction or not. The initial Shapley approach is to average the local effects over all possible combinations of features, which is computationally intractable for all but the simplest models. The SHAP approach offers more computationally feasible methods for estimation which, while still computationally intensive, is doable for many models. The SHAP approach also has the benefit of being able to be applied to *any* model, and it's the approach we'll use here and return to with some of our other models.
+A very common interpretation tool is called a **SHAP value**. SHAP stands for **SHapley Additive exPlanations**, and it provides a means to understand how much each feature contributes to a specific prediction. It's based on a concept from game theory called the **Shapley value**, which is a way to understand how much each player contributes to the outcome of a game. The reason we bring it up here is that it is has a nice intuition in the linear model case, and demonstrating now is a good way to get a sense of how it works. While the actual computations can be tedious, the basic idea is relatively straightforward- for a given prediction at a specific observation with set feature values, we can calculate the difference between the prediction at that observation and the average prediction. This is the **local effect** of the feature.  However, we must also consider doing this for all possible values of other features that might be in a model, as well as considering whether other features are present for the prediction or not. The initial Shapley approach is to average the local effects over all possible combinations of features, which is computationally intractable for all but the simplest models. The SHAP approach offers more computationally feasible methods for estimation which, while still computationally intensive, is doable for many models. The SHAP approach also has the benefit of being able to be applied to *any* model, and it's the approach we'll use here and return to with some of our other models.
 
-Let's look at the SHAP values for our model.  We'll start with a single feature value/observation, and then look at the average SHAP values for all observations. Here we'll use 12 words for word count, and the prediction is of course the same for all data values, but they would not be if other features were in the model, and we try to be consistent here.
+Let's look at the SHAP values for our model.  We'll start with a single feature value/observation, using our multifeature model. Here we'll use the first observation where there are 12 words for word count, age of reviewer is 30, a movie length of 100 minutes etc. To aid our understanding, we calculate the shap value related to word count at that observation by hand, and using a package.
 
 :::{.panel-tabset}
 
@@ -977,11 +978,13 @@ Let's look at the SHAP values for our model.  We'll start with a single feature 
 #| label: shap-values-r
 
 # first we need to get the average prediction
-avg_pred = mean(predict(model_reviews))
+avg_pred = mean(predict(model_reviews_extra))
+
 
 # then we need to get the prediction for the feature value of interest
+# for all observations, and average them
 pred_observation = predict(
-    model_reviews,
+    model_reviews_extra,
     newdata = df_reviews |> mutate(word_count = 12)
 )
 
@@ -989,120 +992,10 @@ pred_observation = predict(
 shap_value = mean(pred_observation) - avg_pred
 
 # we can also use the DALEX package to do this for us
-explainer = DALEX::explain(model_reviews, verbose = FALSE)
+explainer = DALEX::explain(model_reviews_extra, verbose = FALSE)
 
-shap_value_package = DALEX::predict_parts(
-    explainer,
-    predict_observation,
-    type = "shap"
-)
-```
-
-
-##### Python
-
-<!---
- Need to review this. even though the code is taken from a previous demo that shows equivalence (and still does for that data situation), for whatever reason, it's slightly different here due to a different baseline value, which *should* just be the mean rating. How that gets screwed up with the simplest model is beyond me, but not the first/last issue with shap package. The closest I could get was an average prediction when X != 12, and it still wasn't exact, and which doesn't make sense as a baseline.
---->
-
-```{python}
-#| eval: false
-#| label: shap-values-py
-
-# first we need to get the average prediction
-avg_pred = model_reviews.predict(df_reviews).mean()
-
-# then we need to get the prediction for the feature value of interest
-pred_observation = model_reviews.predict(df_reviews.assign(word_count = 12)).mean()
-
-# then we can calculate the shap value
-shap_value = pred_observation - avg_pred
-
-# we can also use the shap package for this; it does not work with statsmodels though,
-# and single feature models are a bit cumbersome, but we still get there in the end!
-import shap
-from sklearn.linear_model import LinearRegression
-
-# set data up for shap and sklearn
-x_wc = df_reviews['word_count'].values.reshape(-1, 1)
-x12 = np.array([12.0])
-
-model_reviews = LinearRegression().fit(x_wc, df_reviews['rating'])
-
-explainer = shap.explainers.Linear(model_reviews, x_wc, algorithm='exact')
-
-explainer.shap_values(x12)
-```
-
-
-:::
-
-
-```{r}
-#| echo: false
-#| label: tbl-shap-values-comparison
-tibble(
-    ours = shap_value,
-    dalex = as_tibble(shap_value_package[1, ])[["contribution"]]
-    # dalex = data.frame(shap_value_package['word_count', ])[["contribution"]]
-) |>
-    gt(decimals = 3)
-```
-
-
-```{r}
-# round(coef(model_reviews_extra), 3)
-# pp
-```
-
-
-
-```{r}
-#| echo: false
-#| eval: false
-#|
-explainer = DALEX::explain(model_reviews)
-
-word_count_15 = iBreakDown::break_down_uncertainty(
-    model_reviews,
-    data = df_reviews,
-    new_observation = tibble(word_count = 15)
-)
-
-# plot(word_count_15)
-
-pred = predict(model_reviews, newdata = tibble(word_count = 15))
-
-pred - mean(predict(model_reviews))
-
-# coef(model_reviews)["word_count"]*15 - coef(model_reviews)["word_count"]*mean(df_reviews$word_count)
-
-map_dbl(
-    unique(df_reviews$word_count),
-    \(x) predict(model_reviews, newdata = tibble(word_count = x)) - mean(predict(model_reviews))
-) |>
-    # abs() |>
-    mean()
-# iml::FeatureImp()
-
-# shapper also from DrWhy group but uses shap py module, very poorly so evidently, and doesn't appear to be recently updated
-# word_count_15 <- DALEX::explain(
-#     model_reviews,
-#     data = df_reviews |> dplyr::select(word_count),
-#     y = df_reviews$rating
-# )
-# shapper::shap(explainer, new_observation = tibble(word_count = 15))
-```
-
-```{r}
-explainer <- DALEX::explain(
-    model_reviews_extra,
-    data = insight::get_data(model_reviews_extra) |> sample_n(1000),
-    y = df_reviews$rating,
-    verbose = FALSE
-)
-
-observation_of_interest <- tibble(
+# observation of interest we want shap values for
+obs_of_interest = tibble(
     word_count = 12,
     age = 30,
     children_in_home = 1,
@@ -1112,35 +1005,246 @@ observation_of_interest <- tibble(
     review_year = 2020,
 )
 
+shap_value_package = DALEX::predict_parts(
+    explainer,
+    obs_of_interest,
+    type = "shap"
+)
+```
 
+
+##### Python
+
+```{python}
+#| eval: false
+#| label: shap-values-py
+
+# first we need to get the average prediction
+avg_pred = model_reviews_extra.predict(df_reviews).mean()
+
+# then we need to get the prediction for the feature value of interest
+pred_observation = model_reviews_extra.predict(df_reviews.assign(word_count = 12))
+
+# then we can calculate the shap value
+shap_value = pred_observation.mean() - avg_pred
+
+
+# now use the shap package for this; it does not work with statsmodels though,
+# and single feature models are a bit cumbersome, but we still get there in the end!
+import shap
+from sklearn.linear_model import LinearRegression
+
+# set data up for shap and sklearn
+fnames = ['word_count', 'age', 'review_year', 'release_year', 'length_minutes', 'children_in_home', 'total_reviews']
+
+X = df_reviews[fnames]
+y = df_reviews['rating']
+
+# use a linear model that works with shap
+model_reviews = LinearRegression().fit(X, y)
+
+# 1000 instances for use as the 'background distribution'
+X_sample = shap.maskers.Independent(data = X, max_samples = 1000)  
+
+# # compute the SHAP values for the linear model
+explainer_linear = shap.Explainer(
+    model_reviews.predict, 
+    X_sample   
+)
+
+# find an index where word_count is 12
+obs_of_interest = pd.DataFrame({
+    'word_count': 12,
+    'age': 30,
+    'children_in_home': 1,
+    'review_year': 2020,
+    'release_year': 2015,
+    'length_minutes': 100,
+    'total_reviews': 10000
+}, index = ['new_observation'])
+
+shap_values_linear = explainer_linear(obs_of_interest)
+
+shap_value = shap_values_linear.values[0, 0]
+```
+
+:::
+
+
+```{r}
+#| echo: false
+#| label: tbl-shap-values-comparison
+tibble(
+    ours = shap_value,
+    dalex = as_tibble(shap_value_package['word_count', ])[["contribution"]]
+) |>
+    gt(decimals = 3)
+```
+
+So we see the contribution to a prediction for a single feature, but the shap-related packages provide them for all features, and thus get a sense of each feature's contribution to the predicion. The following shows this as a visualization, either a force plot and waterfall plot. Smaller contributions are aggregated to one effect to simplify the plot. The dotted line represents the average prediction from our model (E[f(x)]) and the prediction we have for the observation (f(x)). We see that total reviews and length in minutes contribute most to the prediction at this observation, followed by release year.  We can also see that the effect of movie length is negative.
+
+```{r}
+#| echo: false
+#| label: shap-viz-r
+#| fig-cap: SHAP Visualizations
+#| fig-height: 8
+#| fig-width: 6
 pp <- DALEX::predict_parts(
     explainer,
-    observation_of_interest,
+    obs_of_interest,
     type = "shap",
     # B = 1000 #  b won't matter since linreg
 )
-# pp |> data.table::as.data.table() |> filter(str_detect(variable, 'word_count'))
 
-tibble(pp["word_count", ][1:2])
-pp
-pp |> plot()
-# plot(DALEX::model_performance(explainer, model_reviews_extra))
+fc = okabe_ito[c(5,6)]
+
+library(shapviz)
+
+plot_dat_shap = shapviz(pp)
+
+layout = '
+    AAAAA
+    #BBB#
+'
+
+bd = sv_force(
+    plot_dat_shap, 
+    fill_colors = fc, 
+    max_display = 4,
+    colour = "white", 
+    contrast = FALSE
+) +
+    labs(
+        x = "Breakdown",
+        title = "SHAP Force"
+    )
+
+wf = sv_waterfall(
+    plot_dat_shap,
+    max_display = 4,
+    fill_colors = fc,
+    colour = "white",
+    contrast = FALSE
+) +
+    labs(
+        x = "Contribution to Prediction",
+        title = "SHAP Waterfall"
+    )
+
+bd / wf +
+    plot_layout(nrow = 2, widths = c(.25, 1), design=layout ) 
+
+# sv_importance(plot_dat_shap) +
+#     xlab("Importance")
+```
+
+Pretty neat huh? So for any observation we want to, and more importantly, for any model we might use, we can get a sense of how features contribute to that prediction.  We also can get a sense of how much each feature contributes to the model as a whole by aggregating these values across all observations in our data, and this provides a measure of **feature importance**, but we'll come back to that in a bit.
+
+If we are concerned with a single feature's relationship with the target, we can also look at the **partial dependence plot** (PDP). The PDP shows the relationship between a feature and the target, but averaged over all other features. In other words, it shows the effect of a feature on the target, but averaged over all other features. For the linear case, it has a direct correspondence to the shap value. The SHAP value is the value the difference between the average prediction and the point on the PDP for a feature at a specific feature value. 
+
+We can also look at the **individual conditional expectation** (ICE) plot, which is a PDP for a single observation.  The PDP is a very common plot for understanding the relationship between a feature and the target, and we'll see it again with other models.  The ICE plot is less common, but it's a nice way to see how a feature affects the target for a single observation.  
+
+In addition, there are other plots that are similar to the PDP and ICE, such as the **accumulated local effect** (ALE) plot, which is a bit more robust to correlated features than the PDP plo. Where the PDP and ICE plots show the average effect of a feature on the target, the ALE plot focuses on average differences in predictions for the feature at a specific value versus predictions at feature values nearby, and centers the result so that the average difference is zero. We'll show all three here.
+
+https://christophm.github.io/interpretable-ml-book/ (good reference for all plots)
+
+```{r}
+#| echo: false
+#| label: pdp-ice-r
+#| fig-cap: Partial Dependence and Individual Conditional Expectation Plots
+#| fig-height: 10
+# elements of this come from initial shap calculation demo
+
+library(ggplot2)
+library(iml)
+
+layout = '
+    AAAA
+    AAAA
+    AAAA
+    BBCC
+    BBCC
+'
+
+p_init = Predictor$new(model_reviews_extra, df_reviews)
+
+pdp = FeatureEffect$new(p_init, 'word_count', method = "pdp")$plot() + 
+    geom_hline(yintercept = mean(df_reviews$rating), linetype = "dashed") +
+    geom_vline(xintercept = obs_of_interest$word_count, linetype = "dashed") +
+    geom_segment(
+        data = obs_of_interest, 
+        aes(x = word_count, xend = word_count, y = mean(pred_observation), yend= mean(df_reviews$rating)), 
+        color = okabe_ito[6],
+        linewidth = 2
+    ) +
+    geom_point(
+        data = obs_of_interest, aes(x = word_count, y =  mean(pred_observation) ), 
+        color =okabe_ito[6], 
+        alpha = 1,
+        size = 4
+    ) +
+    annotate(
+        "text", 
+        x = obs_of_interest$word_count + 2, 
+        y = mean(df_reviews$rating) + - .02, 
+        label = "SHAP Value"
+    ) +
+    annotate(
+        "text", 
+        x = 3, 
+        y = mean(df_reviews$rating), 
+        size = 3,
+        vjust = -1,
+        label = 'Average Prediction'
+    ) +
+    annotate(
+        "text", 
+        x = 12, 
+        y = 2.8, 
+        size = 3,
+        vjust = -1,
+        angle = 90,
+        label = "Word Count = 12"
+    ) +
+    labs(subtitle = 'PDP') 
+
+ice = FeatureEffect$new(p_init, 'word_count', method = "pdp+ice")$plot() +
+    # scale_color_manual(values = okabe_ito[5]) + 
+    labs(subtitle = 'ICE')
+ale = FeatureEffect$new(p_init, 'word_count', grid.size=100)$plot() + labs(subtitle = 'ALE')
+
+pdp + ice + ale +
+    plot_layout(design = layout) &
+    theme(
+        plot.subtitle = element_text(size = 14)
+    ) 
+```
+
+Kinda cool but maybe not so interesting in that they all kind of tell us the same thing about our negative relationship between word count and rating, which we already knew from our coefficient value. The real power will come in later when we use interactions, nonlinear effects, and other models. But it's good to note now that the PDP, ICE, and ALE plots are a nice way to get a sense of the relationship between a feature and the target, and we'll see them again with other models.
+
+
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: shap-demo-no-show
+
+# just a quick demo to get all the shap values for the observation of interest
+map2_df(
+    .x = obs_of_interest,
+    .y = colnames(obs_of_interest),
+    \(x, y)
+    mean(
+        predict(model_reviews_extra, newdata = insight::get_data(model_reviews_extra) |> mutate(!!y := x)) - mean(predict(model_reviews_extra))
+    )
+) |>
+    dplyr::select(sort(colnames(obs_of_interest)))
+
 ```
 
 ```{r}
-# map2_df(
-#     .x = observation_of_interest,
-#     .y = colnames(observation_of_interest),
-#     \(x, y)
-#     mean(
-#         predict(model_reviews_extra, newdata = insight::get_data(model_reviews_extra) |> mutate(!!y := x)) - mean(predict(model_reviews_extra))
-#     )
-# ) |>
-#     dplyr::select(sort(colnames(observation_of_interest)))
-
-```
-
-```{r}
+#| echo: false
+# saving for later
 # explainer <- DALEX::explain(
 #     model_reviews_extra,
 #     data = insight::get_data(model_reviews_extra) |> sample_n(1000) |> dplyr::select(-rating),
@@ -1156,63 +1260,86 @@ pp |> plot()
 # pp |> plot()
 ```
 
-```{r}
-# shapviz works with the DALEX explainer so we can get all the usual shap plots in ggplot format
-fc = okabe_ito[1:2]
-library(shapviz)
-
-
-plot_dat_shap = shapviz(pp)
-
-bd = sv_force(plot_dat_shap, fill_colors = fc, colour = "white", contrast = FALSE) +
-    labs(
-        x = "Breakdown",
-        title = "SHAP Force"
-    )
-
-wf = sv_waterfall(
-    plot_dat_shap,
-    max_display = 6,
-    fill_colors = fc,
-    colour = "white",
-    contrast = FALSE
-) +
-    labs(
-        x = "Contribution to Prediction",
-        title = "SHAP Waterfall"
-    )
-
-bd / wf
-
-sv_importance(plot_dat_shap) +
-    xlab("Importance")
-```
-
-
-We can ultimately get a shap value for every value of a feature, and take the average. If we do this for each feature, we can use it as a measure of **feature importance**.
-
 
 ### Feature Importance
+
 
 How important is a feature? It's a common question, and one that is often asked of models, but the answer ranges from 'it depends' and 'it doesn't matter'. Let's start with some hard facts:
 
 - There is no single definition of importance.
-- There is no single metric for *any* model that will definitively tell you how important a feature is.
+- There is no single metric for *any* model that will definitively tell you how important a feature is relative to others in all data/model contexts.
 - There are many metrics for a given model that are equally valid, but may come to different conclusions.
+- Any non-zero feature contribution is potentially 'imortant', however small.
 - Many metrics of importance fail to adequately capture interactions and deal with correlated features.
 - All measures of importance are measured with uncertainty, and the uncertainty can be large.
+- Relative to... what? A poor model will still have relatively 'important' features, but they may not be useful.
+- It rarely makes sense to drop features based on importance alone, and will typically drop performance to do so.
+- In the end, what will you do with the information? 
 
 
-To show just how difficult measuring feature importance is, we only have to stick with our simple linear regression. Think again about R^2^: it tells us the proportion of the target explained by our features. An ideal measure of importance would be able to tell us how much each feature contributes to that proportion, or in other words, decomposes R^2^ into the relative contributions of each feature. One of the most common measures of importance in linear regression is the standardized coefficient we demonstrated earlier. You know what it doesn't do? Decompose R^2^. 
 
-Let's demonstrate things by adding more features to our model.
+To show just how difficult measuring feature importance is, we only have to stick with our simple linear regression. Think again about R^2^: it tells us the proportion of the target explained by our features. An ideal measure of importance would be able to tell us how much each feature contributes to that proportion, or in other words, decomposes R^2^ into the relative contributions of each feature. One of the most common measures of importance in linear models is the standardized coefficient we demonstrated earlier. You know what it doesn't do? Decompose R^2^. The easiest situation we could hope for with regard to feature importance is the basic linear model we've been using.  Everything is linear, with no interactions, or other things going on. And yet there are many logical ways to determine feature importance, and some even break down R^2^, but they won't necessarily agree with each other in ranking or relative differences. If you can get a measure of statistical difference between whatever metric you choose, it's often the case that 'top' features will not be statistically different from other features.  So what do we do? We'll show a few methods here, but the main point is that there is no single answer, and it's important to understand what you're trying to do with the information.
+
+Let's start things off by returning to our SHAP value. If we take the average absolute shap for each feature, we get a sense of the typical contribution size for the features. We can then rank order them as accordingly. Here we see that the most important features here are the number of reviews and the length of the movie. Note that we can't speak to direction here, only magnitude.  We can also see that word count is relatively less important. 
 
 ```{r}
 #| echo: false
-#| eval: false
-#| label: fig-rsq-decomp
-#| fig-cap: R-squared Decomposition
+#| label: shap-importance-bar
+#| fig-cap: SHAP Importance
 
+
+p_dat_shap = sv_importance(plot_dat_shap)$data
+
+p_dat_shap |> 
+    rename(contribution = value) |>
+    mutate(
+        feature = fct_reorder(feature, abs(contribution), .fun = mean),
+        # feature = fct_rev(feature)
+    ) |>
+    ggplot(aes(contribution, feature)) +
+    geom_col(
+        aes(
+            color = feature == 'word_count',
+            fill  = feature == 'word_count'
+        ),
+        width = .05,
+        show.legend = FALSE
+    ) +
+    scale_color_manual(
+        values = c(okabe_ito[2], okabe_ito[1]),
+        aesthetics = c("color", "fill")
+    ) +
+    ggnewscale::new_scale_color() +
+    geom_point(
+        aes(
+            color = feature == 'word_count'
+        ),
+        alpha = 1,
+        size = 5,
+        show.legend = FALSE
+    ) +
+    scale_color_manual(
+        values = c(okabe_ito[1], okabe_ito[2]),
+    ) +
+    labs(
+        x = "Average Absolute SHAP Value/Contribution to Rating Prediction",
+        y = "",
+        title = "Feature Importance"
+    ) +
+    theme(
+        axis.ticks.y = element_blank(),
+        plot.caption = element_text(vjust = -2)
+    )
+```
+
+Now here are some additional methods, some more reasonable than others, some which decompose R^2^ and those that do not. Aside from SHAP, the value represents the proportion of the R^2^ value that is attributable to the feature. The ones that truly decompose R^2^ are in agreement for the most part and seem to think highly of word count. The latter seem to be more varied, and only SHAP devalues word count, but possibly for good reason. Which is best? Which is correct? None. But we can get a sense at least that total reviews and length in minutes are likely useful features to our model.
+
+```{r}
+#| echo: false
+#| eval: true
+#| label: fig-importance
+#| fig-cap: Feature Importance by Various Methods
+#| fig-height: 8
 
 # library(relaimpo) # do not call directly, imports MASS ffs
 metrics = c("lmg", "last", "first", "betasq", "pratt", "genizi", "car")
@@ -1221,6 +1348,7 @@ init_rela_false = relaimpo::calc.relimp(
     type = metrics,
     rela = FALSE
 )
+
 init_rela_true = relaimpo::calc.relimp(
     model_reviews_extra,
     type = metrics,
@@ -1228,17 +1356,20 @@ init_rela_true = relaimpo::calc.relimp(
 )
 
 df_rela = map_df(metrics, \(x) slot(init_rela_false, x)) |>
-    t()
+    t()<-
 colnames(df_rela) = metrics
 
 decomposer2 = names(which(round(colSums(df_rela), 3) == round(summary(model_reviews_extra)$r.squared, 3)))
 
 pdat_rela = df_rela |>
-    as_tibble(rownames = "feature") |>
+    as_tbble(rownames = "feature") |>
     pivot_longer(-feature, names_to = "metric", values_to = "value") |>
-    mutate(
+    mutate(""""
         metric = fct_inorder(metric),
         true_decompose = ifelse(metric %in% decomposer2, "Decomposes R-squared", "Does not")
+    ) |> 
+    bind_rows(
+        p_dat_shap |> mutate(metric = 'shap', true_decompose = 'Does not')
     )
 
 pdat_rela |>
@@ -1278,37 +1409,17 @@ pdat_rela |>
         title = "Relative Importance"
     ) +
     facet_wrap(vars(true_decompose, metric), scales = "free", ncol = 2, dir = "v") +
-    theme(
-        axis.ticks.y = element_blank(),
-        plot.caption = element_text(vjust = -2)
+    theme(        plot.caption = element_text(vjust = -2)
     )
 
 ggsave("img/fig-rsq-decomp.png", width = 8, height = 6)
 ```
 
-- It rarely makes sense to drop features based on importance alone, and will typically drop performance to do so.
 
 
-It depends on what you mean by importance, and what you are trying to do with the information.  There are many ways to measure feature importance, and they all have their pros and cons.
-
-- Relative to... what?
-- What will you do with the information?
-- 
 
 
-Where to begin? Feature importance is a very popular topic, and there are many ways to measure it.  The most common way is to use the SHAP values, which we just discussed.  But there are many other ways, and they all have their pros and cons.  
 
-
-### Visualization
-
-We have a lot of visual tools at our disposal to help us understand our model.  We've already seen a few, but let's look at some more to help understand our feature - target relationship.
-
-##### Partial Dependency and ALE Plots
-
-We can also look at the **partial dependency plot** (PDP).  The partial dependency plot shows the relationship between the feature and the target, but it does so by holding all other features constant. In this case, we can see that the relationship between word count and rating is negative, and that it's linear as it should be. PDPs are interesting in that, for the linear model setting, they plot the SHAP value for each feature value.  Related to PDPs are **individual conditional expectation** (ICE) plots, which are just a PDP for a specific observation, i.e. the plot of the SHAP values for a specific observation, if it had different values of the feature. A similar plot to the PDP is the **accumulated local effect** (ALE) plot, which is a bit more robust to correlated features, but is not so great with categorical features.
-
-
-Unfortunately, PDPs are not as straightforward to interpret when we have correlated features and, though still applicable, become more difficult to interpret with interactions. **ALE** plots are a bit more robust to correlated features, but they are not so great with categorical features, and likewise still difficult to interpret in complicated feature settings.  We'll talk more about these later, but for now, we can see that the relationship between word count and rating is negative, and that it's linear as it should be. 
 
 
 #### Model Level Interpretation
@@ -1379,12 +1490,3 @@ Linear models are a very popular tool for data analysis, and for good reason.  T
 
 ## Discard Pile
 
-#### Quick Review: Interpreting our results
-
-At this point we understand a few things:
-
-- Coefficients or weights allow us to understand how a feature relates to the target.
-- R-squared is the correlation of the target and the predictions (squared). By squaring we understand the proportion of variance in the target explained by the model.
-- The residual variance is a summary of how well our model fits the data, and is basically the part our model doesn't explain.
-- The likelihood is an alternate way to assess the match of data and model, and allows us to compare the relative fits of models
-- Estimation is a way of finding the best fitting model.
