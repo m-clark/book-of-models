@@ -265,7 +265,7 @@ X = pd.DataFrame(
 
 ### Quantile Loss Function
 
-Let's see one way that we can create a least squares loss function for fitting a linear regression model and compare it with a function for quantile loss.
+With a little bit of background and some results for comparison, let's see one way that we can create a function for quantile loss. We will also show the function for linear regression, just to have something for comparison purposes.
 
 :::{.panel-tabset}
 
@@ -335,21 +335,7 @@ def quantile_loss(par, X, y, tau):
 
 ```
 
-```{python}
-linear_parameters = X.dot([1,0])
-  
-residual = y - linear_parameters
-  
-loss = []
-
-for i in residual:
-  if i < 0: loss.append((-1 + tau)*i)
-  else: loss.append(tau*i)
-
-sum(loss)
-```
-
-You'll notice right away that we have a few differences. Our quantile loss function includes the **tau** argument, which will let us set our quantile of interest; naturally, it can be any value between 0 and 1. The residual is multiplied by the tau value, only if the residual is greater than 0 -- positive values are weighted by **tau**. If the residual is negative, we need to add tau to -1 -- our negative residuals are weight by 1-**tau(**). Since we need a positive value for our loss values, we will multiply our negative residuals by the negative value produced from -1 plus our tau value. After that, we just sum all of those positive loss values and do our best to minimize that summed value. sum of weighted absolute residuals. sum of weighted absolute residuals
+You'll notice right away that we have a few differences. Our quantile loss function includes the **tau** argument, which will let us set our quantile of interest; naturally, it can be any value between 0 and 1. The residual is multiplied by the tau value, only if the residual is greater than 0 -- essentially, positive values are weighted by **tau**. If the residual is negative, we need to add tau to -1 -- our negative residuals are weight by 1-**tau(**). Since we need a positive value for our loss values, we will multiply our negative residuals by the negative value produced from -1 plus our tau value. After that, we just sum all of those positive loss values and do our best to minimize that summed value.
 
 ### Model Fitting
 
@@ -384,6 +370,8 @@ minimize(quantile_loss,
 
 :::
 
+You'll see that we returned the same values as our standard R and Python functions. 
+
 ## Additive Models
 
 > Wiggle, wiggle, wiggle, yeah!
@@ -411,6 +399,8 @@ To this:
 ggplot(reviews, aes(total_reviews, rating)) +
   geom_smooth(method = "gam", se = FALSE) +
   theme_minimal()
+
+   <- 
 ```
 
 That curved line is called a spline. Oddly enough, we can still use a linear model to fit this spline through the data. While this might not give us the same tidy explanation that a typical line would offer, we will certainly get better prediction. 
@@ -421,7 +411,43 @@ $$
 y = f(x) + \epsilon
 $$
 
-These additive features have no concern about linearity with the outcome and will capture nonlinearities in our data very nicely. At this point, you might be asking yourself, "Couldn't I just use some type of polynomial regression or even a nonlinear regression?" Of course you could, but both have pretty serious limitations. The typical polynomial regression likely doesn't fit beyond the data that you currently have and **you** are forcing curves to fit through the data. To use a nonlinear model, you need to know what the underlying nonlinear form actually looks like before you can even specify the model. A GAM will do away with both of these issues; it will produce a curve that will best fit through the data, without the need to know the underlying linear form. 
+These additive features have no concern about linearity with the outcome and will capture nonlinearities in our data very nicely. At this point, you might be asking yourself, "Couldn't I just use some type of polynomial regression or even a nonlinear regression?" Of course you could, but both have pretty serious limitations. The typical polynomial regression likely doesn't fit beyond the data that you currently have and **you** are forcing curves to fit through the data. To use a nonlinear model, you need to know what the underlying nonlinear form actually looks like before you can even specify the model; this is a simple task if you are dealing with well-known, physical properties, but impossible if you are dealing with messy data related to messy people. A GAM will do away with both of these issues; it will produce a curve that will best fit through the data, without the need to know the underlying linear form or do much hand holding. 
+
+### The Basics
+
+To get started with a **GAM** let's check out the `mgcv` package in R and the `pygam` package in Python. 
+
+:::{.panel-tabset}
+
+##### R
+```{r, r_gam_demo}
+#| echo: true
+#| label: r_gam_demo
+
+library(mgcv)
+
+gam_model <- gam(rating ~ s(total_reviews_sc, bs = "cr"), data = reviews)
+
+summary(gam_model)
+```
+
+##### Python
+
+```{python, python_gam_demo}  
+#| echo: true
+#| label: python_gam_demo
+
+from pygam import LinearGAM, s
+
+gam_model = LinearGAM(s(0, spline_order=3)).fit(X = reviews[''], y = reviews[''])
+
+gam_model.summary()
+```
+:::
+
+There is a substantial amount to unpack here! First, notice that the GAM functions both use **s** to produce a **spline** for that variable -- without the **s** function , we would have a typical linear regression. We also need to define what type of spline that we want to fit. In this case, we are using a **cubic regression spline**, which is a pretty common choice. We can also see that we have a **bs** argument in our R model, which stands for *basis*. The basis argument is used to specify the type of spline that we want to use. The **cr** stands for **cubic regression**. In Python, we have a **spline_order** argument, which is set to 3 to indicate that we want a cubic spline.
+
+For the results of our gam model, one of the best places to look first is at `edf` in R or `edof` in Python. The `edf` column is the **effective degrees of freedom**. You can think of `edf` as a measure of "wiggle" in the relationship between the predictor and the target. The higher the `edf`, the more wiggle you have. If you have a value close to 1, then you have a linear relationship. With an `edf` of 8.672, we can be pretty confident that a nonlinear relationship gives a better idea about the relationship between `total_reviews` and `rating` than a linear relationship.
 
 ### Splines
 
@@ -641,67 +667,6 @@ ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
 ```
 
 We can see that the relationship starts a bit flat, increases, and then flattens out again. This is a pretty good example of a nonlinear relationship.
-
-### Checking Results
-
-It is always worth checking our solution against known functions. Let's see how our model compares to the `mgcv` package in R and the `statsmodels` package in Python. 
-
-:::{.panel-tabset}
-
-##### R
-```{r, mgcv_check}
-#| echo: true
-#| label: mgcv_check
-library(mgcv)
-summary(gam(rating ~ X-1))
-```
-
-##### Python
-
-```{python, python_mgcv_check}  
-#| echo: true
-#| label: python_mgcv_check
-import statsmodels.api as sm
-
-Xp = sm.add_constant(Xp)
-fit_gam = sm.GLM(rating, X, family=sm.families.Gaussian()).fit()
-
-fit_gam.summary()
-```
-:::
-
-Typically, you don't need to go through the whole mess of creating a model matrix by hand and can use additional functions to fit a spline to your regression. In R, you can use the `gam` function from the `mgcv` package. In Python, you can use the `GAM` function from the `pygam` package.
-
-:::{.panel-tabset}
-
-##### R
-```{r, r_gam_demo}
-#| echo: true
-#| label: r_gam_demo
-
-reviews$total_reviews_scaled <- reviews$total_reviews - min(reviews$total_reviews)
-reviews$total_reviews_scaled <- reviews$total_reviews_scaled / max(reviews$total_reviews_scaled)
-gam_model <- gam(rating ~ s(total_reviews_scaled, bs = "cr"), data = reviews)
-
-summary(gam_model)
-```
-
-##### Python
-
-```{python, python_gam_demo}  
-#| echo: true
-#| label: python_gam_demo
-
-from pygam import LinearGAM, s
-
-gam_model = LinearGAM(s(0)).fit(x, rating)
-
-gam_model.summary()
-```
-
-:::
-
-For the results of our gam model, one of the best places to look first is the `edf` column. The `edf` column is the *effective degrees of freedom*. You can think of `edf` as a measure of wiggle in the relationship between the predictor and the target. The higher the `edf`, the more wiggle you have. If you have a value close to 1, then you have a linear relationship. With an `edf` of 8.672, we can be pretty confident that a nonlinear relationship gives a better idea about the relationship between `total_reviews` and `rating` than a linear relationship.
 
 ### Penalized Cubic Spline
 

@@ -7,9 +7,9 @@ always_allow_html: true
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, error = FALSE, comment = "")
 ```
 
-What happens when your target variable isn't really a continuous variable, but is instead some other type of response. Maybe you've got a binary condition, like good or bad, or maybe you've got a count of something, like the number of times a person has been arrested. In these cases, you can't use a linear regression, but you can use a generalized linear model. 
+What happens when your target variable isn't really a continuous variable, but is instead some other type of response. Maybe you've got a binary condition, like good or bad, or maybe you've got a count of something, like the number of times a person has been arrested. In these cases, you can't use a linear regression, but you can use a **generalized** linear model. 
 
-Generalized linear models exist to map different distributions into linear space. This allows us to use the same linear model framework that we've been using, but with different types of data.
+Generalized linear models exist to map different distributions into linear space. This allows us to use the same linear model framework that we've been using, but with different types of data. With those different types of data, our coefficients are going to take on different 
 
 2.  Logistic regression is for binary outcome variables (e.g., closed/open, broke/working, dead/alive) and we are predicting the probability of the outcome.
 
@@ -27,37 +27,28 @@ The essential form of the linear model can be expressed as follows:
 
 $$y \sim Normal(\mu,\sigma) \\ \mu = \alpha + \beta X$$
 
-Not all data follows a Gaussian distribution. Instead, we often find some other form of an exponential distribution. So, we need a way to incorporate different distributions of the target into our model. Distributions cannot do it alone! We also need a *link function* to connect the linear model to the distribution.
+Not all data follows a Gaussian distribution. Instead, we often find some other form of an exponential distribution. So, we need a way to incorporate different distributions of the target into our model. Distributions cannot do it alone! We also need a **link function** to connect the linear model to the distribution.
 
 From a theoretical perspective, link functions are tricky to get your head around.
 
 - *Find the exponential of the response's density function and derive the canonical link function*...
 
-From a conceptual perspective, all they are doing is allowing the linear predictor to "link" to a distribution function's mean.
-
-- If you know a distribution's canonical link function, that is all the deeper you will probably every need.
-
-At the end of the day, these link functions will convert the target to an unbounded continuous variable.
+From a conceptual perspective, all they are doing is allowing the linear predictor to "link" to a distribution function's mean. If you know a distribution's canonical link function, that is likely all the deeper you will probably every need. At the end of the day, these link functions will convert the target to an unbounded continuous variable.
 
 The take-away here is that the link function describes how the mean is generated from the predictors.
-
-## Linear Regression
-
-Linear regression is not new to us. Remember that a linear regression deals with real numbers between $-\infty$ to $\infty$ in the target variable. It is the most vanilla within the GLM -- a Gaussian distribution with an "identity" link function isn't the most exciting thing in the world.
-
-How do you find a mean from a normal distribution? 
 
 ## Logistic Regression
 
 Logistic regression is substantially different than linear regression. It is also a bit confusing, because it is named after its link function instead of its distribution. Instead of that nice continuous target, we are dealing with a binomially-distributed target and the target takes the form of a binary variable.
 
-We don't have a $\mu$ or $\sigma^2$ to identify the shape of the binomial distribution; instead we have *p* and *n*, where *p* is a probability and *n* is the number of trials.
+We don't have a $\mu$ or $\sigma^2$ to identify the shape of the binomial distribution; instead we have **p** and **n**, where **p** is a probability and **n** is the number of trials.
 
-We tend to talk about *p* with regard to the probability of a specific event happening (heads, wins, defaulting, etc.).
+We tend to talk about **p** with regard to the probability of a specific event happening (heads, wins, defaulting, etc.).
 
 Let's see how the binomial distribution looks with 100 trials and probabilities of .25, .5, and .75:
 
 ```{r}
+#| echo: false
 library(ggplot2)
 
 library(dplyr)
@@ -78,13 +69,13 @@ as.data.frame(rbind(binom.25, binom.5, binom.75)) %>%
   theme_minimal()
 ```
 
-If we examine the distribution for a probability of .5 (the orange bars titled "binom.5"), we will see that it is centered over 50 -- this would suggest that we have the highest probability of encountering 50 successes. If we run 20 trials and the outcome is 50/50, we would expect to see success in half the trials and a decreasing number of trials for more or less successes. Shifting our attention to a .75 probability of success, we see that our density is sitting over 75. 
+If we examine the distribution for a probability of .5 (the orange bars titled "binom.5"), we will see that it is centered over 50 -- this would suggest that we have the highest probability of encountering 50 successes. If we run 20 trials and the outcome is 50/50, we would expect to see success in half the trials and a decreasing number of trials for more or less successes -- in other words you are more likely to wind up with roughly 25 heads and 25 tails after 50 coin flips than you are with 45 heads or 45 tails. Shifting our attention to a .75 probability of success, we see that our density is sitting over 75. The same thing applies here -- we are more likely to wind up with 75 successes than 60 or 90 successes 
 
 Since we are dealing with a number of trials, it is worth noting that the binomial distribution is a discrete distribution. If you have any interest in knowing the probability for a number of success under the binomial distribution, we can use the following formula:
 
 $$P(x) = \frac{n!}{(n-x)!x!}p^xq^{n-x}$$
 
-While we don't need to dive into finding those specific values for the binomial distribution, we can spend our time exploring how it looks in linear model space:
+That looks pretty horrible, so we don't need to dive into finding those specific values for the binomial distribution. Instead, we can spend our time exploring how it looks in linear model space:
 
 $$y \sim Binomial(n, p) \\ logit(p) = \alpha + \beta X$$
 
@@ -98,25 +89,26 @@ Now we can map this back to our model:
 
 $$log\frac{p}{1-p} = \alpha + \beta X$$
 
-And finally we can take that logistic function and invert it (the *inverse-logit*) to produce the probabilities.
+And finally we can take that logistic function and invert it (the **inverse-logit**) to produce the probabilities.
 
 $$p = \frac{exp(\alpha + \beta X)}{1 + exp(\alpha + \beta X)}$$
 
-Whenever we get coefficients for the logistic regression model, we are always going to get them as log odds. We can exponentiate them to get the odds ratio, but we can also exponentiate them and divide by 1 + that value to get the probability.
+Whenever we get coefficients for the logistic regression model, we are always going to get them as log odds, as unintuitive as they might be. We can exponentiate them to get the odds ratio, but we can also exponentiate them and divide by 1 + that value to get the probability.
 
-Probability lies at the heart of all of this.  We can look at the relationship between the probability, odds, and log odds.
+Probability lies at the heart of all of this and is far easier to think about.  We can look at the relationship between the probability, odds, and log odds.
 
-```{r}
-probabilityList <- c(.001, .01, .15, .2, 
-                    .25, .3, .35, .4, .45, 
-                    .5, .55, .6, .65, .7, 
-                    .75, .8, .85, .9, .999)
-```
-
-
-We have a list of probability values (always between 0 and 1).  Now, let's write a function to convert them to odds. We will use the $\\p\, / 1 - p$ equation.
+If we take start with probability values, we can convert them to odds -- $\\p\, / 1 - p$ --, and then log the odds to produce log odds.
 
 ```{r}
+#| echo: false
+
+library(gt)
+
+probabilityList <- c(0, .001, .1, .2, 
+                    .3, .4, .5, .6, .7,
+                    .8, .9, .999, 1)
+                  
+
 oddsConversion <- function(p) {
   res = p / (1 - p)
   return(res)
@@ -124,31 +116,170 @@ oddsConversion <- function(p) {
 
 odds <- oddsConversion(probabilityList)
 
-plot(log(odds), odds)
+prob_odds <- data.frame(probability = probabilityList, 
+  odds = round(odds, 3), 
+  log_odds = round(log(odds), 3))
+
+gt(prob_odds)
 ```
 
-Now, we can convert them to log odds:
+Let's take a look at the relationships between these 3 ways of expressing the same number. Something with a probability of 0 (which means it will never happen) also has an odds of 0. Fortunately, though, the log of 0 is **-Infinity** which would work just fine for a continuous scale ranging from -Infinity to Infinity. As we move from 0 to 1, we can see that the odds and log odds increase, but not in a linear fashion. The odds are bounded by 0 and Infinity, but the log odds are bounded by -Infinity and Infinity. Take special note of a probability of .5, which gives an odds of 1 and a log odds of 0. 
+
+Let's also visualize the relationship between the probability and the log odds:
 
 ```{r}
-plot(probabilityList, log(odds))
+#| echo: false
+
+probabilityList <- seq(0, 1, .01)
+                  
+oddsConversion <- function(p) {
+  res = p / (1 - p)
+  return(res)
+}
+
+odds <- oddsConversion(probabilityList)
+
+prob_odds <- data.frame(probability = probabilityList, 
+  odds = round(odds, 3), 
+  log_odds = round(log(odds), 3))
+
+
+ggplot(prob_odds, aes(log_odds, probability)) +
+  geom_line() +
+  theme_minimal()
 ```
 
-We can clearly go back and forth between the 3, but the main message here is that we took a bounded variable in probability and transformed it to continuous space.
+And that is the absolute prototypical **logit** function! We can see that a big chunk of that curve looks linear, say from the log odds of -2 to 2. Below -2 and above 2, the curve starts to flatten out as it approaches probability values of 0 and 1  -- it is almost like you've taken a linear regression line and compressed the ends to fit in bound space.
 
-We will see more about how this happens after playing with the model.
+### The Basics
 
-
-### Data Import and Preparation
-
-We are going to return to our movie reviews data and we are going to use `rating_good` as our target. Before we get to modeling, see if you can find out the frequency of "good" and "bad" reviews. We will use `age` and `gender` as our predictors.
+We are going to return to our movie reviews data and we are going to use `rating_good` as our target. Before we get to modeling, see if you can find out the frequency of "good" and "bad" reviews. We will use `word_count` and `gender` as our features. In R, we will use the `glm` function with the binomial family specified. In Python, we can use `Logit` from `statsmodels`.
 
 :::{.panel-tabset}
 
 ##### R
 
 ```{r}
-reviews <- read.csv("data/movie_reviews_processed.csv")
+logistic_regression <- glm(
+    rating_good ~ word_count + gender, 
+    data = reviews,
+    family = binomial
+)
+
+summary(logistic_regression)
 ```
+
+##### Python
+
+```{python}
+import statsmodels.api as sm
+
+logistic_regression = sm.Logit(y, X).fit()
+
+logistic_regression.summary()
+```
+
+Let's spend some time focusing on the coefficients table from our model. Before we dive into the coefficients, let's get the standard errors and *z*-values out of the way. The standard error can be interpretted in the same way as our linear regression and the *z*-score is produced by dividing a coefficient with its respective standard error. Remember that linear regression coefficients are tested for significance against the *t*-distribution -- logistic regression coefficients are tested against a *z*-distribution (essentially the **standard normal distribution**). What you need to take away from this is that we are testing if the coefficient is significantly different than a log odds of 0 (which is equal to a probability of .5 and an odds of 1). Returning to the coefficients, we have `word_count` = -.15 and `gendermale` = .12. Recall that the coefficients for this model are in log odds and they are not interpretted in the same way as the coefficients from the standard linear regression model -- we wouldn't say that for every unit decrease in `word_count` would give us an decrease in good or bad. We are always thinking about moving from one state to another; in our example, we are interested in what effects the probability of moving from a bad review to a good review (the **target** condition). What we would say, in this case, is that every every additional word decreases the chance of moving from a bad to a good review by a log odds of -.15. Unless you think in log odds, this is abject nonsense.
+
+Remember, though, we can take those log odds and make more sense out of them. When we exponentiate the coefficients, we are given the odds ratio.  This is the ratio of the odds of the successful outcome occurring for a one unit increase in the predictor. 
+
+```{r}
+exp(logistic_regression$coefficients)
+```
+
+We see that we've got an odds ratio of .86 for the word_count variable and 1.12 for the male variable. An odds ratio of 1 means that there is no change in the odds of the outcome occurring -- the probability is .5 and the features don't influence the target. An odds ratio of less than 1 means that the odds of a successful outcome occurring decrease as the predictor increases. An odds ratio of greater than 1 means that the odds of the outcome occurring increase as the predictor increases.
+
+While that is certainly more helpful than log odds, it is far more intuitive to interpret the probability. This will give us the probability of the outcome occurring for a one unit increase in the predictor.
+
+```{r}  
+exp(logistic_regression$coefficients) / (1 + exp(logistic_regression$coefficients))
+```
+
+And visualizing those probabilities is absolutely the best way to see how the features influence the target:
+
+```{r}
+library(sjPlot)
+
+plot_model(logistic_regression, type = "pred", terms = "word_count") +
+    theme_minimal()
+```
+
+For word_count, we can see a clear negative relationship between the number of words in a review and the probability of being considered a "good" movie. As we get over 20 words, the predicted probability of being a "good" movie is less than .2. Obviously, fewer words are needed to suggest we have a good movie!
+
+```{r}
+plot_model(logistic_regression, type = "pred", terms = "gender") +
+    theme_minimal()
+```
+
+There are interesting issues at play here with regard to our predictor coefficients (what can be considered a **relative effect**) and the model's effect as a whole on the probability (the **absolute effect**). In circumstances where the intercept is very large (essentially promising a success), the relative effect of a coefficient is practically meaningless. Similarly, very negative coefficients render the relative effects useless.
+
+### Prediction
+
+When you talk about logistic regression, it is usually the first forray into the world of **classification**. Using the model, our goal is to classify new observations into an outcome. This comes with **cut-point** issues, but we will get to those later. For now, let's see how we can use our model to predict the probability of a good review for each movie.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+model_predictions <- predict(logistic_regression, type = "response")
+
+model_predictions <- round(model_predictions)
+
+actual_response <- reviews$rating_good
+
+table(model_predictions, actual_response)
+```
+
+##### Python
+
+```{python}
+model_predictions = logistic_regression.predict(X)
+
+model_predictions = np.round(model_predictions)
+
+actual_response = reviews["rating_good"]
+
+pd.crosstab(model_predictions, actual_response)
+```
+
+:::
+
+You'll notice that after getting the predicted probabilities for `rating_good`, we rounded those values to 0 or 1. This is because we are dealing with a binary outcome and we want to classify each observation into one of those two categories. We can then compare those predictions to the actual values to see how well our model did. We can do this with a **confusion matrix**. The confusion matrix is a 2x2 matrix that shows the number of correct and incorrect predictions for each class. The rows represent the actual values and the columns represent the predicted values. The diagonal of the matrix represents the number of correct predictions. The off-diagonal values represent the number of incorrect predictions. The **accuracy** of the model is the number of correct predictions divided by the total number of predictions -- in this case, we have $135 + 486 / 135 + 486 + 77 + 302 = .62$. Even though it is mediocre, you shouldn't make a big deal out of accuracy alone.
+
+We've made a pretty big leap, though, by assuming that a probability of .5 or greater would automatically be deemed a "good" review, while anything below that is a "bad" review. We chose .5 somewhat arbitrarily, but we can change that cut-point to see how it affects our model. Let's see what happens when we change the cut-point to .75:
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+model_predictions <- predict(logistic_regression, type = "response")
+
+model_predictions <- ifelse(model_predictions >= .75, 1, 0)
+
+table(model_predictions, actual_response)
+
+```
+
+
+##### Python
+
+```{python}
+model_predictions = logistic_regression.predict(X)
+
+model_predictions = np.where(model_predictions >= .75, 1, 0)
+
+pd.crosstab(model_predictions, actual_response)
+```
+```
+
+:::
+
+
+:::{.panel-tabset}
+
+##### R
 
 ```{r}
 X <- reviews[, c("word_count", "gender")]
@@ -182,6 +313,8 @@ X = pd.DataFrame(
 y = reviews["rating_good"]
 ```
 
+
+:::
 ### Loss Function
 
 We can use maximum likelihood estimation to estimate the parameters of our model.  
@@ -236,6 +369,8 @@ def logreg_ml(par, X, y):
     return -np.sum(L)   
 ```
 
+:::
+
 ### Model Fitting
 
 Now that we have our loss function, we can fit our model.  We will use the `optim` function in R and the `minimize` function in Python.
@@ -278,69 +413,7 @@ fit_ml = minimize(
 )
 ```
 
-### Testing Model Results
-
-Now that we have our custom functions made, let's test them against R's `glm` function and Python's `statsmodels` function.
-
-:::{.panel-tabset}
-
-##### R
-
-```{r}
-logistic_regression <- glm(
-    rating_good ~ word_count + gender, 
-    data = reviews,
-    family = binomial
-)
-
-summary(logistic_regression)
-```
-
-##### Python
-
-```{python}
-import statsmodels.api as sm
-
-logistic_regression = sm.Logit(y, X).fit()
-
-logistic_regression.summary()
-```
-
-### Interpretation and Visualization
-
-Now that we know that we can match results, we need to know what those results mean. The coefficients that we get from our model are in log odds. We can exponentiate them to get the odds ratio, but we can also exponentiate them and divide by 1 + that value to get the probability. Interpretting log odds is a fool's errand, but we can interpret the odds ratio and the probability.
-
-When we exponentiate the coefficients, we are given the odds ratio.  This is the ratio of the odds of the outcome occurring for a one unit increase in the predictor. 
-
-```{r}
-exp(logistic_regression$coefficients)
-```
-
-We see that we've got an odds ratio of .86 for the word_count variable and 1.12 for the male variable. An odds ratio of 1 means that there is no change in the odds of the outcome occurring -- essentially that the predictor does not influence the target. An odds ratio of less than 1 means that the odds of the outcome occurring decrease as the predictor increases. An odds ratio of greater than 1 means that the odds of the outcome occurring increase as the predictor increases.
-
-It is far more intuitive to interpret the probability.  We can do this by exponentiating the coefficients and dividing by 1 + that value.  This will give us the probability of the outcome occurring for a one unit increase in the predictor.
-
-```{r}  
-exp(logistic_regression$coefficients) / (1 + exp(logistic_regression$coefficients))
-```
-
-And visualizing those probabilities is absolutely the best way to see how the predictors influence the target:
-
-```{r}
-library(sjPlot)
-
-plot_model(logistic_regression, type = "pred", terms = "word_count") +
-    theme_minimal()
-```
-
-For word_count, we can see a clear negative relationship between the number of words in a review and the probability of being considered a "good" movie. As we get over 20 words, the predicted probability of being a "good" movie is less than .2. 
-
-```{r}
-plot_model(logistic_regression, type = "pred", terms = "gender") +
-    theme_minimal()
-```
-
-There are interesting issues at play here with regard to our predictor coefficients (what can be considered a *relative effect*) and the model's effect as a whole on the probability (the *absolute effect*). In circumstances where the intercept is very large (essentially promising a success), the relative effect of a coefficient is practically meaningless. Similarly, very negative coefficients render the relative effects useless. 
+:::
 
 ## Cautions About Logistic Regression
 
@@ -415,7 +488,7 @@ ggplot() +
 
 
 :::{.callout-note}
-A cool thing about these distributions is that they can deal with different *exposure* rates. You don't need observations recorded over the same interval length, because you can adjust for them appropriately. They can also be used to model inter-arrival times and time-until events.
+A cool thing about these distributions is that they can deal with different **exposure** rates. You don't need observations recorded over the same interval length, because you can adjust for them appropriately. They can also be used to model inter-arrival times and time-until events.
 :::
 
 ## The (Sometimes) Thin Line
