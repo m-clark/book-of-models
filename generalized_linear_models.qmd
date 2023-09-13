@@ -272,10 +272,45 @@ model_predictions = np.where(model_predictions >= .75, 1, 0)
 
 pd.crosstab(model_predictions, actual_response)
 ```
-```
 
 :::
 
+Without even doing the math, we can already see that we have a greater number of misclassifications where our model predicted a "bad" review, but the actual response was a "good" review. Instead of trying every value possible, let's shift our focus away from accuracy and think more about the **receiver operating characteristic curve**, or simply the **ROC curve**. The ROC curve is a plot of the **true positive rate** (TPR) against the **false positive rate** (FPR). The TPR is the proportion of positive cases that are correctly identified as positive, also known as **sensitivity** or **recall**. The FPR is the proportion of negative cases that are incorrectly identified as positive. The FPR is equivalent to 1 - **specificity**, which is the **true negative rate**. In a perfect prediction world, all of our predictions would be true positives and true negatives, so we would have a TPR of 1 and an FPR of 0. We would have a ROC curve that looks like this:
+
+```{r}
+#| echo: false
+perfect_roc  <- roc(actual_response, actual_response)
+
+plot(perfect_roc)
+```
+
+The further away the ROC curve is from the diagonal, "no information" line, the better the model fits. This is a case where our model can perfectly distinguish between the two classes. Let's see what our ROC curve looks like for our model:
+
+```{r}
+#| echo: false
+library(pROC)
+
+model_roc  <- roc(actual_response, model_predictions)
+
+plot(model_roc)
+
+auc(model_roc)
+```
+
+While that is certainly not good, we can get some information from this curve -- our model has poor sensitivity (the ability to detect true "good" reviews), but solid specificity (the ability to detect true "bad" reviews). Recall from our confusion matrix earlier, that this is exactly what we saw. We had a lot of false negatives (predicted "bad" reviews that were actually "good" reviews), but we had a lot of true negatives (predicted "bad" reviews that were actually "bad" reviews). We also have an AUC of `r model_roc`. In the end, we might have a "significant" predictor, but our model will not do a great job of predicting classes.
+
+Aside from adding predictors to our model, we can make a few minor adjustments to our cut-points to see if we can improve the performance of our model. 
+
+```{r}
+library(cutpointr)
+
+ideal_cut_point <- cutpointr(reviews, word_count, rating_good, pos_class = 1)
+
+summary(ideal_cut_point)
+
+plot(ideal_cut_point)
+
+```
 
 :::{.panel-tabset}
 
