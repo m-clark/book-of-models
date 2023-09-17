@@ -1,0 +1,364 @@
+---
+title: "Untitled"
+format: html
+---
+
+
+
+```{r}
+library(tidyverse)
+reticulate::use_condaenv("book-of-models")
+```
+
+
+## Movie Reviews
+
+TODO: 
+- Get positive correlations back
+- More variability in review length? Still cap for ease.
+- Limit range of review year
+
+
+Movie based:
+- title  (at least 50 unique titles)
+- year of release (positive correlation with rating; minimum year 1980, maximum year 2020)
+- length minutes  (mostly positive correlation with rating, minimum 60, maximum 180)
+- genre (higher ratings in for drama, lower ratings for comedy no more than 6 genres)
+- season released (higher ratings in summer)
+- total number of reviews given to the movie (slight positive correlation with rating, minimum 100, maximum 1000)
+
+Reviewer based:
+- age (negative correlation with rating)
+- number of children at home (higher correlation for kids movies)
+- work status (no relationship with rating)
+- education level (3 levels- completed high school, completed college, post-graduate; slightly negative relationship with rating)
+- gender (no relationship with rating)
+
+Review based:
+- the actual review text (word count minimum 2, maximum 25; word count should generally be positively correlated with rating)
+- review year (higher ratings in more recent years)
+
+
+- review length (positive correlation with rating)
+ - if word count we'd probably want a bit more variability
+- review complexity
+- sentiment
+
+** GPT Prompt for Titles **
+
+Please provide titles appropriate to the Drama genre. Present results in a table with the following columns:
+title
+genre
+
+
+30 titles from the Drama genre
+27 titles from Action/Adventure
+10 titles from the Comedy genre
+10 titles from Romance
+8 titles for Kids movies
+5 SciFi titles
+5 Horror Titles
+5 misc titles (e.g. documentary)
+
+** GPT Prompt for Text **
+
+Initial:
+Provide 100 random positive/neutral/negative movie reviews.
+
+Length based:
+- for positive, we add 30 short (3-5 words), and 20 long reviews
+- for negative, we add 10 short (3-5 words), and 40 long reviews
+
+Note that trying to do both short and long confused ChatGPT.
+'Provide x random positive/negative movie reviews. They should be at least fifteen words in length.'
+
+'Provide 50 random neutral movie reviews. # neutral only added for balance'
+
+
+
+## Data Generation Setup
+
+```{r} 
+#| label: import-ready-made-data
+positive_reviews = unique(readr::read_tsv("data/positive.tsv")[[1]])
+neutral_reviews = unique(readr::read_tsv("data/neutral.tsv")[[1]])
+negative_reviews = unique(readr::read_tsv("data/negative.tsv")[[1]])
+movie_titles = read_tsv("data/movie_titles.tsv") # two columns title and genre
+```
+
+
+```{r}
+#| label: functions
+generate_review = function(rating) {
+    reviews = case_when(
+        rating >= 3.5  ~ sample(positive_reviews, replace = TRUE, length(rating)),
+        rating <= 2.75 ~ sample(negative_reviews, replace = TRUE, length(rating)),
+        TRUE ~ sample(neutral_reviews, replace = TRUE, length(rating))
+    )
+
+    return(reviews)
+}
+    
+
+generate_data = function(n, seed = 42) {
+    set.seed(seed) 
+
+    ## Reviewer Data
+    df_reviewer = tibble(
+        title = sample(movie_titles$title, n, replace = TRUE),
+        review_year = sample(2000:2022, n, replace = TRUE, prob = (2000:2022 - 1999)^1.5),
+        age = rnorm(n, 45, 20),
+        # kids will basically be capped at 2+ 
+        children_in_home = case_when(
+            age >= 55 & age < 65 ~ sample(
+                0:3, 
+                n, 
+                replace = TRUE, 
+                prob = c(0.90, 0.09, .01, 0)
+            ),
+            age >= 65 ~ sample(
+                0:3, 
+                n, 
+                replace = TRUE, 
+                prob = c(0.99, 0.01, 0, 0)
+            ),
+            age <= 25 ~ sample(
+                0:3, 
+                n, 
+                replace = TRUE, 
+                prob = c(0.90, 0.09, 0.01, 0)
+            ),
+            age > 25 & age < 55 ~ sample(
+                0:3, 
+                n, 
+                replace = TRUE, 
+                prob = c(0.4, 0.45, 0.1, 0.05)
+            ),
+            TRUE ~ 0
+        ),
+        education = sample(c("Completed High School", "Completed College", "Post-Graduate"), n, replace = TRUE, prob = c(.4, .6, 1)),
+        gender = sample(c('male', 'female'), n, replace = TRUE, prob = c(0.4, 0.6)),
+        # hidden variables 
+        reviewer_type = case_when(
+            age <= 25 ~ sample(c('Critic', 'Viewer'), n, replace = TRUE, prob = c(0.1, 0.9)),
+            age >= 35 ~ sample(c('Critic', 'Viewer'), n, replace = TRUE, prob = c(0.3, 0.7)),
+            TRUE ~ sample(c('Critic', 'Viewer'), n, replace = TRUE, prob = c(0.2, 0.8))
+        ),
+        # random_x = rnorm(n, 0, 1),
+    ) |> 
+    mutate(
+        age = ifelse(age < 18, 18, round(age)),
+        age = ifelse(age > 80, 80, age),
+        work_status = case_when(
+            age <= 25 ~ sample(
+                c('Employed', 'Unemployed', 'Student', 'Retired'), 
+                n, 
+                replace = TRUE, 
+                prob = c(0.5, 0.1, 0.4, 0.0)
+            ),
+            age >= 70 ~ sample(
+                c('Employed', 'Unemployed', 'Student', 'Retired'), 
+                n, 
+                replace = TRUE, 
+                prob = c(0.2, 0.1, 0.0, 0.7)
+            ),
+            TRUE ~ sample(
+                c("Employed", "Unemployed", "Student", "Retired"), 
+                n, 
+                replace = TRUE, 
+                prob = c(0.8, 0.05, 0.02, 0.04)
+            )
+        ),
+    ) 
+
+    ## Movie Data
+    n_movies = n_distinct(df_reviewer$title)
+
+    df_movies = movie_titles |> inner_join(df_reviewer |> distinct(title), by = 'title')
+
+    df_movies = df_movies |> 
+        mutate(
+            release_year = sample(1980:2020, n_movies, replace = TRUE, prob = (1980:2020 - 1979)^1.5),
+            length_minutes = rpois(n_movies, 120), 
+            season = sample(c('Winter', 'Spring', 'Summer', 'Fall'), n_movies, replace = TRUE, prob = c(1, 1, 3, 2)), 
+            total_reviews = sample(100:10000, n_movies, replace = TRUE)
+        )
+
+    df = df_reviewer |>
+        left_join(df_movies, by = 'title') 
+
+    # ratings and review text features
+    # main effects here will allow for whole changes (e.g. doubling) or 
+    # otherwise just add organization
+    main_effects = tibble(
+        release_year   = .2, 
+        review_year    = .1, 
+        length_minutes = .3,
+        length_minutes_sq = -.1, 
+        drama = .5, 
+        comedy = -.3,
+        summer = .2,
+        total_reviews = .5,
+        age = -.1,
+        children_in_home = .25,
+        student = .25,
+        post_graduate = -.1
+    )
+
+    multiplier = 2
+    interact_mult = multiplier * .5
+    main_effects = main_effects*multiplier
+
+    rating = (
+        main_effects$release_year * scale(df$release_year)
+        + main_effects$review_year * scale(df$review_year)
+        + main_effects$length_minutes * scale(df$length_minutes) - main_effects$length_minutes_sq * scale(df$length_minutes)^2 # will have to tinker with this
+        + main_effects$drama * scale(df$genre == 'Drama')
+        - main_effects$comedy * scale(df$genre == 'Comedy')
+        + main_effects$summer * scale(df$season == 'Summer')
+        + main_effects$total_reviews * scale(df$total_reviews)
+        - main_effects$age * scale(df$age) 
+        + main_effects$children_in_home * scale(df$children_in_home > 0)
+        + main_effects$student * scale(df$work_status == 'Student')
+        - main_effects$post_graduate * scale(df$education == 'Post-Graduate')
+        # simple interactions and hidden effects
+        # split the data to more high vs. low (but not too much )
+        + .5 * scale(df$reviewer_type == 'Viewer')
+        - .5 * scale(df$reviewer_type == 'Critic')
+        # genre interactions
+        + .25 * interact_mult * scale(df$genre == 'Kids' & (df$children_in_home > 0))
+        + .1 * interact_mult * scale(df$genre %in% c('Romance', 'Horror') & (df$age < 30))
+        + .1 * interact_mult * scale(df$genre == 'Comedy' & df$work_status == 'Student')
+        + rnorm(nrow(df), 0, 1) 
+    ) 
+    
+    df = df |> 
+        mutate(
+            rating = round(scales::rescale(rating[, 1], to = c(1, 5)), 1),
+            review_text = generate_review(rating),
+            word_count  = str_count(review_text, '\\w+')
+        ) |> 
+        select(-reviewer_type)
+    df
+}
+```
+
+## Generate, Explore and Test
+
+```{r}
+df = generate_data(1000, seed = 42)
+# df$review_text
+# glimpse(df)
+# df |> count(review_text, sort = TRUE)
+# hist(df$rating)
+# cor(df$rating, df$word_count)
+corrr::correlate(df) |>
+    autoplot()
+```
+
+Misc checks
+```{r}
+skimr::skim(df)
+df |>
+    mutate(age = cut(age, breaks = c(0, 25, 55, 65, 100))) |>
+    count(age, children_in_home)
+skimr::skim(df |> group_by(genre) |> select(rating)) |> gt()
+```
+
+
+```{r}
+test_mod = lm(
+    rating ~
+        release_year
+        + review_year
+        + length_minutes
+        + genre
+        + season
+        + total_reviews
+        + age
+        + children_in_home
+        + work_status
+        + education
+        + word_count
+        + genre:age
+        + genre:children_in_home
+        + genre:work_status,
+    data = df
+)
+
+broom::tidy(test_mod) |>
+    arrange(desc(abs(statistic))) |>
+    print(n = Inf)
+
+summary(test_mod)$r.sq
+```
+
+
+Explore nonlinear relationships here.
+
+```{r}
+# library(mgcv)
+# d = gamSim(1, n = 100, dist = "normal", scale = 1)
+# m = gam(y ~ s(x0) + s(x1) + s(x2) + s(x3), data = d)
+# plot(m, pages = 1)
+```
+
+
+
+```{r}
+pd = tibble(
+    x = rpois(1000, 100),
+    x_sc = scale(x)[, 1],
+    y1 = .2 * x_sc - .05 * x_sc^2,
+    y2 = .1 * x_sc - .025 * x_sc^2,
+    y3 = .2 * x_sc - .075 * x_sc^2,
+    y4 = .3 * x_sc - .05 * x_sc^2
+) |>
+    select(-x_sc) |>
+    pivot_longer(-x)
+pd |>
+    ggplot(aes(x, value, color = name)) +
+    geom_line() +
+    geom_smooth(method = "gam") +
+    geom_point(data = pd |> summarize(x = x[max(value)], value = max(value), .by = name), color = "red")
+```
+
+
+```{r}
+ggplot(df, aes(length_minutes, rating)) +
+    geom_point() +
+    geom_smooth(method = "gam")
+```
+
+## Feature Processing
+
+```{r}
+# Subtract minimum from review year, release year
+# Scale age, length minutes, total reviews, word count, character count
+# create a binary rating for >=3 equals good, <3 equals bad
+
+df_processed <- df |>
+    mutate(
+        review_year_0 = review_year - min(review_year),
+        release_year_0 = release_year - min(release_year),
+        age_sc = scale(age)[, 1],
+        length_minutes_sc = scale(length_minutes)[, 1],
+        total_reviews_sc = scale(total_reviews)[, 1],
+        word_count_sc = scale(word_count)[, 1],
+        # character_count_sc = scale(character_count)[, 1],
+        rating_good = ifelse(rating >= 3, 1, 0)
+    )
+
+```
+
+## Save
+```{r}
+write_csv(
+    df, 
+    "data/movie_reviews.csv"
+)
+write_csv(
+    df_processed, 
+    "data/movie_reviews_processed.csv"
+)
+```

@@ -70,7 +70,8 @@ update_geom_defaults("vline", list(color = "gray25", alpha = .25)) # vlines and 
 update_geom_defaults("hline", list(color = "gray25", alpha = .25)) # usually a zero marker
 update_geom_defaults("point", list(color = "#E69F00", alpha = .5)) # alpha as usually there are many points
 update_geom_defaults("smooth", list(color = "#56B4E9", alpha = .15))
-update_geom_defaults("line", list(color = "#56B4E9", alpha = .5))
+update_geom_defaults("line", list(color = "#56B4E9", alpha = .75))
+update_geom_defaults("abline", list(color = "#56B4E9", alpha = 1))
 update_geom_defaults("bar", list(color = "#E69F00", fill = "#E69F00"))
 update_geom_defaults("col", list(color = "#E69F00", fill = "#E69F00"))
 update_geom_defaults("dotplot", list(color = "#E69F00", fill = "#E69F00"))
@@ -109,6 +110,14 @@ gt <- function(..., decimals = 2, title = NULL, subtitle = NULL) {
     gt::fmt_number(
       columns = where(is.numeric),
       decimals = decimals
+    ) %>%
+    gt::tab_style(
+      style = gt::cell_text(color = "gray25"),
+      locations = gt::cells_body(
+        columns = gt::vars(
+          where(is.numeric)
+        )
+      )
     ) %>%
     gt::tab_header(title = title, subtitle = subtitle) %>%
     gtExtras::gt_theme_nytimes()
