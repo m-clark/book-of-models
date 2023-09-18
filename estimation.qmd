@@ -1,6 +1,10 @@
 
 # How do we obtain a model? 
 
+TODO: 
+- May want to use an entirely different example to make plots and other stuff look worth a flip.
+- Need a plot of the likelihood or function surface somewhere
+
 
 
 ```{r}
@@ -11,23 +15,25 @@
 
 
 library(tidyverse)
-load("linear_models/data/model_reviews.RData")
-df_reviews = read_csv("data/movie_reviews.csv") |>
+# load("linear_models/data/model_reviews.RData")
+df_reviews <- read_csv("data/movie_reviews.csv") |>
     drop_na()
-df_reviews_pr = read_csv("data/movie_reviews_processed.csv") |>
+df_reviews_pr <- read_csv("data/movie_reviews_processed.csv") |>
     drop_na()
+
+model_reviews = lm(rating ~ word_count_sc, data = df_reviews_pr)
 
 source("load_packages.R")
 source("setup.R")
 source("functions/utils.R")
 reticulate::use_condaenv("book-of-models")
 
-intercept = round(coef(model_reviews)[1], 2)
-rl_coef = round(coef(model_reviews)[2], 2)
-sd_y = round(sd(df_reviews$rating), 2)
-sd_x = round(sd(df_reviews$word_count), 2)
-rl_ci = round(confint(model_reviews)[2, ], 2)
-n_char = 50
+intercept <- round(coef(model_reviews)[1], 2)
+rl_coef <- round(coef(model_reviews)[2], 2)
+sd_y <- round(sd(df_reviews$rating), 2)
+sd_x <- round(sd(df_reviews$word_count), 2)
+rl_ci <- round(confint(model_reviews)[2, ], 2)
+n_char <- 50
 ```
 
 ```{python}
@@ -46,7 +52,8 @@ model_reviews = sm.load('linear_models/data/model_reviews.pickle') # pkl later
 
 
 
-In our initial linear model, one of, and so far the only, key **parameter** is the coefficient for each feature. But how do we know what the coefficients are? When we run a linear model using some program function, they appear magically, but it's worth knowing a little bit about how they come to be, so let's try and dive a little deeper!
+In our initial linear model, the key **parameters** are the coefficient for each feature. But how do we know what the coefficients are? When we run a linear model using some program function, they appear magically, but it's worth knowing a little bit about how they come to be, so let's try and dive a little deeper!
+
 
 ## Introduction to Model Estimation
 
@@ -60,6 +67,7 @@ With estimation, we can break things down into the following steps:
 3. **Update** the guess
 4. Repeat steps 2 & 3 until we find a 'best' guess
 
+Pretty straightforward, right?  Well, it's not always so simple, but this is the general idea in most applications. In this chapter we'll show how to do this ourselves to take away the mystery a bit.
 
 :::{.callout type="info" title="Estimation vs. Optimization"}
 We can use **estimation** as general term for finding parameters, while **optimization** can be seen as a term for finding parameters that maximize or minimize some **objective function**, or even a combination of objectives.  In some cases we can estimate parameters without optimization, because there is a known way of solving the problem, but in most modeling situations we are going to use some optimization approach to find a 'best' set of parameters.
@@ -77,19 +85,19 @@ We can use **estimation** as general term for finding parameters, while **optimi
 
 ## Guessing
 
-As a starting point we can just guess what the parameter should be, but how would we know what to guess? How would we know which guesses are better than others?  Let's try a few guesses and see how they do. Let's say that we don't think review length matters, and that most people just rate everything a 3. We can plug this into the model and see what we get: 
+As a starting point we can just guess what the parameter should be, but how would we know what to guess? How would we know which guesses are better than others?  Let's try a few guesses and see how they do. Let's say that we don't think review's word count matters, and that most people just rate everything a 4. We can plug this into the model and see what we get: 
 
 $$
-\textrm{prediction} = 3 + 0\cdot\textrm{review\_length}
+\textrm{prediction} = 4 + 0\cdot\textrm{word\_count}
 $$
 
-Alternatively we could use the data to inform our guess. We still think that review length is negligible, but nowe we'll guess the mean of the target.  We can plug that into the model and see what we get:
+Alternatively we could use the data to inform our guess. We still think that word count is negligible, but now we we'll guess the mean of the target.  We can plug that into the model and see what we get:
 
 $$
-\textrm{prediction} = \overline{\textrm{rating}} + 0\cdot\textrm{review\_length}
+\textrm{prediction} = \overline{\textrm{rating}} + 0\cdot\textrm{word\_count}
 $$
 
-In this case, our guess for the review length coefficient is still zero, but our offset (or intercept) is the mean of the target. This is probably a better guess, since it is at least data driven, but it's still not great. But how do we know it's better?  
+In this case, our guess for the word count coefficient is still zero, but our offset (or intercept) is the mean of the target. This is probably a better guess, since it is at least data driven, but it's still not great. But how do we know it's better?  
 
 
 ## Prediction Error
@@ -118,7 +126,7 @@ Not only does this tell us how far off our model prediction is, it gives us a wa
 y = df_reviews$rating
 
 # Calculate the error for the guess of three
-error_three = mean((y - 3)^2)
+error_three = mean((y - 4)^2)
 
 # Calculate the error for the guess of the mean
 error_mean = mean((y - mean(y))^2)
@@ -140,13 +148,13 @@ error_mean = np.mean((y - y.mean())**2)
 
 :::
 
-Now let's look at our **Mean Squared Error** (MSE), and we'll also inspect the square root of it, or the **Root Mean Squared Error**, as that puts things back on the original target scale.  Inspecting the latter, we can see that we are off on average by over a point for our '#3' model, but notably less than a point when guessing the mean. 
+Now let's look at our **Mean Squared Error** (MSE), and we'll also inspect the square root of it, or the **Root Mean Squared Error**, as that puts things back on the original target scale.  Inspecting the latter, we can see that we are off on average by over a point for our '#4' model, but notably less than a point when guessing the mean. 
 
 ```{r}
 #| echo: false
 #| label: compare-error
 mse_tab = tibble(
-    Model = c("#3", "Mean"),
+    Model = c("#4", "Mean"),
     MSE = c(error_three, error_mean),
     RMSE = sqrt(MSE),
     `RMSE % drop` = c(NA, round((RMSE[2] - RMSE[1]) / error_three * 100, 1))
@@ -160,7 +168,7 @@ mse_tab |>
     cols_align("center")
 ```
 
-We can see that the mean model is not only better, but results in a `r mse_tab[['RMSE % drop']][2]` drop in error.  We'd definitely prefer the mean model over the '#3' model. Furthermore, this has shown us how we can see how we can compare models in a general fashion.
+We can see that the mean model is not only better, but results in a `r mse_tab[['RMSE % drop']][2]` drop in error.  We'd definitely prefer the mean model over the '#4' model. Furthermore, this has shown us how we can see how we can compare models in a general fashion.
 
 Well, this is useful, and at least we can say one model is better than another. But you're probably hoping there is an easier way to do this, especially when we have possibly dozens of features and/or parameters to keep track of, and there is!
 
@@ -190,7 +198,7 @@ Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i
 
 The resulting value - the sum or mean of the squared errors, as we noted can be referred to as our **objective** value, while the function is just the process of taking the predictions and observed target values and totaling up their squared differences.  We can use this value to find the best parameters for a specific model, as well as compare models with different parameters, such as a model with additional features versus one with fewer.  We can also use this value to compare different types of models that are using the same objective function, such as a linear model and a decision tree model.  
 
-Let's calculate the OLS estimate for our model. From our steps above, we need guesses and a way to update them.  For now, we can just provide a bunch of guesses, and just move along from one set to the next, and ultimately just choose whichever has the lowest value.
+Let's calculate the OLS estimate for our model. From our steps above, we need guesses and a way to update them. For now, we can just provide a bunch of guesses, and just move along from one set to the next, and ultimately just choose whichever has the lowest value.
 
 
 :::{.panel-tabset}
@@ -219,8 +227,8 @@ ols <- function(X, y, par, sum_sq = FALSE) {
 
 # create a grid of guesses
 guesses <- crossing(
-    b0 = seq(-2, 2, 0.1),
-    b1 = seq(-2, 2, 0.1)
+    b0 = seq(1, 5, 0.1),
+    b1 = seq(-1, 1, 0.1)
 )
 
 # Example for one guess
@@ -257,8 +265,8 @@ from itertools import product
 
 guesses = pd.DataFrame(
     product(
-        np.arange(-2, 2, 0.1),
-        np.arange(-2, 2, 0.1)
+        np.arange(1, 5, 0.1),
+        np.arange(-1, 1, 0.1)
     ),
     columns = ['b0', 'b1']
 )
@@ -298,23 +306,25 @@ guesses |>
     geom_point(
         data = min_loss,
         size = 6,
-        color = "white"
+        color = "white",
+        alpha = .75
     ) +
     geom_text(
         data = min_loss,
-        aes(label = glue("Minimum at ({round(b0, 2)}, {round(b1, 2)})\nObjective value = {round(objective, 2)}")),
+        aes(label = glue("Minimum at ({round(b0, 2)}, {round(b1, 3)})\nObjective value = {round(objective, 2)}")),
         size = 3,
         hjust = -0.0,
-        color = "gray50"
+        color = "#ffffff"
     ) +
     annotate(
         geom = "text",
         x = intercept,
         y = rl_coef,
-        label = glue("OLS estimate at ({intercept}, {rl_coef})\nObjective value = {round(summary(model_reviews)$sigma^2*nrow(df_reviews), 2)}"),
+        label = glue("OLS estimate at ({intercept}, {rl_coef})
+        Objective value = {round(summary(model_reviews)$sigma^2, 2)}"),
         size = 3,
-        hjust = -0.1,
-        color = "gray50"
+        hjust = c(-1, -1),
+        color = "#ffffff"
     ) +
     # coord_cartesian(
     #     # xlim = c(-1, 1),
@@ -330,7 +340,7 @@ guesses |>
 
 
 
-Returning to our results from the built-in functions, we had estimates of `r intercept` and `r rl_coef` for our coefficients. These are similar but not exactly the same, but we are very close on the weight for review length, and not wildly off on the intercept.  In general, we have pretty good, but not great, correspondence between our guesses and the built-in function results. Here we depict the results of our model guesses.  
+Returning to our results from the built-in functions, we had estimates of `r intercept` and `r rl_coef` for our coefficients. These are similar but not exactly the same, but we are very close on the weight for word count, and not wildly off on the intercept.  In general, we have pretty good, but not great, correspondence between our guesses and the built-in function results. Here we depict the results of our model guesses.  
 
 
 ```{r}
@@ -374,7 +384,7 @@ One thing to keep in mind is that it is not a magical process. It takes good dat
 
 In our example thus far, we have been minimizing the specific objective (or loss) function, which basically takes our parameter estimates, produces a prediction, and returns the sum or mean of the squared errors. But this is just one approach among many we could take.
 
-Now we'd like you to think about the **data generating process**.  We have a model that says the rating is a function of the review length, but more specifically, let's think about how the observed value of the rating is generated in a statistical sense. In particular, what kind of probability distribution might be involved?  Ignoring the model, we might think that each rating value is generated by some random process, and that the process is the same for each rating. Let's assume that random process is a normal distribution. So something like this would describe it mathematically:
+Now we'd like you to think about the **data generating process**.  We have a model that says the rating is a function of the word count, but more specifically, let's think about how the observed value of the rating is generated in a statistical sense. In particular, what kind of probability distribution might be involved?  Ignoring the model, we might think that each rating value is generated by some random process, and that the process is the same for each rating. Let's assume that random process is a normal distribution. So something like this would describe it mathematically:
 
 $$
 \textrm{rating} \sim N(\mu, \sigma)
@@ -382,22 +392,22 @@ $$
 
 where $\mu$ is the mean of the rating and $\sigma$ is the standard deviation, or in other words, we can think of rating as a random variable that is drawn from a normal distribution with $\mu$ and $\sigma$ as the parameters of that distribution.  
 
-Let's apply this idea to our linear model setting. In this case, the mean is a function of the review length, and we're not sure what the standard deviation is, but we can go ahead and write our model as follows.
+Let's apply this idea to our linear model setting. In this case, the mean is a function of the word count, and we're not sure what the standard deviation is, but we can go ahead and write our model as follows.
 
 $$
-\mu = \beta_0 + \beta_1 * \textrm{review\_length}
+\mu = \beta_0 + \beta_1 * \textrm{word\_count}
 $$
 $$
 \textrm{rating} \sim N(\mu, \sigma)
 $$
 
 
-Now, we can think of the model as a way to estimate the parameters of the normal distribution, but we have an additional parameter to estimate. We still have our prevous coefficients, but now we need to estimate $\sigma$ as well. But we still have to think of things a little differently. When we compare our prediction to the observed value, we don't look at the simple difference, but we are still interested in the discrepancy between the two.  So now we think about the **likelihood** of observing the rating given our prediction, which is based on the estimated parameters, i.e. given the $\mu$ and $\sigma$, and mu is a function of the coefficients and review length.  We can write this as:
+Now, we can think of the model as a way to estimate the parameters of the normal distribution, but we have an additional parameter to estimate. We still have our prevous coefficients, but now we need to estimate $\sigma$ as well. But we still have to think of things a little differently. When we compare our prediction to the observed value, we don't look at the simple difference, but we are still interested in the discrepancy between the two.  So now we think about the **likelihood** of observing the rating given our prediction, which is based on the estimated parameters, i.e. given the $\mu$ and $\sigma$, and mu is a function of the coefficients and word count.  We can write this as:
 
 
 
 $$
-\textrm{Pr}(\textrm{rating} \mid \textrm{review\_length}, \beta_0, \beta_1, \sigma)
+\textrm{Pr}(\textrm{rating} \mid \textrm{word\_count}, \beta_0, \beta_1, \sigma)
 $$
 
 $$
@@ -420,7 +430,7 @@ Here is a simple code demo to get a likelihood in the context of our model. The 
 
 ```{r}
 #| label: r-demo-likelihood
-word_count <- c(50, 60) # two example review lengths
+word_count <- c(50, 60) # two example word counts
 rating <- c(3, 4) # two example ratings
 mu <- -1.2 + .09 * word_count # predicted rating
 sigma <- .5 # just a guess
@@ -435,7 +445,7 @@ L
 # import numpy as np
 from scipy import stats
 
-word_count = np.array([50, 60])   # two example review lengths
+word_count = np.array([50, 60])   # two example word counts
 rating = np.array([3, 4])            # two example ratings
 mu = -1.2 + .09 * word_count  # predicted rating
 sigma = .5 # just a guess
@@ -596,8 +606,96 @@ At this point we understand a few things:
 - Estimation is a way of finding the best fitting model.
 
 
+## Penalized Objectives
+
+One thing we may want to take into account of with our models is their complexity, especially in the context of **overfitting**. We talk about this in the machine learning chapter also, but the basic idea is that we can get too close to the data we have, such that when we try to predict on new data, our performance suffers or even gets worse than a simpler model. In other words, we are not generalizing well. One way to deal with this is to penalize the objective function for complexity, or at least favor simpler models that might do as well. This is called **regularization**, and it is a way to reduce the complexity of our model. 
+
+As a starting point, in our basic linear model we can add a penalty that is applied to the size of  coefficients, and we can control the strength of the penalty.  This is called **ridge regression** or **L2 regularization**.  The penalty is just the sum of the squared coefficients multiplied by a constant, which we call $\lambda$.  We can write this formally as:
+
+$$
+\textrm{Loss} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} \beta_j^2
+$$
+
+Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model.  The first part is the same as before, but the second part is the penalty for $p$ features. The penalty is the sum of the squared coefficients multiplied by a constant, which we call $\lambda$. This is an additional parameter to the model that we will typically want to estimate in some fashion, e.g. through cross-validation, often called a hyperparameter, mostly just to distinguish it from those that may be of actual interest. For example we could care less what the actual value for $\lambda$ is, but we would still be interested in the coefficients.
+
+We can also use a penalty that is the sum of the absolute value of the coefficients, which is called **lasso regression** or **L1 regularization**.  An interersting property of the lasso is that in typical implementations it will potentially zero out coefficients, which is the same as dropping the feature from the model altogether.  This is a form of **feature selection** or **variable selection**.  The true values are never zero, but if we want to use a 'best subset' of features, this is one way we could do so.  We can write the lasso objective as:
+
+$$
+\textrm{Loss} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} |\beta_j|
+$$
+
+But let's get to a code example to make sure we understand this better!
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-ridge
+#| eval: false
+#| cache: false
+
+ridge = function(w, X, y, lambda = 0) {
+    # X: model matrix
+    # y: target
+    # lambda: penalty parameter
+    # w: the weights/coefficients
+
+    X = cbind(1, X)
+
+    # Calculate the predicted values
+    y_hat = X %*% w # %*% is matrix multiplication
+
+    # Calculate the value as sum squared error
+    error = crossprod(y - y_hat)
+
+    # Add the penalty
+    value = error + lambda * length(y) * crossprod(w)
+
+    return(value)
+}
 
 
+ridge(
+    X = df_reviews$word_count,
+    y = df_reviews$rating,
+    w = c(3, .1),
+    lambda = 0.1
+)
+```
+
+##### Python
+
+```{python}
+#| label: py-ridge
+#| eval: false
+#| cache: false
+
+# we use lambda_ because lambda is a reserved word in python
+def ridge(par, X, y, lambda_ = 0):
+    # add a column of 1s for the intercept
+    X = np.c_[np.ones(X.shape[0]), X]
+
+    # Calculate the predicted values
+    y_hat = X @ par
+    
+    # Calculate the error
+    value = np.sum((y - y_hat)**2)
+    
+    # Add the penalty
+    value = value + lambda_ * np.sum(par**2)
+    
+    return(value)
+
+ridge(
+    X = df_reviews['word_count'],
+    y = df_reviews['rating'],
+    par = np.array([3, 1]),
+    lambda_ = 0.1
+)
+```
+
+:::
 
 ## Classification
 
@@ -605,7 +703,7 @@ So far we've been assuming a continuous target, but what if we have a categorica
 
 ### Misclassification
 
-Let's just make our current target a rating of good if the rating is 3 or greater, and bad otherwise.  A simple correspondence to MSE is a function that minimized classification error or rate.  In other words, we can think of the objective function as the proportion of incorrect classifications.  This is called the **misclassification rate**.  We can write this as:
+Let's just make our current target a rating of good if the rating is 3 or greater, and bad otherwise.  A simple correspondence to MSE is a function that minimizes classification error or rate (or maximizes accuracy).  In other words, we can think of the objective function as the proportion of incorrect classifications.  This is called the **misclassification rate**.  We can write this as:
 
 :::{.panel-tabset}
 
@@ -663,6 +761,8 @@ def misclassification_rate(par, x, y):
 }
 ```
 
+:::
+
 ### Log loss
 
 Another approach is to use the **log loss**, sometimes called logistic loss or cross-entropy. If we have just the binary case it is:
@@ -717,7 +817,7 @@ def objective(par, X, y):
 ```
 
 
-
+:::
 
 We have a binary rating in the processed version of our data. Let's use optim to get the best parameters for a model. We'll compare our results to the built-in `glm` function to get the same results.  We can see that the results are very similar, but not exactly the same.  We would not worry about such differences in practice
 
@@ -761,7 +861,7 @@ mod_glm = smf.glm(
 ).fit(method = 'lbfgs')
 ```
 
-
+:::
 
 ```{r}
 #| echo: false
@@ -769,18 +869,19 @@ mod_glm = smf.glm(
 # compare
 
 tibble(
+    Source = c("Ours", "GLM"),
     LogLike = c(mod_logloss$value, -logLik(mod_glm)),
     int = c(mod_logloss$par[1], coef(mod_glm)[1]),
     review_year_0 = c(mod_logloss$par[2], coef(mod_glm)[2]),
     age_sc = c(mod_logloss$par[3], coef(mod_glm)[3]),
     word_count_sc = c(mod_logloss$par[4], coef(mod_glm)[4])
 ) |>
-    gt()
+    gt(decimals = 4)
 ```
 
 ## Optimization
 
-Previously we created a set of guesses to search over to see which set of parameters resulted in prediction that matched the data best. What we did is called a grid search, and it is a bit of a brute force approach to finding the best fitting model.  You can imagine that a couple of unfortunate or problematic scenarios, such as a very large number of parameters, or that our specified range doesn't get to the right sets of parameters, or we specify a very large range, but the best fitting model is within a very narrow part of that range.
+Previously we created a set of guesses to search over to see which set of parameters resulted in prediction that matched the data best. What we did is called a grid search, and it is a bit of a brute force approach to finding the best fitting model. You can imagine that a couple of unfortunate or problematic scenarios, such as a very large number of parameters, or that our specified range doesn't allow us to get to the right sets of parameters, or we specify a very large range, but the best fitting model is within a very narrow part of that range.
 
 In general, we can think of **optimization** as a way to find the best parameters for our model. We start with an initial guess, see how well it does in terms of our objective function, and then try to improve it with a new guess. We continue to do so until a stopping point is reached.  Here is an example.
 
@@ -790,14 +891,12 @@ In general, we can think of **optimization** as a way to find the best parameter
 - Calculate the objective function given the new parameters
 - **Repeat** until the improvement is small enough or we reach a maximum number of iterations we want to attempt
 
-This is what we described before with esitmation in general. The key idea now is how we update the parameters.  Guessing simply isn't viable, it is just too inefficient and may never even get close. So now what? Well people have been working on this problem forever, and there are a lot of viable solutions.
+This is what we described before with estimation in general. The key idea now is how we update the parameters with each iteration. Let's look at one of the most common tools.
 
 
 ## Gradient Descent
 
-One of the most common approaches is called gradient descent.  The idea is that we can use the gradient of the objective function to guide us to the best fitting parameters.  The gradient is the vector of partial derivatives of the objective function with respect to each parameter.  The gradient is a vector that points in the direction of steepest ascent.  So if we want to maximize the objective function, we can take a step in the direction of the gradient.  If we want to minimize the objective function, we can take a step in the opposite direction of the gradient.  The size of the step is called the learning rate, and it is a **hyperparameter** that we can tune.  If the learning rate is too small, it will take a long time to converge.  If the learning rate is too large, we might overshoot the minimum and never converge.  There are a number of variations on gradient descent, but the basic idea is the same. **Stochastic gradient descent** is a variation on gradient descent that uses a random sample of the data to estimate the gradient.  
-
-Here is a function to illustrate the process.
+One of the most common approaches is called gradient descent. The idea is that we can use the gradient of the objective function to guide us to the best fitting parameters. The gradient is the vector of partial derivatives of the objective function with respect to each parameter. That may not mean much to you, but the basic idea is that the gradient is a vector that points in the direction of steepest ascent in terms of the objective function.  So if we want to maximize the objective function, we can take a step in the direction of the gradient.  If we want to minimize the objective function, we can take a step in the opposite direction of the gradient.  The size of the step is called the learning rate, and it is a **hyperparameter** that we can tune.  If the learning rate is too small, it will take a long time to converge.  If the learning rate is too large, we might overshoot the minimum and never converge.  There are a number of variations on gradient descent, but the basic idea is the same. **Stochastic gradient descent** is a variation on gradient descent that uses a random sample of the data to estimate the gradient.  Here is a function to illustrate the process.
 
 :::{.panel-tabset}
 
@@ -906,8 +1005,6 @@ There are lots of other approaches to optimization. The main reason to choose on
 - Quasi-Newton
 - Simulated annealing
 - Genetic algorithms
-
-##
 
 
 ## Other Estimation Approaches
