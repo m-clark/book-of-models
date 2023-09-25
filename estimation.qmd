@@ -145,7 +145,7 @@ df_happiness <- read_csv("data/world_happiness_2018.csv") |>
     ) |>
     mutate(
         gdp_pc = exp(log_gdp_pc), # put back on original scale before scaling
-        across(life_exp:corrupt, \(x) (x - mean(x)) / sd(x))
+        across(life_exp:gdp_pc, \(x) (x - mean(x)) / sd(x))
     ) |>
     select(-log_gdp_pc) # drop the log version
 ```
@@ -168,7 +168,7 @@ df_happiness = (
     .assign(
         gdp_pc = lambda x: np.exp(x['log_gdp_pc']),
     )    
-    .drop(columns = ['log_gdp_pc'])    
+    [['country', 'happiness','life_exp', 'gdp_pc', 'corrupt']]
 )
 
 
@@ -179,6 +179,7 @@ scaler = StandardScaler()
 df_happiness[['life_exp', 'gdp_pc', 'corrupt']] = scaler.fit_transform(
     df_happiness[['life_exp', 'gdp_pc', 'corrupt']]
 )
+
 ```
 
 :::
@@ -526,7 +527,9 @@ In general, we can think of **optimization** as a way to find the best parameter
 - Calculate the objective function given the new parameters
 - **Repeat** until the improvement is small enough or we reach a maximum number of iterations we want to attempt
 
-This is what we described before with estimation in general. The key idea now is how we *update* the old parameters with a new guess at each iteration. Let's try it out! Both R and Python offer a function where we can specify the objective function, and it will try to find the best parameters for us.  We'll use the `optim` function in R and the `minimize` function in Python. It needs several inputs:
+This is what we described before with estimation in general. The key idea now is how we *update* the old parameters with a new guess at each iteration. Different **optimization algorithms** use different approaches to find the updated parameters. At some point, either the improvement is small enough, or we reach a maximum number of iterations we want to attempt, and either of these is something we can set ourselves. If we meet the terms of our objective, we say that we have reached **convergence**. Sometimes, the number of iterations is not enough for us to reach convergence, and we have to try again with a different set of parameters, a different algorithm, maybe use some data transformations, or something else.
+
+So let's try it out! Both R and Python offer a function where we can specify the objective function, and it will try to find the best parameters for us.  We'll use the `optim` function in R and the `minimize` function in Python. It needs several inputs:
 
 - the objective function
 - the initial guess for the parameters to get things going
@@ -577,7 +580,7 @@ our_result = minimize(
 
 ```{r}
 #| echo: false
-#| label: r-optim-ols-tbl
+#| label: tbl-r-optim-ols
 #| tbl-cap: Comparison of our results to built-in function
 
 our_result_tbl <- tibble(
@@ -593,7 +596,10 @@ our_result_tbl |>
     gt(decimals = 4)
 ```
 
-So our little function and the right tool allows us to come up with the same thing as base R and statsmodels! I hope you're feeling pretty good at this point because you should! You just proved you could do what seems like magic, but really all it took is just a little knowledge about some key concepts.  Let's try some more!
+So our little function and the right tool allows us to come up with the same thing as base R and `statsmodels`! I hope you're feeling pretty good at this point because you should! You just proved you could do what seems like magic, but really all it took is just a little knowledge about some key concepts.  Let's try some more!
+
+
+
 
 
 ## Maximum Likelihood 
@@ -761,10 +767,16 @@ our_result = minimize(
 
 How would we switch to a maximum likelihood approach using readily available functions?  In both R and Python you can switch to using `glm` and `GLM` respectively would be the place to start.  We can use different likelihoods distributions corresponding to the binomial, poisson and others. Still other packages would allow even more distributions for consideration. In general, we choose a distribution that we feel best reflects the data generating process. For binary targets for example, we typically would feel a bernoulli or binomial distribution is appropriate. For count data, we might choose a poisson or negative binomial distribution.  For targets that fall between 0 and 1, we might go for a beta distribution. There are many distributions, and even when some might feel more appropriate, we might choose another for convenience. Some distributions tend toward a normal (a.k.a. gaussian) distribution depending on various factors, while others are special cases of more general distributions. For example, the exponential distribution is a special case of the gamma distribution, and a cauchy is equivalent to a t distribution with 1 degree of freedom, and the t tends toward a normal with increasing degrees of freedom. Here is a visualization of the relationships among some of the more common distributions.
 
-![](/img/distribution_relationships.jpg)
+```{r}
+#| echo: false
+#| label: fig-distribution-relationships
+#| fig-cap: Relationships among some of univariate probability distributions. Image from [Wikipedia](https://en.wikipedia.org/wiki/Relationships_among_probability_distributions#/media/File:Relationships_among_some_of_univariate_probability_distributions.jpg)
+
+knitr::include_graphics("img/distribution_relationships.jpg")
+```
 
 
-Here are examples of standard GLM functions in R and Python.
+Here are examples of standard GLM functions in R and Python
 
 :::{.panel-tabset}
 
@@ -774,9 +786,9 @@ Here are examples of standard GLM functions in R and Python.
 #| eval: false
 #| label: r-glm
 
-glm(rating ~ word_count, data = df_reviews, family = gaussian)
-glm(binary_target ~ x1 + x2, data = df_reviews, family = binomial)
-glm(count ~ x1 + x2, data = df_reviews, family = poisson)
+glm(happiness ~ life_exp, data = df_happiness, family = gaussian)
+glm(binary_target ~ x1 + x2, data = some_data, family = binomial)
+glm(count ~ x1 + x2, data = some_data, family = poisson)
 ```
 
 ##### Python
@@ -787,9 +799,9 @@ glm(count ~ x1 + x2, data = df_reviews, family = poisson)
 
 import statsmodels.formula.api as smf
 
-smf.glm('rating ~ word_count', data = df_reviews, family = sm.families.Gaussian())
-smf.glm('binary_target ~ x1 + x2', data = df_reviews, family = sm.families.Binomial())
-smf.glm('count ~ x1 + x2', data = df_reviews, family = sm.families.Poisson())
+smf.glm('happiness ~ life_exp', data = df_happiness, family = sm.families.Gaussian())
+smf.glm('binary_target ~ x1 + x2', data = some_data, family = sm.families.Binomial())
+smf.glm('count ~ x1 + x2', data = some_data, family = sm.families.Poisson())
 ```
 
 :::
@@ -799,7 +811,7 @@ With that in mind, we can compare our result to a built-in function that has cap
 
 ```{r}
 #| echo: false
-#| label: r-likelihood-tbl
+#| label: tbl-r-likelihood
 
 glm_happy_life <- glm(happiness ~ life_exp, data = df_happiness)
 
@@ -824,16 +836,204 @@ our_result_tbl <- tibble(
 our_result_tbl
 ```
 
-Let's think more about what's going on here. It turns out that our objective function defines a space or surface. We can think of it as a landscape, and we are trying to find the lowest point on that landscape.  We can think of our guesses as points on that landscape, and we are trying to find the lowest point. 
+Let's think more about what's going on here. It turns out that our objective function defines a space or surface. We can think of it as a landscape, and we are trying to find the lowest point on that landscape. We can then think of our guesses as points on that landscape, and we are trying to find the lowest point. Let's start get a sense of this with the following visualization, based on a single parameter. The data is drawn from Poisson distributed variable with true mean $\theta=5$. We note the calculated likelihood increases as we estimate values for $\theta$ closer to $5$, or more precisely, whatever the mean observed value is for the data. However, with more and more data, the final ML estimate will converge on the true value. Model estimation finds that maximum on the curve, and optimization algorithms are the means to find it.
 
 
-OJBECTIVE FUNCTION SURFACE PLOT
+```{r}
+#| echo: false
+#| label: fig-r-likelihood-plot
+#| fig-cap: Likelihood function one parameter
+set.seed(1234)
+
+y <- rpois(100000, lambda = 5)
+mus <- seq(3, 8, l = 100)
+L <- map_dbl(mus, function(mu) sum(dpois(y, lambda = mu, log = T)))
+lab <- glue::glue("Final estimate = ", round(mus[L == max(L)], 2))
+
+ggplot(data.frame(mus, L)) +
+    geom_vline(aes(xintercept = 5), alpha = .5, lty = 2) +
+    geom_hline(aes(yintercept = max(L)), alpha = .5, lty = 2) +
+    geom_path(aes(x = mus, y = L), lwd = 2) +
+    geom_text(aes(x = 5, y = max(L), label = lab), hjust = 1.5, vjust = -1) +
+    labs(x = expression(theta), y = "Likelihood") +
+    visibly::theme_clean(center_axis_labels = TRUE) +
+    theme(
+        axis.ticks.y = element_blank(),
+        axis.text.y  = element_blank(),
+        axis.text.x  = element_text(color = "gray10", size = 14),
+        axis.title.x = element_text(color = "gray10", size = 24)
+    )
+
+```
+
+Now let's add a parameter. If we have more than one parameter, we now have a surfaace to deal with. Given some starting point, an optimization procedure then travels along the surface looking for a minimum/maximum point. For simpler settings such as this, we can visualize the likelihood surface and its minimum point. However, even our simple demo model has three parameters plus the likelihood, so would be difficult to visualize without additional complexity. To get around this, we show the results for an alternate model where happiness is standardized also, which means the intercept is zero[^zerointorigin], and we don't have to show that. 
+
+[^zerointorigin]: Linear regression will settle on a line that cuts through the means, and when standardizing the mean of the features and target are both zero, so the line goes through the origin.  
 
 
-<!-- Let's apply it to our grid of parameter guesses as we did before. But remember that we're not just estimating the coefficients, but also the standard deviation of the normal distribution.  So we'll need to add that to our grid of guesses.  In this particular model, the maximum standard deviation/variance would just be that of the ratings themselves, which is `r round(sd(df_reviews$rating), 2)`.  So if our model is doing anything at all, the leftover, i.e. residual, variance that the model does not explain should be less than that.  And to futher keep things simple we'll just try two guesses for sigma - .5 and .25.  
 
-Here is plot that basically is the same as before, but now regards the likelihood instead of sum of the squared errors, and splits the plot into our two guesses for the standard deviation. Because some of the guesses are rather poor, I limit the plot to better get a sense of how our guesses relate to the likelihood. This eliminates about half the plot for a sigma of .25, and in general we can see that the parameters for sigma = .5 will result in a higher likelihood.  Once we get in the realm of our previous best guess for the coefficients, we can see that the likelihood is much higher as it was before.
--->
+```{r}
+#| echo: false
+#| label: fig-r-likelihood-plot-3d
+#| fig-cap: Likelihood surface with two parameters
+
+mod_ <- glm(scale(happiness) ~ life_exp, data = df_happiness)
+sig <- sqrt(summary(mod_)$dispersion)
+
+# b1 <- sort(c(coef(mod_)[2], seq(0, 1, length = 99)))
+# sigma <- sort(c(sig, seq(0.5, .75, length = 99)))
+b1_range <- c(.5, 1)
+sigma_range <- c(.5, 1)
+b1 <- seq(b1_range[1], b1_range[2], length = 50)
+sigma <- seq(sigma_range[1], sigma_range[2], length = 50)
+
+llsurf <- matrix(NA, length(b1), length(sigma))
+
+for (i in 1:length(b1)) {
+    for (j in 1:length(sigma)) {
+        llsurf[i, j] <- -sum(
+            dnorm(
+                scale(df_happiness$happiness)[, 1],
+                mean = scale(df_happiness$life_exp)[, 1] * b1[i],
+                sd = sigma[j],
+                log = TRUE
+            )
+        )
+    }
+}
+
+# summary(c(llsurf))
+
+# rownames(llsurf) <- b1
+# colnames(llsurf) <- sigma
+# min(llsurf)
+minll <- which(llsurf == min(llsurf), arr.ind = TRUE)
+# sigma[minll[,2]]
+# llsurf[minll,]
+
+
+
+ll2 <- function(b1, sigma, X, y) {
+    ll <- dnorm(y, mean = X * b1, sd = sigma, log = TRUE)
+    print(c(b1, sigma, -sum(ll)))
+    -sum(ll) # for minimization
+}
+
+library(bbmle)
+
+mle_est <- capture.output(
+    mlnorm <- bbmle::mle2(
+        ll2,
+        start = list(sigma = 1, b1 = 0),
+        data = list(
+            X = scale(df_happiness$life_exp)[, 1],
+            y = scale(df_happiness$happiness)[, 1]
+        ),
+        # method = "Nelder-Mead",
+        # method = "L-BFGS-B",
+        # lower = c(sigma = 0),
+        method = "BFGS",
+        trace = TRUE
+    )
+)
+library(plotly)
+
+estimates <- mle_est |>
+    map(\(x) str_split(str_squish(x), " ")[[1]]) |>
+    do.call(rbind, args = _) |>
+    as_tibble() |>
+    select(-1) |>
+    rename(b1 = V2, sigma = V3, ll = V4) |>
+    mutate(across(everything(), as.numeric))
+# scico::scico_palette_show()
+plot_ly(
+    z = ~llsurf,
+    x = ~b1,
+    y = ~sigma,
+    type = "surface",
+    # colors = viridis::plasma(500)
+    colors = scico::scico(500, palette = "lipari", direction = -1),
+    showscale = FALSE
+    # showlegend = FALSE
+) |>
+    # plotly may invert the axes for the marker, so we have to switch them
+    add_trace(
+        x = bbmle::coef(mlnorm)["b1"],
+        y = bbmle::coef(mlnorm)["sigma"],
+        # x = minll[,1],
+        # y = minll[,2],
+        z = min(c(llsurf)),
+        # marker = list(color = palettes$orange$complementary, size = 10),
+        type = "scatter3d",
+        mode = "markers",
+        showlegend = FALSE
+    ) |>
+    # add_trace(
+    #     y = estimates$b1,
+    #     x = estimates$sigma,
+    #     # x = minll[,1],
+    #     # y = minll[,2],
+    #     z = estimates$ll,
+    #     # marker = list(color = palettes$orange$complementary, size = 10),
+    #     type = "scatter3d",
+    #     mode = "line",
+    #     line = list(shape = "spline"),
+    #     showlegend = FALSE
+    # ) |>
+    add_surface(
+        contours = list(
+            z = list(
+                show = TRUE,
+                usecolormap = TRUE,
+                highlightcolor = "#ff0000",
+                start = min(llsurf),
+                end = max(llsurf),
+                size = 1,
+                project = list(z = TRUE)
+            )
+        )
+    ) |>
+    visibly::theme_plotly() |>
+    plotly::layout(
+        # title = 'Likelihood Surface',
+        scene = list(
+            xaxis = list(title = "sigma", range = b1_range),
+            yaxis = list(title = "b1", range = sigma_range),
+            zaxis = list(title = "-LL", angle = -90, range = c(100, 135)),
+            camera = list(eye = list(x = 0, y = 2, z = .66)),
+            paper_bgcolor = "rgba(0,0,0,0)",
+            plot_bgcolor = "rgba(0,0,0,0)"
+        )
+    )
+
+
+
+detach(package:plotly)
+detach(package:bbmle)
+```
+
+We can also see the path our estimates take, starting at a rather poor point, but quickly updating to better values. We also see little exploratory jumps creating a star like pattern, before things ultimately settle to the best values. In general, these updates and paths are dependent on the optimization algorithm one uses.
+
+```{r}
+#| echo: false
+#| label: fig-r-likelihood-path
+#| fig-cap: Optimization path two parameters
+
+estimates |>
+    filter(b1 < 1, sigma > .5, sigma < 1) |>
+    # dplyr::slice(-1) |>
+    # mutate(b1 = fct_inorder(factor(b1)), sigma = fct_inorder(factor(sigma))) |>
+    ggplot(aes(b1, sigma)) +
+    ggforce::geom_link2(aes(color = ll), linewidth = 1) +
+    geom_point(
+        # aes(size = -ll),
+        size = 1,
+        # position = position_jitter(width = .05)
+    ) +
+    # geom_path() +
+    scico::scale_color_scico(begin = .25, palette = "lipari", direction = -1) +
+    scale_size_continuous(range = c(.5, 3))
+```
 
 ```{r}
 #| echo: false
@@ -841,14 +1041,18 @@ Here is plot that basically is the same as before, but now regards the likelihoo
 #| label: r-likelihood-apply
 #| cache: false
 
+glm_happy = glm(happiness ~ life_exp, data = df_happiness, family = gaussian)
+sqrt(summary(glm_happy)$dispersion)
+summary(model_happy_life)$sigma
+
 init <- guesses |>
     mutate(sigma = .5) |>
-    bind_rows(guesses |> mutate(sigma = .25))
+    bind_rows(guesses |> mutate(sigma = .75))
 
 init <- init |>
     mutate(ll = pmap_dbl(
         list(b0 = init$b0, b1 = init$b1, sigma = init$sigma),
-        \(b0, b1, sigma) likelihood(df_reviews$word_count, df_reviews$rating, b0, b1, sigma)
+        \(b0, b1, sigma) likelihood(c(b0, b1, sigma), df_happiness$life_exp, df_happiness$happiness)
     ))
 
 # check
@@ -856,7 +1060,7 @@ init <- init |>
 # c(max_like, logLik(model_reviews))
 
 max_like <- init |>
-    filter(ll == max(ll)) |>
+    filter(ll == min(ll)) |>
     mutate(sig_lab = glue("{expression(sigma)} = {sigma}"))
 
 init |>
@@ -896,15 +1100,18 @@ Why didn't we have to do this before? Because sigma was actually the value of ou
 
 
 
-### Quick Review: Interpreting our results
+
+## Estimation: Quick Review
+
+MOVE WHERE? NEEDED?
 
 At this point we understand a few things:
 
-- Coefficients or weights allow us to understand how a feature relates to the target.
-<!-- - R-squared is the correlation of the target and the predictions (squared). By squaring we understand the proportion of variance in the target explained by the model.
-- The residual variance is a summary of how well our model fits the data, and is basically the part our model doesn't explain. -->
+- Parameters are the values associated with a model
+- Objective functions specify a modeling goal with which to estimate the parameters.
+- Estimation is a way of finding the best model, i.e. parameters that help us achieve a goal.
+- Optimization is the process of finding the parameters that maximize or minimize some objective function
 - The likelihood is an alternate way to assess the match of data and model, and allows us to compare the relative fits of models
-- Estimation is a way of finding the best fitting model.
 
 
 ## Penalized Objectives
@@ -919,17 +1126,17 @@ $$
 \textrm{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} \beta_j^2
 $$
 
-Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model.  The first part is the same as before, but the second part is the penalty for $p$ features. The penalty is the sum of the squared coefficients multiplied by a constant, which we call $\lambda$. This is an additional parameter to the model that we will typically want to estimate in some fashion, e.g. through cross-validation, often called a hyperparameter, mostly just to distinguish it from those that may be of actual interest. For example we could care less what the actual value for $\lambda$ is, but we would still be interested in the coefficients.  
+Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model.  The first part is the same as before, but the second part is the penalty for $p$ features. The penalty is the sum of the squared coefficients multiplied by a constant, which we call $\lambda$. This is an additional parameter to the model that we will typically want to estimate in some fashion, e.g. through cross-validation, often called a hyperparameter, mostly just to distinguish it from those that may be of actual interest. For example, we could probably care less what the actual value for $\lambda$ is, but we would still be interested in the coefficients.  
 
-Interestingly, as you'll notice that this is just OLS+, you might be wondering how our results or interpretation might change. Well for starters, L2 regularization is not limited to linear regression, so just keep that in mind.  But also, if we know that OLS produces **unbiased** estimates if assumptions of linear regression are met, that means these estimates have to be biased since they won't be the same, right? Correct! As we note in the ML chapter, the bias-variance tradeoff is a key concept in machine learning, and this is a good example of that. We are introducing some bias in order to reduce the variance. In other words, we are willing to accept some bias in order to get a model that generalizes better.
+Interestingly, as you'll notice that this is just OLS+, you might be wondering how our results or interpretation might change. Well for starters, L2 regularization is not limited to linear regression, so just keep that in mind.  But also, if we know that OLS produces **unbiased** estimates if assumptions of linear regression are met, that means these estimates have to be biased since they won't be the same, right? Your are correct! As we note in the ML chapter, the bias-variance tradeoff is a key concept in machine learning, and this is a good example of that. We are introducing some bias in order to reduce the variance. In other words, we are willing to accept some bias in order to get a model that generalizes better.
 
-We can also use a penalty that is the sum of the absolute value of the coefficients, which is called **lasso regression** or **L1 regularization**.  An interersting property of the lasso is that in typical implementations, it will potentially zero out coefficients, which is the same as dropping the feature from the model altogether. This is a form of **feature selection** or **variable selection**.  The true values are never zero, but if we want to use a 'best subset' of features, this is one way we could do so. We can write the lasso objective as:
+Another common penalty that is the sum of the absolute value of the coefficients, which is called **lasso regression** or **L1 regularization**.  An interersting property of the lasso is that in typical implementations, it will potentially zero out coefficients, which is the same as dropping the feature from the model altogether. This is a form of **feature selection** or **variable selection**.  The true values are never zero, but if we want to use a 'best subset' of features, this is one way we could do so. We can write the lasso objective as:
 
 $$
 \textrm{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} |\beta_j|
 $$
 
-But let's get to a code example to make sure we understand this better! Here is an example of a function that calculates the ridge objective.  Note that we are using the same OLS function as before, but we've added a penalty term. 
+But let's get to a code example to make sure we understand this better! Here is an example of a function that calculates the ridge objective. To make things interesting, let's add the other features we talked about regarding GDP per capita and perceptions of corruption. 
 
 :::{.panel-tabset}
 
@@ -942,23 +1149,24 @@ ridge <- function(par, X, y, lambda = 0) {
     X <- cbind(1, X)
 
     # Calculate the predicted values
-    y_hat <- X %*% par # %*% is matrix multiplication
+    mu <- X %*% par # %*% is matrix multiplication
 
     # Calculate the value as sum squared error
-    error <- crossprod(y - y_hat)
+    error <- crossprod(y - mu)
 
     # Add the penalty
-    value <- error + lambda * length(y) * crossprod(par)
+    value <- error + lambda * crossprod(par)
 
     return(value)
 }
 
-
-ridge(
-    par = c(0, 0),
-    X = df_happiness$life_exp,
+our_result <- optim(
+    par = c(0, 0, 0, 0),
+    fn = ridge,
+    X = df_happiness |> select(-happiness, -country) |> as.matrix(),
     y = df_happiness$happiness,
-    lambda = 0.1
+    lambda = 0.1,
+    method = "BFGS"
 )
 ```
 
@@ -966,32 +1174,82 @@ ridge(
 
 ```{python}
 #| label: py-ridge
-
 # we use lambda_ because lambda is a reserved word in python
 def ridge(par, X, y, lambda_ = 0):
     # add a column of 1s for the intercept
     X = np.c_[np.ones(X.shape[0]), X]
 
     # Calculate the predicted values
-    y_hat = X @ par
+    mu = X @ par
     
     # Calculate the error
-    value = np.sum((y - y_hat)**2)
+    value = np.sum((y - mu)**2)
     
     # Add the penalty
     value = value + lambda_ * np.sum(par**2)
     
     return(value)
 
-ridge(
-    X = df_happiness['life_exp'],
-    y = df_happiness['happiness'],
-    par = np.array([0, 0]),
-    lambda_ = 0.1
+our_result = minimize(
+    fun  = ridge,
+    x0   = np.array([0, 0, 0, 0]),
+    args = (
+        np.array(df_happiness.drop(columns=['happiness', 'country'])),
+        np.array(df_happiness['happiness']), 
+        0.1
+    )
 )
 ```
 
 :::
+
+We can compare this to built-in functions as we have before, and can see that the results are very similar, but not exactly the same.  We would not worry about such differences in practice, but the main point is again, we can use simple functions that do just about as well as any what we'd get from package output.
+
+
+```{r}
+#| echo: false
+#| label: tbl-r-ridge
+
+library(glmnet)
+glmnet_happy <- glmnet(
+    x = df_happiness |> select(-happiness, -country) |> as.matrix(), # requires two features
+    y = df_happiness$happiness,
+    standardize = FALSE,
+    intercept = TRUE,
+    lambda = 0.1,
+    alpha = 0,
+    thresh = 1e-12
+)
+# aside: glmnet resu
+# our result
+# coef(glmnet_happy)
+
+our_result_tbl <- tibble(
+    "Parameter"  = c("Intercept", "Life Exp. Coef.", "Corrupt", "GDP_PC"),
+    `Built-in`   = coef(glmnet_happy)[, 1],
+    `Our Result` = our_result$par
+) |>
+    gt(decimals = 2) |>
+    gt::tab_footnote(
+        footnote = "Showing results from R glmnet package with alpha = 0, lambda = .1",
+        locations = cells_column_labels(
+            columns = vars(`Built-in`)
+        ),
+        placement = "right"
+    ) |>
+    tab_options(
+        footnotes.font.size = 10
+    )
+
+our_result_tbl
+```
+
+:::{.callout-tip}
+
+It turns out that, given a a set λ penalty, ridge regression estimates need not be estimated, as there is an analytical result. See a [demo](https://m-clark.github.io/models-by-example/penalized-maximum-likelihood.html#l2-ridge-regularization).
+
+:::
+
 
 
 ## Classification
@@ -1000,7 +1258,15 @@ So far we've been assuming a continuous target, but what if we have a categorica
 
 ### Misclassification
 
-Let's just make our current target a rating of good if the rating is 3 or greater, and bad otherwise.  A simple correspondence to MSE is a function that minimizes classification error or rate (or maximizes accuracy).  In other words, we can think of the objective function as the proportion of incorrect classifications.  This is called the **misclassification rate**.  We can write this as:
+A straightforward correspondence to MSE is a function that minimizes classification error (or maximizes accuracy). In other words, we can think of the objective function as the proportion of incorrect classifications.  This is called the **misclassification rate**.  We can write this as:
+
+$$
+\textrm{Loss} = \frac{1}{n} \sum_{i=1}^{n} \mathbb{1}(y_i \neq \hat{y_i})
+$$
+
+Where $y_i$ is the actual value of the target for observation $i$, arbitrarily coded as 1 or 0, and $\hat{y_i}$ is the predicted class from the model. The $\mathbb{1}$ is an indicator function that returns 1 if the condition is true, and 0 otherwise.  In other words, we are counting the number of times the predicted value is not equal to the actual value, and dividing by the number of observations.  
+
+
 
 :::{.panel-tabset}
 
@@ -1012,19 +1278,21 @@ Let's just make our current target a rating of good if the rating is 3 or greate
 #| cache: false
 
 # misclassification rate
-misclassification <- function(par, x, y) {
+misclassification <- function(par, X, y, class_threshold = .5) {
     X <- cbind(1, X)
     # Calculate the predicted values
-    y_hat <- X %*% par # %*% is matrix multiplication
+    mu <- X %*% par # %*% is matrix multiplication
 
-    # Convert to a probability
-    y_hat <- 1 / (1 + exp(-y_hat))
+    # Convert to a probability ('sigmoid' function)
+    p <- 1 / (1 + exp(-mu))
 
     # Convert to a class
-    y_hat <- as.integer(ifelse(y_hat > 0.5, "good", "bad"))
+    predicted_class <- as.integer(
+        ifelse(p > class_threshold, "good", "bad")
+    )
 
     # Calculate the error
-    error <- y - y_hat
+    error <- y - predicted_class
 
     return(mean(error))
 }
@@ -1037,27 +1305,30 @@ misclassification <- function(par, x, y) {
 #| eval: false
 #| cache: false
 
-def misclassification_rate(par, x, y):
+def misclassification_rate(par, X, y, class_threshold = .5):
     # add a column of 1s for the intercept
     X = np.c_[np.ones(X.shape[0]), X]
 
     # Calculate the predicted values
-    y_hat = X @ par
+    mu = X @ par
     
-    # Convert to a probability
-    y_hat = 1 / (1 + np.exp(-y_hat))
+    # Convert to a probability ('sigmoid' function)
+    p = 1 / (1 + np.exp(-mu))
     
     # Convert to a class
-    y_hat = np.where(y_hat > 0.5, 1, 0)
+    predicted_class = np.where(p > class_threshold, 1, 0)
     
     # Calculate the error
-    error = y - y_hat 
+    error = y - predicted_class 
     
     return(np.mean(error))
-}
+
 ```
 
 :::
+
+We'll leave it as an exercise to the reader to play around with this, as the next objective function is more commonly used.
+
 
 ### Log loss
 
@@ -1067,7 +1338,7 @@ $$
 \textrm{Loss} = -\sum_{i=1}^{n} y_i \log(\hat{y_i}) + (1 - y_i) \log(1 - \hat{y_i})
 $$
 
-Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model (essentially a probability). It turns out that this is the same as log-likelihood used in a maximum likelihood approach for logistic regression.
+Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model (essentially a probability). It turns out that this is the same as log-likelihood used in a maximum likelihood approach for logistic regression. We typically prefer this objective function to classification error because it is *smooth* like in the visualization we showed before for maximum likelihood (@fig-r-likelihood-plot-3d), which means it is differentiable.  This is important because it allows us to use optimization algorithms that rely on derivatives in updating the parameter estimates.
 
 :::{.panel-tabset}
 
@@ -1075,16 +1346,17 @@ Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i
 
 
 ```{r}
+#| label: r-logloss
 objective <- function(par, X, y) {
     X <- cbind(1, X)
 
     # Calculate the predicted values on the raw scale
     y_hat <- X %*% par
 
-    # Convert to a probability
+    # Convert to a probability ('sigmoid' function)
     y_hat <- 1 / (1 + exp(-y_hat))
 
-    # likelihood
+    # likelihood (or dbinom(y, size = 1, prob = y_hat, log = TRUE))
     ll <- y * log(y_hat) + (1 - y) * log(1 - y_hat)
 
     return(sum(-ll))
@@ -1094,6 +1366,7 @@ objective <- function(par, X, y) {
 ##### Python
 
 ```{python}
+#| label: py-logloss
 def objective(par, X, y):
     # add a column of 1s for the intercept
     X = np.c_[np.ones(X.shape[0]), X]
@@ -1101,7 +1374,7 @@ def objective(par, X, y):
     # Calculate the predicted values
     y_hat = X @ par
     
-    # Convert to a probability
+    # Convert to a probability ('sigmoid' function)
     y_hat = 1 / (1 + np.exp(-y_hat))
     
     # likelihood
@@ -1110,21 +1383,25 @@ def objective(par, X, y):
     return(-np.sum(ll))
 
 ```
-
-
 :::
 
-We have a binary rating in the processed version of our data. Let's use optim to get the best parameters for a model. We'll compare our results to the built-in `glm` function to get the same results.  We can see that the results are very similar, but not exactly the same.  We would not worry about such differences in practice
+
+Let's go ahead and demonstrate this. Let's go back to our movie review data, just make our current target a rating of good if the rating is 3 or greater, and bad otherwise.  Our features will be the review year (starting at zero) We have a binary rating in the processed version of our data. Let's use optim to get the best parameters for a model. We'll compare our results to the built-in `glm` function to get the same results.  We can see that the results are very similar, but not exactly the same.  We would not worry about such differences in practice
 
 :::{.panel-tabset}
 
 ##### R
 
 ```{r}
+#| label: r-logloss-apply
+df_reviews_pr = read_csv("data/movie_reviews_processed.csv")
+
 mod_logloss <- optim(
     par = c(0, 0, 0, 0),
     fn = objective,
-    X = df_reviews_pr |> select(review_year_0, age_sc, word_count_sc) |> as.matrix(),
+    X = df_reviews_pr |>
+        select(review_year_0, age_sc, word_count_sc) |>
+        as.matrix(),
     y = df_reviews_pr$rating_good
 )
 
@@ -1138,6 +1415,7 @@ mod_glm <- glm(
 ##### Python
 
 ```{python}
+#| label: py-logloss-apply
 from scipy.optimize import minimize
 
 mod_logloss = minimize(
@@ -1151,18 +1429,19 @@ mod_logloss = minimize(
 
 mod_glm = smf.glm(
     'rating_good ~ review_year_0 + age_sc + word_count_sc',
-    data = df_reviews_pr,
+    data   = df_reviews_pr,
     family = sm.families.Binomial()
 ).fit(method = 'lbfgs')
 ```
 
 :::
 
+We actually have to go out several decimal places before we start seeing differences between our result and the built-in function.  So when it comes to classification, you should feel confident in what's going on under the hood.  
+
 ```{r}
 #| echo: false
-
-# compare
-
+#| label: tbl-logloss
+#| tbl-cap: Comparison of log loss results
 tibble(
     Source = c("Ours", "GLM"),
     LogLike = c(mod_logloss$value, -logLik(mod_glm)),
@@ -1171,116 +1450,329 @@ tibble(
     age_sc = c(mod_logloss$par[3], coef(mod_glm)[3]),
     word_count_sc = c(mod_logloss$par[4], coef(mod_glm)[4])
 ) |>
+    pivot_longer(-Source) |>
+    pivot_wider(names_from = Source, values_from = value) |>
     gt(decimals = 4)
 ```
 
 
+
 ## Gradient Descent
 
-One of the most common approaches is called gradient descent. The idea is that we can use the gradient of the objective function to guide us to the best fitting parameters. The gradient is the vector of partial derivatives of the objective function with respect to each parameter. That may not mean much to you, but the basic idea is that the gradient is a vector that points in the direction of steepest ascent in terms of the objective function.  So if we want to maximize the objective function, we can take a step in the direction of the gradient.  If we want to minimize the objective function, we can take a step in the opposite direction of the gradient.  The size of the step is called the learning rate, and it is a **hyperparameter** that we can tune.  If the learning rate is too small, it will take a long time to converge.  If the learning rate is too large, we might overshoot the minimum and never converge.  There are a number of variations on gradient descent, but the basic idea is the same. **Stochastic gradient descent** is a variation on gradient descent that uses a random sample of the data to estimate the gradient.  Here is a function to illustrate the process.
+One of the most common approaches in optimization is called **gradient descent**. The idea behind it is that we can use the gradient of the objective function to guide us to the best fitting parameters. Conceptually, this works in the exact same way as described with other estimation approaches like maximum likelihood - gradient descent is just a way to find that path along the objective surface. More formally, the gradient is the vector of partial derivatives of the objective function with respect to each parameter. That may not mean much to you, but the basic idea is that the gradient is a vector that points in the direction of steepest ascent in terms of the objective function. So if we want to maximize the objective function, we can take a step in the direction of the gradient, and if we want to minimize it, we can take a step in the opposite direction of the gradient. The size of the step is called the learning rate, and, like our penalty parameter we saw with penalized regression, it is a hyperparameter that we can tune. If the learning rate is too small, it will take a longer time to converge. If the learning rate is too large, we might overshoot the objective and never converge. There are a number of variations on gradient descent that have been developed over time.   Here is a function to illustrate the process. Let's see this in action with the happiness data model we used previously.
 
 :::{.panel-tabset}
 
 ##### R
 
 ```{r}
-#| eval: false
+#| label: r-gradient-descent
+gradient_descent <- function(
+    par,
+    X,
+    y,
+    tolerance = 1e-3,
+    maxit = 1000,
+    learning_rate = 1e-3,
+    adapt = FALSE,
+    verbose = TRUE,
+    plotLoss = TRUE) {
+    # add a column of 1s for the intercept
+    X <- cbind(1, X)
+    N <- nrow(X)
 
-# gradient descent
-gradient_descent <- function(par, x, y, learning_rate = 0.01, max_iter = 1000, tol = 1e-6) {
-    # initialize parameters
-    b0 <- par[1]
-    b1 <- par[2]
+    # initialize
+    beta <- par
+    names(beta) <- colnames(X)
+    mse <- crossprod(X %*% beta - y) / N
+    tol <- 1
+    iter <- 1
 
-    # initialize gradient
-    grad <- c(1, 1)
-
-    # initialize iteration counter
-    iter <- 0
-
-    # iterate until convergence
-    while (iter < max_iter & sum(grad^2) > tol) {
-        # calculate predictions
-        y_hat <- b0 + b1 * x
-
-        # calculate residuals
-        res <- y - y_hat
-
-        # calculate gradient
-        grad <- c(-2 * sum(res), -2 * sum(res * x))
-
-        # update parameters
-        b0 <- b0 - learning_rate * grad[1]
-        b1 <- b1 - learning_rate * grad[2]
-
-        # update iteration counter
+    while (tol > tolerance && iter < maxit) {
+        LP <- X %*% beta
+        grad <- t(X) %*% (LP - y)
+        betaCurrent <- beta - learning_rate * grad
+        tol <- max(abs(betaCurrent - beta))
+        beta <- betaCurrent
+        mse <- append(mse, crossprod(LP - y) / N)
         iter <- iter + 1
+
+        if (adapt) {
+            stepsize <- ifelse(
+                mse[iter] < mse[iter - 1],
+                stepsize * 1.2,
+                stepsize * .8
+            )
+        }
+
+        if (verbose && iter %% 10 == 0) {
+            message(paste("Iteration:", iter))
+        }
     }
 
-    # return parameters
-    return(c(b0, b1))
+    if (plotLoss) {
+        plot(mse, type = "l", bty = "n")
+    }
+
+    list(
+        par    = beta,
+        loss   = mse,
+        MSE    = crossprod(LP - y) / nrow(X),
+        iter   = iter,
+        fitted = LP
+    )
 }
+
+our_result <- gradient_descent(
+    par = c(0, 0, 0, 0),
+    X = df_happiness |> select(life_exp, gdp_pc, corrupt) |> as.matrix(),
+    y = df_happiness$happiness,
+    learning_rate = 1e-3,
+    verbose = FALSE,
+    plot = TRUE # will show below
+)
 ```
 
 ##### Python
 
 ```{python}
-#| eval: false
+#| eval: true
+#| label: py-gradient-descent
 
-def gradient_descent(par, x, y, learning_rate = 0.01, max_iter = 1000, tol = 1e-6):
+def gradient_descent(
+    par, 
+    X, 
+    y, 
+    tolerance = 1e-3, 
+    maxit = 1000, 
+    learning_rate = 1e-3, 
+    adapt = False, 
+    verbose = True, 
+    plotLoss = True
+):
+    # add a column of 1s for the intercept
+    X = np.c_[np.ones(X.shape[0]), X]
     
-    # initialize parameters
-    b0 = par[0]
-    b1 = par[1]
-    
-    # initialize gradient
-    grad = np.array([1, 1])
-    
-    # initialize iteration counter
-    iter = 0
-    
-    # iterate until convergence
-    while iter < max_iter and sum(grad**2) > tol:
-        
-        # calculate predictions
-        y_hat = b0 + b1 * x
-        
-        # calculate residuals
-        res = y - y_hat
-        
-        # calculate gradient
-        grad = np.array([-2 * sum(res), -2 * sum(res * x)])
-        
-        # update parameters
-        b0 = b0 - learning_rate * grad[0]
-        b1 = b1 - learning_rate * grad[1]
-        
-        # update iteration counter
+    # initialize
+    beta = par
+    loss = np.sum((X @ beta - y)**2)
+    tol = 1
+    iter = 1
+
+    while (tol > tolerance and iter < maxit):
+        LP = X @ beta
+        grad = X.T @ (LP - y)
+        betaCurrent = beta - learning_rate * grad
+        tol = np.max(np.abs(betaCurrent - beta))
+        beta = betaCurrent
+        loss = np.append(loss, np.sum((LP - y)**2))
         iter = iter + 1
-        
-    # return parameters
-    return np.array([b0, b1])
+
+        if (adapt):
+            stepsize = np.where(loss[iter] < loss[iter - 1], stepsize * 1.2, stepsize * .8)
+
+        if (verbose and iter % 10 == 0):
+            print("Iteration:", iter)
+
+    if (plotLoss):
+        plt.plot(loss)
+        plt.show()
+
+    return({
+        "par": beta,
+        "loss": loss,
+        "RSE": np.sqrt(np.sum((LP - y)**2) / (X.shape[0] - X.shape[1])),
+        "iter": iter,
+        "fitted": LP
+    })
+
+our_result = gradient_descent(
+    par = np.array([0, 0, 0, 0]),
+    X = df_happiness[['life_exp', 'gdp_pc', 'corrupt']].to_numpy(),
+    y = df_happiness['happiness'].to_numpy(),
+    learning_rate = 1e-3,
+    verbose = False,
+    plotLoss = False # will show below
+)
 ```
 
 :::
 
-## Stochastic Gradient Descent
 
-Another approach is called stochastic gradient descent.  Stochastic gradient descent is a variation on gradient descent that uses a random sample of the data to estimate the gradient.  The idea is that we can use a random sample of the data to estimate the gradient, and we can use the gradient to update the parameters.  We can repeat this process until the parameters converge.  The advantage of stochastic gradient descent is that it is faster than gradient descent.  The disadvantage of stochastic gradient descent is that it is less accurate than gradient descent.  The reason is that stochastic gradient descent uses a random sample of the data to estimate the gradient, and the gradient is an estimate of the true gradient.  The true gradient is the gradient of the objective function with respect to all of the data.  The true gradient is more accurate than the estimated gradient, and stochastic gradient descent is less accurate than gradient descent.
+Comparing our results, we have the following table.  Again, we see that the results are very similar. In addition, a plot of the values shows a smooth decline in the MSE value across iterations.
+
+```{r}
+#| echo: false
+#| label: tbl-gradient-descent
+#| tbl-cap: Comparison of gradient descent results
+
+model_compare <- lm(happiness ~ life_exp + gdp_pc + corrupt, data = df_happiness)
+tibble(
+    Value = c("Intercept", "Life Exp. Coef.", "GDP_PC", "Corrupt", "MSE"),
+    `Built-in` = c(coef(model_compare), performance::mse(model_compare)),
+    `Our Result` = c(our_result$par, our_result$MSE)
+) |>
+    gt(decimals = 3)
+```
+
+```{r}
+#| echo: false
+#| label: fig-r-gradient-descent
+#| fig-cap: Gradient descent path
+
+tibble(loss = our_result$loss) |>
+    mutate(iter = 1:n()) |>
+    ggplot(aes(iter, loss)) +
+    geom_line() +
+    scale_x_continuous(breaks = seq(0, 50, 10)) +
+    scale_y_continuous(breaks = seq(0, 30, 5)) +
+    labs(x = "Iteration", y = "Loss/MSE")
+```
+
+### Stochastic Gradient Descent
+
+**Stochastic gradient descent** is a variation on gradient descent that uses a random sample of the data to estimate the gradient, while the true gradient is the gradient of the objective function with respect to all of the data. As such, the true gradient is more accurate than the estimated gradient, and stochastic gradient descent is less accurate than gradient descent. The advantage of stochastic gradient descent is that it is faster than gradient descent. In practice, stochastic gradient descent is often used in machine learning applications where the data is large, and the tradeoff between accuracy and speed is worth it.  Here is a function to illustrate the process. Let's see this in action with the happiness data model we used previously. The following is a conceptual version of the adagrad approach, which is a variation of stochastic gradient descent that adjusts the learning rate for each parameter.  
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-stochastic-gradient-descent
+#| eval: false
+
+stochastic_gradient_descent <- function(
+    par, # parameter estimates
+    X, # model matrix
+    y, # target variable
+    learning_rate = 1, # the learning rate
+    stepsize_tau = 0, # if > 0, a check on the LR at early iterations
+    average = FALSE # a variation of the approach
+    ) {
+    # initialize
+    X <- cbind(1, X)
+    beta <- par
+    names(beta) <- colnames(X)
+
+    # Collect all estimates
+    betamat <- matrix(0, nrow(X), ncol = length(beta))
+
+    # Collect fitted values at each point))
+    fits <- NA
+
+    # Collect loss at each point
+    loss <- NA
+
+    # adagrad per parameter learning rate adjustment
+    s <- 0
+
+    # a smoothing term to avoid division by zero
+    eps <- 1e-8
+
+    for (i in 1:nrow(X)) {
+        Xi <- X[i, , drop = FALSE]
+        yi <- y[i]
+        # matrix operations not necessary,
+        # but makes consistent with standard gd func
+        LP <- Xi %*% beta
+        grad <- t(Xi) %*% (LP - yi)
+        s <- s + grad^2 # adagrad approach
+
+        # update
+        beta <- beta - learning_rate / (stepsize_tau + sqrt(s + eps)) * grad
+
+        # a variation
+        if (average & i > 1) {
+            beta <- beta - 1 / i * (betamat[i - 1, ] - beta)
+        }
+
+        betamat[i, ] <- beta
+        fits[i] <- LP
+        loss[i] <- crossprod(LP - yi)
+        grad_old <- grad
+    }
+
+    LP <- X %*% beta
+    lastloss <- crossprod(LP - y)
+
+    list(
+        par = beta, # final estimates
+        par_chain = betamat, # estimates at each iteration
+        MSE = sum(lastloss) / nrow(X),
+        fitted = LP
+    )
+}
+
+hyper <- map2_df(
+    seq(1e-3, 3, length.out = 100),
+    seq(0, 1, length.out = 100),
+    \(x, y)
+    tibble(
+        lr = x,
+        sst = y,
+        mse = stochastic_gradient_descent(
+            par = c(0, 0, 0, 0),
+            X = df_happiness |> select(life_exp, gdp_pc, corrupt) |> as.matrix(),
+            y = df_happiness$happiness,
+            learning_rate = x,
+            stepsize_tau = y
+        )$MSE
+    )
+)
+
+hyper |>
+    filter(mse == min(mse))
+
+our_result <- stochastic_gradient_descent(
+    par = c(0, 0, 0, 0),
+    X = df_happiness |> select(life_exp, corrupt, gdp_pc) |> as.matrix(),
+    y = scale(df_happiness$happiness),
+    learning_rate = .1,
+    stepsize_tau = .25
+)
+
+c(our_result$par)
+round(coef(lm(scale(happiness) ~ ., data = df_happiness |> select(-country))), 5)
+
+our_result <- stochastic_gradient_descent(
+    par = c(0, 0, 0, 0),
+    X = df_reviews_pr |> select(review_year_0, word_count_sc, length_minutes_sc) |> as.matrix() |> scale(),
+    y = scale(df_reviews_pr$rating),
+    learning_rate = .1,
+    stepsize_tau = .5
+)
+
+our_result$par
+# str(our_result)
+coef(lm(scale(rating) ~ scale(review_year_0) + word_count_sc + length_minutes_sc, data = df_reviews_pr)) |> round(5)
+our_result$par_chain |>
+    as_tibble() |>
+    mutate(iter = row_number()) |>
+    pivot_longer(-iter) |>
+    ggplot(aes(iter, value)) +
+    geom_line(aes(color = name))
+```
+
 
 
 ## Other Optimization Approaches
 
-There are lots of other approaches to optimization. The main reason to choose one method over another usually is some sort of computational gain, e.g. memory or speed. In general, we want to use the simplest method that will get the job done, and in practice, we can always try a few different methods to see which works best. For statistical problems, many GLM-type functions appear to use Newton's as a default, but more complicated models may implement other means, and even then might best be served by a different approach.
+There are lots of other approaches to optimization. For example, here are some of the options available in R's optim or scipy's minimize function:
+
+- Nelder-Mead
+- BFGS
+- L-BFGS-B (provides constraints)
+- Conjugate gradient
+- Simulated annealing- And others
+
+
+
+The main reason to choose one method over another usually is some sort of computational gain, e.g. memory or speed, or it may just work better for some types of models in practice. In general, we can always try a few different methods to see which works best. For statistical problems, many GLM-type functions appear to use Newton's as a default, but more complicated models may implement other means, and even then might best be served by a different approach.
 
  Here are some other approaches to optimization:
 
 - Newton's method
-- Nelder-Mead
-- L-BFGS
-- Conjugate gradient
 - Quasi-Newton
-- Simulated annealing
 - Genetic algorithms
 
 
