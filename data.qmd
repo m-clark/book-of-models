@@ -1,0 +1,171 @@
+# Data Issues in Modeling
+
+```{r}
+#| label: setup-data
+#| include: false
+source("load_packages.R")
+source("setup.R")
+source("functions/utils.R")
+
+reticulate::use_condaenv("book-of-models")
+
+df_reviews <- read_csv("data/movie_reviews.csv")
+```
+
+
+## Dealing with Data
+
+It's an inescapable fact that models need data to work, even if it's simulated data.  In this chapter we'll discuss some of the most common data issues, with brief overviews so that you have an idea of why you'd care.
+
+
+## Key Ideas
+
+- Data transformations can provide many modeling benefits.
+- Categorical data still needs a numeric representation, and this can be done in a variety of ways.
+- The data type for the target may suggest a particular model, but does not necessitate one.
+- The data *structure*, e.g. temporal or structural, likewise may suggest a particular model.
+
+
+## Feature & Target Transformations
+
+Transforming variables can provide a few benefits in modeling, whether applied to the target, covariates, or both, and should regularly be used for most models. Some of these benefits include:
+
+- Interpretable intercepts
+- More comparable covariate effects
+- Faster estimation
+- Easier convergence
+- Help with heteroscedasticity
+
+For example, merely centering predictor variables, i.e. subtracting the mean, provides a more interpretable intercept that will fall within the actual range of the target variable, telling us what the value of the target variable is when the covariates are at their means (or reference value if categorical). But even if easier interpretation isn't a major concern, variable transformations can help with convergence and speed up estimation, so can always be of benefit.
+
+### Numeric variables
+
+The following table shows the interpretation of some very common transformations applied to numeric variables- logging and standardization, (i.e. standardizing to mean zero, standard deviation one).
+
+
+```{r}
+#| echo: false
+#| eval: true
+#| label: tbl-transformation
+#| tbl-cap: Common numeric transformations
+#|
+# gt doesn't seem to have an actual working answer to latex within cells, though kabel_extra and modelsummary appear to handle it as expected, at least if you just run it. Rendering seems to fail.
+# tibble(
+#     Target = c("y", "y", "log(y)", "log(y)", "y", "scale(y)", "scale(y)"),
+#     Feature = c("x", "log(x)", "x", "log(x)", "scale(x)", "x", "scale(x)"),
+#     Interpretation = c(
+#         "$\\Delta y = \\beta\\Delta x$",
+#         "$\\Delta y \\approx (\\beta/100)\\%\\Delta x$",
+#         "$\\%\\Delta y \\approx 100\\cdot \\beta\\%\\Delta x$",
+#         "$\\%\\Delta y = \\beta\\%\\Delta x$",
+#         "$\\Delta y =  \\beta\\sigma\\Delta x$",
+#         "$\\sigma\\Delta y =  \\beta\\Delta x$",
+#         "$\\sigma\\Delta y =  \\beta\\sigma\\Delta x$"
+#     ),
+# ) |>
+#     modelsummary::datasummary_df()
+# kableExtra::kable()
+# christ what year is this?
+tibble(
+    Target = c("y", "log(y)", "log(y)", "y", "scale(y)"),
+    Feature = c("x", "x", "log(x)", "scale(x)", "scale(x)"),
+    `Change in X` = c("1 unit", "1 unit", "1 % change", "1 standard deviation", "1 standard deviation"),
+    `Change in Y` = c("\U03B2 unit", "100 * (exp(\U03B2) -1) %", "\U03B2 % change", "\U03B2 unit", "\U03B2 standard deviation"),
+    Benefits = c("Interpretation", "Heteroscedasticity in y", "Interpretation, deal with feature extremes", "Interpretation, estimation", "Interpretation, estimation"),
+) |>
+    gt()
+
+```
+
+For example, it is very common to use **standardized** variables, or simply 'scaling' them. Some also call this **normalizing** but [this can mean a lot of things](https://en.wikipedia.org/wiki/Normalization_(statistics)), so one should be clear in their communication. If $y$ and $x$ are both standardized, a one unit (i.e. one standard deviation) change in $x$ leads to a $\beta$ standard deviation change in $y$. Again, if $\beta$ was .5, a standard deviation change in $x$ leads to a half standard deviation change in $y$. In general, there is nothing to lose by standardizing, so you should employ it often.
+
+Another common transformation, particularly in machine learning, is **min-max scaling**, changing variables to range from some minimum to some maximum, which is almost always zero to one.  This can make numeric and categorical indicators more comparable, or at least put the on the same scale for estimation purposes, and so can help with convergence and speed up estimation. 
+
+### Categorical variables
+
+A raw character string is not an analyzable unit, so character strings and labeled variables like factors must be converted for analysis to be conducted on them. For categorical variables, we can employ what is called **effects coding** to test for specific types of group differences.  Far and away the most common approach is called **dummy coding** or **one-hot encoding**. In these situations we create columns for each category, and the value of the column is 1 if the observation is in that category, and 0 otherwise.  Here is a one-hot encoded version of the `season` feature.
+
+```{r}
+#| echo: false
+
+model.matrix(rating ~ -1 + season, df_reviews) |>
+    as_tibble() |>
+    bind_cols(df_reviews |> select(season)) |>
+    head() |>
+    gt()
+```
+
+:::{.callout-note}
+When doing statistical models, all relevant information is incorporated in k-1 groups, so one category will be dropped. For example, in a linear model, the intercept is the mean of the target for the dropped category, and the coefficients for the other categories are the difference between the mean for the dropped, a.k.a. **reference**, category and the mean the category being considered. As an example, in the case of the `season` feature, if the dropped category is `winter`, the intercept tells us the mean rating for `winter`, and the coefficients for the other categories are the difference between the value for `winter` and the mean of the target for the included category. For other modeling approaches, all categories are included, and the model will learn the best way to use them, and may even only consider some or one of them at a particular iteration of estimation.
+:::
+
+ Another important way to encode categorical information is through an **embedding**.  This is a way of representing the categories as a vector of numbers, at which point the embedding feature is used in the model like anything else. The way to do this usually involves a model itself, one that learns the best way to represent the categories as numbers. This is a very common approach in deep learning, and can be done simultaneously with the rest of the model, but can potentially be used in any modeling situation as an initial data processing step.
+
+
+### Ordinal Variables
+
+So far in our discussion, our categorical data has been assumed to have no order. However you may find yourself with orders labels like "low", "medium", and "high", or "bad" ... to "good", or simply are a few numbers, like ratings from 1 to 5. **Ordinal data** is categorical data that has a known ordering, but which still has arbitrary labels. Let us repeat that, *ordinal data is categorical data*.  
+
+#### Features
+
+The simplest way to treat ordinal features is as if they were numeric.  If you do this, then you're just pretending that it's not categorical, and this is usually fine.  Most of the transformations we mentioned probably aren't going to be as useful, but you can still use them if you want. For example, logging five values of ratings 1-5 isn't going to do anything for you, but it technically doesn't hurt anything.  But you should know that typical statistics like means and standard deviations don't really make sense for ordinal data, so the main reason for treating them as numeric is for modeling convenience.  
+
+If you choose to treat it as categorical, you can ignore the ordering and do the same as you would with categorical data. There are some specific approaches to coding ordinal data for use in linear models, but they are not common, and they generally aren't going to help the model or interpreting it, so we do not recommend them. You could however use old-school **contrast encodings** that you would in traditional ANOVA approaches, but again, this you'd need a good reason to do so.
+
+Take home message: treat ordinal features as you would numeric or non-ordered categorical. Either is fine.
+
+#### Targets
+
+Ordinal targets are a bit more complicated. If you treat them as numeric, you're assuming that the difference between 1 and 2 is the same as the difference between 2 and 3, and so on.  This is probably not true.  If you treat them as categorical, you're assuming that there is no connection between categories, e.g. that in order to get to category three you have to have gone through category 2. So what should you do?  
+
+There are a number of approaches to modeling ordinal targets, but the most common is the **proportional odds model**.  This model can be seen as a generalization of the logistic regression model, and is very similar to it, and actually identical if you only had two categories.  But others are also possible, and your results could return something that gives coefficients for the model for the 1-2 category change, the 2-3 category change, and so on.  
+
+Ordinality of a categorical outcome is largely ignored in machine learning approaches. The outcome is either treated as numeric or multi-category classification.  This is not necessarily a bad thing, especially if prediction is the primary goal.
+
+
+
+
+## Missing Data
+
+Missing data is a common challenge in data science, and there are a number of ways to deal with it, usually by substituting, or **imputing** some value for the missing one.  The most common approaches are:
+
+- **Complete case analysis**: Only use observations that have no missing data.
+- **Single value imputation**: Replace missing values with the mean, median, mode or some other value of the feature.
+- **Model-based imputation**: Use a model based on complete cases to predict the missing values, and use those predictions are the imputed values.
+- **Multiple imputation**: Create multiple imputed datasets based on the predictive distribution of the model used in model-based imputation. Estimates of coefficients and variances are averaged in some fashion over the imputations.
+- **Bayesian imputation**: Treat the missing values as parameters to be estimated.
+
+The first approach is the simplest, but can lead to a lot of lost data, and can lead to biased statistical results if the data is not **missing completely at random**.  There are special cases of some models that by their nature can ignore the missingness under an assumption of **missing at random**, but even those models would likely benefit from some sort of imputation. If you don't have much missing data, this would be fine. How much is too much? Unfortunately that depends on the context, but if you have more than 10% missing, you should probably be looking at alternatives.
+
+The second approach is also simple, but will probably rarely help your model. Consider a numeric feature that is 50% missing, and for which you replace the missing with the mean. How good do you think that feature will be when at least half the values are identical? Whatever variance it normally would have and share with the target is probably reduced, and possibly dramatically. Furthermore, you've also attenuated correlations it has with the other features, which could potentially further hamper interpretation or cause other issues depending on the type of model you're implementing. Single value imputation makes perfect sense if you know that the missingness means a specific value, like a count feature where missing means a count of zero. If you don't have much missing data, it's unlikely this would have any real benefit over complete case analysis.
+
+The third approach is more complicated, but can be very effective. In essence, you run a model for complete cases in which the target is the feature with missing values, and the covariates are all the other features and target. You then use that model to predict the missing values, and use those predictions as the imputed values. After these predictions are made, you move on to the next feature and do the same. There are no restrictions on which model you use for which feature. If the other features in the imputation model also have missing data, you can use something like mean imputation to get more complete data if necessary as a first step, and then when their turn comes, impute those values.
+
+Although the implication is that you would have one model per feature and then be done, you can do this iteratively for several rounds, such that the initial imputed values are then used in subsequent models to reimpute the missing values. You can do this as many times as you want, but the returns will diminish.
+
+Multiple imputation is the  most complicated, but can be the most effective under some situations, depending on what you're willing to sacrifice for having better uncertainty estimates vs. a deeper dive into the model. The idea is that you create multiple imputed datasets, each of which is based on the **predictive distribution** of the model used in model-based imputation. Say we use a linear regression assuming a normal distribution to impute feature A. We would then draw from the predictive distribution of that model to create a dataset with imputed values for feature A, then do it a gain, say a total of 10 times.  
+
+You now have 10 imputed data sets. You then run your actual model of interest on each of these datasets, and your final model results are a kind of average of the parameters of interest (or exactly an average, say for regression coefficients). This main thing this approach provides is that it acknowledges that your single imputation methods have uncertainty in those model predictions being used as imputed values, and that uncertainty is incorporated into the final model results. 
+
+Multiple imputation (MI) can in theory handle the any source of missingness and as such is a very powerful approach.  But it has several drawbacks. One is that you need statistical or generative model and distribution for all models used, and that distribution is something you have to assume is appropriate. Your final model presumably is also a probabilistic model with coefficients and variances you are trying to estimate and understand.  MI isn't really going to help an XGBoost or deep learning model for example, or at least offer little if anything over single value imputation. If you have very large data and a complicated model, you could be waiting a long time, and as modeling is an iterative process itself, this can be rather tedious to work through. Finally, almost no data or post-model processing tools that you commonly use will work with MI results, especially visualization ones, and so you will have to hope that whatever package you use for MI has what you need.  As an example, you'd have to figure out how you're going to impute interaction terms if you have them, practically nothing will work with cross-validation approaches,
+
+Practically speaking, MI takes a lot of effort to pretty much come to the same conclusions you would have with a single imputation approach. But if you want to be as thorough as possible, this is the way to go.
+
+One final option is to run a Bayesian model where the missing values are treated as parameters to be estimated.  MI basically is a poor man's Bayesian imputation approach. A package like `brms` can do this, and it can be very effective, but it is also very computationally intensive, and can be very slow.  It is also not always necessary, and can be overkill.  But if you want to be as thorough as possible, this is the way to go.
+
+## Class Imbalance
+
+## Censoring
+
+Tobit, Survival
+
+## Time Series
+
+## Spatial Data
+
+## Latent Variables?
+
+## refs
+
+### Transformations
+min-max vs. standardization https://sebastianraschka.com/Articles/2014_about_feature_scaling.html
