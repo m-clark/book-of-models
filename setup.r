@@ -120,8 +120,11 @@ gt <- function(..., decimals = 2, title = NULL, subtitle = NULL) {
       )
     ) %>%
     gt::tab_header(title = title, subtitle = subtitle) %>%
-    gtExtras::gt_theme_nytimes()
+    gtExtras::gt_theme_nytimes() |>
+    tab_options(quarto.disable_processing = TRUE) # May have unintended consequences see https: //github.com/quarto-dev/quarto-cli/issues/6945
 }
+
+
 
 
 gt_theme <-
@@ -151,4 +154,9 @@ tbl_summary <- function(..., title = "", butcher = TRUE) {
   }
   #
   tbl_out
+}
+
+
+round_any <- function(x, accuracy, f = round) {
+  f(x / accuracy) * accuracy
 }
