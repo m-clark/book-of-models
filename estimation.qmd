@@ -1,11 +1,10 @@
+---
+execute:
+    freeze: auto
+---
+
 
 # How do we obtain a model? 
-
-TODO: 
-
-- May want to use an entirely different example to make plots and other stuff look worth a flip.
-- Need a plot of the likelihood or function 'surface' somewhere
-
 
 
 ```{r}
@@ -60,7 +59,7 @@ model_reviews = smf.ols('rating ~ word_count_sc', data = df_reviews_pr).fit()
 
 
 
-In our initial linear model, the key **parameters** are the coefficients for each feature. But how do we know what the coefficients are and come to those values? When we run a linear model using some program function, they appear magically, but it's worth knowing a little bit about how they come to be, so let's try and dive a little deeper!
+In our initial linear model, the key **parameters** are the coefficients for each feature. But how do we know what the coefficients are and come to those values? When we run a linear model using some program function, they appear magically, but it's worth knowing a little bit about how they come to be, so let's try and dive a little deeper! This chapter is more involved than most of the others, and is really for those who like to get their hands dirty.  If you're not one of those people, that's ok, you can skip this chapter and still get a lot out of the rest of the book.  But if you're curious about how things work, or you want to be able to do more than just run a function, then we think you'll find the following useful.
 
 
 ## Introduction to Model Estimation
@@ -126,7 +125,7 @@ We'll do some minor cleaning and renaming of columns, and we'll drop any rows wi
 ##### R
 
 ```{r}
-#| label: r-happiness-data-import
+#| label: r-happiness-data-setup
 
 df_happiness <- read_csv("data/world_happiness_2018.csv") |>
     drop_na() |>
@@ -153,7 +152,7 @@ df_happiness <- read_csv("data/world_happiness_2018.csv") |>
 ##### Python
 
 ```{python}
-#| label: py-happiness-data-import
+#| label: py-happiness-data-setu
 df_happiness = (
     pd.read_csv('data/world_happiness_2018.csv')
     .dropna()
@@ -902,16 +901,7 @@ for (i in 1:length(b1)) {
     }
 }
 
-# summary(c(llsurf))
-
-# rownames(llsurf) <- b1
-# colnames(llsurf) <- sigma
-# min(llsurf)
 minll <- which(llsurf == min(llsurf), arr.ind = TRUE)
-# sigma[minll[,2]]
-# llsurf[minll,]
-
-
 
 ll2 <- function(b1, sigma, X, y) {
     ll <- dnorm(y, mean = X * b1, sd = sigma, log = TRUE)
@@ -955,13 +945,13 @@ plot_ly(
     colors = scico::scico(500, palette = "lipari", direction = -1),
     showscale = FALSE
     # showlegend = FALSE
-) |>
+    ) |>
     # plotly may invert the axes for the marker, so we have to switch them
     add_trace(
-        x = bbmle::coef(mlnorm)["b1"],
-        y = bbmle::coef(mlnorm)["sigma"],
-        # x = minll[,1],
-        # y = minll[,2],
+        y = bbmle::coef(mlnorm)["b1"],
+        x = bbmle::coef(mlnorm)["sigma"],
+        # x = b1[minll[,1]],
+        # y = sigma[minll[,2]],
         z = min(c(llsurf)),
         # marker = list(color = palettes$orange$complementary, size = 10),
         type = "scatter3d",
@@ -1000,13 +990,12 @@ plot_ly(
             xaxis = list(title = "sigma", range = b1_range),
             yaxis = list(title = "b1", range = sigma_range),
             zaxis = list(title = "-LL", angle = -90, range = c(100, 135)),
-            camera = list(eye = list(x = 0, y = 2, z = .66)),
+            camera = list(eye = list(x = 1.25, y = 2, z = 1)),
+            # camera = list(eye = list(x = 0, y = 2, z = .66)),
             paper_bgcolor = "rgba(0,0,0,0)",
             plot_bgcolor = "rgba(0,0,0,0)"
         )
     )
-
-
 
 detach(package:plotly)
 detach(package:bbmle)
@@ -1080,25 +1069,16 @@ init |>
     labs(x = expression(beta[0]), y = expression(beta[1]), fill = "Likelihood")
 ``` 
 
-
---- STUFF TO ADD BACK
-
-
-One of the key things to note is that maximum likelihood is an estimation technique that relies on specifying the probability distribution that serves as the data generating process. Maximum likelihood allows us to be precise in why we think those target values are the way they are. The likelihood also serves as a fundamental part of Bayesian analysis, which we'll discuss more later. 
-
-
-
+:::{.callout-info}
+It turns out that in the case of a normal distribution, the maximum likelihood estimate of the standard deviation is the estimate as the standard deviation of the residuals. Furthermore, the maximum likelihood estimates and OLS estimates converge to the same estimates as the sample size increases. For any data of significance, these estimates are indistinguishable, and the OLS estimate is the maximum likelihood estimate for linear regression.
+:::
 
 #### Additional Thoughts on Maximum Likelihood 
 
-It turns out that in the case of a normal distribution, the maximum likelihood estimate of the standard deviation is the estimate as the standard deviation of the residuals. Furthermore, the maximum likelihood estimates and OLS estimates converge to the same estimates as the sample size increases. For any data of significance, these estimates are indistinguishable, and the OLS estimate is the maximum likelihood estimate for linear regression.
+NEEDS WORK
 
------
-Why didn't we have to do this before? Because sigma was actually the value of our loss function.  We were minimizing the sum of the squared errors, and the sum of the squared errors is also the variance of the normal distribution.  So we were actually estimating the variance of the normal distribution. 
-
-
-
-
+One of the key things to note is that maximum likelihood is an estimation technique that relies on specifying the probability distribution that serves as the data generating process. Maximum likelihood allows us to be explicit about why we think those target values are the way they are. The likelihood also serves as a fundamental part of Bayesian analysis, which we'll discuss more later. 
+In general, maximum likelihood is a powerful technique that can be used in many contexts, and likelihoods can be used as the objective for many machine learning algorithms as well.
 
 
 ## Estimation: Quick Review
@@ -1456,8 +1436,9 @@ tibble(
 ```
 
 
+## Optimization Algorithms
 
-## Gradient Descent
+### Gradient Descent
 
 One of the most common approaches in optimization is called **gradient descent**. The idea behind it is that we can use the gradient of the objective function to guide us to the best fitting parameters. Conceptually, this works in the exact same way as described with other estimation approaches like maximum likelihood - gradient descent is just a way to find that path along the objective surface. More formally, the gradient is the vector of partial derivatives of the objective function with respect to each parameter. That may not mean much to you, but the basic idea is that the gradient is a vector that points in the direction of steepest ascent in terms of the objective function. So if we want to maximize the objective function, we can take a step in the direction of the gradient, and if we want to minimize it, we can take a step in the opposite direction of the gradient. The size of the step is called the learning rate, and, like our penalty parameter we saw with penalized regression, it is a hyperparameter that we can tune. If the learning rate is too small, it will take a longer time to converge. If the learning rate is too large, we might overshoot the objective and never converge. There are a number of variations on gradient descent that have been developed over time.   Here is a function to illustrate the process. Let's see this in action with the happiness data model we used previously.
 
@@ -1511,7 +1492,15 @@ gradient_descent <- function(
     }
 
     if (plotLoss) {
-        plot(mse, type = "l", bty = "n")
+        p <- tibble(mse) |>
+            mutate(iter = 1:n()) |>
+            ggplot(aes(iter, mse)) +
+            geom_hline(yintercept = 0) +
+            geom_line() +
+            scale_x_continuous(breaks = seq(0, 50, 10)) +
+            scale_y_continuous(breaks = seq(0, round_any(max(mse), 10), 5)) +
+            labs(x = "Iteration", y = "MSE")
+        print(p)
     }
 
     list(
@@ -1529,7 +1518,7 @@ our_result <- gradient_descent(
     y = df_happiness$happiness,
     learning_rate = 1e-3,
     verbose = FALSE,
-    plot = TRUE # will show below
+    plot = FALSE # shown later
 )
 ```
 
@@ -1591,7 +1580,7 @@ our_result = gradient_descent(
     X = df_happiness[['life_exp', 'gdp_pc', 'corrupt']].to_numpy(),
     y = df_happiness['happiness'].to_numpy(),
     learning_rate = 1e-3,
-    verbose = False,
+    verbose  = False,
     plotLoss = False # will show below
 )
 ```
@@ -1599,7 +1588,7 @@ our_result = gradient_descent(
 :::
 
 
-Comparing our results, we have the following table.  Again, we see that the results are very similar. In addition, a plot of the values shows a smooth decline in the MSE value across iterations.
+Comparing our results, we have the following table.  Again, we see that the results are very similar. 
 
 ```{r}
 #| echo: false
@@ -1615,6 +1604,8 @@ tibble(
     gt(decimals = 3)
 ```
 
+In addition, when we visualize the loss function across iterations, we see smooth decline in the MSE value as we go along.
+
 ```{r}
 #| echo: false
 #| label: fig-r-gradient-descent
@@ -1629,9 +1620,17 @@ tibble(loss = our_result$loss) |>
     labs(x = "Iteration", y = "Loss/MSE")
 ```
 
+
 ### Stochastic Gradient Descent
 
-**Stochastic gradient descent** is a variation on gradient descent that uses a random sample of the data to estimate the gradient, while the true gradient is the gradient of the objective function with respect to all of the data. As such, the true gradient is more accurate than the estimated gradient, and stochastic gradient descent is less accurate than gradient descent. The advantage of stochastic gradient descent is that it is faster than gradient descent. In practice, stochastic gradient descent is often used in machine learning applications where the data is large, and the tradeoff between accuracy and speed is worth it.  Here is a function to illustrate the process. Let's see this in action with the happiness data model we used previously. The following is a conceptual version of the adagrad approach, which is a variation of stochastic gradient descent that adjusts the learning rate for each parameter.  
+**Stochastic gradient descent** is a variation on gradient descent that uses a random sample of the data to estimate the gradient, while the true gradient is the gradient of the objective function with respect to all of the data. As such, the stochastic gradient descent is less accurate than gradient descent. The advantage of stochastic gradient descent is that it is faster than gradient descent. In practice, stochastic gradient descent is often used in machine learning applications where the data is large, and the tradeoff between accuracy and speed is worth it.  
+
+Let's see this in action with the happiness data model we used previously.  The following is a conceptual version of the AdaGrad approach[^sgdcite], which is a variation of stochastic gradient descent that adjusts the learning rate for each parameter.  We will also add a variation that averages the parameter estimates across iterations, which is a common approach to improve the performance of stochastic gradient descent, but by default it is not used, just something you can play with. We are going to use a 'batch size' of one, which is similar to a 'streaming' or 'online' version where we update the model with each observation.  Since our data are alphabetically ordered, we'll shuffle the data first.  We'll also use a stepsize_tau parameter, which is a way to adjust the learning rate at early iterations.  We'll set it to zero for now, but you can play with it to see how it affects the results. The values for the learning rate and stepsize_tau are arbitrary, selected after some initial playing around, but you can play with them to see how they affect the results. 
+
+
+[^sgdcite]: MC does not recall exactly where this origin of this function came from except that Murphy's PML book was a key reference.
+
+NOTE: SHOULD MAYBE CLEAN UP/ALTER TO LESS VERBOSE VERSION
 
 :::{.panel-tabset}
 
@@ -1639,7 +1638,6 @@ tibble(loss = our_result$loss) |>
 
 ```{r}
 #| label: r-stochastic-gradient-descent
-#| eval: false
 
 stochastic_gradient_descent <- function(
     par, # parameter estimates
@@ -1652,7 +1650,6 @@ stochastic_gradient_descent <- function(
     # initialize
     X <- cbind(1, X)
     beta <- par
-    names(beta) <- colnames(X)
 
     # Collect all estimates
     betamat <- matrix(0, nrow(X), ncol = length(beta))
@@ -1672,7 +1669,8 @@ stochastic_gradient_descent <- function(
     for (i in 1:nrow(X)) {
         Xi <- X[i, , drop = FALSE]
         yi <- y[i]
-        # matrix operations not necessary,
+
+        # matrix operations not necessary here,
         # but makes consistent with standard gd func
         LP <- Xi %*% beta
         grad <- t(Xi) %*% (LP - yi)
@@ -1689,7 +1687,6 @@ stochastic_gradient_descent <- function(
         betamat[i, ] <- beta
         fits[i] <- LP
         loss[i] <- crossprod(LP - yi)
-        grad_old <- grad
     }
 
     LP <- X %*% beta
@@ -1703,192 +1700,880 @@ stochastic_gradient_descent <- function(
     )
 }
 
-hyper <- map2_df(
-    seq(1e-3, 3, length.out = 100),
-    seq(0, 1, length.out = 100),
-    \(x, y)
-    tibble(
-        lr = x,
-        sst = y,
-        mse = stochastic_gradient_descent(
-            par = c(0, 0, 0, 0),
-            X = df_happiness |> select(life_exp, gdp_pc, corrupt) |> as.matrix(),
-            y = df_happiness$happiness,
-            learning_rate = x,
-            stepsize_tau = y
-        )$MSE
-    )
-)
+# setting a seed ensures replicability
+set.seed(123)
 
-hyper |>
-    filter(mse == min(mse))
+# generate random sample indices (could also have done within the function)
+idx <- sample(1:nrow(df_happiness), nrow(df_happiness))
+
+X_train = df_happiness |>
+    select(life_exp, gdp_pc, corrupt) |>
+    dplyr::slice(idx) |>
+    as.matrix()
+
+y_train <- df_happiness$happiness[idx]
 
 our_result <- stochastic_gradient_descent(
-    par = c(0, 0, 0, 0),
-    X = df_happiness |> select(life_exp, corrupt, gdp_pc) |> as.matrix(),
-    y = scale(df_happiness$happiness),
-    learning_rate = .1,
-    stepsize_tau = .25
+    par = c(mean(df_happiness$happiness), 0, 0, 0),
+    X = X_train,
+    y = y_train,
+    learning_rate = .15,
+    stepsize_tau = .1
 )
-
-c(our_result$par)
-round(coef(lm(scale(happiness) ~ ., data = df_happiness |> select(-country))), 5)
-
-our_result <- stochastic_gradient_descent(
-    par = c(0, 0, 0, 0),
-    X = df_reviews_pr |> select(review_year_0, word_count_sc, length_minutes_sc) |> as.matrix() |> scale(),
-    y = scale(df_reviews_pr$rating),
-    learning_rate = .1,
-    stepsize_tau = .5
-)
-
-our_result$par
-# str(our_result)
-coef(lm(scale(rating) ~ scale(review_year_0) + word_count_sc + length_minutes_sc, data = df_reviews_pr)) |> round(5)
-our_result$par_chain |>
-    as_tibble() |>
-    mutate(iter = row_number()) |>
-    pivot_longer(-iter) |>
-    ggplot(aes(iter, value)) +
-    geom_line(aes(color = name))
 ```
 
+##### Python
+
+```{python}
+#| label: py-stochastic-gradient-descent
+
+def stochastic_gradient_descent(
+    par, # parameter estimates
+    X, # model matrix
+    y, # target variable
+    learning_rate = 1, # the learning rate
+    stepsize_tau = 0, # if > 0, a check on the LR at early iterations
+    average = False # a variation of the approach
+):
+    # initialize
+    X = np.c_[np.ones(X.shape[0]), X]
+    beta = par
+
+    # Collect all estimates
+    betamat = np.zeros((X.shape[0], beta.shape[0]))
+
+    # Collect fitted values at each point))
+    fits = np.zeros(X.shape[0])
+
+    # Collect loss at each point
+    loss = np.zeros(X.shape[0])
+
+    # adagrad per parameter learning rate adjustment
+    s = 0
+
+    # a smoothing term to avoid division by zero
+    eps = 1e-8
+
+    for i in range(X.shape[0]):
+        Xi = X[None, i, :]
+        yi = y[i]
+
+        # matrix operations not necessary here,
+        # but makes consistent with standard gd func
+        LP = Xi @ beta
+        grad = Xi.T @ (LP - yi)
+        s = s + grad**2 # adagrad approach
+
+        # update
+        beta = beta - learning_rate / (stepsize_tau + np.sqrt(s + eps)) * grad
+
+        # a variation
+        if (average & i > 1):
+            beta = beta - 1 / i * (betamat[i - 1, :] - beta)
+
+        betamat[i, :] = beta
+        fits[i] = LP
+        loss[i] = np.sum((LP - yi)**2)
+
+    LP = X @ beta
+    lastloss = np.sum((LP - y)**2)
+
+    return({
+        "par": beta, # final estimates
+        "par_chain": betamat, # estimates at each iteration
+        "MSE": lastloss / X.shape[0],
+        "fitted": LP
+    })
+
+# setting a seed ensures replicability
+np.random.seed(1234)
+
+# generate random sample indices (could also have done within the function)
+idx = np.random.choice(df_happiness.shape[0], df_happiness.shape[0], replace = False)
+
+X_train = df_happiness[['life_exp', 'gdp_pc', 'corrupt']].to_numpy()[idx, :]
+y_train = df_happiness['happiness'].to_numpy()[idx]
+
+our_result = stochastic_gradient_descent(
+    par = np.array([np.mean(df_happiness['happiness']), 0, 0, 0]),
+    X = X_train,
+    y = y_train,
+    learning_rate = .15,
+    stepsize_tau = .1
+)
+```
+
+:::
+
+Next we'll compare it to OLS estimates.  Very similar even though SGD normally would not be used for such a small dataset.  
+
+```{r}
+#| echo: false
+#| label: tbl-stochastic-gradient-descent
+#| tbl-cap: Comparison of stochastic gradient descent results
+
+model_compare <- lm(happiness ~ life_exp + gdp_pc + corrupt, data = df_happiness)
+tibble(
+    Value = c("Intercept", "Life Exp. Coef.", "GDP_PC", "Corrupt", "MSE"),
+    `Built-in` = c(coef(model_compare), performance::mse(model_compare)),
+    `Our Result` = c(our_result$par, our_result$MSE)
+) |>
+    gt(decimals = 2)
+```
+
+And here's a plot of the estimates as they moved along the data. For this plot we don't include the intercept as it's on a notably different scale. We can see that the estimates are moving around a bit, but they appear to be converging to a solution. 
+
+```{r}
+#| echo: false
+#| label: fig-r-stochastic-gradient-descent
+#| fig-cap: Stochastic gradient descent path
+#|
+p_dat <- our_result$par_chain |>
+    as_tibble() |>
+    select(-V1) |>
+    rename(
+        life_exp = V2,
+        gdp_pc = V3,
+        corrupt = V4
+    ) |>
+    mutate(iter = row_number()) |>
+    pivot_longer(-iter)
+
+p_sgd <- p_dat |>
+    ggplot(aes(iter, value)) +
+    geom_hline(yintercept = 0, color = "gray25") +
+    ggborderline::geom_borderline(aes(color = name), linewidth = 1) +
+    geom_point(
+        aes(color = name),
+        size = 5,
+        alpha = 1,
+        show.legend = FALSE,
+        data = p_dat |> filter(iter == last(iter), .by = name)
+    ) +
+    scale_color_manual(values = okabe_ito)
+
+p_sgd
+
+# animate
+# comment data from point and run following for animation
+# p_sgd_anim = p_sgd +
+#     gganimate::transition_reveal(iter) +
+#     gganimate::view_follow(fixed_y = TRUE)
+# gganimate::anim_save('img/sgd.gif', p_sgd_anim, fps = 10, width = 600, height = 400)
+```
+
+<!-- ![Stochastic gradient descent path](img/sgd.gif) -->
 
 
-## Other Optimization Approaches
 
-There are lots of other approaches to optimization. For example, here are some of the options available in R's optim or scipy's minimize function:
+### Other Optimization Algorithms
+
+There are lots of other approaches to optimization. For example, here are some of the options available in R's `optim` or scipy's `minimize` function:
 
 - Nelder-Mead
 - BFGS
 - L-BFGS-B (provides constraints)
 - Conjugate gradient
-- Simulated annealing- And others
-
-
-
-The main reason to choose one method over another usually is some sort of computational gain, e.g. memory or speed, or it may just work better for some types of models in practice. In general, we can always try a few different methods to see which works best. For statistical problems, many GLM-type functions appear to use Newton's as a default, but more complicated models may implement other means, and even then might best be served by a different approach.
-
- Here are some other approaches to optimization:
-
+- Simulated annealing
 - Newton's method
-- Quasi-Newton
 - Genetic algorithms
+
+The main reason to choose one method over another usually is some sort of computational gain, e.g. memory or speed, or it may just work better for some types of models in practice. For statistical problems, many GLM-type functions appear to use Newton's as a default, but more complicated models may implement other means, and even then might best be served by a different approach. In general, we can always try a few different methods to see which works best, and often there would be little differences in the results.  For example, here are the results from the happiness data using the BFGS method, which is a quasi-Newton method.  Here is our resuls from using OLS, compared to different algorithms, some we used some we didn't.  We can see that the results are very similar, and for simpler modeling endeavors they should converge on the same result.
+
+```{r}
+#| echo: false
+#| label: tbl-optim-compare
+#| tbl-cap: Comparison of optimization results
+
+model_compare <- lm(happiness ~ life_exp + gdp_pc + corrupt, data = df_happiness)
+objective <- function(X, y, par, sum_sq = FALSE) {
+    X <- cbind(1, X)
+
+    y_hat <- X %*% par
+
+    value <- yardstick::rmse_vec(y, y_hat[, 1])^2
+    # Return the value
+    return(value)
+}
+
+X <- df_happiness |>
+    select(life_exp, gdp_pc, corrupt) |>
+    as.matrix()
+y <- df_happiness$happiness
+
+
+results <- map(
+    c("Nelder-Mead", "BFGS", "CG"),
+    \(.x)
+    optim(
+        par = c(0, 0, 0, 0),
+        fn = objective,
+        X = X,
+        y = y,
+        method = .x
+    )
+)
+gd = gradient_descent(
+    par = c(0, 0, 0, 0),
+    X = X,
+    y = y,
+    learning_rate = 1e-3,
+    verbose = FALSE,
+    plot = FALSE # shown later
+)
+
+gd$value <- gd$MSE
+results <- append(results, list(gd))
+
+map2_df(
+    results,
+    list("NM", "BFGS", "CG", "GD"),
+    \(.x, .y)
+    tibble(
+        method = .y,
+        parameter = c("Intercept", "Life Exp. Coef.", "GDP_PC", "Corrupt", "MSE"),
+        Value = c(.x$par, .x$value)
+    )
+) |>
+    pivot_wider(names_from = method, values_from = Value) |>
+    mutate(
+        `Built-in` = c(coef(model_compare), performance::mse(model_compare)),
+    ) |>
+    gt(decimals = 3) |>
+    tab_footnote(
+        footnote = "BFGS = Broyden–Fletcher–Goldfarb–Shanno",
+        locations = cells_column_labels(columns = BFGS)
+    ) |>
+    tab_footnote(
+        footnote = "NM = Nelder-Mead",
+        locations = cells_column_labels(columns = NM)
+    ) |>
+    tab_footnote(
+        footnote = "CG = Conjugate gradient",
+        locations = cells_column_labels(columns = CG)
+    ) |>
+    tab_footnote(
+        footnote = "GD = Gradient descent",
+        locations = cells_column_labels(columns = GD)
+    ) |>
+    tab_options(
+        footnotes.font.size = 10
+    )
+```
+
+
 
 
 ## Other Estimation Approaches
 
-Method of moments, bayesian
+Before leaving our estimation discussion, we should mention that there are many other approaches to estimation that are out there. These include variaions on least squares, **method of moments**, **generalized estimating equations**, **robust** estimation, and more. The above that we've focused on will generally be sufficient for most applications, but it's good to be aware of others. But there are two we want to discuss in a little bit detail before we leave model estimation formally given their widespread usage, and that is the **bootstrap** and  **Bayesian estimation**.
 
-## Other Loss Functions Quick Demo
+### Bootstrap
 
+The bootstrap is a resampling approach to estimation. We **sample with replacement** from the data, generating an entirely new data set of the same size, and then estimate the model. We repeat this process many times, collecting parameter estimates, predictions, or any thing we want to calculate along the way. Ultimately we end up with a distribution of possible parameter estimates.
 
-
-
-ADD THIS BACK ABOVE
-
-
-
-
+This distribution is useful for inference, as we can use the distribution to calculate confidence intervals, prediction intervals or intervals for anything we happen to calculate.  The average estimate will typically be the same as whatever the underlying model used would produced, but the bootstrap provides a way to get at a measure of uncertainty with fewer assumptions about how that distribution should take sahape. The bootstrap is very flexible, and it can be used with any estimation approach. Here is a function to illustrate the process. Let's see this in action with the happiness data model we used previously.
 
 :::{.panel-tabset}
 
 ##### R
 
 ```{r}
-ols <- function(X, y, par, sum_sq = FALSE) {
-    # Calculate the predicted values
-    y_hat <- X %*% par # %*% is matrix multiplication
+#| label: r-bootstrap
+#| eval: true
+bootstrap <- function(X, y, nboot = 100, seed = 123) {
+    # add a column of 1s for the intercept
+    N <- nrow(X)
 
-    # Calculate the error
-    error <- y - y_hat
+    # initialize
+    beta <- matrix(NA, (1+ncol(X))*nboot, nrow = nboot, ncol = 1+ncol(X))
+    colnames(beta) <- c('Intercept', colnames(X))
+    mse <- rep(NA, nboot)
 
-    # Calculate the value as sum or mean squared error
-    value <- crossprod(error) # crossprod is matrix multiplication
+    # set seed
+    set.seed(seed)
 
-    if (!sum_sq) {
-        value <- value / nrow(X)
+    for (i in 1:nboot) {
+        # sample with replacement
+        idx <- sample(1:N, N, replace = TRUE)
+        Xi <- X |> slice(idx)
+        yi <- y[idx]
+
+        # estimate model
+        mod <- lm(yi ~., data = Xi)
+
+        # save results
+        beta[i, ] <- coef(mod)
+        mse[i] <- sum((mod$fitted - yi)^2) / N
     }
 
-    # Return the value
-    return(value)
+    # given mean estimates, calculate MSE
+    y_hat = cbind(1, as.matrix(X)) %*% colMeans(beta)
+    final_mse <- sum((y - y_hat)^2) / N
+
+    list(
+        beta = as_tibble(beta),
+        MSE = mse,
+        final_mse = final_mse
+    )
 }
 
-```
-
-To test our result, let's compare with the `lm` function
-
-```{r}
-X <- df_reviews |>
-    select(word_count, total_reviews, release_year) |>
-    as.matrix()
-X <- cbind(1, X) # add a column so we can estimate the intercept
-
-
-model_reviews <- lm(
-    rating ~ word_count + total_reviews + release_year,
-    data = df_reviews
+our_result <- bootstrap(
+    X = df_happiness |> select(life_exp, gdp_pc, corrupt),
+    y = df_happiness$happiness,
+    nboot = 250
 )
-
-our_estimate <- ols(X = X, y = df_reviews$rating, par = coef(model_reviews))
-lm_estimate <- mean(resid(model_reviews)^2)
 ```
-
 
 ##### Python
 
 ```{python}
-def ols(X, y, par, sum_sq = False):
-    # Calculate the predicted values
-    y_hat = X @ par  # this is literally the only change needed; @ is matrix multiplication
+#| label: py-bootstrap
+#| eval: false
+
+def bootstrap(X, y, nboot=100, seed=123):
+    cn = X.columns
+    # add a column of 1s for the intercept
+    X = np.c_[np.ones(X.shape[0]), X]
+    N = X.shape[0]
+
+    # initialize
+    beta = np.empty((nboot, X.shape[1]))
     
-    # Calculate the error
-    error = y - y_hat
-    
-    # Calculate the value as sum or mean squared error
-    value = error.T @ error # @ is matrix multiplication
+    # beta = pd.DataFrame(beta, columns=['Intercept'] + list(cn))
+    mse = np.empty(nboot)    
 
-    if not sum_sq: 
-        value =  value / X.shape[0]
+    # set seed
+    np.random.seed(seed)
 
-    # Return the value
-    return(value)
+    for i in range(nboot):
+        # sample with replacement
+        idx = np.random.randint(0, N, N)
+        Xi = X[idx, :]
+        yi = y[idx]
+
+        # estimate model
+        model = LinearRegression(fit_intercept=False)
+        mod = model.fit(Xi, yi)
+
+        # save results
+        beta[i, :] = mod.coef_
+        mse[i] = np.sum((mod.predict(Xi) - yi)**2) / N
+
+    # given mean estimates, calculate MSE
+    y_hat = X @ beta.mean(axis=0)
+    final_mse = np.sum((y - y_hat)**2) / N
+
+    return dict(beta = beta, mse = mse, final_mse = final_mse)
+
+our_result = bootstrap(
+    X = df_happiness[['life_exp', 'gdp_pc', 'corrupt']],
+    y = df_happiness['happiness'],
+    nboot = 250
+)
+
 ```
+:::
 
-To test our result, let's compare with the `ols` function from statsmodels
 
-```{python}
-X = df_reviews[['word_count', 'total_reviews', 'release_year']].to_numpy()
-X = np.hstack((np.ones((X.shape[0], 1)), X)) # add a column so we can estimate the intercept
-
-model_reviews = smf.ols(
-    'rating ~ word_count + total_reviews + release_year', 
-    data = df_reviews
-).fit()
-
-our_estimate = ols(X = X, y = df_reviews['rating'].to_numpy(), par = model_reviews.params.to_numpy())
-
-# sm provides the mean squared error, but uses a slightly different 
-# denominator which won't matter with any sample size of significance; 
-# sm_estimate = model_reviews.mse_resid 
-sm_estimate = model_reviews.ssr / model_reviews.nobs
-```
+Here are the results of the interval estimates for the coefficients. For each parameter, we have the mean estimate, the lower and upper bounds of the 95% confidence interval, and the width of the interval.  We can see that the bootstrap intervals are wider than the OLS intervals, possibly better capturing the uncertainty in this model based on not too many observations.
 
 
 ```{r}
 #| echo: false
-# pd.DataFrame({'our_estimate': our_estimate, 'sm_estimate': sm_estimate}, index = ['mse'])
+#| label: tbl-bootstrap
+#| tbl-cap: Bootstrap parameter estimates
 
-tibble(
-    ` ` = "mse",
-    `our estimate` = our_estimate,
-    `lm estimate` = lm_estimate
-) |>
-    gt() |>
-    fmt_number(decimals = 5)
+tab_boot_summary = our_result$beta |>
+    as_tibble() |>
+    tidyr::pivot_longer(everything(), names_to = 'Parameter') |>
+    summarize(
+        mean = mean(value),
+        lower = quantile(value, .025),
+        upper = quantile(value, .975),
+        .by = Parameter
+    ) |>
+    mutate(
+        `Lower OLS` = confint(model_compare)[, 1],
+        `Upper OLS` = confint(model_compare)[, 2],
+        `Diff Lower` = lower - `Lower OLS`,
+        `Diff Upper` = upper - `Upper OLS`,
+        `Diff Width` = (upper - lower) - (`Diff Upper` - `Diff Lower`)
+    ) |> 
+    select(-`Diff Lower`, -`Diff Upper`)
+
+
+tab_boot_summary |> 
+    gt(decimals = 2) |> 
+    tab_footnote(
+        footnote = "Width of bootstrap estimate minus width of OLS estimate",
+        locations = cells_column_labels(columns = `Diff Width`)
+    ) |>
+    tab_options(
+        footnotes.font.size = 10
+    )
+```
+
+Let's look at the bootstrap distributions for each coefficient. With standard statistical estimates, we are assuming a distribution like the normal, which is a very specific shape. With the bootstrap, we can be more flexible, thought often it may tend toward the distribution that would otherwise be assumed. These aren't perfectly symmetrical, but they suit our needs in that we can extract the lower and upper quantiles to create an interval estimate.
+
+```{r}
+#| echo: false
+#| label: fig-r-bootstrap
+#| fig-cap: Bootstrap distributions of parameter estimates
+
+our_result$beta |>
+    as_tibble() |>
+    pivot_longer(everything(), names_to = 'Parameter') |>
+    ggplot(aes(value)) +
+    geom_density(color = okabe_ito[2]) +
+    geom_point(
+        aes(x = lower, group = Parameter),
+        y = 0,
+        color = okabe_ito[1],
+        size = 3,
+        alpha = 1,
+        data = tab_boot_summary
+    ) +
+    geom_point(
+        aes(x = upper, group = Parameter),
+        y = 0,
+        color = okabe_ito[1],
+        size = 3,
+        alpha = 1,
+        data = tab_boot_summary
+    ) +
+    geom_segment(
+        aes(
+            x = lower,
+            xend = upper,
+            y = 0,
+            yend = 0,
+            group = Parameter
+        ),
+        color = okabe_ito[1],
+        size = 1,
+        data = tab_boot_summary
+    ) +
+    facet_wrap(~Parameter, scales = 'free') +
+    labs(x = "Parameter Value", y = "Density")
+```
+
+The bootstrap is a commonly used for predictions and other metrics, but it is computationally inefficient, and can become prohibitive with large data sizes.  Also, the simple bootstrap will likely not estimate the appropriate uncertainty for some types of statistics (e.g. extreme values) or [in some data contexts](https://stats.stackexchange.com/questions/9664/what-are-examples-where-a-naive-bootstrap-fails) (e.g. correlated observations). Overcoming the limitations may typically require an even more computationally intensive approach, further limiting its utility. But it is a useful tool to have in your toolbox, and it can be used in conjunction with other approaches to get at uncertainty in a model.
+
+
+### Bayesian Estimation
+
+The bayesian approach to modeling is a philosophical view point, an entirely different way to think about probability, a different way to measure uncertainty, and on a practical level, just another way to get model parameter estimates.  It can be as frustrating as it is fun to use, and one of the really nice things about using bayesian estimation is that it can handle model complexities that other approaches don't do well.
+
+The basis of bayesian estimation is the **likelihood**, same as with maximum likelihood, and everything we did there follows to here. However, here we can incorporate domain knowledge, in the form of **prior distributions** about the parameters, which we specify in addition to the likelihood. For example, we may say that the coefficients for a linear model come from a normal distribution centered on zero with some variance. The combination prior distributions with the likelihood ultimately results in the **posterior distribution**. And this is the key difference when comparing bayesian estimation to the others we've talked about, and something it shares in common with the bootstrap- the end result is not a point estimate of the parameters, but rather a *distribution* of possible parameter values.  
+
+![](img/prior2post_clean.png)
+
+Dealing with distributions instead of single estimates is a different way to think about modeling, but it can be very useful. For example, as we did with the bootstrap, the bayesian posterior distribution is useful for inference. With these distributions, we can look at any range in between for our **credible interval**, which is the bayesian equivalent of a confidence interval[^confintinterp]. Here is an example of the posterior distribution for the parameters of our happiness model, along with 95% intervals.
+
+[^confintinterp]: Your default interpretation of a standard confidence interval is almost certaintly, and incorrectly, the actual interpretation of a Bayesian confidence interval, because the Bayesian interpretation of confidence intervals and p-values is how we tend to naturally think about them. But that's okay, everyone else is in the same boat.  We also don't care if you want to call the Bayesian version a credible interval or a confidence interval.
+
+```{r}
+#| echo: false
+#| label: fig-r-bayesian-posterior
+#| fig-cap: Posterior distribution of parameters
+
+# bayes_mod = brms::brm(
+#     happiness ~ life_exp + gdp_pc + corrupt, 
+#     data = df_happiness,
+#     prior = c(
+#         brms::prior(normal(0, 1), class = 'b')
+#     ),
+#     thin = 8,
+# )
+
+# save(
+#     bayes_mod,
+#     file = "estimation/data/brms_happiness.RData"
+# )
+
+load("estimation/data/brms_happiness.RData")
+p_dat = bayes_mod |>
+    tidybayes::spread_draws(b_Intercept, b_life_exp, b_gdp_pc, b_corrupt) |>
+    select(-.chain, -.draw) |>
+    pivot_longer(-.iteration, names_to = 'Parameter')  |> 
+    mutate(Parameter = str_remove(Parameter, "b_")) 
+
+p_intervals = summary(bayes_mod)$fixed |> 
+    as_tibble(rownames = 'Parameter') |> 
+    rename(
+        value = Estimate,
+        lower = `l-95% CI`,
+        upper = `u-95% CI`
+    )
+
+
+p_dat |>
+    mutate(Parameter = factor(Parameter, unique(Parameter))) |> 
+    ggplot(aes(value)) +
+    geom_density(color = okabe_ito[2]) + 
+    # add credible interval
+    geom_point(
+        aes(x = lower, group = Parameter),
+        y = 0,
+        color = okabe_ito[1],
+        size = 3,
+        alpha = 1,
+        data = p_intervals        
+    ) +
+    geom_point(
+        aes(x = upper, group = Parameter),
+        y = 0,
+        color = okabe_ito[1],
+        size = 3,
+        alpha = 1,
+        data = p_intervals        
+    ) +
+    geom_segment(
+        aes(
+            x = lower,
+            xend = upper,
+            y = 0,
+            yend = 0,
+            group = Parameter
+        ),
+        color = okabe_ito[1],
+        size = 1,
+        data = p_intervals
+    ) +
+    facet_wrap(~factor(Parameter), scales = 'free') +
+    labs(x = "Parameter Value", y = "Density")
+
 ```
 
 
 
 
+```{r}
+#| echo: false
+#| eval: false
+
+# dont' use label/cap unless actually depicting tale
+# label: tbl-bayesian-ci-vs-boot-ci
+# tbl-cap: Comparison of bootstrap and bayesian confidence intervals
+# MC NOTE: NOT SURE THIS IS USEFUL
+
+bayes_ = summary(bayes_mod)$fixed |> 
+    as_tibble(rownames = "Parameter") |> 
+    select(Parameter, `l-95% CI`, `u-95% CI`) |> 
+    rename(
+        `bayes lower` = `l-95% CI`,
+        `bayes upper` = `u-95% CI`
+    )
+
+tab_boot_summary |> 
+    select(Parameter:upper, -mean) |> 
+    left_join(bayes_) |> 
+    gt(decimals = 2)
+```
+
+With bayesian modeling, we use the bayesian algorithm of our choosing, give it starting values and proceed much in the same way as other optimization procedures. In the bayesian approach, we always specify a number of iterations as the **stopping rule**, i.e. when the model should terminate. These iterations are single draws from the posterior distribution for each parameter. So if we specified 1000 iterations, we would have 1000 draws from the posterior distribution for each parameter.  Typically we don't use the first few hundred draws, as these are considered **burn-in** or **warmup** draws, and we use the remaining draws for inference.  The number of burn-in draws is a bit of an art, but it's not too important as long as it's not too small.  The more iterations we set, the longer it will take to run.  We also specify multiple **chains**, which are each doing the exact same thing, but do to the random nature of the bayesian approach, would take different estimation paths. We can then compare the chains to see if they are converging to the same result, which is a check on the model.  If they are not converging, we may need to run the model longer, or we may need to change something else.  Here is an example of the chains for our happiness model for the life expectancy coefficient.  We can see that they are converging to the same result, so we are good to go. Nowadays we have statistics that allow us to check whether the chains are converging, making it easier to assess many parameters quickly.
+
+```{r}
+#| echo: false
+#| label: fig-r-bayesian-chains
+#| fig-cap: Bayesian chains for life expectancy coefficient
+
+p_dat = bayes_mod |>
+    tidybayes::spread_draws(b_life_exp) |>
+    select(-.draw) |>
+    pivot_longer(-c(.chain, .iteration), names_to = 'Parameter')  |> 
+    mutate(
+        Parameter = str_remove(Parameter, "b_"),
+        .chain = factor(.chain)
+    )  
+
+p_dat |>
+    ggplot(aes(.iteration, value)) +
+    geom_line(aes(color = .chain), alpha = .25) +
+    scale_color_manual(values = okabe_ito) +
+    labs(x = "Iteration", y = "Coefficient")
+```
+
+When we are interested in making predictions, we can use the results to generate a distribution of possible predictions *for each observation*, which can be very useful when we want to quantify uncertainty in for complex models. This is referred to as **posterior predictive distribution**. Here is a plot of several draws of predicted values against the true happiness scores.
+
+
+```{r}
+#| echo: false
+#| label: fig-r-bayesian-posterior-predictive
+#| fig-cap: Posterior predictive distribution of happiness values
+p_dat <- brms::pp_check(bayes_mod)$data |>
+    mutate(source = ifelse(is_y, "Observed", "Predicted")) |>
+    select(rep_id, source, value)
+
+p_dat |>
+    ggplot(aes(value, color = source, group = rep_id)) +
+    stat_density(
+        aes(color = source, group = rep_id, linewidth = I(ifelse(source == "Observed", 2, .5))),
+        position = "identity",
+        geom = "borderline",
+    ) +
+    scale_color_manual(values = okabe_ito) +
+    labs(x = "Happiness Value", y = "Count")
+```
+
+
+Note that *any* metric we can calculate from a model will also have a distribution. For example, you have a classification model and you want to know the accuracy or true positive rate of the model.  Instead of a single number, you now have access to a distribution of values for that metric. Why? For every sample of the distribution of parameters, you generate a prediction, convert it a class and compare it to the true class. So now you have a posterior predictive distribution for the predicted probabilities and class, and you can then calculate the accuracy, area under a receiver operating curve, true positive rate, etc., for each sample, and you have a distribution of possible values. As an example, we did this for our happiness model and show the interval estimate for R^2^. Pretty neat!  
+
+```{r}
+#| echo: false
+#| label: tbl-r-bayesian-metrics
+#| tbl-cap: Bayesian R^2^
+
+
+bayes_r2 <- performance::r2(bayes_mod) # not very friendly object returned
+
+tibble(r2 = bayes_r2$R2_Bayes, as_tibble(attr(bayes_r2, "CI")$R2_Bayes)) |> 
+    select(-CI) |> 
+    rename(
+        `Bayes R2` = r2,
+        `Lower` = CI_low,
+        `Upper` = CI_high
+    ) |>
+    gt() |> 
+    tab_footnote(
+        footnote = "95% Credible interval for R-squared",
+        # locations = cells_column_labels(columns = `Bayes R2`)
+    ) |> 
+    tab_options(
+        footnotes.font.size = 10
+    )
+```
+
+
+
+:::{.callout-tip}
+There is nothing keeping you from doing posterior predictive checks with other estimation approaches, and it's a good idea to do so. For example, in a GLM you have the beta estimates and the covariance matrix for them, and can simulate from a normal distribution with those estimates. But it's a bit more straightforward with the bayesian approach, and some pacakges will allow you to do this automatically even.
 :::
+
+
+
+
+
+#### Additional Thoughts
+
+It turns out that any standard (frequentist) statistical model can be seen as a bayesian one from a particular point of view.  Here are a couple:
+
+- GLM and related estimated via maximum likelihood: Bayesian estimation with a flat/uniform prior on the parameters.
+- Ridge Regression: Bayesian estimation with a normal prior on the coefficients, penalty parameter is related to the variance of the prior
+- Lasso Regression: Bayesian estimation with a Laplace prior on the coefficients, penalty parameter is related to the variance of the prior
+
+So in many modeling contexts, you're probably doing a restrictive form of bayesian estimation already. Hopefully this helps to demystify the bayesian approach a bit, and you feel more comfortable switching to it. R has excellent tools here, like brms and tidybayes, and Python has pymc3 and arviz, which are also useful.  
+
+[^r4bayes]: Honestly R has way more going on here, with many packages devoted to Bayesian estimation of specific models even, but if you want to stick with Python for it you at least have some options. Stan, a probabilistic language underlying many of the packages in R, has tools there as well, but they are not nearly as well developed.
+
+We can see that the bayesian approach is very flexible, and can be used for many different types of models, and can be used to get at uncertainty in a model in ways that other approaches can't.  It's not a panacea, and it's not always the best approach, but it's a good one to have in your toolbox.
+
+
+WHERE TO PUT THIS PRIOR STUFF?
+
+The tough part about the bayesian approach is specifying priors, but even when you don't have a great idea, many have offered solutions, and there are ways to check whether what you've chosen makes sense for your data before trying the model itself. 
+
+:::{.callout-tip}
+Specification of priors can be done in different ways, and nowadays, there is a lot of information on how to do so, and with some tools, it's also pretty straightforward to check whether the priors are sensible without even running a model.  When you do have actual prior knowledge, either domain knowledge (e.g. a prior study found the beta values to be positive), statistical knowledge, (e.g. only the largest standard coefficients go near or beyond 1), data from time periods, there's typically at least something to help you specify your priors with sensible values. This takes away most of the luster of the primary argument against the bayesian approach, which is the subjective nature of priors. But there is likewise so much subjective decision making in other approaches, that it's not really a useful argument to begin with. The bayesian approach just makes it more explicit.  And if you don't have any prior knowledge, you can use non- or weakly- informative priors, which will likely have little influence and let the data do the talking, producing a result that is not that different from maximum likelihood estimation.
+:::
+
+
+MOVE MH EXAMPLE TO APPENDIX
+
+Metropolis-Hastings demo
+```{r}
+#| echo: false
+#| eval: false
+#| label: r-metropolis-hastings
+# Define the log-likelihood function for linear regression
+log_likelihood <- function(beta, X, y, sigma_sq) {
+    y_hat <- X %*% beta
+    residuals <- y - y_hat
+    log_likelihood <- -0.5 * length(y) * log(2 * pi * sigma_sq) - 0.5 * sum(residuals^2) / sigma_sq
+    return(log_likelihood)
+}
+
+# Define the prior distribution for beta
+prior_beta <- function(beta) {
+    prior_mean <- rep(0, length(beta))
+    prior_sd <- rep(10, length(beta))
+    log_prior <- sum(dnorm(beta, mean = prior_mean, sd = prior_sd, log = TRUE))
+    return(log_prior)
+}
+
+# Define the prior distribution for sigma
+prior_sigma <- function(sigma_sq) {
+    alpha <- 2
+    beta <- 2
+    # log_prior <- dgamma(1/sigma_sq, shape = alpha, rate = beta, log = TRUE)
+    log_prior <- extraDistr::dinvgamma(sigma_sq, alpha = alpha, beta = beta, log = TRUE) 
+
+    return(log_prior)
+}
+
+# Define the proposal distribution for beta
+proposal_beta <- function(beta, scale) {
+    beta_proposal <- rnorm(length(beta), mean = beta, sd = scale)
+    return(beta_proposal)
+}
+
+# Define the proposal distribution for sigma
+proposal_sigma <- function(sigma_sq, scale) {
+    # sigma_proposal <- rgamma(1, shape = sigma_sq / scale, rate = scale)
+    sigma_proposal <- extraDistr::rinvgamma(1, alpha = sigma_sq / scale, beta = scale)
+    return(sigma_proposal)
+}
+
+# Set up the data
+# set.seed(123)
+# n <- 100
+# X <- cbind(1, rnorm(n), rnorm(n), rnorm(n))
+# beta_true <- c(1, 2, 3, 4)/4
+# sigma_true <- 1
+# y <- X %*% beta_true + rnorm(n, sd = sigma_true)
+
+# Set up the Metropolis-Hastings algorithm
+# n_iter <- 10000
+
+
+# Run the Metropolis-Hastings algorithm
+mh = function(
+    X,
+    y,
+    beta = rep(0, ncol(X)), 
+    sigma_sq = .5, 
+    scale_beta = 0.1, 
+    scale_sigma = 1,
+    chains = 2,
+    warmup = 1000,
+    n_iter = 2000,
+    seed = 123
+) {
+    set.seed(seed)
+
+    result <- list()
+    beta_start <- beta
+    sigma_sq_start <- sigma_sq
+
+    for (c in 1:chains){
+        acceptance_beta <- 0
+        acceptance_sigma <- 0
+        beta_samples <- matrix(0, n_iter, ncol(X))
+        sigma_sq_samples <- rep(0, n_iter)
+
+        if (c > 1) {
+            beta <- beta_start
+            sigma_sq <- sigma_sq_start
+        }       
+
+        for (i in 1:n_iter) {
+            # Update beta
+            beta_proposal <- proposal_beta(beta, scale_beta)
+            log_ratio_beta <- log_likelihood(beta_proposal, X, y, sigma_sq) + prior_beta(beta_proposal) -
+                log_likelihood(beta, X, y, sigma_sq) - prior_beta(beta)
+            if (log(runif(1)) < log_ratio_beta) {
+                beta <- beta_proposal
+                acceptance_beta <- acceptance_beta + 1
+            }
+            beta_samples[i, ] <- beta
+
+            # Update sigma_sq
+            sigma_sq_proposal <- proposal_sigma(sigma_sq, scale_sigma)
+            log_ratio_sigma <- log_likelihood(beta, X, y, sigma_sq_proposal) + prior_sigma(sigma_sq_proposal) -
+                log_likelihood(beta, X, y, sigma_sq) - prior_sigma(sigma_sq)
+            if (log(runif(1)) < log_ratio_sigma) {
+                sigma_sq <- sigma_sq_proposal
+                acceptance_sigma <- acceptance_sigma + 1
+            }
+            sigma_sq_samples[i] <- sigma_sq
+        }
+    
+        message("Acceptance rate for beta:", acceptance_beta / n_iter, "\n")
+        message("Acceptance rate for sigma:", acceptance_sigma / n_iter, "\n")
+
+
+        result[[c]] = list(
+            beta = beta_samples[-(1:warmup), ], 
+            sigma_sq = sigma_sq_samples[-(1:warmup)],
+            # y_rep = X %*% t(beta_samples[-(1:warmup), ])
+            # +rnorm(n_iter - warmup, sd = sqrt(sigma_sq_samples[-(1:warmup)]))
+            y_rep = t(X %*% t(beta_samples[-(1:warmup), ]) + rnorm(n_iter - warmup, sd = sqrt(sigma_sq_samples[-(1:warmup)])))
+        )
+    } 
+    result
+}
+
+X_train = df_happiness |>
+    select(life_exp, gdp_pc, corrupt) |>
+    as.matrix()
+
+our_result = mh(
+    X = cbind(1, X_train),
+    y = df_happiness$happiness, 
+    beta = c(mean(df_happiness$happiness), rep(0, ncol(X_train))),
+    sigma_sq = var(df_happiness$happiness),
+    scale_sigma = .5,
+    warmup = 1000,
+    n_iter = 2000
+)
+
+str(our_result)
+```
+
+```{r}
+#| echo: false
+#| label: fig-r-bayesian-estimation
+#| fig-cap: Bayesian estimation results
+
+# Plot the posterior distributions with ggplot, using the bayesplot package
+# par_chains = map(our_result, \(x) {
+#     x = cbind(x$beta, x$sigma_sq)
+#     colnames(x) = c("Intercept", "Life Exp.", "GDP_PC", "Corrupt", "Sigma")
+#     x
+# }) 
+# y_rep_chains = map(our_result, \(x) x$y_rep)
+
+# # show trace plots for all betas and sigma
+# # performance::performance_mse(model_compare)
+
+# bayesplot::mcmc_intervals_data(par_chains, point_est = 'mean') |> 
+#     select(parameter, mean=m, q.05 =l, q.95=h) |> 
+#     gt()
+# bayesplot::mcmc_combo(par_chains)
+# bayesplot::pp_check(
+#     df_happiness$happiness, 
+#     rbind(
+#         y_rep_chains[[1]][1:10,],
+#         y_rep_chains[[2]][1:10,]
+#     ), 
+#     fun =  bayesplot::ppc_dens_overlay
+# )
+
+# save(
+#     par_chains,
+#     y_rep_chains,
+#     file = "estimation/data/bayes_estimation.RData"
+# )
+```
+
+## Commentary
+
+## Refs
+
+
+Maximum Likelihood
+
+SGD 
+
+[Gradient Descent, Step-by-Step](https://www.youtube.com/watch?v=sDv4f4s2SB8)
+[Stochastic Gradient Descent, Clearly Explained!!!](https://www.youtube.com/watch?v=vMh0zPT0tLI)
+https://www.databricks.com/glossary/adagrad
+https://machinelearningmastery.com/gradient-descent-with-adagrad-from-scratch/
+
+
+Bayesian
+
+- BDA
+- Statistical Rethinking
+- [Prior Specification](https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations)
