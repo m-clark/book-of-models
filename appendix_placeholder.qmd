@@ -1,0 +1,186 @@
+
+# Other to come
+
+## Simulation
+
+## Bayesian Demonstration
+
+Metropolis-Hastings demo
+
+```{r}
+#| echo: true
+#| eval: false
+#| label: r-metropolis-hastings
+# Define the log-likelihood function for linear regression
+log_likelihood <- function(beta, X, y, sigma_sq) {
+    y_hat <- X %*% beta
+    residuals <- y - y_hat
+    log_likelihood <- -0.5 * length(y) * log(2 * pi * sigma_sq) - 0.5 * sum(residuals^2) / sigma_sq
+    return(log_likelihood)
+}
+
+# Define the prior distribution for beta
+prior_beta <- function(beta) {
+    prior_mean <- rep(0, length(beta))
+    prior_sd <- rep(10, length(beta))
+    log_prior <- sum(dnorm(beta, mean = prior_mean, sd = prior_sd, log = TRUE))
+    return(log_prior)
+}
+
+# Define the prior distribution for sigma
+prior_sigma <- function(sigma_sq) {
+    alpha <- 2
+    beta <- 2
+    # log_prior <- dgamma(1/sigma_sq, shape = alpha, rate = beta, log = TRUE)
+    log_prior <- extraDistr::dinvgamma(sigma_sq, alpha = alpha, beta = beta, log = TRUE) 
+
+    return(log_prior)
+}
+
+# Define the proposal distribution for beta
+proposal_beta <- function(beta, scale) {
+    beta_proposal <- rnorm(length(beta), mean = beta, sd = scale)
+    return(beta_proposal)
+}
+
+# Define the proposal distribution for sigma
+proposal_sigma <- function(sigma_sq, scale) {
+    # sigma_proposal <- rgamma(1, shape = sigma_sq / scale, rate = scale)
+    sigma_proposal <- extraDistr::rinvgamma(1, alpha = sigma_sq / scale, beta = scale)
+    return(sigma_proposal)
+}
+
+# Set up the data
+# set.seed(123)
+# n <- 100
+# X <- cbind(1, rnorm(n), rnorm(n), rnorm(n))
+# beta_true <- c(1, 2, 3, 4)/4
+# sigma_true <- 1
+# y <- X %*% beta_true + rnorm(n, sd = sigma_true)
+
+# Set up the Metropolis-Hastings algorithm
+# n_iter <- 10000
+
+
+# Run the Metropolis-Hastings algorithm
+mh = function(
+    X,
+    y,
+    beta = rep(0, ncol(X)), 
+    sigma_sq = .5, 
+    scale_beta = 0.1, 
+    scale_sigma = 1,
+    chains = 2,
+    warmup = 1000,
+    n_iter = 2000,
+    seed = 123
+) {
+    set.seed(seed)
+
+    result <- list()
+    beta_start <- beta
+    sigma_sq_start <- sigma_sq
+
+    for (c in 1:chains){
+        acceptance_beta <- 0
+        acceptance_sigma <- 0
+        beta_samples <- matrix(0, n_iter, ncol(X))
+        sigma_sq_samples <- rep(0, n_iter)
+
+        if (c > 1) {
+            beta <- beta_start
+            sigma_sq <- sigma_sq_start
+        }       
+
+        for (i in 1:n_iter) {
+            # Update beta
+            beta_proposal <- proposal_beta(beta, scale_beta)
+            log_ratio_beta <- log_likelihood(beta_proposal, X, y, sigma_sq) + prior_beta(beta_proposal) -
+                log_likelihood(beta, X, y, sigma_sq) - prior_beta(beta)
+            if (log(runif(1)) < log_ratio_beta) {
+                beta <- beta_proposal
+                acceptance_beta <- acceptance_beta + 1
+            }
+            beta_samples[i, ] <- beta
+
+            # Update sigma_sq
+            sigma_sq_proposal <- proposal_sigma(sigma_sq, scale_sigma)
+            log_ratio_sigma <- log_likelihood(beta, X, y, sigma_sq_proposal) + prior_sigma(sigma_sq_proposal) -
+                log_likelihood(beta, X, y, sigma_sq) - prior_sigma(sigma_sq)
+            if (log(runif(1)) < log_ratio_sigma) {
+                sigma_sq <- sigma_sq_proposal
+                acceptance_sigma <- acceptance_sigma + 1
+            }
+            sigma_sq_samples[i] <- sigma_sq
+        }
+    
+        message("Acceptance rate for beta:", acceptance_beta / n_iter, "\n")
+        message("Acceptance rate for sigma:", acceptance_sigma / n_iter, "\n")
+
+
+        result[[c]] = list(
+            beta = beta_samples[-(1:warmup), ], 
+            sigma_sq = sigma_sq_samples[-(1:warmup)],
+            # y_rep = X %*% t(beta_samples[-(1:warmup), ])
+            # +rnorm(n_iter - warmup, sd = sqrt(sigma_sq_samples[-(1:warmup)]))
+            y_rep = t(X %*% t(beta_samples[-(1:warmup), ]) + rnorm(n_iter - warmup, sd = sqrt(sigma_sq_samples[-(1:warmup)])))
+        )
+    } 
+    result
+}
+
+X_train = df_happiness |>
+    select(life_exp, gdp_pc, corrupt) |>
+    as.matrix()
+
+our_result = mh(
+    X = cbind(1, X_train),
+    y = df_happiness$happiness, 
+    beta = c(mean(df_happiness$happiness), rep(0, ncol(X_train))),
+    sigma_sq = var(df_happiness$happiness),
+    scale_sigma = .5,
+    warmup = 1000,
+    n_iter = 2000
+)
+
+str(our_result)
+```
+
+```{r}
+#| echo: false
+#| label: fig-r-bayesian-estimation
+#| fig-cap: Bayesian estimation results
+
+# Plot the posterior distributions with ggplot, using the bayesplot package
+# par_chains = map(our_result, \(x) {
+#     x = cbind(x$beta, x$sigma_sq)
+#     colnames(x) = c("Intercept", "Life Exp.", "GDP_PC", "Corrupt", "Sigma")
+#     x
+# }) 
+# y_rep_chains = map(our_result, \(x) x$y_rep)
+
+# # show trace plots for all betas and sigma
+# # performance::performance_mse(model_compare)
+
+# bayesplot::mcmc_intervals_data(par_chains, point_est = 'mean') |> 
+#     select(parameter, mean=m, q.05 =l, q.95=h) |> 
+#     gt()
+# bayesplot::mcmc_combo(par_chains)
+# bayesplot::pp_check(
+#     df_happiness$happiness, 
+#     rbind(
+#         y_rep_chains[[1]][1:10,],
+#         y_rep_chains[[2]][1:10,]
+#     ), 
+#     fun =  bayesplot::ppc_dens_overlay
+# )
+
+# save(
+#     par_chains,
+#     y_rep_chains,
+#     file = "estimation/data/bayes_estimation.RData"
+# )
+```
+
+
+## Linear Programming
