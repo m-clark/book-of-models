@@ -35,17 +35,17 @@ Machine Learning
         -MLP
 - Commentary
 
-
-
 Autoencoders?
 
 ## Introduction
 
-Machine learning is used everywhere, and allows us to do things that would have been impossible just a couple decades ago. It is used in everything from self-driving cars to medical diagnosis to predicting the next word in your text message. The ubiquity of it is such that it, and related terms like artificial intelligence, are used as buzzwords, and it is not always clear what it meant by the user. In this chapter we hope you'll come away with a better understanding of what machine learning is, and how it can be used in your own work. Because whatever it is, it sure is fun!
+**Machine learning** is used everywhere, and allows us to do things that would have been impossible just a couple decades ago. It is used in everything from self-driving cars, to medical diagnosis, to predicting the next word in your text message. The ubiquity of it is such that it, and related adventures like artificial intelligence, are used as buzzwords, and it is not always clear what it meant by the one speaking them. In this chapter we hope you'll come away with a better understanding of what machine learning is, and how it can be used in your own work. Because whatever it is, it sure is fun!
 
-Machine learning is a branch of data analysis with a primary focus on predictive performance.  Honestly, that's pretty much it from a practical standpoint. It is not a subset of particular types of models, it does not preclude statistical models, it doesn't mean that a program spontaneously learns without human involvement, it doesn't necessarily have anything to do with 'machines' outside of laptop, and it doesn't even mean that the model is particularly complex. It is a set of tools and a modeling approach that attempts to maximize and generalize performance on new data, and compare models based on that performance[^generalize]. This is a different focus than statistical approaches that put much more emphasis on interpreting coefficients and uncertainty, but it is not an exclusive one. Some implementations of machine learning include models that have their basis in traditional statistics, while others are often sufficiently complex that they are scarcely interpretable at all, or in contexts where it simply isn't important. In this chapter, we will explore some of the more common models used machine learning and related techniques. 
+Machine learning is a branch of data analysis with a primary focus on predictive performance.  Honestly, that's pretty much it from a practical standpoint. It is not a subset of particular types of models, it does not preclude using statistical models, it doesn't mean that a program spontaneously learns without human involvement[^machinelearn], it doesn't necessarily have anything to do with 'machines' outside of laptop, and it doesn't even mean that the model is particularly complex. Machine learning, at its core, is a set of tools and a modeling approach that attempts to maximize and generalize performance on new data, and compare models based on that performance[^generalize]. This is a different focus than statistical approaches that put much more emphasis on interpreting coefficients and uncertainty, but it is not an exclusive one. Some implementations of machine learning include models that have their basis in traditional statistics, while others are often sufficiently complex that they are scarcely interpretable at all, or in contexts where it simply isn't important. In this chapter, we will explore some of the more common models used machine learning and related techniques. 
 
-[^generalize]: Generalization in statistical analysis is more about generalizing from our sample of data to the population from which it's drawn.
+[^generalize]: Generalization in statistical analysis is more about generalizing from our sample of data to the population from which it's drawn. In order to do that well or precisely, one needs to meet certain assumptions about the model. In machine learning, generalization is more about how well the model will perform on new data, and is often referred to as 'out-of-sample' performance.
+
+[^machinelearn]: Although this is implied by the name, it always felt like this description of ML was created by people who did not do applied machine learning. In fact, many of the most common models in machine learning are not capable of learning on their own, and require a human to specify the model and its parameters, set up the search through that parameter space, etc. We only very recently, post 2020, have developed the capability where something like a large language model can actually write a working program that would then be able to run on its own. The LLM itself was developed by humans though, so it's still not clear how this definition applies, or else it would apply to anything that uses optimization to 'learn' the best parameters for a model.
 
 Machine learning came about in some ways as an outgrowth of statistics, and many papers in the past reinvented the wheel with some new metric that already had a long history in statistics.  Even after you conduct your modeling via machine learning, you may still fall back on statistical analysis of some parts of the results.  For example, you may want to know if the model is significantly better than a baseline model, or if the model is significantly better than another model. Or at least you should.   In any event, here we will also discuss some of the key ideas in machine learning, such as performance, loss functions, and cross-validation.
 
@@ -62,12 +62,189 @@ Any model may be used in machine learning, from a standard linear model to a dee
 
 ## Key ideas
 
-- Machine learning is not a set of modeling techniques
+- Machine learning is not a set of modeling techniques, but rather a focus on predictive performance, and a set of tools to achieve that.
+- Models used in machine learning are typically more complex and difficult to interpret than those used in standard statistical analysis.
+- There are many performane metrics used in machine learning, and care should be taken to choose the appropriate one for your situation.
+- Objective functions likewise should be chosen for the situation, and are often different than the performance metric.
+- Cross-validation is a method that allows us to select parameters and hyperparameters for our models, and to compare models to one another.
+- Machine learning models are often used in situations where the primary goal is to predict well on new data, and not necessarily to understand the underlying process.
+<!-- - For tabular data, you don't need many models in your toolbox to do very well
+- For non-tabular data such as natural language and images, you need specific types of models and metrics appropriate to those -->
+
+
+### Why this matters
+
+Machine learning applications help define the modern world and how we interact with it.  There are few aspects of modern society that have not been touched by machine learning in some way. By understanding the basic ideas behind machine learning, you will be able to understand the models and techniques that are used in these applications, and be able to apply them to your own work. You'll also be able to understand the limitations of these models.
+
+
+
+## General Approach
+
+- Define the problem
+- Define the performance metric(s)
+- Select the model(s) to be used, including one baseline model
+- Define the search space (parameters, hyperparameters) for those models
+- Define the search method (optimization)
+- Implement some sort of cross-validation technique
+- Evaluate the results on unseen data
+
+As an example using ridge regression:
+
+- Define the problem: predict the price of a house
+- Define the performance metric(s): RMSE
+- Select the model(s) to be used: ridge regression, standard regression with no penalty as baseline
+- Define the search space (parameters, hyperparameters) for those models: penalty parameter 
+- Define the search method (optimization): grid search
+- Implement some sort of cross-validation technique: 5-fold cross-validation
+- Evaluate the results on unseen data: RMSE on test data
+
+The key difference separating ML from other traditional statistical approaches is the assessment on unseen data, which we actually do twice. In the validation stage we usually will separate data into training and validation sets. We will go into details later, but the gist is that we select the model that performs best on the validation set, and then we evaluate that model on a test set that has not been used at all in the modeling process as our final assessment of performance. This is the only way to get an unbiased estimate of how well the model will perform on new data. We repeat this process for each model we are considering, and then select the model that performs best on the test set. 
+
+
+
+```{r}
+#| eval: false
+#| 
+# Option 1: tidytuesdayR package
+## install.packages("tidytuesdayR")
+
+tuesdata <- tidytuesdayR::tt_load("2023-08-15")
+## OR
+tuesdata <- tidytuesdayR::tt_load(2023, week = 33)
+
+spam <- tuesdata$spam
+
+# Option 2: Read directly from GitHub
+
+spam <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-08-15/spam.csv")
+
+# tidytuesdayR::tt_datasets(2023)
+```
+
+## Data setup
+    
+```{r}
+#| eval: false
+#| label: setup-data
+
+spam <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-08-15/spam.csv")
+
+spam <- spam %>% 
+  mutate(is_spam = ifelse(type == "spam", 1, 0)) %>% 
+  select(-type)
+```
+
+
+## Concepts
+
+
+### Objective Functions
+
+We've implmented a variety of objective functions in other chapters, such as mean squared error for numeric targets and log loss for binary targets.  As we have also noted elsewhere, the objective function is not necessarily the same as the performance metric we ultimately use to select a model. For example, we may use log loss as the objective function, but then use accuracy as the performance metric. In that setting, the log loss provides a 'smooth' objective function to search the parameter space over, while the accuracy is a straightforward and more interpretable metric for stakeholders. The objective function is used to optimize the model, while the performance metric is used to evaluate the model. In some cases, the objective function and performance metric are the same, and even if not, they might have selected the same 'best' model, but this is not always the case.
+
+### Performance Metrics
+
+There are many performance metrics used in machine learning, and care should be taken to choose the appropriate one for your situation. Typically we have a standard set we might use for the type of predictive problem. Here is a table of some commonly used ones:
+
+TODO: add wiki link https://en.wikipedia.org/wiki/Confusion_matrix
+```{r}
+#| echo: false
+#| label: tbl-performance-metrics
+#| tbl-cap: Common Performance Metrics
+
+library(gt)
+
+performance_metrics <- tribble(
+  ~Problem_Type, ~Metric, ~Description, ~`Other Names/Notes`,
+  "Regression", "RMSE", "Root mean squared error", 'MSE (before square root)',
+  "Regression", "MAE", "Mean absolute error", '',
+  "Regression", "MAPE", "Mean absolute percentage error",  '',
+  "Regression", "RMSLE", "Root mean squared log error", '',
+  "Regression", "R-squared", "Amount of variance shared by predictions and observed target", 'Coefficient of determination',
+  "Regression", "Deviance/AIC", "Generalization of sum of squared error for non-continuous/gaussian settings", 'Also "deviance explained" for similar R^2^ interpretation',
+  'Regression', 'Pinball Loss', 'Quantile loss function', 'MAE if estimating median',
+  "Classification", "Accuracy", "Percent correct", 'Error rate is 1 - Accuracy',
+  "Classification", "Precision", "Percent of positive predictions that are correct", 'Positive Predictive Value',
+  "Classification", "Recall", "Percent of positive cases that are predicted correctly", 'Sensitivity, True Positive Rate',
+  "Classification", "Specificity", "Percent of negative cases that are predicted correctly", 'True Negative Rate',
+  'Classification', 'Negative Predictive Value', 'Percent of negative predictions that are correct', '',
+  "Classification", "F1", "Harmonic mean of precision and recall", 'F-Beta',
+  'Classification', 'Lift', 'Ratio of percent positive predictions to percent positive cases', '',
+  "Classification", "AUC", "Area under the ROC curve", '',
+  "Classification", 'Type I Error', 'False Positive Rate', 'alpha',
+  "Classification", 'Type II Error', 'False Negative Rate', 'beta',
+  "Classification", 'False Discovery Rate', 'Percent of positive predictions that are incorrect', '',
+  "Classification", 'False Omission Rate', 'Percent of negative predictions that are incorrect', '',
+  "Classification", 'False Positive Rate', 'Percent of negative cases that are predicted incorrectly', '',
+  "Classification", 'False Negative Rate', 'Percent of positive cases that are predicted incorrectly', '',
+  "Classification", 'Phi', 'Correlation between predicted and actual', 'Mathews Correlation',
+  "Classification", "Log loss", "Negative log likelihood of the predicted probabilities", ''
+)
+
+
+
+performance_metrics %>% 
+  group_by(Problem_Type) %>%
+  gt() %>% 
+  tab_header(
+    title = "",
+    subtitle = "This is a table of some commonly used performance metrics in machine learning. "
+  ) |> 
+  tab_footnote(
+    footnote = "Beta = 1 for F1",
+    locations = cells_body(columns = vars(`Other Names/Notes`), rows = Metric == 'F1')
+  )  |> 
+  tab_footnote(
+    footnote = "No sure anyone outside of CS calls it this, since it had already been widely used for over 60 years before a biochemist forgot to cite it in their paper.",
+    locations = cells_body(columns = vars(`Other Names/Notes`), rows = Metric == 'Phi')
+  )  |> 
+  tab_options(
+    footnotes.font.size = 8,
+  )
+
+```
+
+
+
+
+
+
+### Regularization
+
+A key aspect of the machine learning approach is to predict well on new data. This is known as generalization.  One way to improve generalization is through the use of regularization.  Regularization is a way to penalize complexity in a model, and is often used to prevent **overfitting**.  We have already seen one example of regularization in the ridge regression model, where we add a penalty term to the objective function.  This penalty term is a function of the coefficients, and is usually a function of the sum of the squares of the coefficients.  This is known as an L2 penalty, and is the most common type of regularization.  Another common type of regularization is the L1 penalty, which is a function of the sum of the absolute values of the coefficients.  This is used in the lasso model.  There are other types of regularization as well, such as the elastic net, which is a combination of the L1 and L2 penalties.  The relative size of the two penalties is controlled by a mixing parameter, and the optimal value of that parameter is determined by cross-validation.
+
+### Tuning & Cross-validation
+
+#### Bias-Variance Tradeoff
+
+#### Cross-validation
+
+
+
+
+### Pipelines
 
 ## Common Models
 
+### Baseline
+
+The baseline model should serve as a way to gauge how much better your model performs over one that is simpler and more interpretable, or one that is sufficiently complex to capture something about the data you are exploring, but not as complex as the models you're primarily interested in. Take a classification model for example. We could compare it to a logistic regression, which is as simple as it gets, but is often too simple to be very predictive for many situations. 
+
+#### Why do we do this?
+
+You can actually find articles in which deep learning models do not even beat a logistic regression on some datasets, but which did not stop the authors writing several pages hyping the more complex technique. Probably the most important reason to have a baseline is so that you can avoid wasting time and resources implementing more complex tools. It is probably rare, but sometimes relationships for the chosen features are mostly or nearly linear and have little interaction, and no amount of fancy modeling will make it come about.  If our baseline is a complex linear model that actually incorporates nonlinear relationships and interactions (e.g. a GAMM), you'll often find that the more complex models don't improve on the baseline by much, if at all. Furthermore, you may find that the initial baseline model is good enough for the time being and you can then move on to other problems to solve.  This is especially true if you are working in a business setting where you have limited time and resources.
+
+A final note. In many (most?) settings, it isn't enough to merely beat the baseline model. You should look for doing statistically better. For example, if your complex model accuracy is 75% and your baseline is 73%, that's great, but you should check to see if that difference is statistically significant[^ifonlystatdiff], because those metrics are *estimates*, and they have uncertainty, which means you can get a range for them as well as test whether they are different from one another. If it is not, then you should probably stick with the baseline model or try something else, because the next time you run the model, the baseline may actually perform better, or at least you can't be sure that it won't.
+
+That said, in some situations any performance increase is worth it, even if it's not statistically significant. For example, if you are trying to predict the next word in a sentence, and your baseline is 10% accurate, and your complex model is 11% accurate, that's a 10% increase in accuracy, which is a big deal. You should still work to show that this is a consistent increase and not a fluke.
+
+[^ifonlystatdiff]: There would be far less hype and wasted time if those in ML and DL research simply did this rather than just reporting the chosen metric of their model 'winning' against other models. It's not that hard to do, yet most do not provide any ranged estimate for their metric, let alone test statistical difference from other models.  It'd also be nice if they used a more meaningful baseline than logistic regression, but that's a different story.
+
+
 ### Penalized Approaches
-#### Lasso
+
+We show explictly how to estimate models like lasso and ridge regression in the estimation chapter. Another common approach is elastic net, which is a combination of lasso and ridge.  We will not show how to estimate elastic net here, but all you have to know is that it has two penalties, one for lasso and one for ridge. The relative size of the two penalties is controlled by a mixing parameter, and the optimal value of that parameter is determined by cross-validation.
+
 #### Ridge
 #### Elastic Net
 
@@ -80,11 +257,27 @@ Any model may be used in machine learning, from a standard linear model to a dee
 
 ## Other aspects of ML
 ### Unsupervised Learning
+
+PCA DEMO
+
+
+Traditionally **unsupervised learning** falls under dimension reduction, such that we reduce features to a smaller **latent**, or hidden, or unobserved, subset that accounts for most of the (co-)variance of the larger set, or reduce the rows to a small number of hidden, or unobserved, clusters. For example, we start with 100 features and reduce them to 10, or we classify each observation as belong to 2-3 clusters. Either way, the goal is to reduce the dimensionality of the data, not predict an explicit target.
+
+More info about latent variables and latent linear models...
+
+It turns out that these are the same thing, though apparently no one knows this outside of statisticians. You can discretize anything, e.g. from a nicely continuous feature to a coarse couple of categories, and this goes for latent variables as well as those we actually see in our data. For example, if I do a factor analysis with one latent feature, I can either convert it to a probability of some class with an appropriate transformation, or just say that scores higher than some cutoff are in cluster A and the others are in cluster B, and indeed, there is a whole class of clustering models called **mixture models** that do just that (i.e. estimate the latent probability of class membership). The only real difference between the two approaches is the objective (function), and for any k latent features I come up with I can create (at least) k + 1 clusters before taking into account interactions of the latent variables. 
+
+https://stats.stackexchange.com/questions/122213/latent-class-analysis-vs-cluster-analysis-differences-in-inferences
+
+::: {.callout-tip}
+In general, do not use a dimension reduction technique as a preprocessing step for a supervised learning problem.  Instead, use a supervised learning technique that can handle high-dimensional data, has a built-in way to reduce features (e.g. lasso, boosting), or use a dimension reduction technique that is specifically designed for supervised learning (e.g. partial least squares). Creating a reduced set of features without regard to the target will generally be suboptimal for the supervised learning problem.
+:::
+
 ### Reinforcement Learning
 
 ## Commentary
 
-When machine learning began to take off, it seemed most of the field of statistics sat on their laurels, and often scoffed at these techniques that didn't bother to test their assumptions[^riprip]! ML was, after all, mostly just a rehash of old ideas right? But the machine learning community was able to make great strides in predictive performance, and The application of machine learning continues to enable us to push the boundaries of what is possible. Statistics wasn't going to provide ChatGPT or self-driving cars, but it remains vitally important whenever we need to understand the uncertainty of our predictions, or when we need to make inferences about the world. The field of statistics has much to learn from the machine learning community, and vice versa. The two fields are not mutually exclusive, and the best data scientists will be able to draw from both. A more general field of **data science** became the way people used statistics *and* machine learning to solve their data challenges. In the end, use the best tool for the job, worry less about what it's called or whether it's the hot thing right now, and have fun!
+When machine learning began to take off, it seemed most of the field of statistics sat on their laurels, and often scoffed at these techniques that didn't bother to test their assumptions[^riprip]! ML was, after all, mostly just a rehash of old ideas right? But the machine learning community was able to make great strides in predictive performance, and the application of machine learning continues to enable us to push the boundaries of what is possible. Statistics wasn't going to provide ChatGPT or self-driving cars, but it remains vitally important whenever we need to understand the uncertainty of our predictions, or when we need to make inferences about the world. The field of statistics has much to learn from the machine learning community, and vice versa. The two fields are not mutually exclusive, and the best data scientists will be able to draw from both. A more general field of **data science** became the way people used statistics *and* machine learning to solve their data challenges. In the end, use the best tool for the job, worry less about what it's called or whether it's the hot thing right now, and have fun!
 
 
-[^riprip] To paraphrase provocatively, 'machine learning is statistics minus any checking of models and assumptions'. Brian D. Ripley useR! 2004, Vienna (May 2004)  Want to know what's even crazier than that statement? It was said by the guy that literally wrote the book on neural networks before anyone used them! Pattern Recognition and Neural Networks.
+[^riprip]: To paraphrase provocatively, 'machine learning is statistics minus any checking of models and assumptions'. Brian D. Ripley useR! 2004, Vienna (May 2004)  Want to know what's even crazier than that statement? It was said by the guy that literally wrote the book on neural networks before anyone   was even using them! Pattern Recognition and Neural Networks.
