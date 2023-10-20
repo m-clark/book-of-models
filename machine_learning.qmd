@@ -13,9 +13,14 @@ reticulate::use_condaenv("book-of-models")
 
 Packages needed or useful for this chapter include:
 
-```{r}
+**Python**
 
-```
+- sklearn
+- 
+
+**R**
+
+- glmnet
 
 
 Machine Learning 
@@ -33,6 +38,8 @@ Machine Learning
     -Deep Learning with Neural Networks
        -Fancier curve fitting and more!
         -MLP
+
+- Using R and Python in ML
 - Commentary
 
 Autoencoders?
@@ -161,23 +168,23 @@ performance_metrics <- tribble(
   "Regression", "MAPE", "Mean absolute percentage error",  '',
   "Regression", "RMSLE", "Root mean squared log error", '',
   "Regression", "R-squared", "Amount of variance shared by predictions and observed target", 'Coefficient of determination',
-  "Regression", "Deviance/AIC", "Generalization of sum of squared error for non-continuous/gaussian settings", 'Also "deviance explained" for similar R^2^ interpretation',
+  "Regression", "Deviance/AIC", "Generalization of sum of squared error for non-continuous/gaussian settings", 'Also "deviance explained" for similar R-sq interpretation',
   'Regression', 'Pinball Loss', 'Quantile loss function', 'MAE if estimating median',
   "Classification", "Accuracy", "Percent correct", 'Error rate is 1 - Accuracy',
   "Classification", "Precision", "Percent of positive predictions that are correct", 'Positive Predictive Value',
-  "Classification", "Recall", "Percent of positive cases that are predicted correctly", 'Sensitivity, True Positive Rate',
-  "Classification", "Specificity", "Percent of negative cases that are predicted correctly", 'True Negative Rate',
+  "Classification", "Recall", "Percent of positive samples that are predicted correctly", 'Sensitivity, True Positive Rate',
+  "Classification", "Specificity", "Percent of negative samples that are predicted correctly", 'True Negative Rate',
   'Classification', 'Negative Predictive Value', 'Percent of negative predictions that are correct', '',
   "Classification", "F1", "Harmonic mean of precision and recall", 'F-Beta',
-  'Classification', 'Lift', 'Ratio of percent positive predictions to percent positive cases', '',
+  'Classification', 'Lift', 'Ratio of percent positive predictions to percent positive samples', '',
   "Classification", "AUC", "Area under the ROC curve", '',
   "Classification", 'Type I Error', 'False Positive Rate', 'alpha',
   "Classification", 'Type II Error', 'False Negative Rate', 'beta',
   "Classification", 'False Discovery Rate', 'Percent of positive predictions that are incorrect', '',
   "Classification", 'False Omission Rate', 'Percent of negative predictions that are incorrect', '',
-  "Classification", 'False Positive Rate', 'Percent of negative cases that are predicted incorrectly', '',
-  "Classification", 'False Negative Rate', 'Percent of positive cases that are predicted incorrectly', '',
-  "Classification", 'Phi', 'Correlation between predicted and actual', 'Mathews Correlation',
+  "Classification", 'False Positive Rate', 'Percent of negative samples that are predicted incorrectly', '',
+  "Classification", 'False Negative Rate', 'Percent of positive samples that are predicted incorrectly', '',
+  "Classification", 'Phi', 'Correlation between predicted and actual', "Matthews Correlation",
   "Classification", "Log loss", "Negative log likelihood of the predicted probabilities", ''
 )
 
@@ -195,7 +202,7 @@ performance_metrics %>%
     locations = cells_body(columns = vars(`Other Names/Notes`), rows = Metric == 'F1')
   )  |> 
   tab_footnote(
-    footnote = "No sure anyone outside of CS calls it this, since it had already been widely used for over 60 years before a biochemist forgot to cite it in their paper.",
+    footnote = "Not sure which fields refer to Matthews Correlation outside of CS, since 'phi' had already been widely used for over 60 years before Matthews forgot to cite it in their paper, and was literally the first correlation coefficient provided by Pearson.",
     locations = cells_body(columns = vars(`Other Names/Notes`), rows = Metric == 'Phi')
   )  |> 
   tab_options(
@@ -207,22 +214,268 @@ performance_metrics %>%
 
 
 
-
-
 ### Regularization
 
-A key aspect of the machine learning approach is to predict well on new data. This is known as generalization.  One way to improve generalization is through the use of regularization.  Regularization is a way to penalize complexity in a model, and is often used to prevent **overfitting**.  We have already seen one example of regularization in the ridge regression model, where we add a penalty term to the objective function.  This penalty term is a function of the coefficients, and is usually a function of the sum of the squares of the coefficients.  This is known as an L2 penalty, and is the most common type of regularization.  Another common type of regularization is the L1 penalty, which is a function of the sum of the absolute values of the coefficients.  This is used in the lasso model.  There are other types of regularization as well, such as the elastic net, which is a combination of the L1 and L2 penalties.  The relative size of the two penalties is controlled by a mixing parameter, and the optimal value of that parameter is determined by cross-validation.
+A key aspect of the machine learning approach is to predict well on new data. This is known as generalization. One way to improve generalization is through the use of **regularization**, which is a general appraoch to penalize complexity in a model, and is typically used to prevent **overfitting**.  Overfitting occurs when a model fits the training data very well, but does not generalize well to new data, and this is often due to the model being too complex, and thus fitting to noise in the training data that isn't present in other data. Note that the converse can also happen, and is often the case with simpler models, where the model does not fit the training data well, and thus does not generalize well to new data either, and this is known as **underfitting**[^underfit].
+
+[^underfit]: Underfitting is a notable problem in many academic disciplines, where the models are often too simple to capture the complexity of the underlying process. Typically the models are often linear, and the underlying process may be anything but. These disciplines were slow to adopt machine learning techniques, as they are often more difficult to interpret, and so seen as not as useful for understanding the underlying process. However, one could make the obvious argument that 'understanding' an unrealistic result is not very useful either, and that the goal should be to understand the underlying process however we can, and not just the model. 
+
+We have already seen one example of regularization in the ridge regression model, where we add a penalty term to the objective function. This penalty term is a function of the coefficients, and is usually a function of the sum of the squares of the coefficients.  This is known as an L2 penalty, and is the most common type of regularization.  Another common type of regularization is the L1 penalty, which is a function of the sum of the absolute values of the coefficients.  This is used in the lasso model.  There are other types of regularization as well, such as the elastic net, which is a combination of the L1 and L2 penalties.  The relative size of the two penalties is controlled by a mixing parameter, and the optimal value of that parameter is determined by cross-validation.
+
+It turns out that regularization comes in many forms. Here is a quick rundown of some examples. 
+
+- GAMs also use penalized regression for estimation, where the coefficients used in the basis functions are penalized (typically with L2).  This tends the 'wiggly' part of the GAM to be less wiggly, tending toward a linear effect. 
+
+- Similarly, the variance estimate of a random effect, e.g. for intercept or slope, is inversely related to penalty on the fixed effects for the corresponding group-specific effects.  The more penalty, the less variance, and the more the random effect is shrunk toward the overall mean[^mixedpenalty]. 
+[^mixedpenalty]: One more reason to prefer a random effects approach over so-called fixed effects models, as the latter are not penalized at all, and thus are more prone to overfitting.
+
+- Still another form of regularization occurs in the form of priors in Bayesian models. For example, the variance on the prior for regression coefficients could be very large, which amounts to a result where there is little influence of the prior on the posterior, or it could be very small, which amounts to a result where the prior has a lot of influence on the posterior, shrinking it toward the prior mean, which is typically zero. In fact, ridge regression is a frequentist form of standard Bayesian linear regression.
+
+- As a final example of regularization, **dropout** is a technique used in neural networks to prevent overfitting. It works by randomly dropping out some of the nodes in intervening/hidden layers in the network during training. This tends to force the network to learn more robust features, and prevents it from overfitting to the training data.
+
+In short, regularization comes in many forms across the modeling landscape, and is a key aspect of machine learning and traditional statistical modeling alike. In general, we can add the same sort of penalty to any number of models, such as logistic regression, neural networks, recommender systems etc. The primary goal again is to hopefully increase our ability to generalize the selected model to new data. 
+
 
 ### Tuning & Cross-validation
 
+
+
+
 #### Bias-Variance Tradeoff
+
+In most of our modeling endeavors, we are concerned with reducing uncertainty in our knowledge of some phenomenon. The more we know about the factors involved or related to some outcome of interest, the better we can predict that outcome upon the influx of new information. The initial step is to take the data at hand, and determine how well a model or set of models fit the data. In many applications however, this part is also more or less the end of the game as well[^bigdata].
+
+[^bigdata]: Note that we don't make any particular claim about the quality of such analysis. In many situations, the cost of data collection is very high, and for all the enamorment with 'big' data, a lot of folks will never have access to big data for their situation (e.g. certain clinical populations) In these situations, getting new data or splitting data to make predictions on holdout sets is difficult.
+
+While often not reported, in many scientific, business, and other situations, many models are actually tested behind the scenes, among which the 'best' is then provided in detail in the end report. Unfortunately, fitting models to a single dataset set does not give a very good sense of the generalization any of those models, i.e. the performance we would see with new data. Without some sort of check on a model's generalization, such performance will be optimistic when it comes to new data.
+
+In the following, you can think of a standard linear model scenario, e.g. with squared-error loss function and perhaps some regularization, and a data set where we split some of the observations in a random fashion into a **training set**, for initial model fitting, and a **test set**, which will be kept separate and independent, and used to measure generalization performance. We note **training error** as the (average) loss over the training set, and **test error** as the (average) prediction error obtained when a model resulting from the training data is fit to the test data.  So, in addition to the previously noted goal of finding the 'best' model (**model selection**), we are interested further in estimating the prediction error with new data (**model performance**).
+
+##### Bias & Variance
+
+We've found that most discussions of **bias** and **variance** and their 'tradeoff' can be difficult to digest. To begin, they start with these two very loaded words that are used in a variety of contexts, some of which are directly related to machine learning, sometimes not, but even when they are, they do not necessarily mean the same thing[^csbias], and so it's confusing from the get go. The main thing to get across here at the start is that we're specifically focused on prediction. In that context, bias and variance are two sources of error in our prediction, among others. We focus on bias and variance and not the others because we actually have control over those, while the other sources of prediction error are due to random variation, systemtic bias (known as measurement error in psychometrics), and model misspecification. The other point to keep in mind regarding to the general concept is that we are talking about the average of these errors, not the error for a particular model. But since we don't usually average our results over many hypothetically produced datasets, this is also a source of confusion. We will try to clarify these points here by keeping things simpler.
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: bias-variance-tradeoff
+# create a function with input N that fits increasingly complex models in an attempt to estimate some model. X is a set of five features, and y the target, both of size N. y is a nonlinear function of three of those features. The error in train and test sets should be estimated, and the ultimate result should be a plot of the test error and training error on the y axis with the x axis the model complexity or degrees of freedom.
+set.seed(123)
+
+# Define the function
+fit_models <- function(N = 500, max_degree = 10, n_boot = 10) {
+    library(mgcv)
+
+    # Generate data
+    d = gamSim(n = N)
+    X = d |> select(x0:x3)
+    y = d$y
+
+    degs = c(3:12, 25, 50)
+
+    # Define function to fit models of increasing complexity
+    fit_model <- function(X_train, y_train, X_test, y_test, degree) {
+      # Fit model
+      model <- gam(
+        y_train ~
+            s(x0, k = degree)
+          + s(x1, k = degree)
+          + s(x2, k = degree)
+          + s(x3, k = degree),
+        data = X_train
+      )
+
+      # Calculate train error
+      y_train_pred <- fitted(model)
+      train_error <- mean((y_train - y_train_pred)^2)
+
+      # Calculate test error
+      y_test_pred <- predict(model, newdata = X_test)
+      test_error <- mean((y_test - y_test_pred)^2)
+
+      return(list(train_error = train_error, test_error = test_error))
+    }
+    
+    # Fit models of increasing complexity n_boot times
+    train_error <- matrix(0, nrow = n_boot, ncol = length(degs))
+    test_error <- matrix(0, nrow = n_boot, ncol = length(degs))
+
+    for (boot in 1:n_boot) {
+      # Resample data
+      train_idx <- sample(N, N / 2, replace = TRUE)
+      test_idx <- setdiff(1:N, train_idx)
+      X_train <- X[train_idx, ]
+      y_train <- y[train_idx]
+      X_test <- X[test_idx, ]
+      y_test <- y[test_idx]
+      
+      for (degree in seq_along(degs)) {
+        # Fit model and calculate errors
+        errors <- fit_model(X_train, y_train, X_test, y_test, degs[degree])
+
+        # Store errors
+        train_error[boot, degree] <- errors[["train_error"]]
+        test_error[boot, degree] <- errors[['test_error']]
+      }
+    }
+
+    # Reshape errors into long format
+    df <- data.frame(
+      degree = rep(degs, each = n_boot),
+      boot = rep(1:n_boot, times = length(deg)),
+      train_error = as.vector(train_error),
+      test_error = as.vector(test_error)
+    )
+
+    # Plot train and test error vs model complexity
+    df <- df %>%
+      pivot_longer(
+        cols = c(train_error, test_error), 
+        names_to = "error_type", 
+        values_to = "error"
+      ) %>%
+      mutate(error_type = factor(error_type))
+
+    df |> 
+    ggplot(aes(x = degree, y = error)) +
+      geom_line(aes(group = interaction(boot, error_type), color = error_type),      alpha = .2
+    ) +
+      stat_summary(
+        geom = 'line', 
+        fun = mean, 
+        aes(color = error_type),
+        linewidth = 1
+      ) +
+      scale_x_continuous(breaks = 1:max_degree) +
+      labs(x = "Model complexity (degrees of freedom)", y = "Error") +
+      theme(
+        axis.text = element_blank(),
+        axis.ticks = element_blank()
+      )
+}
+
+fit_models(400, max_degree = 20, n_boot = 100)
+
+```
+
+Higher bias can occur when we have a model that is too simple to capture the complexity of the underlying process. Our model predictions are simply not that good. Higher variance occurs when we have a model that is too complex, and thus fits the noise in the training data, and does not generalize well to new data. The bias-variance tradeoff is the idea that we can reduce one source of error at the expense of the other, but not both at the same time.  In other words, we can reduce bias by increasing model complexity, but this will increase variance. We can reduce variance by reducing model complexity, but this will increase bias. The goal is to find the sweet spot where we have a model that is complex enough to capture the underlying process, but not so complex that it overfits to the training data.  This is the model that will generalize best to new data.
+
+Consider the following image, inspired by @hastie_elements_2009.  Let's say we repeatedly estimate a model, get an estimate of error on the training set, ao that we can get an average error over many such estimates.  We can do the same for the test set.  The average error on the training set is the **training error**, and the average error on the test set is the **test error**.  The difference between the two we'll call the **generalization error**, and is the error we would expect to see with new data.  The training error is the error we would expect to see with the same data, but a different model. The test error is the error we would expect to see with new data, but the same model. The generalization error is the sum of the bias and variance, and is the error we are most interested in.  The bias-variance tradeoff is the idea that we can reduce one source of error at the expense of the other, but not both at the same time.  In other words, we can reduce bias by increasing model complexity, but this will increase variance. We can reduce variance by reducing model complexity, but this will increase bias. The goal is to find the sweet spot where we have a model that is complex enough to capture the underlying process, but not so complex that it overfits to the training data.  This is the model that will generalize best to new data.
+
+<img src="img/biasvartarget.svg" style="display:block; margin: 0 auto;" width=50%> <br> 
+
+
+[^csbias]: Folks in CS and engineering should not be allowed to use the word bias. 
+
+Keep in mind the following:
+
+- Prediction from a model ($M$)
+- Prediction error, the difference from our model's prediction and the observed value, i.e. what this is all about. More specifically we can think of the average. 
+- A dataset $X$ which can be randomly produced, and so produce different estimates of $M$
+- A target $y$ which is also random, and which is observed
+- True value of the target $y$ (unknown)
+
+$$y = f(X) + \epsilon$$
+
+$$\textrm{Prediction Error} = \textrm{Other Error} + \textrm{Bias} + \textrm{Variance}$$
+
+- Other error: $\epsilon$ (random)
+- Bias: $E(\hat f) - f$ (observed)
+- Variance: $Var(\hat f)$ (random)
+
+> Measurement error is a concept almost entirely ignored in computer and data science/engineering, but is the possibly the largest source of model inadequacy. It not only occurs in the target, but also the features, the latter of which is never shown in the bias-variance tradeoff equation. It's often labeled as 'irreducible', but in fact, a whole endeavor of mathematical, statistical, and psychological efforts have been devoted to providing ways to do so almost 100 years[^mindvector]. It's not easy, but it's not impossible either in many situations.  We will not discuss it further here, but it is important to keep in mind that it is a source of error that is not addressed by a model by default. Even if we had a perfect model, our target would still vary in its measurement, and thus we would still have error in our prediction.  To make the example concrete, consider predicting a person's income. You can have a perfect model, but some people will lie about it.
+
+[^mindvector]: https://en.wikipedia.org/wiki/The_Vectors_of_Mind https://en.wikipedia.org/wiki/Psychometrics
+
+We start[^biasvarref] with a true data generating process for some target $y$, expressed as a function of features $X$. We can specify the true model as 
+
+$$y = f(X) + \epsilon$$
+
+where $f(x)$ is the expected value of $y$ given $X$, i.e. $f(x) = E(y|X)$. The expected value of the error, $E(\epsilon)=0$, has some variance, $\textrm{Var}(\epsilon) = \sigma^2_\epsilon$.  In other words, we are talking about the standard regression model we all know and love.  Now we can conceptually think of the *expected prediction error* at a specific input $X = x_*$ as: 
+
+
+$$\text{Error}_{x_*} = \text{Irreducible Error} + \text{Bias}^2 + \text{Variance}$$
+
+
+To better understand this, think of training models over and over, each time with new training data, but testing each model at input $x_*$. The $\text{Error}_{x_*}$ is the average, or expected value of the prediction error in this scenario, or $E[(y - \hat f(x))^2|X=x_*]$, with $\hat f$ our current estimate of the true underlying data generating function $f$. We can note three components to this general notion of prediction error: 
+
+**Irreducible error**: The variance of the (new test) target ($\sigma^2_\epsilon$). This is unavoidable, since our $y$ is measured with error. Think of linear regression where the true model is y = 1 + 2x + e. Even if we estimate the coefficients exactly, we will still have error in our prediction due to the error in the target.  This is the irreducible error.  It's sometimes called **measurement error**, but measurement error 
+
+**Bias^2^**: the amount the *average* of our estimate varies from the true (but unknown) value ($E(\hat f) - f$). This is often the result of trying to model the complexity of nature with something much simpler that the human brain can understand. While the simpler might make us feel good, it may not work very well.
+
+**Variance**: the amount by which our prediction would change if we had estimated it using a different training data set ($Var(\hat f)$). Even with unbiased estimates, we could still see a high mean squared error due to high variance.
+
+Slightly more formally, we can present this as follows, with $h_*$ our estimated (hypothesized) value at $x_*$:
+
+
+$$\text{Error}_{x_*} = \text{Var}(\epsilon) + (\text{E}[h_*] - f(x_*))^2 + \text{Var}(h_*)$$
+
+The latter two components make up the mean squared error in our previous demonstration.  While they are under our control, they compete with one another such that oftentimes we improve one at the detriment of the other. In other words, *bias and variance are not independent*.
+
+
+
+##### The Tradeoff
+
+Outlining a general procedure, we start by noting the prediction error on a training data set with multiple models of varying complexity (e.g. increasing the number of predictor variables, adding polynomial terms, including interactions), and then assess the performance of the chosen models in terms of prediction error on the test set.  We then perform the same activity for a total of 100 simulated data sets, for each level of complexity.
+
+The results from this process might look like the following, taken from @hastie_elements_2009.  With regard to the training data, we have $\mathrm{error}_{\mathrm{train}}$ for one hundred training sets for each level of model complexity.  The bold blue line notes this average error over the 100 sets by model complexity, and we can see that more complex models fit the data better.  The bold red line is the average test error ($\mathrm{error}_{\mathrm{test}}$) across the 100 test data sets, and it tells a different story. When models get too complex, the test error starts to *increase*.
+
+<img src="img/biasvar2.svg" style="display:block; margin: 0 auto;" width=50%>
+
+Ideally we'd like to see low bias and (relatively) low  variance, but things are not so easy. One thing we can see clearly is that $\mathrm{error}_{\mathrm{train}}$ is not a good estimate of $\mathrm{error}_{\mathrm{test}}$, which is now our focus in terms of performance. If we think of the training error as what we would see in typical research where one does everything with a single data set, we are using the same data set to fit the model and assess error.  As the model is adapted to that data set specifically, it will be overly optimistic in the estimate of the error, that optimism being the difference between the error rate we see based on the training data versus the average of what we would get with many test data sets.  We can think of this as a problem of overfitting to the training data.  Models that do not incorporate any regularization or validation process of any kind are likely overfit to the data presented.
+
+Generally speaking, the more complex the model, the lower the bias, but the higher the variance, as depicted in the graphic.  Specifically however, the situation is more nuanced, where the type of problem (classification with 0-1 loss vs. continuous response with squared error loss[^biasvardimen]) and technique (a standard linear model vs. regularized fit) will exhibit different bias-variance relationships.
+
+
+
+
+#### Diagnosing Bias-Variance Issues *&* Possible Solutions
+
+The following can serve as a visual summary of the concepts just outlined (figure adapted from @domingos_few_2012).
+
+<img src="img/biasvartarget.svg" style="display:block; margin: 0 auto;" width=50%> <br> 
+
+Now let's assume a regularized linear model with a standard data split into training and test sets.  We will describe different scenarios with possible solutions.
+
+
+##### Worst Case Scenario
+
+Starting with the worst case scenario, poor models may exhibit high bias and high variance.  One thing that will not help this situation (perhaps contrary to intuition) is adding more data.  You can't make a silk purse out of a sow's ear ([*usually*](https://libraries.mit.edu/archives/exhibits/purse/)), and adding more data just gives you a more accurate picture of how awful your model is. One might need to rework the model, e.g. adding new predictors or creating them via interaction terms, polynomials, or other smooth functions as in additive models, or simply collecting better and/or more relevant data.
+
+
+##### High Variance
+
+When variance is a problem, our training error is low while test error is relatively high (overfitting problem). Implementing more shrinkage or other penalization to model complexity may help with the issue.  In this case more data may help as well.
+
+##### High Bias
+
+With bias issues, our training error is high and test error is not too different from training error (underfitting problem).  Adding new predictors/features, e.g. interaction terms, polynomials etc., can help here.  Additionally, reducing the penalty parameter $\lambda$ would also work with even less effort, though generally it should be estimated rather than explicitly set.
+
+
+Here is another visualization to drive the point home.
+
+<img class='imgbigger' src="img/biasvar_gp.svg" style="display:block; margin: 0 auto;" width=50%> 
+
+<br> 
+
+The figure is inspired by @murphy_machine_2012 (figure 6.5) showing the bias-variance trade-off.  Sample (left) and average (right) fits of linear regression using a Gaussian radial basis function expansion. The blue line represents the true x-y relationship. The top row shows low variance between one fit and the next (left) but notable bias (right) in that the average fit is off.  Compare to the less regularized (high variance, low bias) situation of the bottom row.  See the <span class="pack">kernlab</span> package for the fitting function used, and the [appendix][Appendix] for the code used to produce the graph.
+
+
+
+#### Bias-Variance Summary
+
+One of the key ideas any applied researcher can take from machine learning concerns the bias-variance trade-off and issues of overfitting in particular.  Typical applied practice involves potentially dozens of models fit to the same data set without any validation whatsoever, yet only one or two are actually presented in publication.  Many disciplines report nothing but the statistical significance, and yet one can have statistically significant predictors and have predictive capability that is no different from guessing.  Furthermore, very complex models are often fit to small data sets, compounding the problem.
+
+It is very easy to describe ***science*** without ever talking about statistical significance.  It is impossible to talk about science without talking about prediction.  The bias-variance trade-off is one way to bring the concerns of prediction to the forefront, and any applied researcher can benefit from thinking about its implications[^bvclass]. 
+
+
 
 #### Cross-validation
 
 
 
 
-### Pipelines
+#### Pipelines
 
 ## Common Models
 
@@ -234,19 +487,110 @@ The baseline model should serve as a way to gauge how much better your model per
 
 You can actually find articles in which deep learning models do not even beat a logistic regression on some datasets, but which did not stop the authors writing several pages hyping the more complex technique. Probably the most important reason to have a baseline is so that you can avoid wasting time and resources implementing more complex tools. It is probably rare, but sometimes relationships for the chosen features are mostly or nearly linear and have little interaction, and no amount of fancy modeling will make it come about.  If our baseline is a complex linear model that actually incorporates nonlinear relationships and interactions (e.g. a GAMM), you'll often find that the more complex models don't improve on the baseline by much, if at all. Furthermore, you may find that the initial baseline model is good enough for the time being and you can then move on to other problems to solve.  This is especially true if you are working in a business setting where you have limited time and resources.
 
-A final note. In many (most?) settings, it isn't enough to merely beat the baseline model. You should look for doing statistically better. For example, if your complex model accuracy is 75% and your baseline is 73%, that's great, but you should check to see if that difference is statistically significant[^ifonlystatdiff], because those metrics are *estimates*, and they have uncertainty, which means you can get a range for them as well as test whether they are different from one another. If it is not, then you should probably stick with the baseline model or try something else, because the next time you run the model, the baseline may actually perform better, or at least you can't be sure that it won't.
+A final note. In many (most?) settings, it often isn't enough to merely beat the baseline model. You should look for doing statistically better. For example, if your complex model accuracy is 75% and your baseline is 73%, that's great, but you should check to see if that difference is statistically significant[^ifonlystatdiff], because those metrics are *estimates*, and they have uncertainty, which means you can get a range for them as well as test whether they are different from one another. If it is not, then you should probably stick with the baseline model or try something else, because the next time you run the model, the baseline may actually perform better, or at least you can't be sure that it won't.
 
-That said, in some situations any performance increase is worth it, even if it's not statistically significant. For example, if you are trying to predict the next word in a sentence, and your baseline is 10% accurate, and your complex model is 11% accurate, that's a 10% increase in accuracy, which is a big deal. You should still work to show that this is a consistent increase and not a fluke.
+That said, in some situations any performance increase is worth it, and even if we can't be certain a result is statistically better, any sign of improvement is worth pursuing. For example, if you are trying to predict the next word in a sentence, and your baseline is 10% accurate, and your complex model is 11% accurate, that's a 10% increase in accuracy, which may be a big deal depending on the situation. You should still work to show that this is a consistent increase and not a fluke.
 
-[^ifonlystatdiff]: There would be far less hype and wasted time if those in ML and DL research simply did this rather than just reporting the chosen metric of their model 'winning' against other models. It's not that hard to do, yet most do not provide any ranged estimate for their metric, let alone test statistical difference from other models.  It'd also be nice if they used a more meaningful baseline than logistic regression, but that's a different story.
+[^ifonlystatdiff]: There would be far less hype and wasted time if those in ML and DL research simply did this rather than just reporting the chosen metric of their model 'winning' against other models. It's not that hard to do, yet most do not provide any ranged estimate for their metric, let alone test statistical difference from other models. You don't even have to bootstrap the metric estimates for binary classification! It'd also be nice if they used a more meaningful baseline than logistic regression, but that's a different story.
 
 
 ### Penalized Approaches
 
-We show explictly how to estimate models like lasso and ridge regression in the estimation chapter. Another common approach is elastic net, which is a combination of lasso and ridge.  We will not show how to estimate elastic net here, but all you have to know is that it has two penalties, one for lasso and one for ridge. The relative size of the two penalties is controlled by a mixing parameter, and the optimal value of that parameter is determined by cross-validation.
+We show explictly how to estimate models like lasso and ridge regression in the estimation chapter. Those work well as a baseline and so should be in your ML toolbox. Remember also that they can be applied to any linear model setting, where your objective is MSE, log likelihood of a count or binary target, or what have you. It's good to keep them in mind.
 
-#### Ridge
 #### Elastic Net
+
+Another common approach is **elastic net**, which is a combination of lasso and ridge.  We will not show how to estimate elastic net here, but all you have to know is that it has two penalties, the same ones for lasso and one for ridge, along with the standard objective for a numeric or categorical target. The relative size of the two penalties is controlled by a mixing parameter, and the optimal value of that parameter is determined by cross-validation.  So for example, you might end up with a 75% lasso penalty and 25% ridge penalty.  
+
+Let's apply this to the movie review data. We'll used the 'processed version' which has some standardized versions of the data and a binary version of the target review as 'Good' or 'Bad'.
+
+:::{.panel-tabset}
+
+##### Python
+
+```{python}
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import ElasticNetCV, LogisticRegressionCV
+from sklearn.metrics import accuracy_score
+
+df_movies = pd.read_csv('data/movie_reviews_processed.csv')
+
+X = df_movies.filter(regex='_sc$')
+y = df_movies['rating_good']
+
+# Fit model
+
+model = LogisticRegressionCV(
+  penalty   = 'elasticnet', 
+  l1_ratios = np.arange(.0, 1, .05), 
+  cv     = 5, 
+  solver = 'saga', 
+  random_state = 123,
+  verbose = False
+)
+
+model.fit(X, y)
+
+model.
+
+# Predict
+
+y_pred = model.predict(X)
+
+# Evaluate
+
+print(
+  'Training accuracy: ', accuracy_score(y, y_pred),
+  'Baseline Prevalence: ', np.mean(y)
+)
+```
+
+##### R
+
+```{r}
+library(glmnet)
+
+df_movies <- read_csv('data/movie_reviews_processed.csv')
+
+X <- df_movies %>%
+  select(ends_with('_sc')) %>%
+  as.matrix()
+
+y <- df_movies %>%
+  pull(rating_good)
+
+
+# Fit model
+
+model <- cv.glmnet(
+  x = X,
+  y = y,
+  alpha = 0.5,
+  family = 'binomial',
+  nfolds = 5,
+  type.measure = 'class',
+  gamma = seq(0, 1, 0.05)
+)
+
+# Predict
+
+y_pred <- predict(model, newx = X, type = 'class')
+
+# Evaluate
+
+glue('Training Accuracy: {round(mean(y_pred == y), 3)}\nBaseline Prevalence: {round(mean(y), 3)}')
+```
+
+:::
+
+
+
+
+
+
+
+
 
 ### Boosting
 #### Gblinear demo
@@ -273,6 +617,8 @@ https://stats.stackexchange.com/questions/122213/latent-class-analysis-vs-cluste
 In general, do not use a dimension reduction technique as a preprocessing step for a supervised learning problem.  Instead, use a supervised learning technique that can handle high-dimensional data, has a built-in way to reduce features (e.g. lasso, boosting), or use a dimension reduction technique that is specifically designed for supervised learning (e.g. partial least squares). Creating a reduced set of features without regard to the target will generally be suboptimal for the supervised learning problem.
 :::
 
+Say something about Recommender Systems
+
 ### Reinforcement Learning
 
 ## Commentary
@@ -281,3 +627,60 @@ When machine learning began to take off, it seemed most of the field of statisti
 
 
 [^riprip]: To paraphrase provocatively, 'machine learning is statistics minus any checking of models and assumptions'. Brian D. Ripley useR! 2004, Vienna (May 2004)  Want to know what's even crazier than that statement? It was said by the guy that literally wrote the book on neural networks before anyone   was even using them! Pattern Recognition and Neural Networks.
+
+
+## Using R and Python in ML
+
+### Python
+
+Python is the king of ML
+
+Pros:
+
+- powerful tools all in one library
+- much more efficient on memory and faster
+- many other packages try to use the sklearn API[^sklearnapi]
+- easy pipeline/reproducibility setup
+
+[^sklearnapi]: Note to developers, just having a fit and predict method is not an API.
+
+
+Cons:
+
+- everything beyond prediction is like pulling teeth: plotting, extracting key estimated parameters
+- They just figured out recently that keeping feature names was a good ideas
+
+### R
+
+R is actually great at ML
+
+Pros:
+
+- easy to use objects
+- easy to extract key estimated parameters
+- easy post-processing
+
+Cons:
+
+- relativley slow
+- memory intensive
+- pipeline/reproducibility has only recently been of focus
+  - tidymodels is a great but very non-standard way of doing things
+  - mlr3 is much more sklearn-like fast and memory efficient
+
+
+
+
+
+## Refs
+
+ridge as Bayesian  WIKILINK: https://en.wikipedia.org/wiki/Ridge_regression#Bayesian_interpretation
+
+dropout
+https://d2l.ai/chapter_multilayer-perceptrons/dropout.html
+
+bv tradeoff
+
+https://hastie.su.domains/Papers/ESLII.pdf
+
+https://machinelearningmastery.com/gentle-introduction-to-the-bias-variance-trade-off-in-machine-learning/
