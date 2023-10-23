@@ -73,7 +73,7 @@ Any model may be used in machine learning, from a standard linear model to a dee
 - Models used in machine learning are typically more complex and difficult to interpret than those used in standard statistical analysis.
 - There are many performane metrics used in machine learning, and care should be taken to choose the appropriate one for your situation.
 - Objective functions likewise should be chosen for the situation, and are often different than the performance metric.
-- Cross-validation is a method that allows us to select parameters and hyperparameters for our models, and to compare models to one another.
+- Cross-validation is a method that allows us to select parameters and hyperparameters for our models, and to compare models to one another by assessing a model's performance on data that was not used to fit the model.
 - Machine learning models are often used in situations where the primary goal is to predict well on new data, and not necessarily to understand the underlying process.
 <!-- - For tabular data, you don't need many models in your toolbox to do very well
 - For non-tabular data such as natural language and images, you need specific types of models and metrics appropriate to those -->
@@ -212,6 +212,13 @@ performance_metrics %>%
 ```
 
 
+#### Using Metrics for Model Evaluation and Selection
+
+As we've seen, there are many performance metrics to choose from, and the choice of metric depends on the type of problem. For example, for a problem for numeric targtes, we might use RMSE, while for a classification problem, we might use accuracy.  However, it turns out that assessing the metric on the data we used to fit the model does not give us the best assessment of that metric.  This is because the model will always do better on the data it was trained on than on new data, and we can generally always improve that metric by making the model more complex.  However, in most modeling situations, this complexity comes at the expense of generalization, and the model will not perform as well on new data, something we'll discuss in more detail shortly. So we really want to assess the performance metric on new data, and not the data we used to fit the model. At that point, we can also compare multiple models to one another, and select the one that performs best on the new data.
+
+It's rather easy to get started down this path. For starters, we simply split our data into two sets, a **training set** and a **test set**, which the latter typically a smaller subset.  We fit the model on the training set, and then evaluate the performance metric on the test set. This is known as the **holdout method**.  There limitations to doing it this simply, but conceptually this is an important idea.
+
+DEMO METRIC with holdout method??
 
 
 ### Regularization
@@ -239,21 +246,30 @@ In short, regularization comes in many forms across the modeling landscape, and 
 ### Tuning & Cross-validation
 
 
-
-
 #### Bias-Variance Tradeoff
 
-In most of our modeling endeavors, we are concerned with reducing uncertainty in our knowledge of some phenomenon. The more we know about the factors involved or related to some outcome of interest, the better we can predict that outcome upon the influx of new information. The initial step is to take the data at hand, and determine how well a model or set of models fit the data. In many applications however, this part is also more or less the end of the game as well[^bigdata].
+<!-- In most of our modeling endeavors, we are concerned with reducing uncertainty in our knowledge of some phenomenon. The more we know about the factors involved or related to some outcome of interest, the better we can predict that outcome upon the influx of new information. The initial step is to take the data at hand, and determine how well a model or set of models fit the data. In many applications however, this part is also more or less the end of the game as well[^bigdata].
 
 [^bigdata]: Note that we don't make any particular claim about the quality of such analysis. In many situations, the cost of data collection is very high, and for all the enamorment with 'big' data, a lot of folks will never have access to big data for their situation (e.g. certain clinical populations) In these situations, getting new data or splitting data to make predictions on holdout sets is difficult.
 
-While often not reported, in many scientific, business, and other situations, many models are actually tested behind the scenes, among which the 'best' is then provided in detail in the end report. Unfortunately, fitting models to a single dataset set does not give a very good sense of the generalization any of those models, i.e. the performance we would see with new data. Without some sort of check on a model's generalization, such performance will be optimistic when it comes to new data.
+While often not reported, in many scientific, business, and other situations, many models are actually tested behind the scenes, among which the 'best' is then provided in detail in the end report. Unfortunately, fitting models to a single dataset set does not give a very good sense of the generalization any of those models, i.e. the performance we would see with new data. Without some sort of check on a model's generalization, such performance will be optimistic when it comes to new data. -->
 
-In the following, you can think of a standard linear model scenario, e.g. with squared-error loss function and perhaps some regularization, and a data set where we split some of the observations in a random fashion into a **training set**, for initial model fitting, and a **test set**, which will be kept separate and independent, and used to measure generalization performance. We note **training error** as the (average) loss over the training set, and **test error** as the (average) prediction error obtained when a model resulting from the training data is fit to the test data.  So, in addition to the previously noted goal of finding the 'best' model (**model selection**), we are interested further in estimating the prediction error with new data (**model performance**).
+In the following discussion, you can think of a standard linear model scenario, e.g. with squared-error loss function and perhaps some regularization, and a data set where we split some of the observations in a random fashion into a **training set**, for initial model fitting, and a **test set**, which will be kept separate and independent, and used to measure generalization performance. We note **training error** as the (average) loss over the training set, and **test error** as the (average) prediction error obtained when a model resulting from the training data is fit to the test data.  So, in addition to the previously noted goal of finding the 'best' model (**model selection**), we are interested further in estimating the prediction error with new data (**model performance**).
 
 ##### Bias & Variance
 
-We've found that most discussions of **bias** and **variance** and their 'tradeoff' can be difficult to digest. To begin, they start with these two very loaded words that are used in a variety of contexts, some of which are directly related to machine learning, sometimes not, but even when they are, they do not necessarily mean the same thing[^csbias], and so it's confusing from the get go. The main thing to get across here at the start is that we're specifically focused on prediction. In that context, bias and variance are two sources of error in our prediction, among others. We focus on bias and variance and not the others because we actually have control over those, while the other sources of prediction error are due to random variation, systemtic bias (known as measurement error in psychometrics), and model misspecification. The other point to keep in mind regarding to the general concept is that we are talking about the average of these errors, not the error for a particular model. But since we don't usually average our results over many hypothetically produced datasets, this is also a source of confusion. We will try to clarify these points here by keeping things simpler.
+We've found that most discussions of **bias** and **variance** and their 'tradeoff' can be difficult to digest, and misleading at worst. Part of it is due to terminology (like using a word like *bias* that already has been used to mean different things) and talking in terms of 'averages' when typically we only have one score in practice. Also in play is that the discussion doesn't actually hit on all sources of error, and that error occurs in both the target and the features before we ever even have a model.
+
+Let's start with the classic weight scale example. We take a measure of our dog Chewie, who weighs 30 pounds. The scale says 28 pounds 1 day, 31 the next and so on, but, if we take the average, it's 30 pounds, which is what Chewie weighs. It bounces around because, some days Chewie might eat a little more, or go to the dog park and run around, which makes his weight fluctuate a bit. This is known as **random error**.  Now we have a scale that's off, and after several tries we get an average weight for Chewie of 28 pounds. This scale is *biased*, and contains what is more specifically referred to as **measurement error**. Note that we haven't even talked about a model yet. The weight could be our target or a feature in a model, we aren't even concerned with parameter estimates yet, and we already have potentially two sources of 'error'.
+
+Now consider a modeling situation where we have the usual situation of splitting data into training and test sets.  We run the model on the training set, but we are more interested in generalization error, or how well it predicts on the test set.  We can think of the test error as the average error over many such splits of the data into training and test sets.  This is the **generalization error**. Given this scenario, let's look at the following visualization inspired by @hastie_elements_2009.
+
+![](img/biasvar2.svg)
+
+
+Prediction error on the test set is a function of several components, and the terms bias and variance generally refer to two of those components. One thing to note is that even if we had the 'true' model given the features specified correctly, there would still be prediction error.
+
+As the model complexity increases, the bias, which is the difference in our average prediction and the true model prediction, decreases, but this only continues for training error, where eventually our model fits the data perfectly. For test error, as the model complexity increases, the bias decreases, but the variance eventually increases because we get too close to the training data and do poorly when we try to generalize beyond it. In a nutshell this is the tradeoff - we can reduce one source of error at the expense of the other, but not both at the same time.  In other words, we can reduce bias by increasing model complexity, but this will increase variance. We can reduce variance by reducing model complexity, but this will increase bias. The goal is to find the sweet spot where we have a model that is complex enough to capture the underlying process, but not so complex that it overfits to the training data. 
 
 ```{r}
 #| echo: false
@@ -362,7 +378,9 @@ Higher bias can occur when we have a model that is too simple to capture the com
 
 Consider the following image, inspired by @hastie_elements_2009.  Let's say we repeatedly estimate a model, get an estimate of error on the training set, ao that we can get an average error over many such estimates.  We can do the same for the test set.  The average error on the training set is the **training error**, and the average error on the test set is the **test error**.  The difference between the two we'll call the **generalization error**, and is the error we would expect to see with new data.  The training error is the error we would expect to see with the same data, but a different model. The test error is the error we would expect to see with new data, but the same model. The generalization error is the sum of the bias and variance, and is the error we are most interested in.  The bias-variance tradeoff is the idea that we can reduce one source of error at the expense of the other, but not both at the same time.  In other words, we can reduce bias by increasing model complexity, but this will increase variance. We can reduce variance by reducing model complexity, but this will increase bias. The goal is to find the sweet spot where we have a model that is complex enough to capture the underlying process, but not so complex that it overfits to the training data.  This is the model that will generalize best to new data.
 
-<img src="img/biasvartarget.svg" style="display:block; margin: 0 auto;" width=50%> <br> 
+
+![](img/biasvar2.svg)
+![](img/biasvartarget.svg)
 
 
 [^csbias]: Folks in CS and engineering should not be allowed to use the word bias. 
@@ -509,6 +527,8 @@ Let's apply this to the movie review data. We'll used the 'processed version' wh
 ##### Python
 
 ```{python}
+#| label: elasticnet-py
+
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import ElasticNetCV, LogisticRegressionCV
@@ -532,8 +552,6 @@ model = LogisticRegressionCV(
 
 model.fit(X, y)
 
-model.
-
 # Predict
 
 y_pred = model.predict(X)
@@ -549,6 +567,7 @@ print(
 ##### R
 
 ```{r}
+#| label: elasticnet-r
 library(glmnet)
 
 df_movies <- read_csv('data/movie_reviews_processed.csv')
@@ -588,15 +607,230 @@ glue('Training Accuracy: {round(mean(y_pred == y), 3)}\nBaseline Prevalence: {ro
 
 
 
+#### Strengths & Weaknesses
+
+##### Strengths
+
+- Intuitive approach.  In the end, it's still just a standard regression model you're already familiar with.
+- Widely used for many problems.  Would be fine to use in any setting you would use standard/logistic regression.
+
+##### Weaknesses
+
+- Does not automatically seek out interactions and non-linearity, and as such will generally not be as predictive as other techniques.
+- Variables have to be scaled or results will largely reflect data types.
+- May have issues with correlated predictors
+
+
+#### Additional Thoughts
+
+Incorporating regularization would be fine as your default method, and something to strongly consider.  Furthermore, these approaches will have better prediction on new data than their standard complements.  As such they are a nice balance between staying interpretable while enhancing predictive capability. However, in general they are not going to be as strong of a method as others in the ML universe, and possibly not even competitive without a lot of feature engineering.  If prediction is all you care about for a particular modeling setting, you'll want to try something else.
 
 
 
 
-### Boosting
+
+### Tree-based methods
+
+Let's move beyond a standard linear models and get into a notably different approach. Tree-based methods are a class of models that are very popular in machine learning. Consider the following classification example where we want to predict a binary target as yes or no. We have two numeric features, $X_1$ and $X_2$. At the start we take $X_1$ and make a split at the value of 5. Any observation less than 5 on $X_1$ goes to the right with a prediction of *No*. Any observation greater than or equal to 5 goes to the left, where we then split based on values of $X_2$, and specifically at 3. Any observation less than 3 goes to the right with a prediction of *Yes*. Any observation greater than or equal to 3 (and greater than or equal to 5 on $X_1$) goes to the left with a prediction of *No*. 
+
+
+```{dot}
+#| echo: false
+#| label: tree-graph
+
+digraph tree {
+graph [rankdir = TD  bgcolor="#fffff8"]
+
+node [shape = rectangle, style=filled, fillcolor=white, color=gray, width=.75]
+
+node [fontcolor=gray25 fontname=Roboto fixedsize=true fontsize=5]
+X1[width=.25 height=.25 label = <X<sub>1</sub> >];
+X2 [width=.25 height=.25 label = <X<sub>2</sub> >]; 
+No1 [label="No" shape=circle color="#E69F00" width=.25]; 
+No2 [label="No" shape=circle color="#E69F00" width=.33]; 
+Yes [ shape=circle color="#56B4E9" width=.33];
+
+edge [color=gray50 arrowhead=dot]
+X1 -> No1 [label = " < 5", fontcolor="gray50" fontsize=5.5 color="#E69F00"];
+X1 -> X2 [label = " >= 5", fontcolor="gray50" fontsize=5.5];
+X2 -> No2 [label = " >= 3", fontcolor="gray50" fontsize=5.5 color="#E69F00"];
+X2 -> Yes [label = " < 3", fontcolor="gray50" fontsize=5.5 color="#56B4E9"];
+
+}
+```
+
+
+This is a simple example, but it illustrates the basic idea of a tree-based model, where the **tree** reflects the total process, and **branches** the splits going down, ultimately ending at **leaves**. We can think of the tree as a series of if-then statements, where we start at the top and work our way down until we reach a leaf node, which is a prediction for all observations that qualify for that leaf.
+
+If we just had a single tree, this would be the most interpretable model we could probably come up with, and it incorporates nonlinearities (multiple branches on a single feature), interactions (branches across features), and feature selection all in one.  However, it's unfortunately not a very stable model, and does not generalize well. For example, just a slight change in data, or even just starting with a different feature, might produce a very different tree[^cartbase]. The solution is merely to come up with a bunch of trees, get predictions for each observation from each tree, and then average the predictions. This is the concept behind both **random forests** and **gradient boosting**, which can be seen as different algorithms to produce a bunch of trees and then average the predictions.  The also fall under the heading of **ensemble models**, which are models that combine the predictions of multiple models, in this case individual trees, to produce a single prediction. 
+
+Random forests and boosting methods are very easy to implement, to a point. However, there are typically a few hyperparameters to consider for tuning. Here are few to think about:
+
+- Number of trees
+- Learning rate (GB)
+- Maximum **depth** of each tree
+- Minimum number of observations in each leaf
+- Number of features to consider at each tree/split
+- Regularization parameters (GB)
+- Out-of-bag sample size (RF)
+
+
+Those are the ones that you'll usually be trying to figure out via cross-validation for boosting, but there are others. The number of trees and learning rate kind of play off of each other, where more trees allows for a smaller rate, which might work better but will usually take longer to train, but can lead to overfitting if other steps are not taken. The depth of each tree refers to the number of levels down the branches we allow the model to go (as well as how wide we let things get in some implementations). This is important because it controls the complexity of each tree, and thus the complexity of the overall model- less depth helps to avoid overfitting, but too little depth and you won't be able to capture the nuances of the data. The minimum number of observations in each leaf is also important for the same reason. It's generally a good idea to take a random sample of features (or even data) to also help reduce overfitting. The regularization parameters are typically less important, but in general you'll want to use them to reduce overfitting.
+
+
+[^cartbase]: This actually could serve as a decent baseline model, especially given the interepretability.
+
+
+<!-- <img src="img/tree1.png" style="display:block; margin: 0 auto;" width=25%> -->
+
+Example with the moview review data. Although boosting methods are available in sklearn for Python, in general we recommend lightgbm or xgboost packages directly for boosting implementation, which have a sklearn API anyway (as demonstrated). Also, they both provide R and Python implementations of the package, making it easy to not lose your place when switching between languages.  We'll use xgboost here, but lightgbm is also a very good option.  Some also prefer catboost[^nomeow], but we'll leave that for the reader to investigate.  We'll also use the processed version of the data, which has some standardized versions of the data and a binary version of the target review as 'Good' or 'Bad'.
+
+[^nomeow]: The authors have not actually been able to practically implement catboost in a setting where it was more predictive or as efficient/speedy as xgboost or lightgbm, but that's not to say it's not a good option, and some have had notable success with it. It's just not one we've used much, or is as popular in general.
+
+:::{.panel-tabset}
+
+##### Python
+
+```{python}
+#| label: boost-py
+
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import HistGradientBoostingClassifier
+import xgboost as xgb
+from sklearn.metrics import accuracy_score
+
+df_movies = pd.read_csv('data/movie_reviews_processed.csv')
+
+X = df_movies.filter(regex='_sc$|genre|release_year_0|season|children_in_home')
+
+X = X.assign(
+  genre  = pd.Categorical(X['genre']),
+  season = pd.Categorical(X['season'])
+)
+
+y = df_movies['rating_good']
+
+# Fit model
+
+model = xgb.XGBClassifier(
+  max_iter = 250,
+  learning_rate = .1,
+  max_depth = 5,
+  min_samples_leaf = 10,
+  objective = 'binary:logistic',
+  tree_method = 'hist',
+  enable_categorical = True,
+  random_state = 123
+)
+
+model.fit(X, y)
+
+
+# Predict
+
+y_pred = model.predict(X)
+
+# Evaluate
+
+print(
+  'Training accuracy: ', accuracy_score(y, y_pred),
+  'Baseline Prevalence: ', np.mean(y)
+)
+```
+
+##### R
+
+Note that as of writing, the xgboost package does not support categorical variables in R, so we'll just one-hot encode them.
+
+
+
+```{r}
+#| label: boost-r
+
+library(xgboost)
+
+# df_movies <- read_csv('data/movie_reviews_processed.csv')
+
+X <- df_movies %>%
+  select(matches("_sc$|genre|release_year_0|season|children_in_home")) |> 
+  mutate(
+    genre = as.factor(genre),
+    season = as.factor(season)
+  ) |>
+  data.table::as.data.table() |> 
+  mltools::one_hot() |> 
+  as.matrix()
+
+
+y <- df_movies %>%
+  pull(rating_good)
+
+
+# Fit model
+set.seed(123)
+
+model <- xgboost(
+  data = X,
+  label = y,
+  nrounds = 250,
+  params = list(
+    eta = .1,
+    max_depth = 5,
+    min_child_weight = 10
+  ),
+  objective = 'binary:logistic',
+  verbose = 0
+)
+
+# Predict
+
+y_pred <- as.integer(predict(model, X, type = 'class')>.5)
+
+# Evaluate
+
+glue('Training Accuracy: {round(mean(y_pred == y), 3)}\nBaseline Prevalence: {round(mean(y), 3)}')
+```
+
+
+
+
 #### Gblinear demo
+
+MOVE TO APPENDIX
+
+
+
+
+Random forests and boosting methods, though not new, are still 'state of the art' in terms of performance on tabular data like the type we've been using for our demos here. 
+
+### Strengths & Weaknesses
+
+**Strengths**
+
+- A single tree is highly interpretable.
+- Easily incorporates features of different types (scale of features, categoricals, doesn't matter).
+- Tolerance to irrelevant features.
+- Some tolerance to correlated inputs.
+- Handling of missing values. Missing values are just another value to potentially split on.
+
+**Weaknesses**
+
+- Honestly few, but like all techniques, it might be relatively less predictive in certain situations. 
+- It does take more effort to tune relative to linear model methods.
+
 
 ### Deep Learning and Neural Networks
 #### MLP
+
+
+### Others
+
+When you look up models used in machine learning, you'll potentially see a lot of different kinds.  Popular methods from the past include *k*-nearest neighbors, support vector machines, and more. You don't see these used in practice much though, as these have mostly been made obsolete due to not being as predictive as other options in general (k-nn), or maybe only working well with 'pretty' data situations (SVM), or just being less interpretable. While they might work well in certain situations, when you have tools that can handle a lot of data complexity and predict very well (and typically better) like tree-based methods, there's not much reason to use the historical alternatives these days. If you're interested in learning more about them or think one of them is just 'neat'[^svm], you could potentially use it as a baseline model.
+
+[^svm]: Mathy folk should love SVMs.
+
+There are also many other methods that are more specialized, such as those for text, image, and audio data.  We will not discuss those here, but they are worth looking into if you have a need for them.
 
 
 ## Other aspects of ML
@@ -620,6 +854,8 @@ In general, do not use a dimension reduction technique as a preprocessing step f
 Say something about Recommender Systems
 
 ### Reinforcement Learning
+
+### Non-Tabular Data
 
 ## Commentary
 
@@ -648,7 +884,8 @@ Pros:
 Cons:
 
 - everything beyond prediction is like pulling teeth: plotting, extracting key estimated parameters
-- They just figured out recently that keeping feature names was a good ideas
+- Python ML developers just figured out recently that keeping feature names attached to the model object was a useful thing to do, so you can imagine the other sorts of functionality that are still missing
+- Depending on packages used, documentation is generally bad to nonexistent, even for some important model aspects of the model, and non-standard. Demos may work or not, and you may have to dig into the source code to figure out what's actually going on.  This hopefully will be alleviated in the future with modern AI tools.
 
 ### R
 
@@ -656,9 +893,10 @@ R is actually great at ML
 
 Pros:
 
-- easy to use objects
-- easy to extract key estimated parameters
-- easy post-processing
+- easy to use objects that contain the things you'd need to use for further processing
+- saving models does not require any special effort
+- easy post-processing with many packages designed to work with the output of other modeling packages (e.g. broom, tidybayes, etc.)
+- Documentation is standardized for any CRAN and most non-CRAN packages, and will only improve with AI tools.
 
 Cons:
 
@@ -667,7 +905,7 @@ Cons:
 - pipeline/reproducibility has only recently been of focus
   - tidymodels is a great but very non-standard way of doing things
   - mlr3 is much more sklearn-like fast and memory efficient
-
+- developers don't do enough testing
 
 
 
@@ -684,3 +922,6 @@ bv tradeoff
 https://hastie.su.domains/Papers/ESLII.pdf
 
 https://machinelearningmastery.com/gentle-introduction-to-the-bias-variance-trade-off-in-machine-learning/
+
+RF/boosting
+https://developers.google.com/machine-learning/decision-forests
