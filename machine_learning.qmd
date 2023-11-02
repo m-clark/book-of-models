@@ -526,13 +526,17 @@ Let's apply this to the movie review data. We'll used the 'processed version' wh
 
 ##### Python
 
+
 ```{python}
 #| label: elasticnet-py
 
 import pandas as pd
 import numpy as np
+
+
 from sklearn.linear_model import ElasticNetCV, LogisticRegressionCV
 from sklearn.metrics import accuracy_score
+
 
 df_movies = pd.read_csv('data/movie_reviews_processed.csv')
 
@@ -693,12 +697,14 @@ Example with the moview review data. Although boosting methods are available in 
 
 ```{python}
 #| label: boost-py
+#| results: hide
 
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingClassifier
 import xgboost as xgb
 from sklearn.metrics import accuracy_score
+from sklearn.model_selection import cross_validate
 
 df_movies = pd.read_csv('data/movie_reviews_processed.csv')
 
@@ -714,27 +720,32 @@ y = df_movies['rating_good']
 # Fit model
 
 model = xgb.XGBClassifier(
-  max_iter = 250,
-  learning_rate = .1,
+  n_estimators = 500,
+  learning_rate = 1e-3,
   max_depth = 5,
-  min_samples_leaf = 10,
   objective = 'binary:logistic',
   tree_method = 'hist',
   enable_categorical = True,
-  random_state = 123
+  random_state = 123,
 )
 
-model.fit(X, y)
+# model.fit(X, y) # standard fitting
+res = cross_validate(model, X, y, cv = 5) # use cross-validation
 
 
-# Predict
+# # Predict
 
-y_pred = model.predict(X)
+# y_pred = model.predict(X)
 
-# Evaluate
+
+```
+
+```{python}
+#| label: boost-py-print-results
+#| echo: false
 
 print(
-  'Training accuracy: ', accuracy_score(y, y_pred),
+  'Training accuracy: ', np.round(np.mean(res['test_score']), 3),
   'Baseline Prevalence: ', np.mean(y)
 )
 ```
@@ -747,52 +758,69 @@ Note that as of writing, the xgboost package does not support categorical variab
 
 ```{r}
 #| label: boost-r
+library(mlr3)
+library(mlr3learners)
+library(mlr3extralearners)
 
-library(xgboost)
-
-# df_movies <- read_csv('data/movie_reviews_processed.csv')
-
-X <- df_movies %>%
-  select(matches("_sc$|genre|release_year_0|season|children_in_home")) |> 
+# Load data
+X = df_movies %>%
+  select(matches("_sc$|genre|release_year_0|season|children_in_home|rating_good"))  |> 
   mutate(
     genre = as.factor(genre),
     season = as.factor(season)
   ) |>
   data.table::as.data.table() |> 
   mltools::one_hot() |> 
-  as.matrix()
+  mutate(rating_good = factor(rating_good, labels = c('Bad', 'Good')))  |> 
+  janitor::clean_names()
 
 
-y <- df_movies %>%
-  pull(rating_good)
-
-
-# Fit model
-set.seed(123)
-
-model <- xgboost(
-  data = X,
-  label = y,
-  nrounds = 250,
-  params = list(
-    eta = .1,
-    max_depth = 5,
-    min_child_weight = 10
-  ),
-  objective = 'binary:logistic',
-  verbose = 0
+# Define task
+tsk = TaskClassif$new(
+  id = "movie_reviews",
+  backend = X,
+  target = "rating_good"
 )
 
-# Predict
+# Define learner
+learner_xgb = lrn(
+  "classif.xgboost",
+  nrounds = 500, 
+  eta = 1e-3,
+  max_depth = 5#,
+  # min_child_weight = 10#,
+  # eval_metric = "classif.ce")
+)
 
-y_pred <- as.integer(predict(model, X, type = 'class')>.5)
+
+# Define benchmark
+rr <- resample(
+    task       = tsk,
+    learner    = learner_xgb,
+    resampling = rsmp("cv", folds = 5)
+)
+
+```
+
+```{r}
+#| label: boost-r-save-results
+#| echo: false
+#| eavl: false
+
+saveRDS(rr, 'ml/data/boost-r-results.rds')
+
+```
+
+```{r}
+#| label: boost-r-print-results
+#| echo: false
 
 # Evaluate
 
-glue('Training Accuracy: {round(mean(y_pred == y), 3)}\nBaseline Prevalence: {round(mean(y), 3)}')
+glue("Training Accuracy: {round(1-rr$aggregate(), 3)}\nBaseline Prevalence: {round(mean(y), 3)}")
 ```
 
-
+:::
 
 
 #### Gblinear demo
@@ -804,7 +832,7 @@ MOVE TO APPENDIX
 
 Random forests and boosting methods, though not new, are still 'state of the art' in terms of performance on tabular data like the type we've been using for our demos here. 
 
-### Strengths & Weaknesses
+#### Strengths & Weaknesses
 
 **Strengths**
 
@@ -821,10 +849,182 @@ Random forests and boosting methods, though not new, are still 'state of the art
 
 
 ### Deep Learning and Neural Networks
-#### MLP
+
+![](img/nnet.png)
+<img src="img/nnet.png" style="display:block; margin: 0 auto;" width=50%>
+
+Deep learning has fundametally transformed the world of data science. It has been used to solve problems in image recognition, speech recognition, natural language processing, and more.  It has also been used to solve problems in tabular data, and is often used in Kaggle competitions. It is not a panacea, and is not always the best tool for the job, but it is a tool that should be in your toolbox.  Here we'll provide brief overview of the key concepts behind them.
+
+#### What is a neural network?
+
+While they seem to be new, neural networks have been around a while. Like 80s a while, and conceptually even further back.  They were not very popular for a long time, but this was mostly a computing problem, much the same reason Bayesian methods were slower to develop. But now neural networks have recently become the go-to method for many problems.
+
+At it's core, a neural network is just a series of matrix multiplications and nonlinear transformations.  The matrix multiplications are the **linear** part, and the nonlinear transformations are the **activation** part.  The linear part is just like a linear model, where we have a set of features, each with a coefficient, and we multiply each feature by its coefficient and sum them up.  The activation part is where things get interesting.  We take the output of the linear part and apply a nonlinear transformation to it. 
 
 
-### Others
+
+The most common activation function is the **rectified linear unit** or **ReLU**.  It's defined as follows:
+
+
+#### Getting Started
+
+MLP stuff 
+
+
+
+
+:::{.panel-tabset}
+
+##### Python
+
+```{python}
+#| label: deep-py-data-setup
+
+X = df_movies.filter(regex='_sc$|genre|release_year_0|season|children_in_home')
+
+X = X.assign(
+  genre  = pd.Categorical(X['genre']),
+  season = pd.Categorical(X['season'])
+)
+
+X = pd.get_dummies(X, columns=['genre', 'season'], dtype='int')
+
+y = df_movies['rating_good']
+```
+
+```{python}
+#| label: deep-py
+
+from sklearn.neural_network import MLPClassifier
+
+model = MLPClassifier(
+  hidden_layer_sizes = (128, 64, 32, 64, 128),
+  learning_rate = 'adaptive',
+  learning_rate_init = 0.001,
+  max_iter = 2000,
+  shuffle = True,
+  random_state = 123,
+  tol = 0.0001,
+  warm_start = True,
+  nesterovs_momentum = True,
+  validation_fraction = 0.1,
+  n_iter_no_change = 10,
+  verbose = False,
+)
+
+# model.fit(X, y)
+res = cross_validate(model, X, y, cv = 5) # use cross-validation; will take a minute
+
+# y_pred = model.predict(X)
+```
+
+
+
+```{python}
+#| label: deep-py-print-results
+#| echo: false
+
+print(
+  'Training accuracy: ', np.round(np.mean(res['test_score']), 3),
+  'Baseline Prevalence: ', np.mean(y)
+)
+```
+
+##### R
+
+```{r}
+#| label: deep-r-data-setup
+
+X <- df_movies %>%
+  select(matches("_sc$|genre|release_year_0|season|children_in_home")) |> 
+  mutate(
+    genre = as.factor(genre),
+    season = as.factor(season)
+  ) |>
+  data.table::as.data.table() |> 
+  mltools::one_hot() |> 
+  as.matrix()
+
+```
+
+```{r}
+#| label: deep-r
+#| eval: false
+
+library(mlr3torch)
+
+learner_mlp <- lrn("classif.mlp",
+    # defining network parameters
+    activation = nn_relu,
+    layers = 5,
+    d_hidden = 64,
+    # training parameters
+    batch_size = 256,
+    epochs = 50,
+    device = "cpu",
+    # Defining the optimizer, loss, and callbacks
+    optimizer = t_opt("adam", lr = 1e-3, nesterov = TRUE),
+    loss = t_loss("cross_entropy"),
+    callbacks = t_clbk("history"), # this saves the history in the learner
+    # Measures to track
+    measures_valid = msrs(c("classif.logloss", "classif.ce")),
+    measures_train = msrs(c("classif.acc")),
+    # predict type (required by logloss)
+    predict_type = "prob"
+)
+
+tsk = TaskClassif$new(
+    id = "movie_reviews",
+    backend = data.frame(X, rating = factor(y, labels = c('Bad', 'Good'))),
+    target = 'rating'
+)
+
+rr = resample(
+    task       = tsk,
+    learner    = learner_mlp,
+    resampling = rsmp("cv", folds = 5),
+)
+```
+
+```{r}
+#| label: deep-r-save-results
+#| echo: false
+#| eval: false
+
+saveRDS(rr, 'ml/data/deep-r-results.rds')
+```
+
+
+
+```{r}
+#| label: deep-r-print-results
+#| echo: false
+
+library(mlr3torch)
+rr = readRDS('ml/data/deep-r-results.rds')
+
+glue('Training Accuracy: {round(rr$aggregate(msr("classif.acc")), 3)}\nBaseline Prevalence: {round(mean(y), 3)}')
+```
+
+
+:::
+
+
+#### Strengths & Weaknesses
+
+**Strengths**
+
+- Good prediction generally.
+- Incorporating the predictive power of different combinations of inputs.
+- Some tolerance to correlated inputs.
+
+**Weaknesses**
+
+- Susceptible to irrelevant features.
+- Not robust to outliers.
+- Generally doesn't outperform with tabular data.
+
+## Other ML Models
 
 When you look up models used in machine learning, you'll potentially see a lot of different kinds.  Popular methods from the past include *k*-nearest neighbors, support vector machines, and more. You don't see these used in practice much though, as these have mostly been made obsolete due to not being as predictive as other options in general (k-nn), or maybe only working well with 'pretty' data situations (SVM), or just being less interpretable. While they might work well in certain situations, when you have tools that can handle a lot of data complexity and predict very well (and typically better) like tree-based methods, there's not much reason to use the historical alternatives these days. If you're interested in learning more about them or think one of them is just 'neat'[^svm], you could potentially use it as a baseline model.
 
@@ -925,3 +1125,16 @@ https://machinelearningmastery.com/gentle-introduction-to-the-bias-variance-trad
 
 RF/boosting
 https://developers.google.com/machine-learning/decision-forests
+
+
+DL
+
+Annotated History of Modern AI and Deep Learning, Juergen Schmidhuber
+
+
+Interpretation
+
+Molnar
+
+Techniques to Improve Ecological
+Interpretability of Black-Box Machine Learning Models https://link.springer.com/article/10.1007/s13253-021-00479-7
