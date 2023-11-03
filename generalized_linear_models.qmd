@@ -341,14 +341,9 @@ Logistic regression does not have an $R^2$ value in the way that a linear regres
 
 ## Poisson Regression
 
-### Key Points
+### Why Should You Care
 
-1.  Poisson regression is for count-based dependent variables (e.g., how many touchdowns does a team get, how many safety violations does a factory have, how many credit cards do you have under your name)
-
-2.  If you have a lot of zeroes in your data, you might want to consider a zero-inflated Poisson.
-
-3.  If your count variable does not follow a Poisson distribution, then you might want to use a negative binomial model.
-
+Like logistic regression, poisson regression belongs to a broad class of generalized linear models. Poisson regression is used when you have a count variable as your target. The nature of a count variable is very different, since it starts at 0 and can only be a whole number. We need a model that will not produce negative predictions and poisson regression will do that for us.
 
 ### The Poisson Distribution
 
@@ -390,19 +385,16 @@ ggplot() +
 A cool thing about these distributions is that they can deal with different *exposure* rates. You don't need observations recorded over the same interval length, because you can adjust for them appropriately. They can also be used to model inter-arrival times and time-until events.
 :::
 
+
+
 ## The (Sometimes) Thin Line
 
-This gets into an area where we need to think long and hard about our dependent variable and what it actually might be.
-
-- Since Poisson regression gets its name from the Poisson distribution, we should probably see if it follows the Poisson distribution.
+This gets into an area where we need to think long and hard about our dependent variable and what it actually might be. Since Poisson regression gets its name from the Poisson distribution, we should probably see if it follows the Poisson distribution.
 
 ```{r}
-library(data.table)
 library(vcd)
 
-shroudData <- fread("https://www.nd.edu/~sberry5/data/shroudData.csv")
-
-poissonTest <- goodfit(shroudData$shroudsProduced, type = "poisson")
+poissonTest <- goodfit(reviews$total_reviews, type = "poisson")
 
 summary(poissonTest)
 ```
@@ -442,7 +434,7 @@ var(shroudData$shroudsProduced)
 
 Not terribly far off, but we will see if it becomes a problem later. You might be wondering why overdispersion is a problem -- it goes back to the single parameter within the Poisson distribution. The normal distribution has a parameter for dealing with variance -- $\sigma$ -- Poisson does not, so the assumption is that any variance would be equal to the mean.
 
-### The Model
+### Standard Functions
 
 Recall that every distribution has a link function (or several) that tend to work well for it. The poisson distribution uses a log link function:
 
@@ -491,116 +483,104 @@ The dispersion value that we see returned (0.9452052 in our case) should be unde
 
 We can also look back to our model results to compare our residual deviance to our residual deviance degrees of freedom; if our deviance is greater than our degrees of freedom, we might have an issue with overdispersion. Since we are just a bit over and our overdispersion tests do not indicate any huge issue, we can be relatively okay with our model. If we had some more extreme overdispersion, we would want to flip to a quasi-poisson distribution -- our coefficients would not change, but we would have improved standard errors.
 
-# Zero-inflated Poisson (ZIP)
+### Model Specification
 
-Sometimes we have a seeming abundance of zero values within our data. We can have employees with zero absence periods, lines with zero quality failures, and days without safety issues. What is the process that generated the zeros? Are they coming from our count model (“true” zeroes) or something else (some random process)? This is where zero-inflated models become important. ZIP models are *mixture models*. We are not going to dive too deeply into this, but all you need to know is that a mixture model contains a “mixture” of different distributions:
+:::{.panel-tabset}
 
-$$y \sim \text{ZIP}(p,\lambda) \\ \text{logit} = \alpha_p + \beta_pX \\ \text{log} = \alpha_\lambda + \beta_\lambda X$$
-
-This just formalizes the fact that our *y* can be generated from multiple processes.
+##### R
 
 ```{r}
-redlights <- fread("https://www.nd.edu/~sberry5/data/redlights.csv")
+zip_ll <- function(y, X, par) {
+  # arguments are response y, predictor matrix X, and parameter named starting points of 'logit' and 'pois'
+  
+  # Extract parameters
+  logitpars = par[grep('logit', names(par))]   
+  poispars  = par[grep('pois', names(par))]     
+  
+  # Logit part; in this function Xlogit = Xpois but one could split X argument into Xlogi and Xpois for example
+  Xlogit  = X
+  LPlogit = Xlogit %*% logitpars
+  logi0   = plogis(LPlogit)  # alternative 1/(1+exp(-LPlogit))
+    
+  # Poisson part
+  Xpois  = X
+  mupois = exp(Xpois %*% poispars)
+  
+  # LLs
+  logliklogit = log( logi0 + exp(log(1 - logi0) - mupois) )
+  loglikpois  = log(1 - logi0) + dpois(y, lambda = mupois, log = TRUE)
+  
+  # Hilbe formulation
+  # logliklogit = log(logi0 + (1 - logi0)*exp(- mupois) )
+  # loglikpois = log(1-logi0) -mupois + log(mupois)*y     #not necessary: - log(gamma(y+1))
+    
+  y0 = y == 0  # 0 values
+  yc = y > 0   # Count part
 
-poissonRedlight <- glm(citation_count ~ as.factor(camera_installed_ny),
-            data = redlights,
-            family = poisson)
-
-summary(poissonRedlight)
+  loglik = sum(logliklogit[y0]) + sum(loglikpois[yc])
+  -loglik
+}
 ```
 
-With this output, we are comparing citation counts against intersections without a camera and those with a camera.
+##### Python
 
-We see that our coefficient is -.88529 –- this means that having a camera leads to having .88529 less log counts than without having a camera.
+:::
 
-We can also exponentiate that value to get an incident rate:
+### Starting Values
+
+:::{.panel-tabset}
+
+##### R
 
 ```{r}
-exp(poissonRedlight$coefficients)
+initial_model = glm(
+  count ~ persons + livebait,
+  data = fish,
+  x = TRUE,
+  y = TRUE,
+  "poisson"
+)
+
+# starts = c(logit = coef(initial_model), pois = coef(initial_model))  
+starts = c(rep(0, 3), rep(0, 3))
+
+names(starts) = c(paste0('pois.', names(coef(initial_model))),
+                  paste0('logit.', names(coef(initial_model))))
 ```
 
-Let's see what those mean with an example:
+##### Python
+
+:::
+
+### Model Fitting
+
+:::{.panel-tabset}
+
+##### R
 
 ```{r}
-tapply(X = redlights$citation_count, 
-       INDEX = redlights$camera_installed_ny, 
-       FUN = mean) # Old-school group_by and summarize!
-```
-
-```{r}
-4.086172/9.903564
-```
-
-Dividing the mean of the target group by the mean of the reference group will get us the incidence rate (i.e., for every one time someone runs a red light without a camera, it happens .41 times with camera).
-
-If we take a look at citation_count’s distribution, we will see more than a few 0’s.
-
-```{r}
-hist(redlights$citation_count)
-```
-
-For our redlight data, we saw that having a camera present had an effect on citations, but would it cause 0 citations? Or might there be something else contributing to the 0’s (e.g., no cars going through that intersection due to construction, no police nearby)? If there are no cars going through the intersection due to construction, is there even a chance of obtaining a non-zero response?
-
-```{r}
-library(pscl)
-
-zipTest <- zeroinfl(citation_count ~ as.factor(camera_installed_ny),
-                   dist = "poisson", data = redlights)
-
-# Important note: If you want your logistic model to differ from your
-# poisson model, you would do this:
-
-zipTest <- zeroinfl(citation_count ~ 
-                      as.factor(camera_installed_ny) |
-                      as.factor(camera_installed_ny),
-                    dist = "poisson", data = redlights)
-
-summary(zipTest)
-```
-
-Here we have two sets of coefficients: one for our count model (our actual Poisson regression) and one model attempting to account for excessive 0s. Our count model does not change, but we also see that our zero-inflation model will not account for the 0s within our data. This would be a clear indication that we have something else that might be contributing to the number of 0s that we see.
-
-# Negative Binomial
-
-Remember that whole issue with our conditional means and variances? If we would have had problems those means and variances, we would need to abandon our Poisson distribution in favor of the negative binomial. The poisson distribution works when the sample mean and variance are equal – the negative binomial distribution frees that constraint and allows them to vary freely.
-
-<aside>
-The negative binomial adds an extra parameter (*p*) to free up the assumption of equal means and variances.
-</aside>
-
-Remember this:
-
-```{r}
-redlights[, 
-          list(mean = mean(citation_count), 
-               var = var(citation_count)), 
-          by = camera_installed_ny] 
-```
-
-Those look like the start of problems. Let’s check our whole sample now:
-
-```{r}
-mean(redlights$citation_count)
+fit = optim(
+  par = starts ,
+  fn  = zip_ll,
+  X   = initial_model$x,
+  y   = initial_model$y,
+  method  = "BFGS",
+  control = list(maxit = 5000, reltol = 1e-12),
+  hessian = TRUE
+)
 ```
 
 
+##### Python
+
+:::
+
+## Wrapping Up
+
+These are just two of the many models that fall under the broad umbrella of generalized linear models. Depending on your data situation, you might want to keep the following in find:
+
 ```{r}
-var(redlights$citation_count)
+model_df <- data.frame(distribution = c("beta", ), 
+                      target = c("proportion", ))
 ```
 
-There is clearly a problem here!
-
-```{r}
-library(MASS)
-
-nbTest <- glm.nb(citation_count ~ as.factor(camera_installed_ny), 
-                 data = redlights)
-
-summary(nbTest)
-```
-
-The interpretation of our negative binomial is exactly the same as our Poisson model -- we have only relaxed the assumptions of our distribution! You might notice our model fits better (even if slightly so) by using the negative binomial.
-
-## Another Distribution Worth Noting
-
-The beta distribution has many practical uses. It can be used to model variables that are bound by 0 and 1 (but do not hit 0 or 1). If you have an outcome variable that is a proportion, it would be useful to keep the beta distribution in mind. We will also see the beta distribution in the context of Bayesian analysis, because we can use it as a prior for R^2.
