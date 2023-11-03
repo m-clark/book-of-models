@@ -1,0 +1,613 @@
+
+# Machine Learning Models
+
+```{r}
+#| include: False
+#| label: setup-ml
+source("load_packages.R")
+source("setup.R")
+
+library(tidyverse)
+reticulate::use_condaenv("book-of-models")
+```
+
+## Data setup
+
+:::{.panel-tabset}
+
+##### Python
+
+
+```{python}
+#| label: setup-data-py
+#| 
+import pandas as pd
+import numpy as np
+
+
+from sklearn.linear_model import ElasticNetCV, LogisticRegressionCV
+from sklearn.metrics import accuracy_score
+
+df_movies = pd.read_csv("data/movie_reviews_processed.csv")
+
+X = df_movies.filter(regex = "_sc$")
+X_onehot = df_movies.filter(regex = "_sc$|genre|season|release_year_0|children_in_home")
+X_onehot = pd.get_dummies(X_onehot, columns = ["genre", "season"], dtype = "int")
+y = df_movies["rating_good"]
+```
+
+##### R
+
+```{r}
+#| label: setup-data-r
+
+# spam = readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-08-15/spam.csv")
+
+# spam = spam %>% 
+#   mutate(is_spam = ifelse(type == "spam", 1, 0)) %>% 
+#   select(-type)
+
+df_movies = read_csv("data/movie_reviews_processed.csv")
+
+X = df_movies %>%
+    select(ends_with("_sc")) %>%
+    as.matrix()
+
+X_onehot = df_movies %>%
+    select(matches("_sc$|genre|release_year_0|season|children_in_home")) |> 
+    mutate(
+      genre = as.factor(genre),
+      season = as.factor(season)
+    ) |>
+    data.table::as.data.table() |> 
+    mltools::one_hot() |> 
+    as.matrix()
+
+y = df_movies %>%
+    pull(rating_good)
+```
+
+:::
+
+
+
+## Common Models
+
+### Baseline
+
+The baseline model should serve as a way to gauge how much better your model performs over one that is simpler and more interpretable, or one that is sufficiently complex to capture something about the data you are exploring, but not as complex as the models you're primarily interested in. Take a classification model for example. We could compare it to a logistic regression, which is as simple as it gets, but is often too simple to be very predictive for many situations. 
+
+#### Why do we do this?
+
+You can actually find articles in which deep learning models do not even beat a logistic regression on some datasets, but which did not stop the authors writing several pages hyping the more complex technique. Probably the most important reason to have a baseline is so that you can avoid wasting time and resources implementing more complex tools. It is probably rare, but sometimes relationships for the chosen features are mostly or nearly linear and have little interaction, and no amount of fancy modeling will make it come about.  If our baseline is a complex linear model that actually incorporates nonlinear relationships and interactions (e.g. a GAMM), you'll often find that the more complex models don't improve on the baseline by much, if at all. Furthermore, you may find that the initial baseline model is good enough for the time being and you can then move on to other problems to solve.  This is especially true if you are working in a business setting where you have limited time and resources.
+
+A final note. In many (most?) settings, it often isn't enough to merely beat the baseline model. You should look for doing statistically better. For example, if your complex model accuracy is 75% and your baseline is 73%, that's great, but you should check to see if that difference is statistically significant[^ifonlystatdiff], because those metrics are *estimates*, and they have uncertainty, which means you can get a range for them as well as test whether they are different from one another. If it is not, then you should probably stick with the baseline model or try something else, because the next time you run the model, the baseline may actually perform better, or at least you can't be sure that it won't.
+
+That said, in some situations any performance increase is worth it, and even if we can't be certain a result is statistically better, any sign of improvement is worth pursuing. For example, if you are trying to predict the next word in a sentence, and your baseline is 10% accurate, and your complex model is 11% accurate, that's a 10% increase in accuracy, which may be a big deal depending on the situation. You should still work to show that this is a consistent increase and not a fluke.
+
+[^ifonlystatdiff]: There would be far less hype and wasted time if those in ML and DL research simply did this rather than just reporting the chosen metric of their model 'winning' against other models. It's not that hard to do, yet most do not provide any ranged estimate for their metric, let alone test statistical difference from other models. You don't even have to bootstrap the metric estimates for binary classification! It'd also be nice if they used a more meaningful baseline than logistic regression, but that's a different story.
+
+
+### Penalized Approaches
+
+We show explictly how to estimate models like lasso and ridge regression in the estimation chapter. Those work well as a baseline and so should be in your ML toolbox. Remember also that they can be applied to any linear model setting, where your objective is MSE, log likelihood of a count or binary target, or what have you. It's good to keep them in mind.
+
+#### Elastic Net
+
+Another common approach is **elastic net**, which is a combination of lasso and ridge.  We will not show how to estimate elastic net here, but all you have to know is that it has two penalties, the same ones for lasso and one for ridge, along with the standard objective for a numeric or categorical target. The relative size of the two penalties is controlled by a mixing parameter, and the optimal value of that parameter is determined by cross-validation.  So for example, you might end up with a 75% lasso penalty and 25% ridge penalty.  
+
+Let's apply this to the movie review data. We'll used the 'processed version' which has some standardized versions of the data and a binary version of the target review as 'Good' or 'Bad'.
+
+:::{.panel-tabset}
+
+##### Python
+
+
+```{python}
+#| label: elasticnet-py
+#| eval: true
+
+model = LogisticRegressionCV(
+  penalty   = 'elasticnet', 
+  l1_ratios = np.arange(.0, 1, .05), 
+  cv     = 5, 
+  solver = 'saga', 
+  random_state = 123,
+  max_iter= 100,
+  verbose = False
+)
+
+model.fit(X, y)
+
+# Predict
+
+y_pred = model.predict(X)
+```
+
+
+
+```{python}
+#| label: elasticnet-py-print-results
+#| echo: false
+
+print(
+  'Training accuracy: ', accuracy_score(y, y_pred),
+  'Baseline Prevalence: ', np.mean(y)
+)
+```
+
+##### R
+
+```{r}
+#| label: elasticnet-r
+#| eval: false
+#| 
+
+library(mlr3)
+library(mlr3extralearners)
+
+tsk_movie = TaskClassif$new(
+  id = "movie_reviews",
+  backend = data.frame(X, rating = factor(y, labels = c('Bad', 'Good'))),
+  target = 'rating'
+)
+
+lrn_movie = lrn("classif.cv_glmnet", nfolds = 5, type.measure = "class", alpha = 0.5)
+
+rr = resample(
+    task       = tsk_movie,
+    learner    = lrn_movie,
+    resampling = rsmp("cv", folds = 5)
+)
+```
+
+```{r}
+#| label: elasticnet-r-save-results
+#| echo: false
+#| eval: false
+
+saveRDS(rr, 'ml/data/elasticnet-r-results.rds')
+```
+
+
+```{r}
+#| label: elasticnet-r-print-results
+#| echo: false
+
+library(mlr3)
+library(mlr3extralearners)
+
+rr = readRDS('ml/data/elasticnet-r-results.rds')
+
+# Evaluate
+
+glue("Training Accuracy: {round(rr$aggregate(msr('classif.acc')), 3)}\nBaseline Prevalence: {round(mean(y), 3)}")
+```
+
+:::
+
+
+
+
+
+#### Strengths & Weaknesses
+
+##### Strengths
+
+- Intuitive approach.  In the end, it's still just a standard regression model you're already familiar with.
+- Widely used for many problems.  Would be fine to use in any setting you would use standard/logistic regression.
+
+##### Weaknesses
+
+- Does not automatically seek out interactions and non-linearity, and as such will generally not be as predictive as other techniques.
+- Variables have to be scaled or results will largely reflect data types.
+- May have issues with correlated predictors
+
+
+#### Additional Thoughts
+
+Incorporating regularization would be fine as your default method, and something to strongly consider.  Furthermore, these approaches will have better prediction on new data than their standard complements.  As such they are a nice balance between staying interpretable while enhancing predictive capability. However, in general they are not going to be as strong of a method as others in the ML universe, and possibly not even competitive without a lot of feature engineering.  If prediction is all you care about for a particular modeling setting, you'll want to try something else.
+
+
+
+
+
+### Tree-based methods
+
+Let's move beyond a standard linear models and get into a notably different approach. Tree-based methods are a class of models that are very popular in machine learning. Consider the following classification example where we want to predict a binary target as yes or no. We have two numeric features, $X_1$ and $X_2$. At the start we take $X_1$ and make a split at the value of 5. Any observation less than 5 on $X_1$ goes to the right with a prediction of *No*. Any observation greater than or equal to 5 goes to the left, where we then split based on values of $X_2$, and specifically at 3. Any observation less than 3 goes to the right with a prediction of *Yes*. Any observation greater than or equal to 3 (and greater than or equal to 5 on $X_1$) goes to the left with a prediction of *No*. 
+
+
+```{dot}
+#| echo: false
+#| label: tree-graph
+
+digraph tree {
+graph [rankdir = TD  bgcolor="#fffff8"]
+
+node [shape = rectangle, style=filled, fillcolor=white, color=gray, width=.75]
+
+node [fontcolor=gray25 fontname=Roboto fixedsize=true fontsize=5]
+X1[width=.25 height=.25 label = <X<sub>1</sub> >];
+X2 [width=.25 height=.25 label = <X<sub>2</sub> >]; 
+No1 [label="No" shape=circle color="#E69F00" width=.25]; 
+No2 [label="No" shape=circle color="#E69F00" width=.33]; 
+Yes [ shape=circle color="#56B4E9" width=.33];
+
+edge [color=gray50 arrowhead=dot]
+X1 -> No1 [label = " < 5", fontcolor="gray50" fontsize=5.5 color="#E69F00"];
+X1 -> X2 [label = " >= 5", fontcolor="gray50" fontsize=5.5];
+X2 -> No2 [label = " >= 3", fontcolor="gray50" fontsize=5.5 color="#E69F00"];
+X2 -> Yes [label = " < 3", fontcolor="gray50" fontsize=5.5 color="#56B4E9"];
+
+}
+```
+
+
+This is a simple example, but it illustrates the basic idea of a tree-based model, where the **tree** reflects the total process, and **branches** the splits going down, ultimately ending at **leaves**. We can think of the tree as a series of if-then statements, where we start at the top and work our way down until we reach a leaf node, which is a prediction for all observations that qualify for that leaf.
+
+If we just had a single tree, this would be the most interpretable model we could probably come up with, and it incorporates nonlinearities (multiple branches on a single feature), interactions (branches across features), and feature selection all in one.  However, it's unfortunately not a very stable model, and does not generalize well. For example, just a slight change in data, or even just starting with a different feature, might produce a very different tree[^cartbase]. The solution is merely to come up with a bunch of trees, get predictions for each observation from each tree, and then average the predictions. This is the concept behind both **random forests** and **gradient boosting**, which can be seen as different algorithms to produce a bunch of trees and then average the predictions.  The also fall under the heading of **ensemble models**, which are models that combine the predictions of multiple models, in this case individual trees, to produce a single prediction. 
+
+Random forests and boosting methods are very easy to implement, to a point. However, there are typically a few hyperparameters to consider for tuning. Here are few to think about:
+
+- Number of trees
+- Learning rate (GB)
+- Maximum **depth** of each tree
+- Minimum number of observations in each leaf
+- Number of features to consider at each tree/split
+- Regularization parameters (GB)
+- Out-of-bag sample size (RF)
+
+
+Those are the ones that you'll usually be trying to figure out via cross-validation for boosting, but there are others. The number of trees and learning rate kind of play off of each other, where more trees allows for a smaller rate, which might work better but will usually take longer to train, but can lead to overfitting if other steps are not taken. The depth of each tree refers to the number of levels down the branches we allow the model to go (as well as how wide we let things get in some implementations). This is important because it controls the complexity of each tree, and thus the complexity of the overall model- less depth helps to avoid overfitting, but too little depth and you won't be able to capture the nuances of the data. The minimum number of observations in each leaf is also important for the same reason. It's generally a good idea to take a random sample of features (or even data) to also help reduce overfitting. The regularization parameters are typically less important, but in general you'll want to use them to reduce overfitting.
+
+
+[^cartbase]: This actually could serve as a decent baseline model, especially given the interepretability.
+
+
+<!-- <img src="img/tree1.png" style="display:block; margin: 0 auto;" width=25%> -->
+
+Example with the moview review data. Although boosting methods are available in sklearn for Python, in general we recommend lightgbm or xgboost packages directly for boosting implementation, which have a sklearn API anyway (as demonstrated). Also, they both provide R and Python implementations of the package, making it easy to not lose your place when switching between languages.  We'll use xgboost here, but lightgbm is also a very good option.  Some also prefer catboost[^nomeow], but we'll leave that for the reader to investigate.  We'll also use the processed version of the data, which has some standardized versions of the data and a binary version of the target review as 'Good' or 'Bad'.
+
+[^nomeow]: The authors have not actually been able to practically implement catboost in a setting where it was more predictive or as efficient/speedy as xgboost or lightgbm, but that's not to say it's not a good option, and some have had notable success with it. It's just not one we've used much, or is as popular in general.
+
+:::{.panel-tabset}
+
+##### Python
+
+```{python}
+#| label: boost-py
+#| results: hide
+
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import HistGradientBoostingClassifier
+import xgboost as xgb
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import cross_validate
+
+df_movies = pd.read_csv('data/movie_reviews_processed.csv')
+
+X = df_movies.filter(regex='_sc$|genre|release_year_0|season|children_in_home')
+
+X = X.assign(
+  genre  = pd.Categorical(X['genre']),
+  season = pd.Categorical(X['season'])
+)
+
+y = df_movies['rating_good']
+
+# Fit model
+
+model = xgb.XGBClassifier(
+  n_estimators = 500,
+  learning_rate = 1e-3,
+  max_depth = 5,
+  objective = 'binary:logistic',
+  tree_method = 'hist',
+  enable_categorical = True,
+  random_state = 123,
+)
+
+# model.fit(X, y) # standard fitting
+res = cross_validate(model, X, y, cv = 5) # use cross-validation
+
+
+# # Predict
+
+# y_pred = model.predict(X)
+
+
+```
+
+```{python}
+#| label: boost-py-print-results
+#| echo: false
+
+print(
+  'Training accuracy: ', np.round(np.mean(res['test_score']), 3),
+  'Baseline Prevalence: ', np.mean(y)
+)
+```
+
+##### R
+
+Note that as of writing, the xgboost package does not support categorical variables in R, so we'll just one-hot encode them.
+
+
+
+```{r}
+#| label: boost-r
+library(mlr3)
+library(mlr3learners)
+library(mlr3extralearners)
+
+# Load data
+X = df_movies %>%
+  select(matches("_sc$|genre|release_year_0|season|children_in_home|rating_good"))  |> 
+  mutate(
+    genre = as.factor(genre),
+    season = as.factor(season)
+  ) |>
+  data.table::as.data.table() |> 
+  mltools::one_hot() |> 
+  mutate(rating_good = factor(rating_good, labels = c('Bad', 'Good')))  |> 
+  janitor::clean_names()
+
+
+# Define task
+tsk = TaskClassif$new(
+  id = "movie_reviews",
+  backend = X,
+  target = "rating_good"
+)
+
+# Define learner
+learner_xgb = lrn(
+  "classif.xgboost",
+  nrounds = 500, 
+  eta = 1e-3,
+  max_depth = 5#,
+  # min_child_weight = 10#,
+  # eval_metric = "classif.ce")
+)
+
+
+# Define benchmark
+rr = resample(
+    task       = tsk,
+    learner    = learner_xgb,
+    resampling = rsmp("cv", folds = 5)
+)
+
+```
+
+```{r}
+#| label: boost-r-save-results
+#| echo: false
+#| eavl: false
+
+saveRDS(rr, 'ml/data/boost-r-results.rds')
+
+```
+
+```{r}
+#| label: boost-r-print-results
+#| echo: false
+
+# Evaluate
+
+glue("Training Accuracy: {round(1-rr$aggregate(), 3)}\nBaseline Prevalence: {round(mean(y), 3)}")
+```
+
+:::
+
+
+#### Gblinear demo
+
+MOVE TO APPENDIX
+
+
+
+
+Random forests and boosting methods, though not new, are still 'state of the art' in terms of performance on tabular data like the type we've been using for our demos here. 
+
+#### Strengths & Weaknesses
+
+**Strengths**
+
+- A single tree is highly interpretable.
+- Easily incorporates features of different types (scale of features, categoricals, doesn't matter).
+- Tolerance to irrelevant features.
+- Some tolerance to correlated inputs.
+- Handling of missing values. Missing values are just another value to potentially split on.
+
+**Weaknesses**
+
+- Honestly few, but like all techniques, it might be relatively less predictive in certain situations. 
+- It does take more effort to tune relative to linear model methods.
+
+
+### Deep Learning and Neural Networks
+
+![](img/nnet.png)
+<img src="img/nnet.png" style="display:block; margin: 0 auto;" width=50%>
+
+Deep learning has fundametally transformed the world of data science. It has been used to solve problems in image recognition, speech recognition, natural language processing, and more.  It has also been used to solve problems in tabular data, and is often used in Kaggle competitions. It is not a panacea, and is not always the best tool for the job, but it is a tool that should be in your toolbox.  Here we'll provide brief overview of the key concepts behind them.
+
+#### What is a neural network?
+
+While they seem to be new, neural networks have been around a while. Like 80s a while, and conceptually even further back.  They were not very popular for a long time, but this was mostly a computing problem, much the same reason Bayesian methods were slower to develop. But now neural networks have recently become the go-to method for many problems.
+
+At it's core, a neural network is just a series of matrix multiplications and nonlinear transformations.  The matrix multiplications are the **linear** part, and the nonlinear transformations are the **activation** part.  The linear part is just like a linear model, where we have a set of features, each with a coefficient, and we multiply each feature by its coefficient and sum them up.  The activation part is where things get interesting.  We take the output of the linear part and apply a nonlinear transformation to it. 
+
+
+
+The most common activation function is the **rectified linear unit** or **ReLU**.  It's defined as follows:
+
+
+#### Getting Started
+
+MLP stuff 
+
+
+
+
+:::{.panel-tabset}
+
+##### Python
+
+```{python}
+#| label: deep-py-data-setup
+
+X = df_movies.filter(regex='_sc$|genre|release_year_0|season|children_in_home')
+
+X = X.assign(
+  genre  = pd.Categorical(X['genre']),
+  season = pd.Categorical(X['season'])
+)
+
+X = pd.get_dummies(X, columns=['genre', 'season'], dtype='int')
+
+y = df_movies['rating_good']
+```
+
+```{python}
+#| label: deep-py
+#| eval: false
+
+from sklearn.neural_network import MLPClassifier
+
+model = MLPClassifier(
+  hidden_layer_sizes = (128, 64, 32, 64, 128),
+  learning_rate = 'adaptive',
+  learning_rate_init = 0.001,
+  max_iter = 2000,
+  shuffle = True,
+  random_state = 123,
+  tol = 0.0001,
+  warm_start = True,
+  nesterovs_momentum = True,
+  validation_fraction = 0.1,
+  n_iter_no_change = 10,
+  verbose = False,
+)
+
+# model.fit(X, y)
+res = cross_validate(model, X, y, cv = 5) # use cross-validation; will take a minute
+
+# y_pred = model.predict(X)
+```
+
+
+
+```{python}
+#| label: deep-py-print-results
+#| echo: false
+
+print(
+  'Training accuracy: ', np.round(np.mean(res['test_score']), 3),
+  'Baseline Prevalence: ', np.mean(y)
+)
+```
+
+##### R
+
+```{r}
+#| label: deep-r-data-setup
+
+X = df_movies %>%
+  select(matches("_sc$|genre|release_year_0|season|children_in_home")) |> 
+  mutate(
+    genre = as.factor(genre),
+    season = as.factor(season)
+  ) |>
+  data.table::as.data.table() |> 
+  mltools::one_hot() |> 
+  as.matrix()
+
+```
+
+```{r}
+#| label: deep-r
+#| eval: false
+
+library(mlr3torch)
+
+learner_mlp = lrn("classif.mlp",
+    # defining network parameters
+    activation = nn_relu,
+    layers = 5,
+    d_hidden = 64,
+    # training parameters
+    batch_size = 256,
+    epochs = 50,
+    device = "cpu",
+    # Defining the optimizer, loss, and callbacks
+    optimizer = t_opt("adam", lr = 1e-3, nesterov = TRUE),
+    loss = t_loss("cross_entropy"),
+    callbacks = t_clbk("history"), # this saves the history in the learner
+    # Measures to track
+    measures_valid = msrs(c("classif.logloss", "classif.ce")),
+    measures_train = msrs(c("classif.acc")),
+    # predict type (required by logloss)
+    predict_type = "prob"
+)
+
+tsk = TaskClassif$new(
+    id = "movie_reviews",
+    backend = data.frame(X, rating = factor(y, labels = c('Bad', 'Good'))),
+    target = 'rating'
+)
+
+rr = resample(
+    task       = tsk,
+    learner    = learner_mlp,
+    resampling = rsmp("cv", folds = 5),
+)
+```
+
+```{r}
+#| label: deep-r-save-results
+#| echo: false
+#| eval: false
+
+saveRDS(rr, 'ml/data/deep-r-results.rds')
+```
+
+
+
+```{r}
+#| label: deep-r-print-results
+#| echo: false
+
+library(mlr3torch)
+rr = readRDS('ml/data/deep-r-results.rds')
+
+glue('Training Accuracy: {round(rr$aggregate(msr("classif.acc")), 3)}\nBaseline Prevalence: {round(mean(y), 3)}')
+```
+
+
+:::
+
+
+#### Strengths & Weaknesses
+
+**Strengths**
+
+- Good prediction generally.
+- Incorporating the predictive power of different combinations of inputs.
+- Some tolerance to correlated inputs.
+
+**Weaknesses**
+
+- Susceptible to irrelevant features.
+- Not robust to outliers.
+- Generally doesn't outperform with tabular data.
+
+## Other ML Models
+
+When you look up models used in machine learning, you'll potentially see a lot of different kinds.  Popular methods from the past include *k*-nearest neighbors, support vector machines, and more. You don't see these used in practice much though, as these have mostly been made obsolete due to not being as predictive as other options in general (k-nn), or maybe only working well with 'pretty' data situations (SVM), or just being less interpretable. While they might work well in certain situations, when you have tools that can handle a lot of data complexity and predict very well (and typically better) like tree-based methods, there's not much reason to use the historical alternatives these days. If you're interested in learning more about them or think one of them is just 'neat'[^svm], you could potentially use it as a baseline model.
+
+[^svm]: Mathy folk should love SVMs.
+
+There are also many other methods that are more specialized, such as those for text, image, and audio data.  We will not discuss those here, but they are worth looking into if you have a need for them.
