@@ -1,17 +1,148 @@
 
 # Common Models
 
+Let's get one thing straight from the outset: **any model may be used in machine learning**, from a standard linear model to a deep neural network.  The focus is on performance, not on inference.  This means that the modeler is less concerned with the interpretation of the model, but rather with the ability of the model to predict well on new data.  This is a very different focus than the one we have taken so far in this book.  In this chapter, we will explore some of the most common machine learning models and techniques.  We will also discuss some of the key ideas in machine learning, such as performance, loss functions, and cross-validation.
+
+
 ```{r}
 #| include: False
-#| label: setup-ml
+#| label: setup-ml-models
 source("load_packages.R")
 source("setup.R")
 
 library(tidyverse)
+library(glue)
 reticulate::use_condaenv("book-of-models")
 ```
 
 ## Data setup
+
+
+```{r}
+#| eval: true
+#| echo: false
+#| label: load-spam-data
+library(tidyverse)
+# df_adult = read_csv("data/adult.csv") # almost all cat vars
+# df_spam  # too few vars
+# df_heart = read_csv("data/heart_failure.csv") 
+
+
+
+# df_heart_labeled <- df_heart %>%
+#   mutate(
+#     anaemia = ifelse(anaemia == 1, "yes", "no"),
+#     diabetes = ifelse(diabetes == 1, "yes", "no"),
+#     high_blood_pressure = ifelse(high_blood_pressure == 1, "yes", "no"),
+#     male = ifelse(male == 1, "yes", "no"),
+#     smoking = ifelse(smoking == 1, "yes", "no"),
+#     death = ifelse(death == 1, "yes", "no")
+#   )
+
+# write_csv(df_heart_labeled, "data/heart_failure_labeled.csv")
+
+
+# df_income = read_csv("data/census_income.csv", na = c("", "NA", '?'))
+df_heart = read_csv("data/heart_disease_processed.csv")
+df_heart_num = read_csv("data/heart_disease_processed_numeric.csv")
+```
+
+
+```{python}
+#| eval: false
+#| echo: false
+#| label: uci heart
+from ucimlrepo import fetch_ucirepo
+
+# fetch dataset
+heart_disease = fetch_ucirepo(id=45)
+
+# data (as pandas dataframes)
+X = heart_disease.data.features
+y = heart_disease.data.targets
+
+# metadata
+# print(heart_disease.metadata)
+
+# variable information
+# print(heart_disease.variables)
+
+df_heart = (
+    X.assign(
+        cp=pd.Categorical(X.cp).rename_categories(
+            ['typical', 'atypical', 'non-anginal', 'asymptomatic']
+        ),
+        fbs=pd.Categorical(X.fbs).rename_categories(['<= 120 mg/dl', '> 120 mg/dl']),
+        restecg=pd.Categorical(X.restecg).rename_categories(
+            ['normal', 'ST-T wave abnormality', 'left ventricular hypertrophy']
+        ),
+        exang=pd.Categorical(X.exang).rename_categories(['no', 'yes']),
+        slope=pd.Categorical(X.slope).rename_categories(
+            ['upsloping', 'flat', 'downsloping']
+        ),
+        # ca = pd.Categorical(X.ca, categories = ['0', '1', '2', '3']),
+        thal=pd.Categorical(X.thal).rename_categories(
+            ['normal', 'fixed defect', 'reversible defect']
+        ),
+        heart_disease=pd.Categorical(y.num > 0).rename_categories(['no', 'yes']),
+    ).rename(
+        columns={
+            'sex': 'male',
+            'cp': 'chest_pain_type',
+            'trestbps': 'resting_bp',
+            'chol': 'cholesterol',
+            'fbs': 'fasting_blood_sugar',
+            'restecg': 'resting_ecg',
+            'thalach': 'max_heart_rate',
+            'exang': 'exercise_induced_angina',
+            'oldpeak': 'st_depression',
+            'ca': 'num_major_vessels',
+            'thal': 'thalassemia',
+        }
+    )
+    #     .assign(
+    #         fasting_blood_sugar_num=lambda x: x.fasting_blood_sugar.cat.codes,
+    #         resting_ecg_num=lambda x: x.resting_ecg.cat.codes,
+    #         exercise_induced_angina_num=lambda x: x.exercise_induced_angina.cat.codes,
+    #         slope_num=lambda x: x.slope.cat.codes,
+    #         heart_disease_num=lambda x: x.heart_disease.cat.codes,
+    #     )
+)
+
+df_heart.to_csv('data/heart_disease_processed.csv', index=False)
+
+
+cats = pd.get_dummies(
+    df_heart[['chest_pain_type', 'resting_ecg', 'slope', 'thalassemia']]
+).astype(int)
+
+binaries = (
+    pd.get_dummies(
+        df_heart[['fasting_blood_sugar', 'exercise_induced_angina', 'heart_disease']],
+        drop_first=True,
+    )
+    .astype(int)
+    .rename(columns={'heart_disease_yes': 'heart_disease'})
+)
+
+x = df_heart.drop(
+    columns=[
+        'chest_pain_type',
+        'resting_ecg',
+        'slope',
+        'thalassemia',
+        'fasting_blood_sugar',
+        'exercise_induced_angina',
+        'heart_disease',
+    ]
+)
+pd.concat([x, cats, binaries], axis=1).to_csv(
+    'data/heart_disease_processed_numeric.csv', index=False
+)
+```
+
+For our examples, we'll switch things up and use the heart diseas dataset. This is a binary classification problem, where we want to predict whether a patient has, given information such as age, sex, resting heart rate etc. For more details see the appendix.  FIXME: add appendix link!  We have two forms, one which is purely numeric, where the binary category features are changed to dummies, and one with labels for those features. The purely numeric version will save any additional data processing for some models.  In this data, roughly `r scales::percent(mean(df_heart$heart_disease == 'yes'))` suffered a death.
+
 
 :::{.panel-tabset}
 
@@ -20,66 +151,56 @@ reticulate::use_condaenv("book-of-models")
 
 ```{python}
 #| label: setup-data-py
-#| 
+#|
 import pandas as pd
 import numpy as np
 
+df_heart = pd.read_csv('data/heart_disease_processed.csv')
+df_heart_num = pd.read_csv('data/heart_disease_processed_numeric.csv')
 
-from sklearn.linear_model import ElasticNetCV, LogisticRegressionCV
-from sklearn.metrics import accuracy_score
+for col in df_heart.select_dtypes(include='object').columns:
+    df_heart[col] = df_heart[col].astype('category')
 
-df_movies = pd.read_csv("data/movie_reviews_processed.csv")
 
-X = df_movies.filter(regex = "_sc$")
-X_onehot = df_movies.filter(regex = "_sc$|genre|season|release_year_0|children_in_home")
-X_onehot = pd.get_dummies(X_onehot, columns = ["genre", "season"], dtype = "int")
-y = df_movies["rating_good"]
+X = df_heart_num.drop(columns=['heart_disease']).to_numpy()
+y = df_heart_num['heart_disease'].to_numpy()
+
+# because LogReg can't automatically handle missing
+y_complete = df_heart_num.dropna()['heart_disease'].to_numpy().astype(int)
+X_complete = df_heart_num.dropna().drop(columns='heart_disease').to_numpy()
 ```
+
 
 ##### R
 
 ```{r}
 #| label: setup-data-r
 
-# spam = readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-08-15/spam.csv")
+library(tidyverse)
 
-# spam = spam %>% 
-#   mutate(is_spam = ifelse(type == "spam", 1, 0)) %>% 
-#   select(-type)
+df_heart = read_csv("data/heart_disease_processed.csv")#|> mutate(across(where(is.character), as.factor))
+df_heart_num = read_csv("data/heart_disease_processed_numeric.csv")
 
-df_movies = read_csv("data/movie_reviews_processed.csv")
 
-X = df_movies %>%
-    select(ends_with("_sc")) %>%
-    as.matrix()
+X_num = df_heart_num %>%
+  as.matrix()
 
-X_onehot = df_movies %>%
-    select(matches("_sc$|genre|release_year_0|season|children_in_home")) |> 
-    mutate(
-      genre = as.factor(genre),
-      season = as.factor(season)
-    ) |>
-    data.table::as.data.table() |> 
-    mltools::one_hot() |> 
-    as.matrix()
-
-y = df_movies %>%
-    pull(rating_good)
+# as a data.frame for mlr3
+X_num_df = as_tibble(X_num) |> 
+    mutate(heart_disease = factor(heart_disease)) |> 
+    janitor::clean_names() # remove some symbols
 ```
 
 :::
 
 
-
-## Common Models
-
-### Baseline
+## Baseline
 
 The baseline model should serve as a way to gauge how much better your model performs over one that is simpler and more interpretable, or one that is sufficiently complex to capture something about the data you are exploring, but not as complex as the models you're primarily interested in. Take a classification model for example. We could compare it to a logistic regression, which is as simple as it gets, but is often too simple to be very predictive for many situations. 
 
-#### Why do we do this?
+### Why do we do this?
 
-You can actually find articles in which deep learning models do not even beat a logistic regression on some datasets, but which did not stop the authors writing several pages hyping the more complex technique. Probably the most important reason to have a baseline is so that you can avoid wasting time and resources implementing more complex tools. It is probably rare, but sometimes relationships for the chosen features are mostly or nearly linear and have little interaction, and no amount of fancy modeling will make it come about.  If our baseline is a complex linear model that actually incorporates nonlinear relationships and interactions (e.g. a GAMM), you'll often find that the more complex models don't improve on the baseline by much, if at all. Furthermore, you may find that the initial baseline model is good enough for the time being and you can then move on to other problems to solve.  This is especially true if you are working in a business setting where you have limited time and resources.
+You can actually find articles in which deep learning models do not even beat a logistic regression on some datasets, but the fact of which did not stop the authors writing several pages hyping the more complex technique. Probably the most important reason to have a baseline is so that you can avoid wasting time and resources implementing more complex tools. It is probably rare, but sometimes relationships for the chosen features are mostly or nearly linear and have little interaction, and no amount of fancy modeling will make it come about. If our baseline is a complex linear model that actually incorporates nonlinear relationships and interactions (e.g. a GAMM), you'll often find that the more complex models don't significantly improve on the baseline by much, if at all. In addition, in time series settings, a moving average or last target value can often be a very good predictor. In general, you may find that the initial baseline model is good enough for the time being and you can then move on to other problems to solve. This is especially true if you are working in a business setting where you have limited time and resources.  
 
 A final note. In many (most?) settings, it often isn't enough to merely beat the baseline model. You should look for doing statistically better. For example, if your complex model accuracy is 75% and your baseline is 73%, that's great, but you should check to see if that difference is statistically significant[^ifonlystatdiff], because those metrics are *estimates*, and they have uncertainty, which means you can get a range for them as well as test whether they are different from one another. If it is not, then you should probably stick with the baseline model or try something else, because the next time you run the model, the baseline may actually perform better, or at least you can't be sure that it won't.
 
@@ -88,11 +209,11 @@ That said, in some situations any performance increase is worth it, and even if 
 [^ifonlystatdiff]: There would be far less hype and wasted time if those in ML and DL research simply did this rather than just reporting the chosen metric of their model 'winning' against other models. It's not that hard to do, yet most do not provide any ranged estimate for their metric, let alone test statistical difference from other models. You don't even have to bootstrap the metric estimates for binary classification! It'd also be nice if they used a more meaningful baseline than logistic regression, but that's a different story.
 
 
-### Penalized Approaches
+## Penalized Approaches
 
 We show explictly how to estimate models like lasso and ridge regression in the estimation chapter. Those work well as a baseline and so should be in your ML toolbox. Remember also that they can be applied to any linear model setting, where your objective is MSE, log likelihood of a count or binary target, or what have you. It's good to keep them in mind.
 
-#### Elastic Net
+### Elastic Net
 
 Another common approach is **elastic net**, which is a combination of lasso and ridge.  We will not show how to estimate elastic net here, but all you have to know is that it has two penalties, the same ones for lasso and one for ridge, along with the standard objective for a numeric or categorical target. The relative size of the two penalties is controlled by a mixing parameter, and the optimal value of that parameter is determined by cross-validation.  So for example, you might end up with a 75% lasso penalty and 25% ridge penalty.  
 
@@ -103,36 +224,61 @@ Let's apply this to the movie review data. We'll used the 'processed version' wh
 ##### Python
 
 
+
 ```{python}
 #| label: elasticnet-py
-#| eval: true
+#| eval: false
+from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
+from sklearn.model_selection import cross_validate, KFold, cross_val_score
+from sklearn.metrics import accuracy_score
 
-model = LogisticRegressionCV(
-  penalty   = 'elasticnet', 
-  l1_ratios = np.arange(.0, 1, .05), 
-  cv     = 5, 
-  solver = 'saga', 
-  random_state = 123,
-  max_iter= 100,
-  verbose = False
+
+model_elastic = LogisticRegression(
+    penalty='elasticnet',
+    solver='saga',
+    # Cs=[1, 10, 100],
+    l1_ratio=0.5,
+    # cv=5,
+    random_state=42,
+    max_iter=10000,
+    verbose=False,
 )
 
-model.fit(X, y)
+# model_elastic.fit(X_complete, y_complete)
 
-# Predict
+cv_elastic = cross_validate(
+    model_elastic,
+    X_complete,
+    y_complete,
+    cv=5,
+    scoring='accuracy',
+)  # use cross-validation
 
-y_pred = model.predict(X)
 ```
 
+```{python}
+#| label: elasticnet-py-save-results
+#| echo: false
+#| eval: false
+
+pd.DataFrame(cv_elastic).to_csv('ml/data/elasticnet-py-results.csv', index=False)
+```
 
 
 ```{python}
 #| label: elasticnet-py-print-results
 #| echo: false
 
+cv_elastic = pd.read_csv('ml/data/elasticnet-py-results.csv')
+
+prevalence = np.mean(y)
+prevalence = np.where(prevalence > 0.5, prevalence, 1 - prevalence)
+
 print(
-  'Training accuracy: ', accuracy_score(y, y_pred),
-  'Baseline Prevalence: ', np.mean(y)
+    'Training accuracy: ',
+    np.round(cv_elastic['test_score'].mean(), 2),
+    '\nBaseline: ',
+    np.round(prevalence, 2),
 )
 ```
 
@@ -143,20 +289,21 @@ print(
 #| eval: false
 #| 
 
-library(mlr3)
-library(mlr3extralearners)
+library(mlr3verse)
+# library(mlr3learners)
+# library(mlr3extralearners)
 
-tsk_movie = TaskClassif$new(
-  id = "movie_reviews",
-  backend = data.frame(X, rating = factor(y, labels = c('Bad', 'Good'))),
-  target = 'rating'
+tsk_elastic = TaskClassif$new(
+  id = "heart_disease",
+  backend = X_num_df |> drop_na(),
+  target = "heart_disease"
 )
 
-lrn_movie = lrn("classif.cv_glmnet", nfolds = 5, type.measure = "class", alpha = 0.5)
+lrn_elastic = lrn("classif.cv_glmnet", nfolds = 5, type.measure = "class", alpha = 0.5)
 
-rr = resample(
-    task       = tsk_movie,
-    learner    = lrn_movie,
+cv_elastic = resample(
+    task       = tsk_elastic,
+    learner    = lrn_elastic,
     resampling = rsmp("cv", folds = 5)
 )
 ```
@@ -166,7 +313,7 @@ rr = resample(
 #| echo: false
 #| eval: false
 
-saveRDS(rr, 'ml/data/elasticnet-r-results.rds')
+saveRDS(cv_elastic, 'ml/data/elasticnet-r-results.rds')
 ```
 
 
@@ -174,14 +321,17 @@ saveRDS(rr, 'ml/data/elasticnet-r-results.rds')
 #| label: elasticnet-r-print-results
 #| echo: false
 
-library(mlr3)
-library(mlr3extralearners)
+library(mlr3verse)
+library(glue)
 
-rr = readRDS('ml/data/elasticnet-r-results.rds')
+cv_elastic = readRDS('ml/data/elasticnet-r-results.rds')
+
+prevalence <- mean(df_heart_num$heart_disease)
+prevalence <- ifelse(prevalence > 0.5, prevalence, 1 - prevalence)
 
 # Evaluate
 
-glue("Training Accuracy: {round(rr$aggregate(msr('classif.acc')), 3)}\nBaseline Prevalence: {round(mean(y), 3)}")
+glue("Training Accuracy: {round(cv_elastic$aggregate(msr('classif.acc')), 3)}\nBaseline Prevalence: {round(prevalence, 3)}")
 ```
 
 :::
@@ -212,33 +362,34 @@ Incorporating regularization would be fine as your default method, and something
 
 
 
-### Tree-based methods
+## Tree-based methods
 
 Let's move beyond a standard linear models and get into a notably different approach. Tree-based methods are a class of models that are very popular in machine learning. Consider the following classification example where we want to predict a binary target as yes or no. We have two numeric features, $X_1$ and $X_2$. At the start we take $X_1$ and make a split at the value of 5. Any observation less than 5 on $X_1$ goes to the right with a prediction of *No*. Any observation greater than or equal to 5 goes to the left, where we then split based on values of $X_2$, and specifically at 3. Any observation less than 3 goes to the right with a prediction of *Yes*. Any observation greater than or equal to 3 (and greater than or equal to 5 on $X_1$) goes to the left with a prediction of *No*. 
 
 
 ```{dot}
-#| echo: false
-#| label: tree-graph
+//| echo: false
+//| label: tree-graph
+
+# note the //| that apprarently dot requires
 
 digraph tree {
-graph [rankdir = TD  bgcolor="#fffff8"]
+  graph [rankdir = TD  bgcolor="#fffff8"]
 
-node [shape = rectangle, style=filled, fillcolor=white, color=gray, width=.75]
+  node [shape = rectangle, style=filled, fillcolor=white, color=gray, width=.75]
 
-node [fontcolor=gray25 fontname=Roboto fixedsize=true fontsize=5]
-X1[width=.25 height=.25 label = <X<sub>1</sub> >];
-X2 [width=.25 height=.25 label = <X<sub>2</sub> >]; 
-No1 [label="No" shape=circle color="#E69F00" width=.25]; 
-No2 [label="No" shape=circle color="#E69F00" width=.33]; 
-Yes [ shape=circle color="#56B4E9" width=.33];
+  node [fontcolor=gray25 fontname=Roboto fixedsize=true fontsize=5]
+  X1[width=.25 height=.25 label = <X<sub>1</sub> >];
+  X2 [width=.25 height=.25 label = <X<sub>2</sub> >]; 
+  No1 [label="No" shape=circle color="#E69F00" width=.25]; 
+  No2 [label="No" shape=circle color="#E69F00" width=.33]; 
+  Yes [ shape=circle color="#56B4E9" width=.33];
 
-edge [color=gray50 arrowhead=dot]
-X1 -> No1 [label = " < 5", fontcolor="gray50" fontsize=5.5 color="#E69F00"];
-X1 -> X2 [label = " >= 5", fontcolor="gray50" fontsize=5.5];
-X2 -> No2 [label = " >= 3", fontcolor="gray50" fontsize=5.5 color="#E69F00"];
-X2 -> Yes [label = " < 3", fontcolor="gray50" fontsize=5.5 color="#56B4E9"];
-
+  edge [color=gray50 arrowhead=dot]
+  X1 -> No1 [label = " < 5", fontcolor="gray50" fontsize=5.5 color="#E69F00"];
+  X1 -> X2 [label = " >= 5", fontcolor="gray50" fontsize=5.5];
+  X2 -> No2 [label = " >= 3", fontcolor="gray50" fontsize=5.5 color="#E69F00"];
+  X2 -> Yes [label = " < 3", fontcolor="gray50" fontsize=5.5 color="#56B4E9"];
 }
 ```
 
@@ -266,66 +417,76 @@ Those are the ones that you'll usually be trying to figure out via cross-validat
 
 <!-- <img src="img/tree1.png" style="display:block; margin: 0 auto;" width=25%> -->
 
-Example with the moview review data. Although boosting methods are available in sklearn for Python, in general we recommend lightgbm or xgboost packages directly for boosting implementation, which have a sklearn API anyway (as demonstrated). Also, they both provide R and Python implementations of the package, making it easy to not lose your place when switching between languages.  We'll use xgboost here, but lightgbm is also a very good option.  Some also prefer catboost[^nomeow], but we'll leave that for the reader to investigate.  We'll also use the processed version of the data, which has some standardized versions of the data and a binary version of the target review as 'Good' or 'Bad'.
+Example with the moview review data. Although boosting methods are available in sklearn for Python, in general we recommend lightgbm or xgboost packages directly for boosting implementation, which have a sklearn API anyway (as demonstrated). Also, they both provide R and Python implementations of the package, making it easy to not lose your place when switching between languages.  We'll use `lightgbm` here, but `xgboost` is also a very good option [^nomeow].
 
-[^nomeow]: The authors have not actually been able to practically implement catboost in a setting where it was more predictive or as efficient/speedy as xgboost or lightgbm, but that's not to say it's not a good option, and some have had notable success with it. It's just not one we've used much, or is as popular in general.
+[^nomeow]: Some also prefer `catboost`. The authors have not actually been able to practically implement catboost in a setting where it was more predictive or as efficient/speedy as `xgboost` or `lightgbm`, but some have had notable success with it. 
 
 :::{.panel-tabset}
 
 ##### Python
 
 ```{python}
-#| label: boost-py
-#| results: hide
-
-import pandas as pd
-import numpy as np
-from sklearn.ensemble import HistGradientBoostingClassifier
-import xgboost as xgb
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import cross_validate
+#| label: boot-py-movies
+#| eval: false
+#| echo: false
 
 df_movies = pd.read_csv('data/movie_reviews_processed.csv')
 
 X = df_movies.filter(regex='_sc$|genre|release_year_0|season|children_in_home')
 
-X = X.assign(
-  genre  = pd.Categorical(X['genre']),
-  season = pd.Categorical(X['season'])
-)
+X = X.assign(genre=pd.Categorical(X['genre']), season=pd.Categorical(X['season']))
 
 y = df_movies['rating_good']
+```
 
-# Fit model
 
-model = xgb.XGBClassifier(
-  n_estimators = 500,
-  learning_rate = 1e-3,
-  max_depth = 5,
-  objective = 'binary:logistic',
-  tree_method = 'hist',
-  enable_categorical = True,
-  random_state = 123,
+```{python}
+#| label: boost-py
+#| results: hide
+#| eval: false
+
+# potential models you might use
+from sklearn.ensemble import HistGradientBoostingClassifier
+from lightgbm import LGBMClassifier
+from xgboost import XGBClassifier, DMatrix
+
+from sklearn.metrics import accuracy_score
+
+
+model_boost = LGBMClassifier(
+    n_estimators=1000,
+    learning_rate=1e-3,
+    verbose = -1
 )
 
-# model.fit(X, y) # standard fitting
-res = cross_validate(model, X, y, cv = 5) # use cross-validation
+cv_boost = cross_validate(
+    model_boost,
+    df_heart.drop(columns='heart_disease'),
+    df_heart_num['heart_disease'],
+    cv=5,
+    scoring='accuracy',
+)  
+```
 
+```{python}
+#| label: boost-py-save-results
+#| echo: false
+#| eval: false
 
-# # Predict
-
-# y_pred = model.predict(X)
-
-
+pd.DataFrame(cv_boost).to_csv('ml/data/boost-py-results.csv', index=False)
 ```
 
 ```{python}
 #| label: boost-py-print-results
 #| echo: false
 
+cv_boost = pd.read_csv('ml/data/boost-py-results.csv')
+
 print(
-  'Training accuracy: ', np.round(np.mean(res['test_score']), 3),
-  'Baseline Prevalence: ', np.mean(y)
+    'Training accuracy: ',
+    np.round(np.mean(cv_boost['test_score']), 3),
+    '\nBaseline Prevalence: ',
+    np.round(prevalence, 3),
 )
 ```
 
@@ -341,44 +502,27 @@ library(mlr3)
 library(mlr3learners)
 library(mlr3extralearners)
 
-# Load data
-X = df_movies %>%
-  select(matches("_sc$|genre|release_year_0|season|children_in_home|rating_good"))  |> 
-  mutate(
-    genre = as.factor(genre),
-    season = as.factor(season)
-  ) |>
-  data.table::as.data.table() |> 
-  mltools::one_hot() |> 
-  mutate(rating_good = factor(rating_good, labels = c('Bad', 'Good')))  |> 
-  janitor::clean_names()
-
 
 # Define task
-tsk = TaskClassif$new(
-  id = "movie_reviews",
-  backend = X,
-  target = "rating_good"
+tsk_boost = TaskClassif$new(
+  id = "heart",
+  backend = X_num_df, 
+  target = "heart_disease"
 )
 
 # Define learner
-learner_xgb = lrn(
-  "classif.xgboost",
-  nrounds = 500, 
-  eta = 1e-3,
-  max_depth = 5#,
-  # min_child_weight = 10#,
-  # eval_metric = "classif.ce")
+learner_boost = lrn(
+  "classif.lightgbm",
+  num_iterations = 1000, 
+  learning_rate = 1e-3
 )
 
-
-# Define benchmark
-rr = resample(
-    task       = tsk,
-    learner    = learner_xgb,
+# Cross-validation
+cv_boost = resample(
+    task       = tsk_boost,
+    learner    = learner_boost,
     resampling = rsmp("cv", folds = 5)
 )
-
 ```
 
 ```{r}
@@ -386,7 +530,7 @@ rr = resample(
 #| echo: false
 #| eavl: false
 
-saveRDS(rr, 'ml/data/boost-r-results.rds')
+saveRDS(cv_boost, "ml/data/boost-r-results.rds")
 
 ```
 
@@ -394,9 +538,11 @@ saveRDS(rr, 'ml/data/boost-r-results.rds')
 #| label: boost-r-print-results
 #| echo: false
 
+cv_boost = readRDS("ml/data/boost-r-results.rds")
+
 # Evaluate
 
-glue("Training Accuracy: {round(1-rr$aggregate(), 3)}\nBaseline Prevalence: {round(mean(y), 3)}")
+glue("Training Accuracy: {round(1-cv_boost$aggregate(msr('classif.acc')), 3)}\nBaseline Prevalence: {round(prevalence, 3)}")
 ```
 
 :::
@@ -427,29 +573,54 @@ Random forests and boosting methods, though not new, are still 'state of the art
 - It does take more effort to tune relative to linear model methods.
 
 
-### Deep Learning and Neural Networks
+## Deep Learning and Neural Networks
 
 ![](img/nnet.png)
-<img src="img/nnet.png" style="display:block; margin: 0 auto;" width=50%>
 
 Deep learning has fundametally transformed the world of data science. It has been used to solve problems in image recognition, speech recognition, natural language processing, and more.  It has also been used to solve problems in tabular data, and is often used in Kaggle competitions. It is not a panacea, and is not always the best tool for the job, but it is a tool that should be in your toolbox.  Here we'll provide brief overview of the key concepts behind them.
 
-#### What is a neural network?
+### What is a neural network?
 
-While they seem to be new, neural networks have been around a while. Like 80s a while, and conceptually even further back.  They were not very popular for a long time, but this was mostly a computing problem, much the same reason Bayesian methods were slower to develop. But now neural networks have recently become the go-to method for many problems.
+While they seem to be new to some, neural networks have been around a while. Computationally, since the 80s, and conceptually even further back. They were not very popular for a long time, but this was mostly a computing problem, much the same reason Bayesian methods were slower to develop. But now neural networks have recently become the go-to method for many problems.
 
-At it's core, a neural network is just a series of matrix multiplications and nonlinear transformations.  The matrix multiplications are the **linear** part, and the nonlinear transformations are the **activation** part.  The linear part is just like a linear model, where we have a set of features, each with a coefficient, and we multiply each feature by its coefficient and sum them up.  The activation part is where things get interesting.  We take the output of the linear part and apply a nonlinear transformation to it. 
+At it's core, a neural network is just a series of matrix multiplications exactly as we've done with a basic linear model.  The difference is that actually use multiple combinations (referred to as hidden **nodes**) and we add in nonlinear transformations between the matrix multiplications.  The matrix multiplications are the **linear** part, and the nonlinear transformations are the **activation** part.  The linear part is just like a linear model, where we have a set of features, each with a coefficient, and we multiply each feature by its coefficient and sum them up.  The activation part is where things get interesting.  We take the output of the linear part and apply a nonlinear transformation to it.
+
+The most common activation function is the **rectified linear unit** or **ReLU**. But we could also use the sigmoid function, which would be the same as used in logistic regression.
+
+```{dot}
+//| echo: false
+//| fig-cap: A logistic regression as a neural network
+//| label: logistic-nn-graph
+
+digraph neural_network {
+  rankdir=LR;
+  node [shape=circle];
+  input_bias[label="'bias'" fixedsize=True fontsize =6 width=.5]
+  X1 [label="X1" fixedsize=True fontsize =6 width=.5];
+  X2 [label="X2" fixedsize=True fontsize =6 width=.5];
+  X3 [label="X3" fixedsize=True fontsize =6 width=.5];
 
 
-
-The most common activation function is the **rectified linear unit** or **ReLU**.  It's defined as follows:
+  input_bias -> hidden [label="w0" arrowhead="dot" arrowsize=0.5 minlen=.10];
+  X1 -> hidden [label="w1" arrowhead="dot" arrowsize=0.5 minlen=1];
+  X2 -> hidden [label="w2" arrowhead="dot" arrowsize=0.5 minlen=1];
+  X3 -> hidden [label="w3" arrowhead="dot" arrowsize=0.5 minlen=1];
+  hidden [label="H1" fixedsize=True fontsize =10 width=.5 color = "#56B4E9"];
+  activation [label="sigmoid" fixedsize=True fontsize =6 width=.5 color = gray50];
+  hidden -> activation [arrowhead="dot" arrowsize=0.5 minlen=1];
+  activation -> output [label="" arrowhead="dot" arrowsize=0.5 minlen=1];
+  output [label="output" fixedsize=True fontsize =10 width=.5];
+}
+```
 
 
 #### Getting Started
 
-MLP stuff 
+For simplicity we'll use the same approach and tools as before, but do know this is probably the very bare minimimum approach and generally you'd prefer on alternative. Too begin with, you'd likely want to tune the architecture a bit. Also, as noted in the data discussion, we'd usually want to use **embeddings** for categorical features as opposed to the one-hot approach used here. For this task, it likely doesn't matter much, but in many you'd prefer the embeddings[^fastaitab].
 
+For our demonstration we'll use sklearn's builtin MLPClassifier and a similar approach using mlr3, which calls pytorch directly under the hood. In general, there is no
 
+[^fastaitab]: A really good tool for a standard MLP type approach with automatic embedding is fastai's tabular learner. 
 
 
 :::{.panel-tabset}
@@ -457,14 +628,13 @@ MLP stuff
 ##### Python
 
 ```{python}
+#| echo: false
+#| eval: false
 #| label: deep-py-data-setup
 
 X = df_movies.filter(regex='_sc$|genre|release_year_0|season|children_in_home')
 
-X = X.assign(
-  genre  = pd.Categorical(X['genre']),
-  season = pd.Categorical(X['season'])
-)
+X = X.assign(genre=pd.Categorical(X['genre']), season=pd.Categorical(X['season']))
 
 X = pd.get_dummies(X, columns=['genre', 'season'], dtype='int')
 
@@ -477,42 +647,57 @@ y = df_movies['rating_good']
 
 from sklearn.neural_network import MLPClassifier
 
-model = MLPClassifier(
-  hidden_layer_sizes = (128, 64, 32, 64, 128),
-  learning_rate = 'adaptive',
-  learning_rate_init = 0.001,
-  max_iter = 2000,
-  shuffle = True,
-  random_state = 123,
-  tol = 0.0001,
-  warm_start = True,
-  nesterovs_momentum = True,
-  validation_fraction = 0.1,
-  n_iter_no_change = 10,
-  verbose = False,
+model_mlp = MLPClassifier(
+    hidden_layer_sizes=(200, 200, 200),  
+    learning_rate='adaptive',
+    learning_rate_init=0.001,
+    max_iter=2000,
+    shuffle=True,
+    random_state=123,
+    tol=0.0001,
+    warm_start=True,
+    nesterovs_momentum=True,
+    validation_fraction=1/3,
+    n_iter_no_change=100,
+    verbose=False,
 )
 
-# model.fit(X, y)
-res = cross_validate(model, X, y, cv = 5) # use cross-validation; will take a minute
-
-# y_pred = model.predict(X)
+# with the above settings, this will take a minute or so
+cv_mlp = cross_validate(
+  model_mlp, 
+  X_complete, 
+  y_complete, 
+  cv=5
+) 
 ```
 
+```{python}
+#| echo: false
+#| eval: false
+#| label: deep-py-save-results
 
+pd.DataFrame(cv_mlp).to_csv('ml/data/deep-py-results.csv', index=False)
+```
 
 ```{python}
 #| label: deep-py-print-results
 #| echo: false
 
+cv_mlp = pd.read_csv('ml/data/deep-py-results.csv')
+
 print(
-  'Training accuracy: ', np.round(np.mean(res['test_score']), 3),
-  'Baseline Prevalence: ', np.mean(y)
+    'Training accuracy: ',
+    np.round(np.mean(cv_mlp['test_score']), 3),
+    '\nBaseline Prevalence: ',
+    np.round(prevalence, 3),
 )
 ```
 
 ##### R
 
 ```{r}
+#| eval: false
+#| echo: false
 #| label: deep-r-data-setup
 
 X = df_movies %>%
@@ -533,34 +718,34 @@ X = df_movies %>%
 
 library(mlr3torch)
 
-learner_mlp = lrn("classif.mlp",
+learner_mlp = lrn(
+    "classif.mlp",
     # defining network parameters
     activation = nn_relu,
-    layers = 5,
-    d_hidden = 64,
+    layers = 3,
+    d_hidden = 200,
     # training parameters
-    batch_size = 256,
-    epochs = 50,
-    device = "cpu",
+    batch_size = 32,
+    epochs = 200,
     # Defining the optimizer, loss, and callbacks
-    optimizer = t_opt("adam", lr = 1e-3, nesterov = TRUE),
+    optimizer = t_opt("adam", lr = 1e-3),
     loss = t_loss("cross_entropy"),
-    callbacks = t_clbk("history"), # this saves the history in the learner
-    # Measures to track
+    # callbacks = t_clbk("history"), # this saves the history in the learner
+    # # Measures to track
+    measures_train = msrs(c("classif.logloss")),
     measures_valid = msrs(c("classif.logloss", "classif.ce")),
-    measures_train = msrs(c("classif.acc")),
     # predict type (required by logloss)
     predict_type = "prob"
 )
 
-tsk = TaskClassif$new(
-    id = "movie_reviews",
-    backend = data.frame(X, rating = factor(y, labels = c('Bad', 'Good'))),
-    target = 'rating'
+tsk_mlp = TaskClassif$new(
+    id = "heart",
+    backend = X_num_df |> drop_na(),
+    target = 'heart_disease'
 )
 
-rr = resample(
-    task       = tsk,
+cv_mlp = resample(
+    task       = tsk_mlp,
     learner    = learner_mlp,
     resampling = rsmp("cv", folds = 5),
 )
@@ -571,7 +756,7 @@ rr = resample(
 #| echo: false
 #| eval: false
 
-saveRDS(rr, 'ml/data/deep-r-results.rds')
+saveRDS(cv_mlp, "ml/data/deep-r-results.rds")
 ```
 
 
@@ -580,10 +765,10 @@ saveRDS(rr, 'ml/data/deep-r-results.rds')
 #| label: deep-r-print-results
 #| echo: false
 
-library(mlr3torch)
-rr = readRDS('ml/data/deep-r-results.rds')
+# library(mlr3torch)
+cv_mlp = readRDS("ml/data/deep-r-results.rds")
 
-glue('Training Accuracy: {round(rr$aggregate(msr("classif.acc")), 3)}\nBaseline Prevalence: {round(mean(y), 3)}')
+glue('Training Accuracy: {round(cv_mlp$aggregate(msr("classif.acc")), 3)}\nBaseline Prevalence: {round(prevalence, 3)}')
 ```
 
 
@@ -603,6 +788,83 @@ glue('Training Accuracy: {round(rr$aggregate(msr("classif.acc")), 3)}\nBaseline 
 - Susceptible to irrelevant features.
 - Not robust to outliers.
 - Generally doesn't outperform with tabular data.
+
+## Compare models
+
+Let's compare the results of our models head to head. In general, our fastest/best results were the elastic net and boosting models. This is not surprising. Even the simplest neural network takes notable effort to do well, and often longer to train. And while we would definitely use deep learning tools for image classification, natural language processing and other domains, they still struggle to do as well as boosting for the type of data we've been using. Also, as we didn't tune any of these models, so we likely could do even better[^quicktunedboost].
+
+[^quicktunedboost]: We were able to get a 0.85 holdout accuracy with a quickly tuned boosting model, which is pretty good.  We'll leave that as an exercise for the reader.
+
+```{python}
+#| label: tune-boost-py
+#| eval: false
+#| echo: false
+from strong_tabular.model import fit_model
+from strong_tabular.metrics import make_binary_metric
+from sklearn.metrics import accuracy_score, roc_auc_score
+
+init = df_heart.assign(heart_disease = np.where(df_heart['heart_disease'] == 'yes', 1, 0))
+
+res = fit_model(
+    init, 
+    'heart_disease', 
+    objective = 'binary', 
+    max_min = 'maximize', 
+    metric = make_binary_metric(accuracy_score),
+    max_num_rounds = 1000
+)
+
+# res['best_trial'].values
+# res['test_performance']
+# res['importance']
+```
+
+
+:::{.panel-tabset}
+
+##### Python
+
+```{python}
+#| label: compare-py
+#| echo: false
+
+cv_results = pd.concat(
+    [
+        pd.read_csv('ml/data/elasticnet-py-results.csv').assign(model = 'elasticnet'),
+        pd.read_csv('ml/data/boost-py-results.csv').assign(model = 'boost'),
+        pd.read_csv('ml/data/deep-py-results.csv').assign(model = 'nnet'),
+    ]
+)
+
+cv_results.groupby('model', as_index=False).mean().round(2).drop(columns='score_time')
+```
+
+##### R
+
+```{r}
+#| label: compare-r
+#| echo: false
+
+fnames = list.files('ml/data', pattern = 'results.rds', full.names = TRUE) 
+
+# init = fnames |> 
+#   map(readRDS)
+
+# init = init[[1]] |> as.data.table() |> pull(resampling)
+
+# init[[1]]  |> str()
+
+cv_results = fnames |> 
+  map(readRDS) |> 
+  map_dfr(\(x) x$aggregate(msr('classif.acc'))) |> 
+  mutate(model = str_remove(basename(fnames), '-r-results.rds'))
+
+cv_results |>
+  arrange(desc(classif.acc)) |> 
+  gt(decimals = 2)
+```
+
+:::
 
 ## Other ML Models
 
