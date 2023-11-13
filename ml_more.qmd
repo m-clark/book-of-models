@@ -1,20 +1,205 @@
 # Other aspects of ML
+
+
 ## Unsupervised Learning
 
-PCA DEMO
+All the models considered thus far would fall under the name of **supervised learning**. That is, we have a target variable that we are trying to predict, and we use the data to train a model to predict the target.  However, there are many settings in which we do not have a target variable, or we do not have a target variable for all of the data. In these cases, we can still use **unsupervised learning** to learn about the data. Unsupervised learning is a type of machine learning that involves training a model without a target variable, but to be clear, there is definitely a model still there.  Generally the model attempts to learn to identify patterns in the data.  Unsupervised learning is used in a wide range of applications, including anomaly detection, clustering, and dimensionality reduction, though these are more generally variations on a more general approach.
+
+Traditionally, unsupervised learning falls under dimension reduction, such that we reduce features to a smaller **latent**, or hidden, or unobserved, subset that accounts for most of the (co-)variance of the larger set. Alternatively, we reduce the rows to a small number of hidden, or unobserved, clusters. For example, we start with 100 features and reduce them to 10, or we classify each observation as belong to 2-3 clusters. Either way, the primary goal is to reduce the dimensionality of the data, not predict an explicit target.
+
+Classical methods in this domain include principal components analysis (PCA), singular value decomposition (SVD) factor analysis, which are geared toward reducing column dimensions, and cluster methods such as k-means for grouping observations into clusters. Sometimes these methods are often used as preprocessing steps for supervised learning problems, or as a part of exploratory data analysis. 
 
 
-Traditionally **unsupervised learning** falls under dimension reduction, such that we reduce features to a smaller **latent**, or hidden, or unobserved, subset that accounts for most of the (co-)variance of the larger set, or reduce the rows to a small number of hidden, or unobserved, clusters. For example, we start with 100 features and reduce them to 10, or we classify each observation as belong to 2-3 clusters. Either way, the goal is to reduce the dimensionality of the data, not predict an explicit target.
+### Connections
 
-More info about latent variables and latent linear models...
+#### Clusters are categorical latent features
 
-It turns out that these are the same thing, though apparently no one knows this outside of statisticians. You can discretize anything, e.g. from a nicely continuous feature to a coarse couple of categories, and this goes for latent variables as well as those we actually see in our data. For example, if I do a factor analysis with one latent feature, I can either convert it to a probability of some class with an appropriate transformation, or just say that scores higher than some cutoff are in cluster A and the others are in cluster B, and indeed, there is a whole class of clustering models called **mixture models** that do just that (i.e. estimate the latent probability of class membership). The only real difference between the two approaches is the objective (function), and for any k latent features I come up with I can create (at least) k + 1 clusters before taking into account interactions of the latent variables. 
+It turns out that whether we are clustering rows or reducing columns we're actually just using different method to reduce the features. For methods like PCA and factor analysis, we're reducing the columns to a smaller set of numeric features (e.g. 10 new features from an original set of 100, the 10 new features are on their own scale).  However, think about a case where we just reduce the features to a single variable, and that variable was categorical. Now you have cluster analysis! You can discretize anything, e.g. from a nicely continuous feature to a coarse couple of categories, and this goes for latent variables as well as those we actually see in our data. For example, if I do a factor analysis with one latent feature, I could either convert it to a probability of some class with an appropriate transformation, or just say that scores higher than some cutoff are in cluster A and the others are in cluster B. Indeed, there is a whole class of clustering models called **mixture models** that do just that (i.e. estimate the latent probability of class membership). 
 
-https://stats.stackexchange.com/questions/122213/latent-class-analysis-vs-cluster-analysis-differences-in-inferences
+```{r}
+#| echo: false
+#| eval: false
+#| label: save-pca-as-net
+# as usual, graphviz is a complete cluster to work with, and impossible to order. It literally changes the order in front of my eyes while typing this comment that has nothing to do with the graph. And whatever you see will not necessarily be what's rendered
+g = DiagrammeR::grViz('img/pca_as_net.dot')
+
+g %>%
+    DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_svg("img/pca_as_net.svg")
+```
+
+```{dot}
+//| echo: false
+//| eval: false
+
+
+
+digraph pca {
+    rankdir=LR;
+    rank=same;
+    node [shape=oval, style=filled, color=lightblue, ordering=out];
+    edge [color=gray75 arrowhead=dot arrowsize=0.25 penwidth=0.25];
+
+    subgraph cluster_inputs {
+        color= "#ff550040";
+        label="Inputs";
+        node [color=lightgray ordering=out];
+        x5; x6; x7; x8; x9; x10; x1; x2; x3; x4; 
+    }
+
+    subgraph cluster_hidden {
+        bgcolor="papayawhip"
+        color=transparent;
+        label="Hidden Variables";
+        node [color=lightgray];
+        h1; h2; h3; h4;
+    }
+
+    subgraph cluster_outputs {
+        color= "#ff550040";
+        label="Outputs";
+        node [color=lightgray ];
+        y5 [label = "x5*"]; y6[label = "x6*"]; y7[label = "x7*"]; y8[label = "x8*"]; y9[label = "x9*"]; y10[label = "x10*"]; y1[label = "x1*"]; y2[label = "x2*"]; y3[label = "x3*"]; y4[label = "x4*"]; 
+    }
+
+    x1 -> h1;
+    x2 -> h1;
+    x3 -> h1;
+    x4 -> h1;
+    x5 -> h1;
+    x6 -> h1;
+    x7 -> h1;
+    x8 -> h1;
+    x9 -> h1;
+    x10 -> h1;
+
+    x1 -> h2;
+    x2 -> h2;
+    x3 -> h2;
+    x4 -> h2;
+    x5 -> h2;
+    x6 -> h2;
+    x7 -> h2;
+    x8 -> h2;
+    x9 -> h2;
+    x10 -> h2;
+
+    x1 -> h3;
+    x2 -> h3;
+    x3 -> h3;
+    x4 -> h3;
+    x5 -> h3;
+    x6 -> h3;
+    x7 -> h3;
+    x8 -> h3;
+    x9 -> h3;
+    x10 -> h3;
+
+    x1 -> h4;
+    x2 -> h4;
+    x3 -> h4;
+    x4 -> h4;
+    x5 -> h4;
+    x6 -> h4;
+    x7 -> h4;
+    x8 -> h4;
+    x9 -> h4;
+    x10 -> h4;
+
+    h1 -> y1;
+    h2 -> y1;
+    h3 -> y1;
+    h4 -> y1;
+    
+    h1 -> y2;
+    h2 -> y2;
+    h3 -> y2;
+    h4 -> y2;
+
+    h1 -> y3;
+    h2 -> y3;
+    h3 -> y3;
+    h4 -> y3;
+
+    h1 -> y4;
+    h2 -> y4;
+    h3 -> y4;
+    h4 -> y4;
+
+    h1 -> y5;
+    h2 -> y5;
+    h3 -> y5;
+    h4 -> y5;
+
+    h1 -> y6;
+    h2 -> y6;
+    h3 -> y6;
+    h4 -> y6;
+
+    h1 -> y7;
+    h2 -> y7;
+    h3 -> y7;
+    h4 -> y7;
+
+    h1 -> y8;
+    h2 -> y8;
+    h3 -> y8;
+    h4 -> y8;
+
+    h1 -> y9;
+    h2 -> y9;
+    h3 -> y9;
+    h4 -> y9;
+
+    h1 -> y10;
+    h2 -> y10;
+    h3 -> y10;
+    h4 -> y10;
+}
+```
+
+
+#### PCA as a neural network
+
+Consider the following neural network, called an **autoencoder**.  The goal of an autoencoder is to learn a representation of the data that is smaller than the original data, but can be used to reconstruct the original data.  The autoencoder is trained by minimizing the error between the original data and the reconstructed data.  The autoencoder is a special case of a neural network, and can be used for dimension reduction.  
+
+
+![](img/pca_as_net.svg){width=66%}
+
+If we had the same number of hidden nodes as inputs, and the activation function was linear, then this would be equivalent to PCA. But neural networks are not bound to linear activation functions, the size of the inputs or even a single layer, and so they provide a much more flexible approach. It's not as easily interpretable as typical factor analytic techniques, and we still have to sort out the architecture.  However, it's a good example of how the same underlying approach can be used for different purposes.  
+
+
+
+
+
+
+
+
+<!-- The only real difference between the two approaches is the objective (function), and for any k latent features I come up with I can create (at least) k + 1 clusters before taking into account interactions of the latent variables. 
+
+https://stats.stackexchange.com/questions/122213/latent-class-analysis-vs-cluster-analysis-differences-in-inferences -->
 
 ::: {.callout-tip}
 In general, do not use a dimension reduction technique as a preprocessing step for a supervised learning problem.  Instead, use a supervised learning technique that can handle high-dimensional data, has a built-in way to reduce features (e.g. lasso, boosting), or use a dimension reduction technique that is specifically designed for supervised learning (e.g. partial least squares). Creating a reduced set of features without regard to the target will generally be suboptimal for the supervised learning problem.
 :::
+
+
+#### Latent Linear Models
+
+Another thing to be aware of is that factor analytic techniques can be thought of *latent linear models*.  Here is a factor analysis as a latent linear model. The 'targets' are the observed features, and we predict each one by some combination of latent variables.
+
+$$
+
+\begin{aligned}
+x_1 &= \beta_{11} h_1 + \beta_{12} h_2 + \beta_{13} h_3 + \beta_{14} h_4 + \epsilon_1 \\
+x_2 &= \beta_{21} h_1 + \beta_{22} h_2 + \beta_{23} h_3 + \beta_{24} h_4 + \epsilon_2 \\
+x_3 &= \beta_{31} h_1 + \beta_{32} h_2 + \beta_{33} h_3 + \beta_{34} h_4 + \epsilon_3 \\
+
+\end{aligned}
+
+$$
+
+In this scenario, the $h$ are estimated latent variables, and $\beta$ are the coefficients, which in some contexts are called **loadings**. The $\epsilon$ are the residuals, which are assumed to be independent and normally distributed as with a standard linear model.  The $\beta$ are usually estimated by maximum likelihood, and the model is fit by iterative methods.  The latent variables are not observed, but are be estimated as part of the modeling process
+
 
 Say something about Recommender Systems
 
@@ -53,7 +238,9 @@ The prospect of combining models for computer vision, natural language processin
 
 [^intel]: It seems most discussions of AI in the public sphere never bother to mention how they would define intelligence in the first place, and academics have struggled with the concept for centuries.
 
-From a modeling aspect, [many put ML as a subset of AI](https://azure.microsoft.com/en-us/resources/cloud-computing-dictionary/artificial-intelligence-vs-machine-learning), but this is a bit off the mark from a modeling perspective in our opinion. For example, model-wise, any aspect of what we'd call modern AI only employs deep learning models (although it didn't in the past), while the ML approach to training and evaluating models can be used for any underlying model from simple linear models to the most complex deep learning models, whether the application falls under the heading of AI or not. Furthemore, statistical model applications have never seriously attempted what we might call AI.  If AI is some 'autonomous and general tools that attempt to engage the world in a human-like way or better', it's not clear why it'd be compared to ML in the first place. It's like saying the brain is a subset of cognition. The brain does the work, much like ML, and gives rise to what we call cognition, but generally we would not compare the brain to cognition. 
+In many discussions of ML and AI, [many put ML as a subset of AI](https://azure.microsoft.com/en-us/resources/cloud-computing-dictionary/artificial-intelligence-vs-machine-learning), but this is a bit off the mark from a modeling perspective in our opinion[^mlsubset]. For example, model-wise, any aspect of what we'd call modern AI almost exclusively employs deep learning models (although it didn't in the past, and may supplement with non-DL models), while the ML approach to training and evaluating models can be used for any underlying model from simple linear models to the most complex deep learning models, whether the application falls under the heading of AI or not. Furthemore, statistical model applications have never seriously attempted what we might call AI.  If AI is some 'autonomous and general tools that attempt to engage the world in a human-like way or better', it's not clear why it'd be compared to ML in the first place. It's like saying the brain is a subset of cognition. The brain does the work, much like ML does the modeling work with data, and gives rise to what we call cognition, but generally we would not compare the brain to cognition. 
+
+[^mlsubset]: Almost every instance of this we've seen also never goes into actual detail or specific enough definitions to make the comparison meaningful to begin with.
 
 Many of the non-AI settings we use modeling for may well be things we can eventually rely on AI to do, but the computational limits, whether the amount of data that would be required for AI models to be better than others, or the ability of AI to be able to deal with situations in which there is *only* small bits of data, are still hinderances in application. However, it's likely these will eventually be overcome.
 
@@ -69,3 +256,8 @@ DL models and ML in general can be used for non-AI settings, and the models stil
 
 The future is here, and it is amazing.
 
+
+# refs
+
+Rashcka
+https://nostarch.com/machine-learning-and-ai-beyond-basics
