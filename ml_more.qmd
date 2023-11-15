@@ -1,5 +1,19 @@
 # Other aspects of ML
 
+We've covered how to do some modeling for standard data settings and modeling goals, but there are many other aspects of ML that we haven't covered.  Here we'll briefly discuss some of the other aspects of ML that you'll want to be aware of as you continue your journey.
+
+## Key Ideas
+
+Some things to keep in mind when thinking about ML as we wrap up our discussion:
+
+- There is no modeling domain where ML cannot be applied.
+- Other widely used techniques include unsupervised settings, reinforcement learning, computer visiion, natural language processing, and artificial intelligence.
+- Tabular data is historically the most common data setting by far, but this may not always be the case. 
+
+### Why this matters
+
+It's very important to know just how unlimited the modeling universe is, but also how there is a tie that binds. Even when we get into other data situations and complex models, we can always fall back on the core approaches we've already seen and know well at this point, and know that the core ideas can potentially be applied in any modeling situation. 
+
 
 ## Unsupervised Learning
 
@@ -7,7 +21,7 @@ All the models considered thus far would fall under the name of **supervised lea
 
 Traditionally, unsupervised learning falls under dimension reduction, such that we reduce features to a smaller **latent**, or hidden, or unobserved, subset that accounts for most of the (co-)variance of the larger set. Alternatively, we reduce the rows to a small number of hidden, or unobserved, clusters. For example, we start with 100 features and reduce them to 10, or we classify each observation as belong to 2-3 clusters. Either way, the primary goal is to reduce the dimensionality of the data, not predict an explicit target.
 
-Classical methods in this domain include principal components analysis (PCA), singular value decomposition (SVD) factor analysis, which are geared toward reducing column dimensions, and cluster methods such as k-means for grouping observations into clusters. Sometimes these methods are often used as preprocessing steps for supervised learning problems, or as a part of exploratory data analysis. 
+Classical methods in this domain include principal components analysis (PCA), singular value decomposition (SVD) factor analysis, which are geared toward reducing column dimensions, and cluster methods such as k-means for grouping observations into clusters. Sometimes these methods are often used as preprocessing steps for supervised learning problems, or as a part of exploratory data analysis, but often they are end in themselves. Most of us our familiar with **recommender systems**, whether via Netflix or Amazon, which suggest products or movies, and we're now become extremely familiary with text analysis via chat bots. While the underlying models are notably more complex these days, they actually just started off as SVD (recommender systems) or a form of factor analysis (text analysis via latent semantic analysis/latent dirichlet allocation). Having a conceptual understanding of the simpler methods can aid in understanding the more complex ones.
 
 
 ### Connections
@@ -160,18 +174,12 @@ digraph pca {
 
 #### PCA as a neural network
 
-Consider the following neural network, called an **autoencoder**.  The goal of an autoencoder is to learn a representation of the data that is smaller than the original data, but can be used to reconstruct the original data.  The autoencoder is trained by minimizing the error between the original data and the reconstructed data.  The autoencoder is a special case of a neural network, and can be used for dimension reduction.  
+Consider the following neural network, called an **autoencoder**.  The goal of an autoencoder is to learn a representation of the data that is smaller than the original data, but can be used to reconstruct the original data.  It's trained by minimizing the error between the original data and the reconstructed data.  The autoencoder is a special case of a neural network, and can be used for dimension reduction.  
 
 
 ![](img/pca_as_net.svg){width=66%}
 
-If we had the same number of hidden nodes as inputs, and the activation function was linear, then this would be equivalent to PCA. But neural networks are not bound to linear activation functions, the size of the inputs or even a single layer, and so they provide a much more flexible approach. It's not as easily interpretable as typical factor analytic techniques, and we still have to sort out the architecture.  However, it's a good example of how the same underlying approach can be used for different purposes.  
-
-
-
-
-
-
+If we had the same number of hidden nodes as inputs, and the activation function was linear, then this would be equivalent to PCA. But neural networks are not bound to linear activation functions, the size of the inputs or even a single layer, and so they provide a much more flexible approach. Typical autoencoders, would have multiple layers with notably more nodes than inputs. It's not as easily interpretable as typical factor analytic techniques, and we still have to sort out the architecture. However, it's a good example of how the same underlying approach can be used for different purposes.  
 
 
 <!-- The only real difference between the two approaches is the objective (function), and for any k latent features I come up with I can create (at least) k + 1 clusters before taking into account interactions of the latent variables. 
@@ -185,36 +193,67 @@ In general, do not use a dimension reduction technique as a preprocessing step f
 
 #### Latent Linear Models
 
-Another thing to be aware of is that factor analytic techniques can be thought of *latent linear models*.  Here is a factor analysis as a latent linear model. The 'targets' are the observed features, and we predict each one by some combination of latent variables.
+Another thing to be aware of is that factor analytic techniques can be thought of *latent linear models*.  Here is a factor analysis as a latent linear model. The 'targets' are the observed features, and we predict each one by some linear combination of latent variables.
 
 $$
-
 \begin{aligned}
 x_1 &= \beta_{11} h_1 + \beta_{12} h_2 + \beta_{13} h_3 + \beta_{14} h_4 + \epsilon_1 \\
 x_2 &= \beta_{21} h_1 + \beta_{22} h_2 + \beta_{23} h_3 + \beta_{24} h_4 + \epsilon_2 \\
 x_3 &= \beta_{31} h_1 + \beta_{32} h_2 + \beta_{33} h_3 + \beta_{34} h_4 + \epsilon_3 \\
-
 \end{aligned}
-
 $$
 
-In this scenario, the $h$ are estimated latent variables, and $\beta$ are the coefficients, which in some contexts are called **loadings**. The $\epsilon$ are the residuals, which are assumed to be independent and normally distributed as with a standard linear model.  The $\beta$ are usually estimated by maximum likelihood, and the model is fit by iterative methods.  The latent variables are not observed, but are be estimated as part of the modeling process
+In this scenario, the $h$ are estimated latent variables, and $\beta$ are the coefficients, which in some contexts are called **loadings**. The $\epsilon$ are the residuals, which are assumed to be independent and normally distributed as with a standard linear model.  The $\beta$ are usually estimated by maximum likelihood, and the model is fit by iterative methods.  The latent variables are not observed, but are be estimated as part of the modeling process, and typically restricted to zero mean. The number of latent variables we use is a hyperparameter, and so can be determined by the usual means[^nocvforFA]. To tie some more common models together:
+
+[^nocvforFA]: Actually, for typical uses of 'factor analysis' in a measurement context (including structural equation modeling), e.g. as typically seen in social sciences, cross-validation is pretty much *never* employed, and the number of latent variables is determined by some combination of theory, model comparison for training data only, or trial and error. As a result, one can imagine how reproducble the results are. 
+
+- PCA is a factor analysis no (residual) variance, and the latent variables are orthogonal.
+- Probabilisitic PCA is a factor analysis with constant residual variance.
+- Factor analysis is a factor analysis with varying residual variance.
+- Independent component analysis is a factor analysis that does not assume an underlying gaussian data generating process.
+- Non-negative matrix factorization and latent dirichlet allocation are factor analyses applied to counts (think poisson and multinomial regression).
+
+### Other classical unsupervised learning techniques
+
+There are several techniques that are oftent used to visualize high-dimensional data in a low-dimensional spaces, hopefully to identify clusters or other interpretability. These include methods like multidimensional scaling, t-SNE, and (H)DBSCAN. These are often used as a part of exploratory data analysis.
+
+Cluster analysis generally speaking has a very long history and you'll see many different approaches, including hierarchical clustering algorithms (agglomerative, divisive), k-means, and more. Distance matrices are often the first step for these clustering approaches, and there are many ways to calculate distances between observations. Converesely, adjacency matrices, which focus on similarity of observations rather than differences, are often used for graph-based approaches, which may also used for clustering.
+
+Anomaly/outlier detection is an approach to find data points of interest. This is often done by looking for data points that are far from the rest of the data, or that are not well explained by the model. This is often used for fraud detection, network intrusion detection, and more. Standard clustering or modeling techniques might be used to identify outliers, or specialized techniques might be used.
+
+Network analysis is a type of unsupervised learning that involves analyzing the relationships between entities. It is a graph-based approach that involves identifying nodes (e.g. people) and edges (e.g. do they know each other) in a network. It is used in a wide range of applications, like identifying communities within a network, or to see how they evolve over time. It is also used to identify relationships between entities, such as people, products, or documents. One might be interested in such things as which nodes that have the most connections, or the general 'connectedness' of a network. Network analysis or similar graphical models typically have their own clustering techniques that are based on the edge (connection) weights between individuals, such as modularity, or the number of edges between individuals, such as k-clique. 
+ 
+In short, there's a lot out there that might fall under the umbrella of unsupervised learning, but even when you don't think you have a target variable, you can still understand or frame these as models similar or even identically to how we have been. One should be less hung up on trying to distinguish modeling approaches with somewhat arbitrary labels, and focus more on what their modeling goal is and how best to achieve it! 
 
 
-Say something about Recommender Systems
 
 ## Reinforcement Learning
 
-Reinforcement learning is a type of machine learning that involves training an 'agent' to make decisions in an environment. The agent learns by receiving feedback in the form of rewards or punishments for its actions. The goal of the agent is to maximize its rewards over time by learning which actions lead to positive outcomes and which lead to negative outcomes.
+**Reinforcement learning** (RL) is a type of modeling approach that involves training an 'agent' to make decisions in an environment. The agent learns by receiving feedback in the form of rewards or punishments for its actions. The goal of the agent is to maximize its rewards over time by learning which actions lead to positive or negative outcomes. 
 
-In reinforcement learning, the agent interacts with the environment by taking actions and receiving feedback in the form of rewards or punishments. The agent's goal is to learn a policy, which is a set of rules that dictate which actions to take in different situations. The agent learns by trial and error, adjusting its policy based on the feedback it receives from the environment.
+In reinforcement learning, the agent interacts with the environment by taking actions and receiving feedback in the form of rewards or punishments. The agent's goal is to learn a **policy**, which is a set of rules that dictate which actions to take in different situations. The agent learns by trial and error, adjusting its policy based on the feedback it receives from the environment. The classic example is a game like chess or simple video games- the agent learns which actions lead to positive outcomes (e.g. winning the game, higher scores) and which actions lead to negative outcomes (e.g. losing the game). The agent then adjusts its policy (i.e. the rules that dictate which actions to take in different situations) based on the feedback it receives from the environment.  A key aspect is the balance between **exploration and exploitation**, i.e. trying new things vs. sticking with what works.
 
-Reinforcement learning has many applications, including robotics, game playing, and autonomous driving. It is a powerful tool for training agents to make decisions in complex environments where traditional programming approaches may not be feasible.
+Reinforcement learning has many applications, including robotics, game playing, and autonomous driving, but there is little restriction on where it might be applied. It is oftten a key part of some deep learning models, where reinforcement is supplied via human feedback or other means. In general, RL is a powerful tool for training agents to make decisions in complex environments where traditional programming approaches may not be feasible.
 
 
 ## Non-Tabular Data
 
+While our focus in this book is on tabular data due to its ubiquity, there are many other types of data that can be used for modeling, some of which can still potentially be used in that manner, but which often start as a different format or must be considered in a special way. Here we'll briefly discuss some of the other types of data you'll potentially come across.
+
+
+### Spatial
+
+Spatial data such as geographic information can sometimes be quite complex. Oftentimes it is housed in its own data format (e.g. shapefiles), and there are many specialized tools for working with it. Spatial specific features may include continuous types such as latitude and longitude, or the x-y-z plane for telemetry of a person's movements recorded from a watch. Others are more discrete such as states within a country. In general, we'd used these features as we would others in the tabular setting, but we often want to take into account the uniqueness of a particular region or the correlation of spatially regions. Historically most can be incorporated into models like mixed models or generalized additive models, but in certain applications, such as satellite imagery, deep learning models are more the norm, and often transition into more image processing techniques.
+
+
+### Audio
+
+Audio data is a type of time series data that is also the focus of various modeling approaches. It is often represented as a waveform, which is a plot of the amplitude of the sound wave over time. The goal of modeling the data may include speech recognition, music generation, and more. This sort of data, like spatial data, is typically housed in specific formats, and is often of a very large size. Also like spatial data, the specific type and research question may allow for a tabular format, and the modeling approaches are similar to those for other time series data. As in other domains where the data is of a singular type at its core, deep learning has proved very useful, and can even create songs people actually like, [even recently helping the Beatles to release one more song](https://en.wikipedia.org/wiki/Now_and_Then_(Beatles_song)). 
+
+
 ### Image Processing
+
+DL CONVNETS IMAGE
 
 Image processing involves a range of models and techniques for analyzing images. These include image classification, object detection, image segmentation, tracking, and more. Image classification is the task of assigning a label to an image. Object detection is the task of identifying the location of objects in an image. Image segmentation is the task of identifying the boundaries of objects in an image. Tracking is the task of following objects over time.
 
@@ -228,11 +267,25 @@ Image processing is a broad field with many applications. It is used in medical 
 
 ### Natural Language Processing
 
-Natural language processing (NLP) is a field of study that focuses on the interaction between computers and human language. It is a subfield of artificial intelligence and linguistics. NLP is used in a wide range of applications, including machine translation, speech recognition, text classification, and more. NLP is behind some of the most exciting applications today, such as ChatGPT, which continues to amaze with its capabities of generating summaries of articles, answering questions, and even writing code.
+SOME SORT OF CHAT RELATED IMAGE
 
-Nowadays one can simply use a pretrained model for most NLP tasks, and much of the trouble comes with generating the best prompt to produce the desired results.  Simply feeding a lot of text to the model will often not produce an optimal product. However, the field and the models are evolving extremely rapidly, and things are getting easier all the time.
+It's safe to say that the hottest area of modeling development as of this writing is **natural language processing**, as evidenced by the runaway success of models like ChatGPT. Natural language processing (NLP) is a field of study that focuses on the interaction between computers and human language. It can be seen as a subfield of artificial intelligence and linguistics. NLP is used in a wide range of applications, including machine translation, speech recognition, text classification, and more. NLP is behind some of the most exciting applications today, with tools that continues to amaze with their capabilities to generate summaries of articles, answering questions, write code, and even [pass the bar exam with flying colors](https://www.abajournal.com/web/article/latest-version-of-chatgpt-aces-the-bar-exam-with-score-in-90th-percentile)!
 
-### Artificial Intelligence
+
+Early efforts in this field were based on statistical models, and then variations on things like PCA, but it took a lot of work more recently deep learning models have become the standard. Current state of the art models have been trained on massive amounts of data, even the entire internet, and can be used for a wide range of tasks. But one doesn't have to train such a model themselves, now you can simply use a pretrained model for many NLP tasks, and in some cases much of the trouble comes with generating the best prompt to produce the desired results. However, the field and the models are evolving extremely rapidly, and things are getting easier all the time[^prompteng].
+
+[^prompteng]: It seems unlikely the prompt engineering will still be something of interest in a couple years, at least, probably not enough to warrant whole courses for it. 
+
+
+### Combinations
+
+It's also important to note that these types of data are not mutually exclusive. For example, you might have a video that contains both audio and visual information pertinent to the task. Or you might want to produce images from text inputs. In these cases, you can use a combination of models to extract features from the data, which may just be a more features in a tabular format, or a multimodal deep learning architecture. Many vision, audio, natural language and othe mdoeling approaches incorporate **transformers**. They are based on the idea of **attention**, which is a mechanism that allows the model to focus on certain parts of the input sequence and less on others. Transformers are used in many state-of-the-art models, including GPT style models and more. They are also used in many of the multimodal models, such as those that combine text and images. The transformer architecture is a bit complex, but it's worth knowing about as it's used in many of the most advanced models today.
+
+
+## Artificial Intelligence
+
+![AI](img/ai_by_dalle.jpeg){width=66%}
+
 
 The prospect of combining models for computer vision, natural language processing, audio processing, and other domains can produce tools that mimic many aspects of what we call intelligence[^intel]. Current approaches can pass law and medical exams, create better explanations of images and text, and produce conversation on par with humans.  AI even helped to create this book!
 
@@ -261,3 +314,9 @@ The future is here, and it is amazing.
 
 Rashcka
 https://nostarch.com/machine-learning-and-ai-beyond-basics
+
+
+Vaswani, Ashish; Shazeer, Noam; Parmar, Niki; Uszkoreit, Jakob; Jones, Llion; Gomez, Aidan N; Kaiser, Łukasz; Polosukhin, Illia (2017). "Attention is All you Need" (PDF). Advances in Neural Information Processing Systems. Curran Associates, Inc. 30.
+
+Unsupervised:
+[https://cloud.google.com/discover/what-is-unsupervised-learning]
