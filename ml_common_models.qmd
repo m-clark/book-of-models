@@ -75,6 +75,7 @@ df_heart_num = read_csv("data/heart_disease_processed_numeric.csv")
 #| echo: false
 #| label: uci heart
 from ucimlrepo import fetch_ucirepo
+import pandas as pd
 
 # fetch dataset
 heart_disease = fetch_ucirepo(id=45)
@@ -132,7 +133,16 @@ df_heart = (
 )
 
 df_heart.to_csv('data/heart_disease_processed.csv', index=False)
+```
 
+```{python}
+#| echo: false
+#| eval: false
+#| label: uci numeric py
+
+df_heart = pd.read_csv('data/heart_disease_processed.csv')
+
+from sklearn.preprocessing import StandardScaler
 
 cats = pd.get_dummies(
     df_heart[['chest_pain_type', 'resting_ecg', 'slope', 'thalassemia']]
@@ -147,6 +157,8 @@ binaries = (
     .rename(columns={'heart_disease_yes': 'heart_disease'})
 )
 
+ss = StandardScaler()
+
 x = df_heart.drop(
     columns=[
         'chest_pain_type',
@@ -158,8 +170,15 @@ x = df_heart.drop(
         'heart_disease',
     ]
 )
+
+
 pd.concat([x, cats, binaries], axis=1).to_csv(
     'data/heart_disease_processed_numeric.csv', index=False
+)
+x[x.columns] = ss.fit_transform(x)
+
+pd.concat([x, cats, binaries], axis=1).to_csv(
+    'data/heart_disease_processed_numeric_sc.csv', index=False
 )
 ```
 
@@ -178,7 +197,7 @@ import pandas as pd
 import numpy as np
 
 df_heart = pd.read_csv('data/heart_disease_processed.csv')
-df_heart_num = pd.read_csv('data/heart_disease_processed_numeric.csv')
+df_heart_num = pd.read_csv('data/heart_disease_processed_numeric_sc.csv')
 
 for col in df_heart.select_dtypes(include='object').columns:
     df_heart[col] = df_heart[col].astype('category')
@@ -201,14 +220,12 @@ X_complete = df_heart_num.dropna().drop(columns='heart_disease').to_numpy()
 library(tidyverse)
 
 df_heart = read_csv("data/heart_disease_processed.csv")#|> mutate(across(where(is.character), as.factor))
-df_heart_num = read_csv("data/heart_disease_processed_numeric.csv")
+df_heart_num = read_csv("data/heart_disease_processed_numeric_sc.csv")
 
-
-X_num = df_heart_num %>%
-  as.matrix()
 
 # as a data.frame for mlr3
-X_num_df = as_tibble(X_num) |> 
+X_num_df = df_heart_num %>%
+    as_tibble() |> 
     mutate(heart_disease = factor(heart_disease)) |> 
     janitor::clean_names() # remove some symbols
 ```
@@ -474,10 +491,10 @@ from xgboost import XGBClassifier, DMatrix
 
 from sklearn.metrics import accuracy_score
 
-
 model_boost = LGBMClassifier(
     n_estimators=1000,
     learning_rate=1e-3,
+    max_depth = 5,
     verbose = -1
 )
 
@@ -519,23 +536,24 @@ Note that as of writing, the xgboost package does not support categorical variab
 
 
 ```{r}
+#| eval: false
 #| label: boost-r
 library(mlr3)
 library(mlr3learners)
 library(mlr3extralearners)
 
-
 # Define task
 tsk_boost = TaskClassif$new(
   id = "heart",
-  backend = X_num_df, 
+  backend = X_num_df, #df_heart |> mutate(heart_disease = factor(heart_disease)) ,
   target = "heart_disease"
 )
 
 # Define learner
 learner_boost = lrn(
   "classif.lightgbm",
-  num_iterations = 1000, 
+  num_iterations = 1000,
+  max_depth = 5,
   learning_rate = 1e-3
 )
 
@@ -550,10 +568,9 @@ cv_boost = resample(
 ```{r}
 #| label: boost-r-save-results
 #| echo: false
-#| eavl: false
+#| eval: false
 
 saveRDS(cv_boost, "ml/data/boost-r-results.rds")
-
 ```
 
 ```{r}
@@ -564,7 +581,7 @@ cv_boost = readRDS("ml/data/boost-r-results.rds")
 
 # Evaluate
 
-glue("Training Accuracy: {round(1-cv_boost$aggregate(msr('classif.acc')), 3)}\nBaseline Prevalence: {round(prevalence, 3)}")
+glue("Training Accuracy: {round(cv_boost$aggregate(msr('classif.acc')), 3)}\nBaseline Prevalence: {round(prevalence, 3)}")
 ```
 
 :::
@@ -675,18 +692,15 @@ model_mlp = MLPClassifier(
     hidden_layer_sizes=(200, 200, 200),  
     learning_rate='adaptive',
     learning_rate_init=0.001,
-    max_iter=2000,
     shuffle=True,
     random_state=123,
-    tol=0.0001,
     warm_start=True,
     nesterovs_momentum=True,
-    validation_fraction=1/3,
-    n_iter_no_change=100,
+    validation_fraction= .2,
     verbose=False,
 )
 
-# with the above settings, this will take a minute or so
+# with the above settings, this will take a few seconds
 cv_mlp = cross_validate(
   model_mlp, 
   X_complete, 
@@ -768,6 +782,7 @@ tsk_mlp = TaskClassif$new(
     target = 'heart_disease'
 )
 
+# this will potentially take about a minute
 cv_mlp = resample(
     task       = tsk_mlp,
     learner    = learner_mlp,
@@ -815,7 +830,7 @@ glue('Training Accuracy: {round(cv_mlp$aggregate(msr("classif.acc")), 3)}\nBasel
 
 ## Compare models
 
-Let's compare the results of our models head to head. In general, our fastest/best results were the elastic net and boosting models. This is not surprising. Even the simplest neural network takes notable effort to do well, and often longer to train. And while we would definitely use deep learning tools for image classification, natural language processing and other domains, they still struggle to do as well as boosting for the type of data we've been using. Also, as we didn't tune any of these models, so we likely could do even better[^quicktunedboost]. In general though, this was a good example of having an adequate baseline and where complexity didn't really help much.
+Let's compare the results of our models head to head. In general, our fastest/best results were the elastic net and boosting models, though not by much for this data set. This is not surprising. Even the simplest neural network takes notable effort to do well, and often longer to train. And while we would definitely use deep learning tools for image classification, natural language processing and other domains, they still struggle to do consistently as well as boosting for the type of data we've been using. Also, as we didn't tune any of these models, so we likely could do even better[^quicktunedboost]. In general though, this was a good example of having an adequate baseline and where complexity didn't really help much.
 
 [^quicktunedboost]: We were able to get a 0.85 holdout accuracy with a quickly tuned boosting model, which is pretty good.  We'll leave that as an exercise for the reader.
 
@@ -829,7 +844,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score
 
 init = df_heart.assign(heart_disease = np.where(df_heart['heart_disease'] == 'yes', 1, 0))
 
-res = fit_model(
+tuned_boost = fit_model(
     init, 
     'heart_disease', 
     objective = 'binary', 
@@ -838,9 +853,9 @@ res = fit_model(
     max_num_rounds = 1000
 )
 
-# res['best_trial'].values
-# res['test_performance']
-# res['importance']
+# tuned_boost['best_trial'].values
+# tuned_boost['test_performance']
+# tuned_boost['importance']
 ```
 
 
@@ -869,14 +884,8 @@ cv_results.groupby('model', as_index=False).mean().round(2).drop(columns='score_
 #| label: compare-r
 #| echo: false
 
+# attempted to get times but don't think they are saved
 fnames = list.files('ml/data', pattern = 'results.rds', full.names = TRUE) 
-
-# init = fnames |> 
-#   map(readRDS)
-
-# init = init[[1]] |> as.data.table() |> pull(resampling)
-
-# init[[1]]  |> str()
 
 cv_results = fnames |> 
   map(readRDS) |> 
@@ -884,8 +893,9 @@ cv_results = fnames |>
   mutate(model = str_remove(basename(fnames), '-r-results.rds'))
 
 cv_results |>
-  arrange(desc(classif.acc)) |> 
-  gt(decimals = 2)
+    select(model, everything()) |> 
+    arrange(desc(classif.acc)) |> 
+    gt(decimals = 2)
 ```
 
 :::
