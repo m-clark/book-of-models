@@ -313,7 +313,7 @@ print(
 ```{r}
 #| label: elasticnet-r
 #| eval: false
-#| 
+#|
 
 library(mlr3verse)
 # library(mlr3learners)
@@ -328,7 +328,7 @@ tsk_elastic = TaskClassif$new(
 lrn_elastic = lrn("classif.cv_glmnet", nfolds = 5, type.measure = "class", alpha = 0.5)
 
 cv_elastic = resample(
-    task       = tsk_elastic,
+    task     = tsk_elastic,
     learner    = lrn_elastic,
     resampling = rsmp("cv", folds = 5)
 )
@@ -862,7 +862,7 @@ Here is an example using the boosted model from before. We'll use the same data 
 #| results: hide
 
 from sklearn.model_selection import RandomizedSearchCV, train_test_split
-from sklearn.metrics import accuracy_score, roc_auc_score
+from sklearn.metrics import accuracy_score
 
 from lightgbm import LGBMClassifier
 
@@ -901,16 +901,24 @@ cv_boost_tune.fit(X_train, y_train)
 #| eval: false
 #| results: hide
 
+test_predictions = cv_boost_tune.predict(X_test)
 pd.DataFrame(cv_boost_tune.cv_results_).to_csv('ml/data/tune-boost-py-results.csv', index=False)
+pd.DataFrame(test_predictions).to_csv('ml/data/tune-boost-py-predictions.csv', index=False)
 ```
 
 ```{python}
 #| label: tune-boost-py-print-results
 #| echo: false
-#| results: hide
+
+from sklearn.model_selection import RandomizedSearchCV, train_test_split
+from sklearn.metrics import accuracy_score
+
+X_train, X_test, y_train, y_test = train_test_split(
+    df_heart.drop(columns='heart_disease'), df_heart_num['heart_disease'], test_size=0.2, random_state=42
+)
 
 df_cv_boost_tune = pd.read_csv('ml/data/tune-boost-py-results.csv')
-test_predictions = cv_boost_tune.predict(X_test)
+test_predictions = pd.read_csv('ml/data/tune-boost-py-predictions.csv')
 
 print(
     # 'Training accuracy: ',
@@ -928,36 +936,101 @@ print(
 #| label: tune-boost-r
 #| eval: false
 
-library(mlr3verse)
-
-# Task
-
-tsk_heart = TaskClassif$new(
-  id = "heart_disease",
-  backend = X_num_df |> drop_na(),
-  target = "heart_disease"
-)
-
 # train test split
 
 set.seed(123)
-train_test_split = resample::("holdout", ratio = 0.2)
 
-train_test_split$instantiate(task = tsk_heart)
+library(mlr3verse)
+library(rsample)
 
+split = initial_split(X_num_df, prop = .75)
 
+df_train = training(split)
+df_test  = testing(split)
+
+tsk_lgbm_tune = as_task_classif(
+    df_train,
+    target = "heart_disease"
+)
+
+lrn_lgbm_tune = lrn(
+    "classif.lightgbm",
+    num_iteration = to_tune(c(500, 1000)),
+    learning_rate = to_tune(1e-3, 1e-1),
+    max_depth = to_tune(c(3, 5, 7, 9)),
+    min_data_in_leaf = to_tune(c(1, 5, 10))
+)
+
+# set up the validation process
+instance_lgbm_tune = ti(
+    task = tsk_lgbm_tune,
+    learner = lrn_lgbm_tune,
+    resampling = rsmp("cv", folds = 5),
+    measures = msr("classif.acc"),
+    terminator = trm("evals", n_evals = 10)
+)
+
+# instance
+tuner = tnr("random_search")
+
+tuner$optimize(instance)
+```
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: tune-boost-r-save-results
+
+# as.data.table(lrn("classif.lightgbm")$param_set)  |> pull(id)
+
+save(
+    instance,
+    tuner, 
+    df_train,
+    df_test,
+    file = "ml/data/tune-boost-r-results.RData"
+)
+```
+
+```{r}
+#| label: tune-boost-r-print-results
+#| echo: false
+
+load("ml/data/tune-boost-r-results.RData")
+
+# Evaluate
+# as.data.table(instance$archive)
+
+library(mlr3verse)
+
+autoplot(instance) # this is good to show 
+
+tsk_lgbm_tune = as_task_classif(
+    df_train,
+    target = "heart_disease"
+)
+
+lrn_lgbm_tuned = lrn("classif.lightgbm")
+lrn_lgbm_tuned$param_set$values = instance$result_learner_param_vals
+lrn_lgbm_tuned$train(tsk_lgbm_tune)
+
+test_preds = lrn_lgbm_tuned$predict_newdata(df_test) 
+test_acc = msr("classif.acc")$score(test_preds)
+
+glue("Test Accuracy: {round(test_acc, 3)}\nBaseline Prevalence: {round(prevalence, 3)}")
 ```
 
 
+:::
 
 ## Compare models
 
-Let's compare the results of our models head to head. In general, our fastest/best results were the elastic net and boosting models, though not by much for this data set. This is not surprising. Even the simplest neural network takes notable effort to do well, and often longer to train. And while we would definitely use deep learning tools for image classification, natural language processing and other domains, they still struggle to do consistently as well as boosting for the type of data we've been using. Also, as we didn't tune any of these models, we likely could do even better than reported here[^quicktunedboost]. In general though, this was a good example of having an adequate baseline and where complexity didn't really help much.
+Let's compare the results of our models head to head. In general, our fastest/best results were the elastic net and boosting models, though not by much for this data set. This is not surprising. Even the simplest neural network takes notable effort to do well, and often longer to train. And while we would definitely use deep learning tools for image classification, natural language processing and other domains, they still struggle to do consistently as well as boosting for the type of data we've been using. In general though, this was a good example of having an adequate baseline and where complexity didn't really help much, though all our approaches did well.
 
-[^quicktunedboost]: We were able to get a 0.85 holdout accuracy with a quickly tuned boosting model, which is pretty good.  We'll leave that as an exercise for the reader.
+
 
 ```{python}
-#| label: tune-boost-py
+#| label: tune-boost-py-init
 #| eval: false
 #| echo: false
 from strong_tabular.model import fit_model
@@ -993,7 +1066,9 @@ cv_results = pd.concat(
     [
         pd.read_csv('ml/data/elasticnet-py-results.csv').assign(model = 'elasticnet'),
         pd.read_csv('ml/data/boost-py-results.csv').assign(model = 'boost'),
+        # pd.read_csv('ml/data/tune-boost-py-results.csv')[['mean_fit_time', 'mean_score_time', 'mean_test_score']].assign(model = 'boost_tuned').rename(columns={'mean_fit_time': 'fit_time', 'mean_score_time': 'score_time', 'mean_test_score': 'test_score'}),
         pd.read_csv('ml/data/deep-py-results.csv').assign(model = 'nnet'),
+        
     ]
 )
 
@@ -1015,6 +1090,7 @@ cv_results = pd.concat(
 
 # attempted to get times but don't think they are saved
 fnames = list.files('ml/data', pattern = 'results.rds', full.names = TRUE) 
+fnames = fnames[!grepl('tune', fnames)]
 
 cv_results = fnames |> 
   map(readRDS) |> 
@@ -1029,9 +1105,15 @@ cv_results |>
 
 :::
 
+Also, our tuned results showed that we could get a bit better performance with a bit more effort. For Python and R our results on a holdout set were about as good or even better with the tuned model.
+
+## ANOTHER SECTIONS
+
+was going to briefly cover something but now forgotten after dealing with tuning/saving problems
+
 ## Other ML Models
 
-When you look up models used in classical machine learning applied to data of the type we've been exploring, you'll potentially see a lot of different kinds.  Popular methods from the past include *k*-nearest neighbors, support vector machines, and more. You don't see these used in practice much though, as these have mostly been made obsolete due to not being as predictive as other options in general (k-nn), or maybe only working well with 'pretty' data situations (SVM), or just being less interpretable. While they might work well in certain situations, when you have tools that can handle a lot of data complexity and predict very well (and typically better) like tree-based methods, there's not much reason to use the historical alternatives these days. If you're interested in learning more about them or think one of them is just 'neat'[^svm], you could potentially use it as a baseline model. Alternatively, you could maybe employ them as part of an ensemble model, where you combine the predictions of multiple models to produce a single prediction. This is a common approach in machine learning, and is often used in Kaggle competitions. We won't go into detail here, but it's worth looking into if you're interested.
+When you look up models used in classical machine learning applied to data of the type we've been exploring, you'll potentially see a lot of different kinds.  Popular methods from the past include *k*-nearest neighbors, support vector machines, and more. You don't see these used in practice much though, as these have mostly been made obsolete due to not being as predictive as other options in general (k-nn), or maybe only working well with 'pretty' data situations (SVM), or just being less interpretable. While they might work well in certain situations, when you have tools that can handle a lot of data complexity and predict very well (and typically better) like tree-based methods, there's not much reason to use the historical alternatives these days. If you're interested in learning more about them or think one of them is just 'neat'[^svm], you could potentially use it as a baseline model. Alternatively, you could maybe employ them as part of an ensemble model, where you combine the predictions of multiple models to produce a single prediction. This is a common approach in machine learning, and is often used in Kaggle competitions. We won't go into detail here, but it's worth looking into if you're interested. There are also many other methods that are more specialized, such as those for text, image, and audio data.  We will provide an overview of these in another chapter.
 
 
 ## Exercise
@@ -1039,7 +1121,7 @@ When you look up models used in classical machine learning applied to data of th
 
 [^svm]: Mathy folk should love SVMs.
 
-There are also many other methods that are more specialized, such as those for text, image, and audio data.  We will not discuss those here, but they are worth looking into if you have a need for them.
+
 
 
 ## refs
