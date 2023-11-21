@@ -380,12 +380,25 @@ ggplot() +
   theme_minimal()
 ```
 
-
 :::{.callout-note}
 A cool thing about these distributions is that they can deal with different *exposure* rates. You don't need observations recorded over the same interval length, because you can adjust for them appropriately. They can also be used to model inter-arrival times and time-until events.
 :::
 
+Let's make a new variable that will count the number of times a person uses a personal pronoun word.
 
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+reviews$poss_pronoun <- stringr::str_count(reviews$review_text, "\\bI\\b|\\bme\\b|\\b[Mm]y\\b|\\bmine\\b|\\bmyself\\b")
+```
+
+##### Python
+
+```{python}
+reviews['poss_pronoun'] = reviews['review'].str.count('fail')
+```
 
 ## The (Sometimes) Thin Line
 
@@ -394,13 +407,12 @@ This gets into an area where we need to think long and hard about our dependent 
 ```{r}
 library(vcd)
 
-poissonTest <- goodfit(reviews$total_reviews, type = "poisson")
+poissonTest <- goodfit(reviews$poss_pronoun, type = "poisson")
 
 summary(poissonTest)
 ```
 
-This is a $\chi^2$ to test if the distribution deviates from a Poisson. If we see a significant value, we would say that it deviates from the tested distribution. In this case, everything looks okay.
-
+This is a $\chi^2$ to test if the distribution deviates from a Poisson. If we see a significant value, we would say that it deviates from the tested distribution. In this case, it is pretty clear that `poss_pronoun` could come from a Poisson distribution.
 
 We can also plot that test using a hanging rootogram:
 
@@ -408,31 +420,7 @@ We can also plot that test using a hanging rootogram:
 plot(poissonTest)
 ```
 
-The bars are the observed counts and the red line/points are the fitted counts (i.e., how many would be expected). If a bar does not reach the 0 line, then the model would over-predict for that particular count; if the bar dips below the 0 line, the model under-predicts that count.
-
-### Dispersion
-
-For models of this nature (our dependent variable is a count variable), we may have two different distributions with which to operate: the Poisson distribution or the negative binomial distribution.
-
-Let’s check this out (it will be important later on!).
-
-```{r}
-shroudData[, list(mean = mean(shroudsProduced), 
-                  var = var(shroudsProduced)), 
-           by = employeeCount]
-```
-
-What is the purpose of this? We are checking the conditional means and variances. Why is this important? If our variances are larger than our means, we have *overdispersion*. We would expect values to be equally distributed over levels, but if they are really spread out, this qualifies as overdispersion – this is not good for our Poisson model because it will cause downward bias.
-
-As an overly simple check, we can also compare the mean and the variance of our outcome variable -- they should be close to equal!
-
-```{r}
-mean(shroudData$shroudsProduced)
-
-var(shroudData$shroudsProduced)
-```
-
-Not terribly far off, but we will see if it becomes a problem later. You might be wondering why overdispersion is a problem -- it goes back to the single parameter within the Poisson distribution. The normal distribution has a parameter for dealing with variance -- $\sigma$ -- Poisson does not, so the assumption is that any variance would be equal to the mean.
+The bars are the observed counts and the red line/points are the fitted counts (i.e., how many would be expected). If a bar does not reach the 0 line, then the model would over-predict for that particular count; if the bar dips below the 0 line, the model under-predicts that count. It looks like we are pretty close for our counts.
 
 ### Standard Functions
 
@@ -442,41 +430,57 @@ $$y = Poisson(\lambda) \\ \text{log}(\lambda) = \alpha + \beta X$$
 
 Using the log link keeps the outcome positive (we cannot deal with negative counts). Logs, as they are prone to do, are going to tend towards an exponential relationship; just be sure that it makes sense over the entire range of your data.
 
+:::{.panel-tabset}
+
+##### R
+
 ```{r}
-poissonTest <- glm(shroudsProduced ~ employeeCount,
-                  data = shroudData,
+poisson_test <- glm(poss_pronoun ~ word_count,
+                  data = reviews,
                   family = poisson)
 
-summary(poissonTest)
+summary(poisson_test)
 
-exp(poissonTest$coefficients)
+exp(poisson_test$coefficients)
 ```
 
-**Important Note:** We are going to interpret this almost the same as a linear regression. The slight wrinkle here, though, is that we are looking at the log counts (remember that we specified the log link function). In other words, an increase in one employee leads to an expected log count increase of ~.029. Just like our logisitc regression, we could exponentiate this to get 1.029189 – every employee we add gets us a ~3% increase in shrouds produced. Let’s see what this looks like in action:
+
+##### Python
+
+```{python}
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+
+poisson_test = smf.glm(formula = "poss_pronoun ~ word_count",
+                       data = reviews,
+                       family = sm.families.Poisson()).fit()
+
+poisson_test.summary()        
+
+np.exp(poisson_test.params)
+```
+
+:::
+
+We are going to interpret this almost the same as a linear regression. The slight wrinkle here, though, is that we are looking at the log counts (remember that we specified the log link function). In other words, an increase in one one review word leads to an expected log count increase of ~.01. Just like our logisitc regression, we could exponentiate this to get 1.108 – every added word in a review gets us a ~1% increase in the number of possessive pronouns. Let’s see what this looks like in action:
 
 ```{r}
-shroudData <- shroudData %>%
-  mutate(predValues = predict(poissonTest, type = "response"))
+reviews$pred_values <- predict(poissonTest, type = "response")
 
-ggplot(shroudData, aes(employeeCount, predValues)) +
-  geom_count() +
-  scale_size_area() +
+sjPlot::plot_model(poisson_test, type = "pred", terms = c("word_count")) +
   theme_minimal()
 ```
 
-
 ```{r}
-pchisq(poissonTest$deviance, poissonTest$df.residual, lower.tail = FALSE)
+pchisq(poisson_test$deviance, poisson_test$df.residual, lower.tail = FALSE)
 ```
 
-With everything coupled together, we have a meaningful coefficient, a clear plot, and adequate model fit. Therefore, we might conclude that there is a positive relationship between number of employees on shift and shrouds produced.
-
-In addition to checking our data for over dispersion before running the model, we can also check it after running our model:
+With everything coupled together, we have a meaningful coefficient for `word_count`, a clear plot, and adequate model fit. Therefore, we might conclude that there is a positive relationship between number of words in a review on the number of times a person uses a personal possessive.
 
 ```{r}
 library(AER)
 
-dispersiontest(poissonTest)
+dispersiontest(poisson_test)
 ```
 
 The dispersion value that we see returned (0.9452052 in our case) should be under 1. A dispersion value over 1 means that we have overdispersion. Our dispersion value, coupled with our high *p*-value, indicates that we would fail to reject the null hypothesis of equidispersion.
@@ -490,65 +494,34 @@ We can also look back to our model results to compare our residual deviance to o
 ##### R
 
 ```{r}
-zip_ll <- function(y, X, par) {
+pois_ll <- function(y, X, par) {
   # arguments are response y, predictor matrix X, and parameter named starting points of 'logit' and 'pois'
   
-  # Extract parameters
-  logitpars = par[grep('logit', names(par))]   
-  poispars  = par[grep('pois', names(par))]     
-  
-  # Logit part; in this function Xlogit = Xpois but one could split X argument into Xlogi and Xpois for example
-  Xlogit  = X
-  LPlogit = Xlogit %*% logitpars
-  logi0   = plogis(LPlogit)  # alternative 1/(1+exp(-LPlogit))
-    
-  # Poisson part
-  Xpois  = X
-  mupois = exp(Xpois %*% poispars)
-  
-  # LLs
-  logliklogit = log( logi0 + exp(log(1 - logi0) - mupois) )
-  loglikpois  = log(1 - logi0) + dpois(y, lambda = mupois, log = TRUE)
-  
-  # Hilbe formulation
-  # logliklogit = log(logi0 + (1 - logi0)*exp(- mupois) )
-  # loglikpois = log(1-logi0) -mupois + log(mupois)*y     #not necessary: - log(gamma(y+1))
-    
-  y0 = y == 0  # 0 values
-  yc = y > 0   # Count part
+  beta <- par
 
-  loglik = sum(logliklogit[y0]) + sum(loglikpois[yc])
-  -loglik
+  lambda <- exp(beta%*%t(X))
+  
+  loglik <- -sum(dpois(y, lambda, log = TRUE))
+    
+  return(loglik)
 }
 ```
 
 ##### Python
 
-:::
+```{python}
 
-### Starting Values
-
-:::{.panel-tabset}
-
-##### R
-
-```{r}
-initial_model = glm(
-  count ~ persons + livebait,
-  data = fish,
-  x = TRUE,
-  y = TRUE,
-  "poisson"
-)
-
-# starts = c(logit = coef(initial_model), pois = coef(initial_model))  
-starts = c(rep(0, 3), rep(0, 3))
-
-names(starts) = c(paste0('pois.', names(coef(initial_model))),
-                  paste0('logit.', names(coef(initial_model))))
+def pois_ll(par, X, y):
+    # arguments are response y, predictor matrix X, and parameter named starting points of 'logit' and 'pois'
+    
+    beta = par
+    
+    lambda_ = np.exp(X.dot(beta))
+    
+    loglik = -np.sum(poisson.logpmf(y, lambda_))
+    
+    return loglik
 ```
-
-##### Python
 
 :::
 
@@ -559,19 +532,43 @@ names(starts) = c(paste0('pois.', names(coef(initial_model))),
 ##### R
 
 ```{r}
+starts <- c(0, 0)
+
+form <- as.formula("poss_pronoun ~ word_count")
+model <- model.frame(form, data = reviews)
+X <- model.matrix(form, data = reviews)
+y <- model.response(model)
+
 fit = optim(
   par = starts ,
-  fn  = zip_ll,
-  X   = initial_model$x,
-  y   = initial_model$y,
+  fn  = pois_ll,
+  X   = X,
+  y   = y,
   method  = "BFGS",
   control = list(maxit = 5000, reltol = 1e-12),
   hessian = TRUE
 )
+
+fit$par
 ```
 
 
 ##### Python
+
+```{python}
+
+init = np.zeros(X.shape[1])
+
+fit = minimize(
+    fun = pois_ll,
+    x0 = init,
+    args = (X, y),
+    method = 'BFGS',
+    options = {'disp': True}
+)
+
+fit.x
+```
 
 :::
 
