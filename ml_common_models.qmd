@@ -14,6 +14,7 @@ source("setup.R")
 
 library(tidyverse)
 library(glue)
+
 reticulate::use_condaenv("book-of-models")
 ```
 
@@ -127,6 +128,7 @@ df_heart.to_csv('data/heart_disease_processed.csv', index=False)
 
 df_heart = pd.read_csv('data/heart_disease_processed.csv')
 
+
 from sklearn.preprocessing import StandardScaler
 
 cats = pd.get_dummies(
@@ -135,7 +137,7 @@ cats = pd.get_dummies(
 
 binaries = (
     pd.get_dummies(
-        df_heart[['fasting_blood_sugar', 'exercise_induced_angina', 'heart_disease']],
+        df_heart[['fasting_blood_sugar', 'exercise_induced_angina', 'male', 'heart_disease']],
         drop_first=True,
     )
     .astype(int)
@@ -152,6 +154,7 @@ x = df_heart.drop(
         'thalassemia',
         'fasting_blood_sugar',
         'exercise_induced_angina',
+        'male',
         'heart_disease',
     ]
 )
@@ -206,8 +209,11 @@ X_complete = df_heart_num.dropna().drop(columns='heart_disease').to_numpy()
 
 library(tidyverse)
 
-df_heart = read_csv("data/heart_disease_processed.csv")#|> mutate(across(where(is.character), as.factor))
+df_heart = read_csv("data/heart_disease_processed.csv")
 df_heart_num = read_csv("data/heart_disease_processed_numeric_sc.csv")
+
+df_heart = df_heart |> 
+    mutate(across(where(is.character), as.factor))
 
 # as a data.frame for mlr3
 X_num_df = df_heart_num %>%
@@ -316,19 +322,21 @@ print(
 #|
 
 library(mlr3verse)
-# library(mlr3learners)
-# library(mlr3extralearners)
 
-tsk_elastic = TaskClassif$new(
-  id = "heart_disease",
-  backend = X_num_df |> drop_na(),
-  target = "heart_disease"
+tsk_elastic = as_task_classif(
+    X_num_df |> drop_na(),
+    target = "heart_disease"
 )
 
-lrn_elastic = lrn("classif.cv_glmnet", nfolds = 5, type.measure = "class", alpha = 0.5)
+lrn_elastic = lrn(
+    "classif.cv_glmnet", 
+    nfolds = 5, 
+    type.measure = "class", 
+    alpha = 0.5
+)
 
 cv_elastic = resample(
-    task     = tsk_elastic,
+    task       = tsk_elastic,
     learner    = lrn_elastic,
     resampling = rsmp("cv", folds = 5)
 )
@@ -500,7 +508,7 @@ cv_boost = cross_validate(
     df_heart_num['heart_disease'],
     cv=5,
     scoring='accuracy',
-)  
+)
 ```
 
 ```{python}
@@ -534,15 +542,12 @@ Note that as of writing, the xgboost package does not support categorical variab
 ```{r}
 #| eval: false
 #| label: boost-r
-library(mlr3)
-library(mlr3learners)
-library(mlr3extralearners)
+library(mlr3verse)
 
 # Define task
-tsk_boost = TaskClassif$new(
-  id = "heart",
-  backend = X_num_df, #df_heart |> mutate(heart_disease = factor(heart_disease)) ,
-  target = "heart_disease"
+tsk_boost = as_task_classif(
+    X_num_df,
+    target = "heart_disease"
 )
 
 # Define learner
@@ -552,6 +557,7 @@ learner_boost = lrn(
   max_depth = 5,
   learning_rate = 1e-3
 )
+
 
 # Cross-validation
 cv_boost = resample(
@@ -565,6 +571,9 @@ cv_boost = resample(
 #| label: boost-r-save-results
 #| echo: false
 #| eval: false
+
+# TODO: mlr3 appears to not be using categorical features appropriately
+# this appears to have been an repeated issue https://github.com/mlr-org/mlr3/issues/91
 
 saveRDS(cv_boost, "ml/data/boost-r-results.rds")
 ```
@@ -901,6 +910,12 @@ cv_boost_tune.fit(X_train, y_train)
 #| eval: false
 #| results: hide
 
+# save the cv_boost best estimator model
+import joblib
+
+#save your model or results
+joblib.dump(cv_boost_tune.best_estimator_, 'ml/data/tune-boost-py-model.pkl')
+
 test_predictions = cv_boost_tune.predict(X_test)
 pd.DataFrame(cv_boost_tune.cv_results_).to_csv('ml/data/tune-boost-py-results.csv', index=False)
 pd.DataFrame(test_predictions).to_csv('ml/data/tune-boost-py-predictions.csv', index=False)
@@ -1107,9 +1122,182 @@ cv_results |>
 
 Also, our tuned results showed that we could get a bit better performance with a bit more effort. For Python and R our results on a holdout set were about as good or even better with the tuned model.
 
-## ANOTHER SECTIONS
+## Interpretaion
 
-was going to briefly cover something but now forgotten after dealing with tuning/saving problems
+Just because we have models that don't readily lend themselves to interpretation with simple coefficients, we can still figure out what's going on. Let's use the boosting model as an example.
+
+### Feature Importance
+
+The default importance metric for a lightgbm model is the number of splits in which a feature is used across trees, and this will depend notably on your settings and the chosen parameters of the best model. You could also use the shap approach for variable importance as well.
+
+:::{.panel-tabset}
+
+##### Python
+
+```{python}
+#| label: imp-py
+#| eval: true
+#| echo: true
+
+# load the model
+import joblib
+
+cv_boost_tune = joblib.load('ml/data/tune-boost-py-model.pkl')
+
+# Get feature importances
+feature_importances = (
+    pd.DataFrame({'Feature': cv_boost_tune.feature_name_,
+    'Importance': cv_boost_tune.feature_importances_})
+    .sort_values(by='Importance', ascending=False)
+    .reset_index(drop=True)
+)
+
+feature_importances.head(4)
+```
+
+##### R
+
+```{r}
+#| label: imp-r
+
+# load the model
+load("ml/data/tune-boost-r-results.RData")
+
+# Get feature importances
+
+lrn_lgbm_tuned$importance() |> 
+    as_tibble(rownames = "Feature")  |> 
+    head(4)
+```
+
+:::
+
+
+Now let's think about a visual display. Here we demonstrate a quick partial dependence plot to see the effects of cholesterol and being male. We can see that males are expected to have a higher probability of heart disease, and that cholesterol has a positive relationship with heart disease, such that a notable rise begins around the mean value for cholesterol.
+
+:::{.panel-tabset}
+
+##### Python
+
+```{python}
+#| label: pdp-py
+#| 
+from sklearn.inspection import PartialDependenceDisplay
+
+PartialDependenceDisplay.from_estimator(
+    cv_boost_tune, 
+    df_heart.drop(columns='heart_disease'), 
+    features=['cholesterol', 'male'], 
+    categorical_features=['male'], 
+    percentiles=(0, .9),
+    grid_resolution=75
+)
+```
+
+##### R
+
+For R we'll use the IML package. The plot shown is a prettier version of what you'd get with the following code.
+
+```{r}
+#| eval: false
+#| label: pdp-r
+
+library(iml)
+
+prediction = Predictor$new(
+    lrn_lgbm_tuned, 
+    data = df_train, 
+    type = 'prob', 
+    class = '1'
+)
+
+effect_dat <- FeatureEffect$new(
+    prediction, 
+    feature = c('cholesterol', 'male'), 
+    method = "pdp", 
+)
+
+effect_dat$plot(show.data = TRUE)
+```
+
+```{r}
+#| eval: true
+#| echo: false
+#| label: pdp-r-plot
+
+library(iml)
+
+prediction = Predictor$new(
+    lrn_lgbm_tuned, 
+    data = df_train , 
+    type = 'prob', 
+    class = '1'
+)
+
+effect_dat <- FeatureEffect$new(
+    prediction, 
+    feature = c('male'), 
+    method = "pdp",
+    grid.size = 2
+)
+
+
+p_male = effect_dat$results |> 
+    mutate(male = factor(male, labels = c('no', 'yes'))) |>
+    ggplot(aes(x = male, y = .value)) +
+    geom_col(width=.01) +
+    geom_point(size =10, alpha = 1) +
+    lims(y = c(0, .6)) +
+    labs(subtitle = 'Predicted Probability of Heart Disease', y = '') +
+    theme_minimal() 
+    
+
+effect_dat <- FeatureEffect$new(
+    prediction, 
+    feature = c('cholesterol'), 
+    method = "pdp",
+    grid.size = 200
+)
+
+p_chol = effect_dat$results |> 
+    filter(cholesterol < 3, cholesterol > -3) |>
+    ggplot(aes(x = cholesterol, y = .value)) +
+    geom_line() +
+    theme_minimal()
+
+library(patchwork)
+p_male + p_chol + plot_layout(ncol = 1)  
+```
+:::
+
+```{python}
+#| label: shap-py
+#| eval: false
+#| echo: false
+
+# load the model
+
+import joblib
+
+joblib.load('ml/data/tune-boost-py-model.pkl')
+
+X_train, X_test, y_train, y_test = train_test_split(
+    df_heart.drop(columns='heart_disease'), df_heart_num['heart_disease'], test_size=0.2, random_state=42
+)
+
+import shap
+
+# shap.initjs()
+
+explainer = shap.TreeExplainer(cv_boost_tune.best_estimator_)
+
+shap_values = explainer.shap_values(df_heart.drop(columns='heart_disease'))
+
+shap.summary_plot(shap_values, df_heart.drop(columns='heart_disease'), plot_type="waterfall")
+
+shap.importances(cv_boost_tune.best_estimator_, df_heart.drop(columns='heart_disease'))
+```
+
 
 ## Other ML Models
 
