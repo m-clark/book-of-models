@@ -394,7 +394,7 @@ Incorporating regularization as done with penalized regression would be fine as 
 
 ## Tree-based methods
 
-Let's move beyond standard linear models and get into a notably different approach. Tree-based methods are a class of models that are very popular in machine learning, and for good reason, they work well. To get a sense of how they are derived, consider the following classification example where we want to predict a binary target as 'Yes' or 'No'. We have two numeric features, $X_1$ and $X_2$. At the start we take $X_1$ and make a split at the value of 5. Any observation less than 5 on $X_1$ goes to the right with a prediction of *No*. Any observation greater than or equal to 5 goes to the left, where we then split based on values of $X_2$, and specifically at 3. Any observation less than 3 goes to the right with a prediction of *Yes*. Any observation greater than or equal to 3 (and greater than or equal to 5 on $X_1$) goes to the left with a prediction of *No*. 
+Let's move beyond standard linear models and get into a notably different type of approach. Tree-based methods are a class of models that are very popular in machine learning, and for good reason, they work *very* well. To get a sense of how they are derived, consider the following classification example where we want to predict a binary target as 'Yes' or 'No'. We have two numeric features, $X_1$ and $X_2$. At the start we take $X_1$ and make a split at the value of 5. Any observation less than 5 on $X_1$ goes to the right with a prediction of *No*. Any observation greater than or equal to 5 goes to the left, where we then split based on values of $X_2$, and specifically at 3. Any observation less than 3 goes to the right with a prediction of *Yes*. Any observation greater than or equal to 3 (and greater than or equal to 5 on $X_1$) goes to the left with a prediction of *No*. So in the end, we see relatively lower on $X_1$, or relatively higher on both, results in a prediction of *No*, and high on $X_1$ and low on $X_2$ results in a prediction of *Yes*. We can see this visually in the following graph.
 
 ```{r}
 #| echo: false
@@ -435,11 +435,11 @@ digraph tree {
 
 ![A simple classification tree](img/tree.svg){width=50%}
 
-This is a simple example, but it illustrates the basic idea of a tree-based model, where the **tree** reflects the total process, and **branches** the splits going down, ultimately ending at **leaves** where predictions are made. We can think of the tree as a series of if-then statements, where we start at the top and work our way down until we reach a leaf node, which is a prediction for all observations that qualify for that leaf.
+This is a simple example, but it illustrates the basic idea of a tree-based model, where the **tree** reflects the total process, and **branches** are represented by the splits going down, ultimately ending at **leaves** where predictions are made. We can also think of the tree as a series of `if-then` statements, where we start at the top and work our way down until we reach a leaf node, which is a prediction for all observations that qualify for that leaf.
 
-If we just had a single tree, this would be the most interpretable model we could probably come up with, and it incorporates nonlinearities (multiple branches on a single feature), interactions (branches across features), and feature selection all in one (some features may not result in useful splits). However, it's unfortunately not a very stable model, and does not generalize well. For example, just a slight change in data, or even just starting with a different feature, might produce a very different tree[^cartbase]. The solution is merely to come up with a bunch of trees, get predictions for each observation from each tree, and then average the predictions. This is the concept behind both **random forests** and **gradient boosting**, which can be seen as different algorithms to produce a bunch of trees, and then average the predictions. They also fall under the heading of **ensemble models**, which are models that combine the predictions of multiple models, in this case individual trees, to ultimately produce a single prediction for each instance.
+If we just use a single tree, this would be the most interpretable model we could probably come up with, and it incorporates nonlinearities (multiple branches on a single feature), interactions (branches across features), and feature selection all in one (some features may not result in useful splits for the objective). However, a single tree is not a very stable model unfortunately, and so does not generalize well. For example, just a slight change in data, or even just starting with a different feature, might produce a very different tree[^cartbase]. The solution is straightforward though - by using the power of a bunch of trees, we can get predictions for each observation from each tree, and then average the predictions, result in a most stable estimate. This is the concept behind both **random forests** and **gradient boosting**, which can be seen as different algorithms to produce a bunch of trees, and then average the predictions. They also fall under the heading of **ensemble models**, which are models that combine the predictions of multiple models, in this case individual trees, to ultimately produce a single prediction for each observation.
 
-Random forests and boosting methods are very easy to implement, to a point. However, there are typically a few hyperparameters to consider for tuning. Here are few to think about:
+Random forests and boosting methods are very easy to implement, to a point. However, there are typically a several hyperparameters to consider for tuning. Here are just a few to think about:
 
 - Number of trees
 - Learning rate (GB)
@@ -450,7 +450,7 @@ Random forests and boosting methods are very easy to implement, to a point. Howe
 - Out-of-bag sample size (RF)
 
 
-Those are the ones that you'll usually be trying to figure out via cross-validation for boosting, but there are others. The number of trees and learning rate kind of play off of each other, where more trees allows for a smaller rate[^learningrate], which might work better but will usually take longer to train, but can lead to overfitting if other steps are not taken. The depth of each tree refers to the number of levels down the branches we allow the model to go, as well as how wide we let things get in some implementations. This is important because it controls the complexity of each tree, and thus the complexity of the overall model- less depth helps to avoid overfitting, but too little depth and you won't be able to capture the nuances of the data. The minimum number of observations in each leaf is also important for the same reason. It's also generally a good idea to take a random sample of features (or even data observations) to also help reduce overfitting. The regularization parameters are typically less important in practice, but in general you'll want to use them to reduce overfitting.
+Those are the ones that you'll usually be trying to figure out via cross-validation for boosting or random forests, but there are others. The number of trees and learning rate kind of play off of each other, where having more trees allows for a smaller rate[^learningrate], which might work better but will take longer to train, and can lead to overfitting if other steps are not taken. The depth of each tree refers to the number of levels down the branches we allow the model to go, as well as how wide we let things get in some implementations. This is important because it controls the complexity of each tree, and thus the complexity of the overall model- less depth helps to avoid overfitting, but too little depth and you won't be able to capture the nuances of the data. The minimum number of observations in each leaf is also important for the same reason. It's also generally a good idea to take a random sample of features for each tree (or possibly even each branch), to also help reduce overfitting, but it's not obvious what proportion to take. The regularization parameters are typically less important in practice, but in general you can use them to reduce overfitting as we would in other modeling circumstances.
 
 [^cartbase]: A single regression/classification tree actually could serve as a decent baseline model, especially given the interepretability.
 
@@ -459,7 +459,7 @@ Those are the ones that you'll usually be trying to figure out via cross-validat
 
 <!-- <img src="img/tree1.png" style="display:block; margin: 0 auto;" width=25%> -->
 
-Here is an example with the heart disease data. Although boosting methods are available in `scikit-learn` for Python, in general we recommend using `lightgbm` or `xgboost` packages directly for boosting implementation, which have a sklearn API anyway (as demonstrated). Also, they both provide R and Python implementations of the package, making it easy to not lose your place when switching between languages.  We'll use `lightgbm` here, but `xgboost` is also a very good option [^nomeow].
+Here is an example of gradien boosting with the heart disease data. Although boosting methods are available in `scikit-learn` for Python, in general we recommend using `lightgbm` or `xgboost` packages directly for boosting implementation, which have a sklearn API anyway (as demonstrated). Also, they both provide R and Python implementations of the package, making it easy to not lose your place when switching between languages.  We'll use `lightgbm` here, but `xgboost` is also a very good option [^nomeow].
 
 [^nomeow]: Some also prefer `catboost`. The authors have not actually been able to practically implement catboost in a setting where it was more predictive or as efficient/speedy as `xgboost` or `lightgbm`, but some have had notable success with it. 
 
@@ -534,7 +534,7 @@ print(
 
 ##### R
 
-Note that as of writing, the xgboost package does not support categorical variables in R, so we'll just one-hot encode them.
+Note that as of writing, the mlr3 implementation of lightgbm doesn't seem to handle factors even though the R package does. So we'll use the numeric version of the data here.
 
 
 
@@ -542,6 +542,8 @@ Note that as of writing, the xgboost package does not support categorical variab
 #| eval: false
 #| label: boost-r
 library(mlr3verse)
+
+set.seed(1234)
 
 # Define task
 tsk_boost = as_task_classif(
@@ -591,7 +593,7 @@ glue("Training Accuracy: {round(cv_boost$aggregate(msr('classif.acc')), 3)}\nBas
 :::
 
 
-#### Gblinear demo
+So here we have a model that is also performing well even without tuning, though not significantly better/worse than our elastic net model. For most situations, this would not be the case, but it also shows why we want a good baseline or simpler model. We'll revisit hyperparameter tuning using this model later.  If you'd like to see an example of how we could implement a form of [gradient boosting by hand](LINKYLINK), see the appendix.
 
 ADD GBLINEAR BY HAND TO APPENDIX
 
@@ -612,6 +614,7 @@ Random forests and boosting methods, though not new, are still 'state of the art
 
 - Honestly few, but like all techniques, it might be relatively less predictive in certain situations. There is [no free lunch](https://machinelearningmastery.com/no-free-lunch-theorem-for-machine-learning/).
 - It does take more effort to tune relative to linear model methods.
+
 
 
 ## Deep Learning and Neural Networks
