@@ -110,7 +110,7 @@ So far in our discussion, our categorical data has been assumed to have no order
 
 The simplest way to treat ordinal features is as if they were numeric.  If you do this, then you're just pretending that it's not categorical, and this is usually fine.  Most of the transformations we mentioned probably aren't going to be as useful, but you can still use them if you want. For example, logging five values of ratings 1-5 isn't going to do anything for you, but it technically doesn't hurt anything.  But you should know that typical statistics like means and standard deviations don't really make sense for ordinal data, so the main reason for treating them as numeric is for modeling convenience.  
 
-If you choose to treat it as categorical, you can ignore the ordering and do the same as you would with categorical data. There are some specific approaches to coding ordinal data for use in linear models, but they are not common, and they generally aren't going to help the model or interpreting it, so we do not recommend them. You could however use old-school **contrast encodings** that you would in traditional ANOVA approaches, but again, this you'd need a good reason to do so.
+If you choose to treat it as categorical, you can ignore the ordering and do the same as you would with categorical data. There are some specific approaches to coding ordinal data for use in linear models, but they are not common, and they generally aren't going to help the model or interpreting it, so we do not recommend them. You could however use old-school **contrast encodings** that you would in traditional ANOVA approaches, but again, you'd need a good reason to do so.
 
 Take home message: treat ordinal features as you would numeric or non-ordered categorical. Either is fine.
 
@@ -149,23 +149,120 @@ You now have 10 imputed data sets. You then run your actual model of interest on
 
 Multiple imputation (MI) can in theory handle the any source of missingness and as such is a very powerful approach.  But it has several drawbacks. One is that you need statistical or generative model and distribution for all models used, and that distribution is something you have to assume is appropriate. Your final model presumably is also a probabilistic model with coefficients and variances you are trying to estimate and understand.  MI isn't really going to help an XGBoost or deep learning model for example, or at least offer little if anything over single value imputation. If you have very large data and a complicated model, you could be waiting a long time, and as modeling is an iterative process itself, this can be rather tedious to work through. Finally, almost no data or post-model processing tools that you commonly use will work with MI results, especially visualization ones, and so you will have to hope that whatever package you use for MI has what you need.  As an example, you'd have to figure out how you're going to impute interaction terms if you have them, practically nothing will work with cross-validation approaches,
 
-Practically speaking, MI takes a lot of effort to pretty much come to the same conclusions you would have with a single imputation approach. But if you want to be as thorough as possible, this is the way to go.
+Practically speaking, MI takes a lot of effort to often come to the same conclusions you would have with a single imputation approach. But if you want to be as thorough as possible, this is the way to go.
 
-One final option is to run a Bayesian model where the missing values are treated as parameters to be estimated.  MI basically is a poor man's Bayesian imputation approach. A package like `brms` can do this, and it can be very effective, but it is also very computationally intensive, and can be very slow.  It is also not always necessary, and can be overkill.  But if you want to be as thorough as possible, this is the way to go.
+One final option is to run a Bayesian model where the missing values are treated as parameters to be estimated.  MI basically is a poor man's Bayesian imputation approach. A package like `brms` can do this, and it can be very effective, but it is also very computationally intensive, and can be very slow. 
 
 ## Class Imbalance
 
-## Censoring
+**Class imbalance** refers to the situation where the target variable has a large difference in the number of observations in each class.  For example, if you have a binary target, and 90% of the observations are in one class, and 10% in the other, you would have class imbalance. We'll almost never see a 50/50 split in the real world, but the issue is that as we move further away, we can start to see problems in model estimation and interpretation. As a starting point, if we just predict the majority class in a binary classification problem, we'll be right 90% of the time in terms of accuracy.  So right off the bat one of our favorite metrics isn't going to help us assess model performance as much as we'd like. 
 
-Tobit, Survival
+
+**In classification problems, class imbalance is the rule, not the exception**. This is because nature just doesn't sort itself into nice and even bins.  For example, the majority of people of a random sample do not have cancer, the vast majority of people have not had a heart attack in the past year, most people do not default on their loans, and so on.
+
+There are a number of ways to deal with class imbalance, and the best approach depends on the context.  Some of the most common approaches are:
+
+- **Use different metrics**: Use metrics that are less affected by class imbalance, such as area under a receiver operating characteristic curve (AUC), or those that balance the 
+- **Oversampling/Undersampling**: Randomly sample from the minority (majority) class to increase (decrease) the number of observations in that class. 
+- **Weighted objectives**: Weight the loss function to give more weight to the minority class.
+- **Thresholding**: Change the threshold for classification to be more sensitive to the minority class.
+
+
+###  Calibration issues in Classification
+
+Probability **calibration** is often an issue in classification problems, and is a bit more complicated than just class imbalance but is often discussed in the same setting. Having calibrated probabilities refers to the situation where the predicted probabilities of the target match up well to the actual probabilities. For example, if you predict that 10% of people will default on their loans, and 10% of people actually do default on their loans, one would say your model is well calibrated. Conversely, if you predict that 10% of people will default on their loans, but 20% of people actually do default on their loans, your model is not so well-calibrated. One of the most common approaches to assessing calibration is to use a **calibration curve**, which is a plot of the predicted probabilities vs. the observed proportions.  
+
+CALIBRATION PLOT HERE
+
+While the issue is an important one, it's good to keep the issue of calibration and imbalance separate. As miscalibration implies bias, bias can happen irrespective of the class proportions and can be due to a variety of factors related to the model, target, or features, and miscalibration is not inherent to a model. Also be aware that your observed 'probabilities' are proportions based on completely arbitrarily chosen bins and observed values that are measured with some non-zero measurement error. Those proportions have uncertainty, a point which is almost never discussed demonstrations on the issue. People usually treat observed proportions based on displayed classes and arbitrary bings are treated as if they are the "true" probabilities. However, you do not have the true probabilities outside of simulation settings, just class labels, so whether your model's predicted probabilities match observed proportions is a bit of a different question. 
+
+Some methods are available to calibrate probabilities, but they are not commonly implemented in practice, and often involve a model-based technique, with all of its assumptions and limitations. This gets beyond the scope of our discussion here.  If you are interested, you can read more [here](https://scikit-learn.org/stable/modules/calibration.html).
+:::
+
+Related problems: uncalibrated probabilities, extremely rare events, etc.
+Common solutions: thresholding, weighted objectives, up/down-samplingetc.
+
+
+
+## Censoring and Truncation
+
+**Censoring** is a situation where the target variable is not fully observed. This is common in survival analysis, where the target is the time to an event, but the event has not yet occurred for some observations.  This is called **right censoring**, and is the most common type of censoring. There is also **left censoring**, where the event has already occurred, but the time to the event is unknown. This is less common, but can occur in situations where the event is not observed, but the time to the event is known to be less than some value.  For example, if you are studying the time to death of a population, but you only know that the time to death is less than 100 years for some people, you have left censoring.  Finally, there is **interval censoring**, where the time to the event is known to be within some interval, but the exact time is unknown. 
+
+Survival analysis is a common technique in this situation, but you may also be able to keep things even more simple via something like [tobit regression](https://m-clark.github.io/models-by-example/tobit.html).  In this approach, you assume that the target is fully observed, but that the values are censored, and you model the probability of censoring.  This is a very common approach in econometrics, and can keep you in a traditional linear model context.  
+
+**Truncation** is a situation where the target variable is only observed if it is above or below some value. One of the issues is that default distributional methods, e.g., via maximum likelihood, assume a distribution that is not necessarily bounded. For example, you can assume a normal distribution, and for your setting a mean of 5 is typical, but target can never be below 0 or above 7. Even if unlikely, without extra steps the model could predict these implausible values.
+
+You could truncate predictions after the fact, but this is a bit of a hack, and often results in prediction lumpiness at the boundary that isn't realistic in most situations. Alternatively, Bayesian approaches allow you to model the target as a distribution with truncated distributions, and so you can model the probability of the target being above or below some value. This is a very flexible approach. There are also models such as hurdle models that might prove useful where the truncation is theoretically motivated, e.g. a zero-inflated Poisson model for count data where the zero counts are due to a separate process than the non-zero counts.
+
+:::{.callout-note}
+One way to distinguish censored and truncated data is that censored data is usually due to some external process such that the target is not observed but could be possible (capping reported income at $1 million), whereas truncated data is due to some internal process that prevents the target from being observed, and is often derived from sample selection (we only want to model non-millionaires). We would not want observations past the censored point to be unlikely, but we would want observations past the truncated point to be impossible. Trickier still is that for bounded or truncated distributions that might be applied to the truncated scenario, such as folded vs. truncated distributions, they would not result in the same probability distributions even if they can be applied to the same situation.
+
+[![Folded and Truncated Distributions](img/trunc_vs_folded.png)](https://stats.stackexchange.com/questions/16089/is-sampling-from-a-folded-normal-distribution-equivalent-to-sampling-from-a-norm)
+
+Image from StackExchange
+:::
 
 ## Time Series
 
+TODO: ADD CHAPTER LINKS HERE
+
+Time series data is any data that incorporates values over time. This could be something like the number of people in a population over years, or the max temperature over days, etc. Time series data is very common, and there are a number of approaches to modeling it, and we usually take special approaches to account for the fact that observations are not independent of one another. The most common approach is to use a **time series regression** approach, where the target is a function of time, and the covariates are other features that are also a function of time (or not).  There are old-school approaches like ARIMA that can still serve as decent [baseline models](LINK THE TO ML CHAPTER), and newer approaches like more sophisticated Bayesian ones that can get quite complex. 
+
+**Longitudinal data**[^paneldata] is a special case of time series data, where the target is a function of time, but it is typically grouped in some fashion. An example is would be school performance for students over several semesters, where values are clustered within students over time.  In this case, you can use a time series regression approach, but you can also use a **mixed model** (LINK TO THE EXTENSIONS CHAPTER) approach, where you model the target as a function of time, but also include a random effect for the grouping variable, in this case, students.  This is a very common approach in many areas, and can be very effective. It can also be used for time series data that is not longitudinal, but it is not as common.
+
+[^paneldata]: We prefer not to call this **panel data**, though you may also hear of the term in these situations. In our view it's not as informative of a description and exclusively used in econometrics-oriented disciplines.
+
+For features we can apply time-based transformations. One [PCA like approach](LINK TO UNSUPERVISED SECTION) is the **fourier transform**, which can be used to decompose a time series into its component frequencies.  This can be useful for identifying periodicity in the data, and can be used as a feature in a model. In marketing contexts, some perform **adstocking** on features, which is a way of modeling the lagged of the effect of features over time, such that they may have their most important impact immediately, but still can impact the present target from past values.  This avoids directly putting lags for each time point as additional features in the model, though that is an option. In that case you have feature at present time *t*, feature at *t-1* (i.e, the previous time point), feature at *t-2*, etc.
+
+
+
 ## Spatial Data
 
-## Latent Variables?
+TODO: ADD CHAPTER LINKS HERE
+
+We also visit spatial data in a discussion on non-tabular data, but here we want to talk about it from a modeling perspective.  Say you have a target that is a function of location, such as the proportion of people voting a certain way in a county, or the number of crimes in a city.  You can use a **spatial regression** approach, where the target is a function of location among other features that may or may not be spatially oriented.  Two approaches already discussed may be applied in the case of having continous spatial features, such as latitude and longitude, or discrete features like county. Easy applications to the former include a GAM, where we use a smooth interaction of latitude and longitude. For the latter, we can use a mixed model approach, where we include a random effect for county.
+
+There are other traditional approaches to spatial regression, especially in the continuous spatial domain, such as using a **spatial lag** approach, where we incorporate information about the neighborhood of a observation's location into the model. This is a very common approach in the social sciences, and can be very effective. Such models fall under names such as CAR (conditional autoregressive), SAR (spatial autoregressive), BYM, kriging, and so on.  These models can be very effective, but are in general random effects models, and can be seen as special cases of gaussian processes.  We feel it's probably unnecessary to get into details of the traditional spatial models unless you know other standard techniques like GAMs or mixed models won't work, or more general approach like gaussian process regression isn't more feasible.
+
+## Latent Variables
+
+TODO: ADD CHAPTER LINKS HERE
+
+Latent variables are a fundamental aspect of modeling, and simply put, are variables that are not directly observed, but are inferred from other variables. Here are some examples of what might be called latent variables:
+
+- The linear combination of features in a linear regression model is a latent variable, but usually we only think of it as such before the link transformation in GLMs.
+- The error term in any model is a latent variable representing all the unknown/unobserved/unmodeled factors that influence the target.
+- The principal components in PCA.
+- The factor scores in a factor analysis model or structural equation.
+- The clusters in a cluster in cluster analysis.
+- The random effects in a mixed model.
+- The hidden layers in a deep learning model.
+
+It's easy to see from such a list that latent variables are very common in modeling.  Even if you create a simple sum score from other features, it represents a relatively crude form latent variable. The more you think about it, the more you'll see that latent variables are everywhere in modeling, so it's good to get comfortable with the concept. Whether they're appropriate to your specific situation will depend on a variety of factors, but they can be very useful in many settings, if not a required part of the modeling approach.
+
+TODO: Measurement error?
+
+## Commentary
+
+There's a lot going on with data before you ever get to modeling, and which will affect every aspect of your modeling approach. This chapter outlines common data types, issues, and associated modeling aspects, but in the end, you'll always have to make decisions based on your specific situation, and they will often not be easy. These are only some of the things to consider, so be ready for surprises, and, be ready to learn from them!
+
 
 ## refs
 
-### Transformations
-min-max vs. standardization https://sebastianraschka.com/Articles/2014_about_feature_scaling.html
+**Transformations**
+
+- min-max vs. standardization https://sebastianraschka.com/Articles/2014_about_feature_scaling.html
+
+**class imbalance**
+- https://towardsdatascience.com/handling-imbalanced-datasets-in-machine-learning-7a0e84220f28
+- Monroe & Clark
+- https://developers.google.com/machine-learning/data-prep/construct/sampling-splitting/imbalanced-data
+- https://machinelearningmastery.com/what-is-imbalanced-classification/
+
+**calibration**
+
+https://machinelearningmastery.com/probability-calibration-for-imbalanced-classification/
+https://stats.stackexchange.com/questions/452483/why-some-algorithms-produce-calibrated-probabilities
+
+
+Niculescu-Mizil, A., & Caruana, R. (2005). Predicting good probabilities with supervised learning. In Proceedings of the 22nd international conference on Machine learning (pp. 625-632).
