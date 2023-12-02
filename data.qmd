@@ -26,9 +26,10 @@ It's an inescapable fact that models need data to work, even if it's simulated d
 - The data *structure*, e.g. temporal or structural, likewise may suggest a particular model.
 - Latent variables are everywhere!
 
-## Feature & Target Transformations {#sec-data-transfromations}
 
-Transforming variables can provide a few benefits in modeling, whether applied to the target, covariates, or both, and should regularly be used for most models. Some of these benefits include:
+## Standard Feature & Target Transformations {#sec-data-transfromations}
+
+Transforming variables can provide several benefits in modeling, whether applied to the target, covariates, or both, and *should regularly be used for most model situations*. Some of these benefits include:
 
 - Interpretable intercepts
 - More comparable covariate effects
@@ -68,8 +69,8 @@ The following table shows the interpretation of some very common transformations
 tibble(
     Target = c("y", "log(y)", "log(y)", "y", "scale(y)"),
     Feature = c("x", "x", "log(x)", "scale(x)", "scale(x)"),
-    `Change in X` = c("1 unit", "1 unit", "1 % change", "1 standard deviation", "1 standard deviation"),
-    `Change in Y` = c("B unit", "100 * (exp(B) -1) %", "B % change", "B unit", "B standard deviation"),
+    `Change in X` = c("1 unit", "1 unit", "1% change", "1 standard deviation", "1 standard deviation"),
+    `Change in Y` = c("B unit", "100 * (exp(B) -1) ", "B% change", "B unit", "B standard deviation"),
     Benefits = c("Interpretation", "Heteroscedasticity in y", "Interpretation, deal with feature extremes", "Interpretation, estimation", "Interpretation, estimation"),
 ) |>
     gt()
@@ -131,6 +132,67 @@ minmax_scaled_data <- apply(data, 2, function(x) {
 :::
 
 
+Using a **log** transformation for numeric targets and features is straightforward, and [comes with several benefits](https://stats.stackexchange.com/questions/107610/what-is-the-reason-the-log-transformation-is-used-with-right-skewed-distribution). For example, it can help with **heteroscedasticity**, i.e. when the variance of the target is not constant across the range of the predictions[^notnormal] (demonstrated below), keeping predictions positive after transformation, allows for interpretability gains, and more. One issue with logging is that it is not a linear transformation, and so can make certain more complicated transformations in post-modeling more less straightforward. Also if you have a lot of zeros, log plus one transformations are not going to be enough to help you overcome that hurdle. It also won't help much when the variables in question have few distinct values, like ordinal variables, which we'll discuss later in @sec-data-ordinal.
+
+
+```{r}
+#| echo: false
+#| label: fig-log-transformation-heteroscedasticity
+#| fig-cap: Log transformation and heteroscedasticity
+
+# Generate x values
+set.seed(123)
+N = 250
+
+x <- rpois(N, lambda = 10)
+
+# Generate y values with heteroscedasticity
+y <- exp(.1*x + rnorm(length(x), mean = 0, sd = .5))
+
+summary(y)
+
+# Create a data frame
+data <- tibble(x, y)
+
+# Fit a linear regression model without log transformation
+model <- lm(y ~ x, data = data)
+# plot(model)
+
+# Fit a linear regression model with log transformation for y
+model_log <- lm(log(y) ~ x, data = data)
+# plot(model_log)
+
+
+fitted_residuals <- data.frame(
+    model = rep(c("Model", "Model w/ Log"), each = length(data$x)),
+    fitted_values = c(model$fitted, model_log$fitted),
+    residuals = c(resid(model), resid(model_log))
+)
+
+
+# Create a ggplot with facetted scatter plots
+ggplot(fitted_residuals, aes(x = fitted_values, y = residuals)) +
+    geom_point() +
+    facet_wrap(~ model, nrow = 1, scales = 'free') +
+    labs(
+        x = "Fitted Values", 
+        y = "Residuals",
+        caption = "\nVariance increases with predicted values for the model without log transformation, but is consistent across prediction for the model with log transformation."
+    ) +
+    theme(
+        plot.caption = element_text(hjust = 0, size = 8)
+    )
+    
+```
+
+
+[^notnormal]: For the bazillionth time, logging does not make data 'normal' so that you can meet your normality assumption in linear regression. The only time that would work is if your data is log-normally distributed to begin with.
+
+:::{.callout-tip}
+It is rarely necessary or a good idea to transform a numeric feature to a categorical one.  This is because you are potentially throwing away useful information by making the feature a less reliable measure of the underlying construct. For example, discretizing age to 'young' and 'old' does not help your model, and you can always get predictions for what you would consider 'young' and 'old' after the fact. The primary reasons for doing this are not statistically sound, and can actually hinder interpretation by creating arbitrary groups.
+:::
+
+
 ### Categorical variables {#data-cat}
 
 A raw character string is not an analyzable unit, so character strings and labeled variables like factors must be converted for analysis to be conducted on them. For categorical variables, we can employ what is called **effects coding** to test for specific types of group differences. Far and away the most common approach is called **dummy coding** or **one-hot encoding**[^onehotnotdummy]. In these situations we create columns for each category, and the value of the column is 1 if the observation is in that category, and 0 otherwise.  Here is a one-hot encoded version of the `season` feature.
@@ -177,9 +239,8 @@ There are a number of approaches to modeling ordinal targets, but the most commo
 Ordinality of a categorical outcome is largely ignored in machine learning approaches. The outcome is either treated as numeric or multi-category classification.  This is not necessarily a bad thing, especially if prediction is the primary goal.
 
 :::{.callout-tip}
-It's almost always a good idea to apply transformations to your data. Aside from tree-based approaches (TODO: LINK), which bin or discretize the data regardless of scale, most modeling approaches benefit in some way or another from transformations.
+Some are a little too eager to jump to simultaneously modeling multiple target variables, e.g. in structural equation modeling or mutivariate regression. It's not wrong to do so, but given the difficulty our brains have with interpreting results for a single target, you might think twice about doing so. However, for scenarios focused much more on prediction performance that involve method like deep learning, it makes more sense, and is actually required.
 :::
-
 
 
 ## Missing Data {#sec-missing-data}
@@ -568,7 +629,17 @@ The primary distinguishing feature for referring data as 'time-series' and 'long
 
 [^paneldata]: We prefer not to call this **panel data**, though you may also hear of the term in these situations. In our view it's not as informative of a description and exclusively used in econometrics-oriented disciplines.
 
+### Time-based Features
+
 When it comes to time-series features, we can apply time-based transformations. One [PCA like approach](LINK TO UNSUPERVISED SECTION) is the [**fourier transform**](https://betterexplained.com/articles/an-interactive-guide-to-the-fourier-transform/), which can be used to decompose a time series into its component frequencies. This can be useful for identifying periodicity in the data, and can be used as a feature in a model. In marketing contexts, some perform **adstocking** on features, which is a way of modeling the lagged of the effect of features over time, such that they may have their most important impact immediately, but still can impact the present target from past values.  This avoids directly putting lags for each time point as additional features in the model, though that is an option. In that case you have a feature at present time *t*, the same feature representing the previous time point *t-1*, the feature at *t-2*, etc. 
+
+Another thing to note about feature transformations, if you have year as a feature, you can use it as a numeric feature or as a categorical feature. In the former case, if you are only considering a linear effect, you should make the zero meaningful, typically by starting the year values at zero. This makes the intercept in linear models reference the first year rather than year 0, which can actually make it harder to estimate along with the other coefficients in a model. The same goes if you are using months or days as a numeric feature, since there is no 'zero' month. It doesn't really matter which year/month/day is zero, just that zero refers to one of the actual time points observed.
+
+Dates and/or times can be it bit trickier. Often you can just split dates out into year, month, day, etc., and proceed as discussed. In other cases you'd want to track the day to assess potential seasonal effects, where it makes sense to use a **cyclic** approach (e.g. [cyclic spline or sine/cosine transformation](https://developer.nvidia.com/blog/three-approaches-to-encoding-time-information-as-features-for-ml-models/)) to get at yearly or within-day seasonal effects.
+
+:::{.callout-note}
+*Weeks are not universal*. Some start on Sunday, others Monday. Some data contexts only consider weekdays. [Some systems](https://en.wikipedia.org/wiki/ISO_week_date) may have 52 or 53 weeks in a year, and dates may not be in the same week from one year to the next, etc. So use caution when considering weeks as a feature. 
+:::
 
 
 
