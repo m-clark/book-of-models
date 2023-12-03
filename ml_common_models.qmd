@@ -1,5 +1,5 @@
 
-# Common Models
+# Common Models {#sec-ml-common-models}
 
 
 
@@ -29,6 +29,36 @@ The take home messages from this section include the following:
 ### Why this matters
 
 Having good choices in your data science toolbox means you don't have to waste time with nuance and can get down to what matters- performance! Furthermore, using these common tools means you'll know you're in good company, and that you'll be able to find many resources to help you along the way. Additionally, you'll be able to focus on the data and the problem at hand, rather than the model, which in the end, is just a tool to help you understand the data. If you can get a good understanding of the data with a simple model, then that may be all you need for your situation. If you decide you need a more complex modeling approach, then using these models will still give you a good idea of what you should expect in terms of performance.
+
+
+
+
+## General Approach
+
+Let's start with a general approach to machine learning to help us get some bearings. Here is an example outline of the process we could take. This incorporates some of the ideas we've already discussed, and we'll demonstrate most of this in the following sections.
+
+- Define the problem, including the target variable(s)
+- Select the model(s) to be used, including one baseline model
+- Define the performance objective and metric(s) used for model assessment
+- Define the search space (parameters, hyperparameters) for those models
+- Define the search method (optimization)
+- Implement some sort of cross-validation technique and collect the corresponding performance metrics
+- Evaluate the results on unseen data with the chosen model
+- Interpret the results
+
+Here is a more concrete example:
+
+- Define the problem: predict the probability of heart disease given a set of features
+- Select the model(s) to be used: ridge regression, standard regression with no penalty as baseline
+- Define the objective and performance metric(s): (R)MSE, R-squared
+- Define the search space (parameters, hyperparameters) for those models: penalty parameter 
+- Define the search method (optimization): grid search
+- Implement some sort of cross-validation technique: 5-fold cross-validation
+- Evaluate the results on unseen data: RMSE on test data
+- Interpret the results: the ridge regression model performed better than the baseline model, and the coefficients tell us something about the nature of the relationship between the features and the target
+
+
+As we go along in this chapter, we'll most of this in action at various points. We'll have a baseline model, an ultimately provide examples of several commonly used models in machine learning. In each case we will assess performance using cross-validation, and then evaluate the final models on unseen data. Separately, we'll also demonstrate how to tune hyperparameters, which are parameters that are not estimated directly from the data, but rather are set by the modeler. We'
 
 
 ## Data setup
@@ -468,21 +498,6 @@ Here is an example of gradien boosting with the heart disease data. Although boo
 ##### Python
 
 ```{python}
-#| label: boot-py-movies
-#| eval: false
-#| echo: false
-
-df_movies = pd.read_csv('data/movie_reviews_processed.csv')
-
-X = df_movies.filter(regex='_sc$|genre|release_year_0|season|children_in_home')
-
-X = X.assign(genre=pd.Categorical(X['genre']), season=pd.Categorical(X['season']))
-
-y = df_movies['rating_good']
-```
-
-
-```{python}
 #| label: boost-py
 #| results: hide
 #| eval: false
@@ -536,8 +551,6 @@ print(
 
 Note that as of writing, the mlr3 implementation of lightgbm doesn't seem to handle factors even though the R package does. So we'll use the numeric version of the data here.
 
-
-
 ```{r}
 #| eval: false
 #| label: boost-r
@@ -546,8 +559,10 @@ library(mlr3verse)
 set.seed(1234)
 
 # Define task
+# For consistency we use X_num_df, but lgbm can handle factors and missing data 
+# and so we can use the original df_heart if desired
 tsk_boost = as_task_classif(
-    X_num_df,
+    X_num_df,                 
     target = "heart_disease"
 )
 
@@ -619,7 +634,20 @@ Random forests and boosting methods, though not new, are still 'state of the art
 
 ## Deep Learning and Neural Networks
 
-![](img/nnet.png)
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: nn-graph-setup
+
+g = DiagrammeR::grViz('img/nn_basic.dot')
+
+g %>%
+    DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_svg("img/nn_basic.svg")
+```
+
+
+![A neural network](img/nn_basic.svg){width=50%}
 
 **Deep learning has fundametally transformed the world of data science**. It has been used to solve problems in image recognition, speech recognition, natural language processing, and more, from assisting with cancer diagnosis to summarizing entire novels. Deep learning has also been used to solve problems with tabular data of the kind we've been focusing on. As yet, it is not a panacea for every problem, and is not always the best tool for the job, but it is a tool that should be in your toolbox. Here we'll provide brief overview of the key concepts behind neural networks, the underlying technology behind deep learning, and then demonstrate how to implement a simple neural network to get things started.
 
@@ -873,7 +901,10 @@ from lightgbm import LGBMClassifier
 
 # train-test split
 X_train, X_test, y_train, y_test = train_test_split(
-    df_heart.drop(columns='heart_disease'), df_heart_num['heart_disease'], test_size=0.2, random_state=42
+    df_heart.drop(columns='heart_disease'), 
+    df_heart_num['heart_disease'],
+    test_size=0.2,
+    random_state=42
 )
 
 model_boost = LGBMClassifier(
@@ -1057,7 +1088,7 @@ set.seed(123)
 library(mlr3verse)
 library(rsample)
 
-split = initial_split(X_num_df, prop = .75)
+split = initial_split(df_heart, prop = .75)
 
 df_train = training(split)
 df_test  = testing(split)
@@ -1069,9 +1100,9 @@ tsk_lgbm_tune = as_task_classif(
 
 lrn_lgbm_tune = lrn(
     "classif.lightgbm",
-    num_iteration = to_tune(c(500, 1000)),
+    num_iterations = to_tune(c(500, 1000)),
     learning_rate = to_tune(1e-3, 1e-1),
-    max_depth = to_tune(c(3, 5, 7, 9)),
+    max_depth = to_tune(c(2, 3, 5, 7, 9)),
     min_data_in_leaf = to_tune(c(1, 5, 10))
 )
 
@@ -1164,12 +1195,12 @@ task = as_task_classif(
 lrn_lgbm = lrn(
     "classif.lightgbm",
     predict_type = "prob",
-    num_iteration = to_tune(c(500, 1000)),
+    num_iterations = to_tune(c(500, 1000)),
     learning_rate = to_tune(1e-3, 1e-1),
     max_depth = to_tune(c(3, 5, 7, 9)),
     min_data_in_leaf = to_tune(c(1, 5, 10))
 )
-# Tune and setup glmnet
+
 instance_lgbm_tune = ti(
     task = task,
     learner = lrn_lgbm,
@@ -1303,8 +1334,32 @@ save(
 
 ## Compare models
 
-Let's compare the results of our models head to head. In general, our fastest/best results were the elastic net and boosting models, though not by much for this data set. This is not surprising. Even the simplest neural network takes notable effort to do well, and often longer to train. And while we would definitely use deep learning tools for image classification, natural language processing and other domains, they still struggle to do consistently as well as boosting for the type of data we've been using. In general though, this was a good example of having an adequate baseline, and where complexity didn't really help much, though all our approaches did well.
+Let's compare the results of our models head to head. We went back and tuned each model over different settings:
 
+- Elastic net: penalty and mixing ratio
+- Boosting: number of trees, learning rate, and maximum depth etc.
+- Neural network: number of hidden layers, number of nodes in each layer
+
+In our first approach, we just chose some parameters for our cross-validation. In our second approach, we used the tuned values to retrain on the complete data set. Though not necessary, we still show the results of the cross-validation for the already-tuned models, to give a sense of the uncertainty in error estimation.
+
+```{r}
+#| label: fig-benchmark
+#| fig-cap: Cross-validation results for tuned models.
+#| echo: false
+
+
+load("ml/data/benchmark-comparison-r-results.RData")
+
+autoplot(bmr, measure = msr("classif.acc")) +
+    labs(x='', y = 'Accuracy') +
+    theme(
+        legend.position = "bottom",
+        strip.text = element_blank(), # remove 'df_train'
+    ) 
+```
+    
+    
+We also show the results of the tuned models on the holdout set, which is what we're more interested in.  We saw in our initial cross-validation results that our fastest/best results were the elastic net and boosting models, though not by much for this data set. This is not surprising. Even the simplest neural network takes notable effort to do well, and always longer to train. And while we would definitely use deep learning tools for image classification, natural language processing and other domains, they still struggle to do consistently as well as boosting for the type of data we've been using. 
 
 ```{python}
 #| label: tune-boost-py-init
@@ -1382,20 +1437,18 @@ cv_results |>
 
 :::
 
-For Python and R our results on a holdout set were about as good or even better with the tuned model. For the following we first show the cross-validation results of training the models with tuned parameters for each, using 10-fold cross validation so that we can get a better sense of the uncertainty. Then we show the results on the holdout set. Results are in keeping with what we saw with our initial training with no tuning.
 
 
+When it came to to the holdout set with our best models, we see something you might be surprised about - the simplest model wins! It means we can use the simpler model and not worry about the more complex one, or just that we'd be fine using whichever one we prefer.  This was a good example of the importance of having an adequate baseline, and where complexity didn't really help much, though all our approaches did well.
 
 
 ```{r}
-#| label: fig-benchmark-r
+#| label: get-holdout-accs
 #| echo: false
-#| fig-cap: Training results for tuned models.
 
 library(mlr3verse)
 
 load("ml/data/tune-comparison-r-results.RData")
-load("ml/data/benchmark-comparison-r-results.RData")
 
 lrn_glmnet$train(task)
 lrn_lgbm$train(task)
@@ -1411,15 +1464,12 @@ for (i in list(lrn_glmnet, lrn_lgbm, lrn_mlp)) {
         mlr3measures::confusion_matrix(preds$truth, preds$response, positive = '1')$measures['acc']
     )
 }
-
-autoplot(bmr, measure = msr("classif.acc"))
 ```
 
 ```{r}
 #| label: tbl-benchmark-r
 #| tbl-cap: Holdout results for tuned models.
 #| echo: false
-
 
 tibble(
     model = c('Elastic Net', 'LGBM', 'MLP'),
@@ -1430,13 +1480,13 @@ tibble(
 
 
 ::: {.callout-note data-icon="info"}
- Some may wonder why the holdout results are better than the cross-validation results. This can happen, and at least in this case may mostly reflect the small sample size. The holdout set is a random sample of 20% of the complete data, roughly `r round(.2*nrow(X_num_df))` observations. Just a couple different predictions could result in a several percentage points difference in accuracy. Also, the holdout set is a random sample that is not the same data, so this could happen just by chance. In general though, you'd expect the holdout results to be a bit, or even significantly, worse than the cross-validation results, but not always.
+ Some may wonder why the holdout results are better than the cross-validation results. This can happen, and at least in this case may mostly reflect the small sample size. The holdout set is a random sample of 20% of the complete data, `r nrow(df_test)` observations. Just a couple different predictions could result in a several percentage points difference in accuracy. Also, the holdout set is a random sample that is not the same data, so this could happen just by chance. In general though, you'd expect the holdout results to be a bit, or even significantly, worse than the cross-validation results, but not always.
 :::
 
 
 ## Interpretation
 
-Just because we have some models that don't readily lend themselves to interpretation with simple coefficients, it doesn't mean we can't still figure out what's going on. Let's use the boosting model as an example.
+When it comes to machine learning, just because we have some models at our disposal that don't readily lend themselves to interpretation with simple coefficients, it doesn't mean we can't still figure out what's going on. Let's use the boosting model as an example.
 
 
 ### Feature Importance
@@ -1669,7 +1719,7 @@ You'll always get more payoff by coming up with better features to use in the mo
 
 ## Exercise
 
-Tune a model of your choice to predict whether a movie is good or bad with the movie review data. Use the processed data with one-hot encoded features if needed. Make sure you use a good baseline model for comparison!
+Tune a model of your choice to predict whether a movie is good or bad with the [movie review data](data/movie_reviews_processed.csv). Use the processed data which has the categorical outcome, and use one-hot encoded features if needed. Make sure you use a good baseline model for comparison!
 
 
 
