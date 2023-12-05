@@ -13,7 +13,7 @@ In this chapter, we want to show you what to do when the mean betrays you -- and
 # source("load_packages.R")
 # source("setup.R")
 
-reticulate::use_condaenv("book-of-models")
+# reticulate::use_condaenv("book-of-models")
 ```
 
 ### Why Should You Care?
@@ -138,10 +138,9 @@ reviews <- read.csv("data/movie_reviews_processed.csv")
 
 reviews <- na.omit(reviews)
 
+X <- reviews$total_reviews
+X <- cbind(1, X)
 y <- reviews$rating
-
-X <- cbind(intercept = 1, 
-           total_reviews = reviews$total_reviews)
 ```
 
 ##### Python
@@ -149,21 +148,17 @@ X <- cbind(intercept = 1,
 ```{python}
 import pandas as pd
 import numpy as np
-reviews = pd.read_csv("~/Documents/book-of-models/data/review_data.csv")
-```
 
+reviews = pd.read_csv("data/movie_reviews_processed.csv")
 
-```{python}
 reviews = reviews.dropna()
-
-y = reviews['rating']
 
 X = pd.DataFrame(
   {'intercept': 1, 
   'total_reviews': reviews['total_reviews']}
 )
+y = reviews['rating']
 ```
-
 :::
 
 ### Standard Functions
@@ -192,6 +187,8 @@ import statsmodels.formula.api as smf
 
 median_test = smf.quantreg('rating ~ total_reviews', 
                            data = reviews).fit(q = .5)
+                           
+median_test.summary()                           
 ```
 
 :::
@@ -303,20 +300,6 @@ def quantile_loss(par, X, y, tau):
 
 ```
 
-```{python}
-linear_parameters = X.dot([1,0])
-  
-residual = y - linear_parameters
-  
-loss = []
-
-for i in residual:
-  if i < 0: loss.append((-1 + tau)*i)
-  else: loss.append(tau*i)
-
-sum(loss)
-```
-
 :::
 
 You'll notice right away that we have a few differences. Our quantile loss function includes the **tau** argument, which will let us set our quantile of interest; naturally, it can be any value between 0 and 1. The residual is multiplied by the tau value, only if the residual is greater than 0. If the residual is negative, we need to add tau to -1. Since we need a positive value for our loss values, we will multiply our negative residuals by the negative value produced from -1 plus our tau value. After that, we just sum all of those positive loss values and do our best to minimize that summed value. 
@@ -346,10 +329,11 @@ optim(
 ```{python}
 from scipy.optimize import minimize
 
-minimize(quantile_loss, 
-         x0 = np.array([0, 0]), 
-         args = (X, y, .5))
-         
+minimize(
+  quantile_loss, 
+  x0 = np.array([0, 0]), 
+  args = (X, y, .5)
+  ).x
 ```
 
 :::
@@ -424,7 +408,14 @@ summary(gam_model)
 
 from pygam import LinearGAM, s
 
-gam_model = LinearGAM(s(0)).fit(x, rating)
+y = reviews['rating']
+
+X = pd.DataFrame(
+  {'intercept': 1, 
+  'total_reviews': reviews['total_reviews']}
+)
+
+gam_model = LinearGAM(s(0)).fit(X, y)
 
 gam_model.summary()
 ```
@@ -507,33 +498,7 @@ This model matrix will help us to produce an *unpenalized spline*.
 
 :::
 
-### Data Prep
 
-Now that we have our functions, let's get our data ready to go. It is usually a good idea to scale your predictors.
-
-:::{.panel-tabset}
-
-##### R
-
-```{r, r_min_max_scale}
-#| echo: true
-#| label: r_min_max_scale
-x <- reviews$total_reviews - min(reviews$total_reviews)
-x <- x / max(x)
-rating <- reviews$rating
-```
-
-##### Python
-
-```{python, python_min_max_scale} 
-#| echo: true
-#| label: python_min_max_scale
-x = reviews['total_reviews'] - reviews['total_reviews'].min()
-x = x / x.max()
-rating = reviews['rating']
-```
-
-:::
 
 ### Model Matrix
 
@@ -554,6 +519,10 @@ knots <- 1:4/5
 ```{r, r_model_matrix_spline}
 #| echo: true
 #| label: r_model_matrix_spline
+rating <- reviews$rating
+
+x <- reviews$total_reviews
+
 X <- splX(x, knots)            
 ```
 
@@ -575,6 +544,10 @@ knots = np.arange(1, 5) / 5
 ```{python, python_model_matrix_spline}
 #| echo: true
 #| label: python_model_matrix_spline
+
+x = reviews['total_reviews']
+
+rating = reviews['rating']
 
 X = splX(x, knots)
 ```
@@ -598,7 +571,7 @@ Now that we have a model matrix, `X`, we can fit the model. All of the hardwork 
 ```{r, r_cubic_model_fitting}
 #| echo: true
 #| label: r_cubic_model_fitting
-fit_lm <- lm(rating ~ X - 1)
+fit_lm <- lm(rating ~ X)
 
 fit_lm
 ```
@@ -608,6 +581,8 @@ fit_lm
 ```{python, python_cubic_model_fitting}
 #| echo: true
 #| label: python_cubic_model_fitting
+import statsmodels.api as sm
+
 fit_lm = sm.OLS(rating, X).fit()
 
 fit_lm.summary()
@@ -649,9 +624,7 @@ While creating those predictions is nice, using them to visualize the model is f
 #| fig-cap: Visualizing cubic regression spline
 ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
   geom_point(color = "#FF5500") +
-  geom_line(aes(x = xp, y = Xp %*% coef(fit_lm)),
-            data = data.frame(xp, Xp),
-            color = "#00AAFF") +
+  geom_smooth(method = "gam", se = FALSE, color = "#00AAFF") +
   theme_minimal()
 ```
 
@@ -687,8 +660,9 @@ splS <- function(knots) {
 def splS(knots):
     q = len(knots) + 2
     S = np.zeros((q, q))
-    S[2:, 2:] = np.outer(knots, knots).apply(cubic_spline)
+    S[2:, 2:] = cubic_spline(knots, knots[:,None])
     return S
+
 ```
 
 :::
@@ -716,8 +690,8 @@ mat_sqrt <- function(S) {
 #| label: python_matrix_square
 
 def mat_sqrt(S):
-    d = np.linalg.eig(S)
-    rS = d.vectors @ np.diag(d.values**.5) @ d.vectors.T
+    w, v = np.linalg.eig(S)
+    rS = v @ np.diag(w**.5) @ v.T
     return rS
 ```
 
@@ -753,8 +727,12 @@ prs_fit <- function(y, x, knots, lambda) {
 def prs_fit(y, x, knots, lamba):
     q = len(knots) + 2
     n = len(x)
-    Xa = np.vstack((splX(x, knots), mat_sqrt(splS(knots))*np.sqrt(lamba)))
+    Xa = np.vstack(
+      (splX(x, knots), mat_sqrt(splS(knots))*np.sqrt(lamba))
+      )
     y[(n + 1):(n+q)] = 0
+    y = pd.DataFrame(y).reset_index(drop = True)
+    Xa = pd.DataFrame(Xa).reset_index(drop = True)
     return sm.OLS(y, Xa).fit()
 ```
 
@@ -794,7 +772,7 @@ Xp <- splX(xp, knots)
 knots = np.arange(1, 5)/5
 
 fit_penalized = prs_fit(
-    y = rating,
+    y = y,
     x = x,
     knots = knots,
     lamba = .1
@@ -1046,7 +1024,7 @@ Let's start our homebrewing adventures by creating a model matrix. We are going 
 #| echo: true
 #| label: mixed_model_prep
 
-X <- model.matrix(~total_reviews, reviews)
+X <- model.matrix(~total_reviews_sc, reviews)
 Z <- model.matrix(~factor(reviews$genre) - 1)
 
 colnames(Z) <- paste0("released_", sort(unique(reviews$genre)))
@@ -1060,12 +1038,15 @@ y <- reviews$rating
 #| echo: true
 #| label: py_mixed_model_prep
 
-X = reviews[['user_age']]
+X = reviews[['total_reviews_sc']]
 X = sm.add_constant(X)
+X = X.to_numpy()
 
 Z = pd.get_dummies(reviews['genre'], drop_first=True)
+Z = Z.to_numpy()
 
 y = reviews['rating']
+y = y.to_numpy()
 ```
 
 :::
@@ -1100,16 +1081,16 @@ mixed_log_likelihood <- function(y, X, Z, theta) {
 ```{python}
 #| echo: true
 #| label: py_mixed_model_ll
+from scipy import stats
 
-def mixed_log_likelihood(y, X, Z, theta):
+def mixed_log_likelihood(theta, y, X, Z):
     tau = np.exp(theta[0])
     sigma = np.exp(theta[1])
     n = len(y)
     
-    # evaluate covariance matrix for y
-    e = np.matmul(Z, Z.T) * tau**2 + np.eye(n) * sigma**2
+    e = (Z.dot(Z.T) * tau**2) + (np.eye(n) * sigma**2)
     b = np.linalg.lstsq(X, y, rcond=None)[0]
-    mu = np.matmul(X, b)
+    mu = X.dot(b) 
     
     ll = stats.multivariate_normal.logpdf(y, mu, e)
     return -ll
@@ -1146,17 +1127,20 @@ fit$par
 #| echo: true
 #| label: mixed_model_fit
 
-param_init = np.array([0, 0])
+from scipy import optimize as opt
+
+theta = np.array([0, 0])
+
+mixed_log_likelihood(theta, y, X, Z)
 
 fit = opt.minimize(
     fun=mixed_log_likelihood,
-    x0=param_init,
-    args=(X, Z, y),
-    method='BFGS',
+    x0=theta,
+    args=(y, X, Z),
     tol=1e-10
 )
 
-fit
+fit.x
 ```
 
 :::
