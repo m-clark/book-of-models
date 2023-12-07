@@ -1,0 +1,634 @@
+---
+title: "Generalized Linear Models"
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, error = FALSE, comment = "")
+```
+
+What happens when your target variable isn't really a continuous variable, but is instead some other type of response. Maybe you've got a binary condition, like good or bad, or maybe you've got a count of something, like the number of times a person has been arrested. In these cases, you can't use a linear regression, but you can use a generalized linear model. 
+
+Generalized linear models exist to map different distributions into linear space. This allows us to use the same linear model framework that we've been using, but with different types of data.
+
+These models work by **generalizing** the linear model to different distributions of the target variable. Our coefficients will certainly take on a new meaning; so while we cannot interpret them as we would coefficients from a linear regression, we can still use the general framework.
+
+## Distributions & Link Functions
+
+Remember how linear models really enjoy the whole Gaussian distribution scene? The essential form of the linear model can be expressed as follows:
+
+$$y \sim Normal(\mu,\sigma) \\ \mu = \alpha + \beta X$$
+
+Not all data follows a Gaussian distribution. Instead, we often find some other form of an exponential distribution. So, we need a way to incorporate different distributions of the target into our model. Distributions cannot do it alone! We also need a **link function** to connect the linear model to the distribution.
+
+From a theoretical perspective, link functions are tricky to get your head around.
+
+- *Find the exponential of the response's density function and derive the canonical link function*...
+
+From a conceptual perspective, all they are doing is allowing the linear feature to "link" to a distribution function's mean. If you know a distribution's canonical link function, that is all the deeper you will probably every need.
+
+At the end of the day, these link functions will convert the target to an unbounded continuous variable. The take-away here is that the link function describes how the mean is generated from the predictors.
+
+## Logistic Regression
+
+### Why Should You Care
+
+You will often have a binary variable that you might want to use as a target -- it could be dead/alive, lose/win, quit/retain, etc. You might be tempted to use a linear regression, but you will quickly find that it is not the best option. You are going to be figuring out the probability of moving from "failure" to "success", given the features in your model.
+
+### The Binomial Distribution
+
+Logistic regression is substantially different than linear regression. It is also a bit confusing, because it is named after its link function (**logit**) instead of its distribution (**binomial**). Instead of that nice continuous target, we are dealing with a binomially-distributed target and the target takes the form of a binary variable. 
+
+We don't have a $\mu$ or $\sigma^2$ to identify the shape of the binomial distribution; instead we have *p* and *n*, where *p* is a probability and *n* is the number of trials. We tend to talk about *p* with regard to the probability of a specific event happening (heads, wins, defaulting, etc.).
+
+Let's see how the binomial distribution looks with 100 trials and probabilities of "success" at *p = * .25, .5, and .75:
+
+```{r}
+#| echo: false
+#| label: fig-binomial
+#| fig-cap: "Binomial distributions for different probabilities"
+
+library(ggplot2)
+
+library(dplyr)
+
+binom.25 <- dbinom(1:100, size = 100, prob = .25)
+
+binom.5 <- dbinom(1:100, size = 100, prob = .5)
+
+binom.75 <- dbinom(1:100, size = 100 , prob = .75)
+
+as.data.frame(rbind(binom.25, binom.5, binom.75)) %>% 
+  mutate(prob = row.names(.)) %>% 
+  tidyr::gather(., "key", "value", -prob) %>% 
+  mutate(key = as.numeric(gsub("V", "", key)), 
+         prob = gsub("binom", "", .$prob)) %>% 
+  ggplot(., aes(x = key, y = value, fill = prob)) + 
+  geom_col(alpha = .5) + 
+  scale_fill_brewer(type = "qual", palette = "Dark2") + 
+  theme_minimal() +
+  xlab("Number of Successes") +
+  ylab("Probability") +
+  guides(fill = guide_legend(title = "Probability\nValues"))
+```
+
+If we examine the distribution for a probability of .5 in @fig-binomial, we will see that it is centered over 50 -- this would suggest that we have the highest probability of encountering 50 successes if we ran 100 trials. If we run 100 trials 100 times and the outcome is 50/50, the most common outcome from those 100 trials would be 50 successes. with a decreasing probability of observing more or less successes as we move away from 50. Shifting our attention to a .75 probability of success, we see that our density is sitting over 75. Again running 100 trials, would give us the highest probability of observing 75 successes. Some of those 100 trials produce more or less than 75 successes, but with lower probabilities as you get further away from 75.
+
+Since we are dealing with a number of trials, it is worth noting that the binomial distribution is a discrete distribution. If you have any interest in knowing the probability for a number of success under the binomial distribution, we can use the following formula:
+
+$$P(x) = \frac{n!}{(n-x)!x!}p^xq^{n-x}$$
+
+While we don't need to dive into finding those specific values for the binomial distribution, we can spend our time exploring how it looks in linear model space:
+
+$$y \sim Binomial(n, p) \\ logit(p) = \alpha + \beta X$$
+
+The *logit* function is defined as:
+
+$$log\frac{p}{1-p}$$
+
+We are literally just taking the log of the odds (the log odds becomes important later).
+
+Now we can map this back to our model:
+
+$$log\frac{p}{1-p} = \alpha + \beta X$$
+
+And finally we can take that logistic function and invert it (the **inverse-logit**) to produce the probabilities.
+
+$$p = \frac{exp(\alpha + \beta X)}{1 + exp(\alpha + \beta X)}$$
+
+Whenever we get coefficients for the logistic regression model, we are always going to get them as log odds. We can exponentiate them to get the odds ratio, but we can also exponentiate them and divide by 1 + that value to get the probability.
+
+### Probability, Odds, and Log Odds
+
+Probability lies at the heart of all of this.  We can look at the relationship between the probability, odds, and log odds. We can start with a set of probability values where $0 < p > 1$
+
+```{r}
+#| echo: false
+probability <- seq(.0001, .9999, by = .01)
+```
+
+With that list of probability values, we can convert them to odds with $\\p\, / 1 - p$. 
+
+```{r}
+#| echo: false
+#| label: fig-odds-log-odds
+#| fig-cap: "Log odds and odds values for a range of probabilities"
+
+oddsConversion <- function(p) {
+  res = p / (1 - p)
+  return(res)
+}
+
+odds <- oddsConversion(probability)
+
+ggplot(
+  data.frame(log_odds = log(odds), odds = odds),
+  aes(log_odds, odds)) +
+  geom_point() +
+  xlab("Log Odds") +
+  ylab("Odds") +
+  theme_minimal()
+```
+
+We can see how those probability values map to odds in @fig-odds-log-odds.
+
+Now, we can take those odds values and convert them to log odds.
+
+```{r}
+#| echo: false
+#| label: fig-prob-log-odds
+#| fig-cap: "Log odds and probability values"
+ggplot(
+  data.frame(log_odds = log(odds), probability = probability),
+  aes(log_odds, probability)) +
+  geom_point() +
+  xlab("Log Odds") +
+  ylab("Probability") +
+  theme_minimal()
+```
+
+If you've ever seen the sigmoid featured in @fig-prob-log-odds before, it is the classic logistic function!
+
+We can clearly go back and forth between the 3, but the main message here is that we took a bounded variable in probability and transformed it to continuous space.
+
+We will see more about how this happens after playing with the model.
+
+### Data Import and Preparation
+
+We are going to return to our movie reviews data and we are going to use `rating_good` as our target. Before we get to modeling, see if you can find out the frequency of "good" and "bad" reviews. We will use `word_count` and `gender` as our predictors. Before we move on, though, find the probability of getting a "good" review.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+reviews <- read.csv("data/movie_reviews_processed.csv")
+```
+
+```{r}
+X <- reviews[, c("word_count", "gender")]
+
+X = cbind(1, X)
+
+X$gender <- ifelse(X$gender == "male", 1, 0)
+
+X <- as.matrix(X)
+
+y <- reviews$rating_good
+```
+
+##### Python
+
+```{python}
+import pandas as pd
+
+reviews = pd.read_csv("data/movie_reviews_processed.csv")
+```
+
+```{python}
+X = reviews[['word_count', 'gender']]
+
+y = reviews["rating_good"]
+```
+
+:::
+
+### Standard Functions
+
+To get started with our first logistic regression model, let's use the `glm` function from R and Python's `statsmodels` function.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+logistic_regression <- glm(
+    rating_good ~ word_count + gender, 
+    data = reviews,
+    family = binomial
+)
+
+summary(logistic_regression)
+```
+
+##### Python
+
+```{python}
+import statsmodels.api as sm
+
+X = sm.add_constant(X)
+
+X = pd.get_dummies(X, drop_first = True)
+
+logistic_regression = sm.Logit(y, X.astype(float)).fit()
+
+logistic_regression.summary()
+```
+
+:::
+
+### Interpretation and Visualization
+
+We need to know what those results mean. The coefficients that we get from our model are in log odds. We can exponentiate them to get the odds ratio, but we can also exponentiate them and divide by 1 + that value to get the probability. Interpretting log odds is a fool's errand, but we can at least get a feeling for them directionally. A log odds of 0 would indicate no relationship between the feature and target. A positive log odds would indicate that an increase in the feature will increase the log odds of moving from "bad" to "good", whereas a negative log odds would indicate that a decrease in the feature will decrease the log odds of moving from "bad" to "good". We can convert those log odds to help make some more sense from them.
+
+When we exponentiate the log odds coefficients, we are given the odds ratio.  This is the ratio of the odds of the outcome (i.e., success from our binomial distribution) occurring for a one unit increase in the predictor. 
+
+```{r}
+#| echo: false
+exp(logistic_regression$coefficients)
+```
+
+Fortunately, the intercept is easy -- it is the odds of a "good" review when word count is 0 and gender is "female". We see that we've got an odds ratio of .86 for the word_count variable and 1.12 for the male variable. An odds ratio of 1 means that there is no change in the odds of the outcome occurring -- essentially that the predictor does not influence the target. An odds ratio of less than 1 means that the odds of the outcome occurring decrease as the predictor increases (while a bit more complicated to wrap your head around, it captures the idea of the odds of moving from a "bad" review to a "good" review decreasing). An odds ratio of greater than 1 means that the odds of the outcome occurring increase as the predictor increases (again, the odds of moving from a "bad" review to a "good" review increasing).
+
+It is far more intuitive to interpret the probability.  We can do this by exponentiating the coefficients and dividing by 1 + that value.  This will give us the probability of the outcome occurring for a one unit increase in the predictor.
+
+```{r}  
+#| echo: false
+exp(logistic_regression$coefficients) / (1 + exp(logistic_regression$coefficients))
+```
+
+We would say that our probability of moving from a "bad" review to a "good" review is .84 when there are 0 words in the review and the gender is female. Since word_count is below .5, we know that it will have a negative relationship with the probability of moving from "bad" to "good"; being a male reviewer will have a positive relationship with the probability of moving from "bad" to "good".
+
+And visualizing those probabilities is absolutely the best way to see how the features influence the target:
+
+```{r}
+#| echo: false
+#| label: fig-logistic-regression-count
+#| fig-cap: "Logistic regression predictions for word count feature"
+library(sjPlot)
+
+plot_model(logistic_regression, type = "pred", terms = "word_count") +
+    theme_minimal()
+```
+
+In @fig-logistic-regression-count, we can see a clear negative relationship between the number of words in a review and the probability of being considered a "good" movie. As we get over 20 words, the predicted probability of being a "good" movie is less than .2. 
+
+```{r}
+#| echo: false
+#| label: fig-logistic-regression-gender
+#| fig-cap: "Logistic regression predictions for gender feature"
+plot_model(logistic_regression, type = "pred", terms = "gender") +
+    theme_minimal()
+```
+
+We can also see the gender effect in @fig-logistic-regression-gender (it doesn't look like gender is that interesting in this model).
+
+There are interesting issues at play here with regard to our predictor coefficients (what can be considered a *relative effect*) and the model's effect as a whole on the probability (the *absolute effect*). In circumstances where the intercept is very large (essentially promising a success), the relative effect of a coefficient is practically meaningless. Similarly, very negative coefficients render the relative effects useless. 
+
+### Loss Function
+
+Let's see how we can pick that work apart to create our own functions. We can use maximum likelihood estimation to estimate the parameters of our model.  
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+logreg_ml <- function(par, X, y) {
+  beta = par
+  N = nrow(X)
+  LP = X %*% beta                           
+  mu = plogis(LP)                           
+  L = dbinom(y, size = 1, prob = mu, log = TRUE)   
+  -sum(L)                                   
+}
+```
+
+##### Python
+
+```{python}
+def logreg_ml(par, X, y):
+    beta = par
+    N = X.shape[0]
+    LP = X.dot(beta).to_numpy()  
+    mu = [1 / (1 + np.exp(-x)) for x in LP]
+    mu_minus_1 = [1 - x for x in mu]
+    L = y*np.log(mu) + (1 - y)*np.log(mu_minus_1)   
+    return -np.sum(L)   
+  
+```
+
+:::
+
+### Model Fitting
+
+Now that we have our loss function, we can fit our model.  We will use the `optim` function in R and the `minimize` function in Python.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+init = rep(0, ncol(X))
+
+names(init) = c('intercept', 'b1', 'b2')
+
+fit_ml = optim(
+  par = init,
+  fn  = logreg_ml,
+  X   = X,
+  y   = y,
+  control = list(reltol = 1e-8)
+)
+
+pars_ml = fit_ml$par
+
+pars_ml
+```
+
+##### Python
+
+```{python}
+import numpy as np
+from scipy.optimize import minimize
+
+init = np.zeros(X.shape[1])
+
+fit_ml = minimize(
+    fun = logreg_ml,
+    x0 = init,
+    args = (X, y),
+    method = 'BFGS',
+    options = {'disp': True}
+)
+
+fit_ml.x
+```
+
+:::
+
+:::{.callout-important}
+In theory, there is no such thing as 0 or 1 probability. When your model encounters such a value, you will receive a warning, not an error. The most likely cause of this warning is **separation**: a variable is perfectly separating the target. In other words, once a feature gets below/above a certain value, the target is always 0/1. While that variable is no doubt valuable, it can't be used in a logistic regression model. More evidence of separation comes when you see your log odds coefficients return something comically large. 
+:::
+
+:::{.callout-warning}
+Logistic regression does not have an $R^2$ value in the way that a linear regression model does. Instead, there are pseudo-$R^2$ values, but they are not the same as the $R^2$ value that you are used to seeing. <a href="https://stats.idre.ucla.edu/other/mult-pkg/faq/general/faq-what-are-pseudo-r-squareds/">Here</a> is a great breakdown of different pseudo methods.
+:::
+
+## Poisson Regression
+
+### Why Should You Care
+
+Like logistic regression, poisson regression belongs to a broad class of generalized linear models. Poisson regression is used when you have a count variable as your target. The nature of a count variable is very different, since it starts at 0 and can only be a whole number. We need a model that will not produce negative predictions and poisson regression will do that for us.
+
+### The Poisson Distribution
+
+The Poisson distribution is very similar to the binomial distribution, but has some key differences. The biggest difference is in its parameter: Poisson has a single parameter noted as $\lambda$. This rate parameter is going to estimate the expected number of events during a time interval. This can be accidents in a year, pieces produced in a day, or hits during the course of a baseball season. We can find the rate by determining the number of events per interval, multiplied by the interval length.
+
+$$\frac{\text{event}}{\text{interval}}*\text{interval length} $$
+
+To put some numbers to that, if we have 1 accident per week in a factory and we are observing a whole year, we would have a rate of $(1 / 7) * 28 = 4$ accidents per month.
+
+Let's see what that particular distribution might look like in @fig-poisson-distribution:
+
+```{r}
+#| echo: false
+#| label: fig-poisson-distribution
+#| fig-cap: "Poisson distribution for a rate of 4"
+
+ggplot(data.frame(x = 0:20), aes(x)) +
+  geom_col(aes(y = dpois(x, (1 / 7) * 28)), fill = "#ff5500") +
+  xlab("Number of Accidents") +
+  ylab("Probability") +
+  theme_minimal()
+```
+
+We can also see what it looks like for different rates (some places might be safer than others) in @fig-poisson-distribution-rates:
+
+```{r}
+#| echo: false
+#| label: fig-poisson-distribution-rates
+#| fig-cap: "Poisson distributions for different rates"
+ggplot() +
+  geom_col(data = data.frame(x = 1:28, y = dpois(1:28, (1 / 7) * 28)),
+           mapping = aes(x, y), width = .97, alpha = .25, fill = "red") +
+  geom_col(data = data.frame(x = 1:28, y = dpois(1:28, (3 / 7) * 28)),
+           mapping = aes(x, y), width = .97, alpha = .25, fill = "blue") +
+  geom_col(data = data.frame(x = 1:28, y = dpois(1:28, (5 / 7) * 28)),
+           mapping = aes(x, y), width = .97, alpha = .25, fill = "green") +
+  theme_minimal()
+```
+
+:::{.callout-note}
+A cool thing about these distributions is that they can deal with different *exposure* rates. You don't need observations recorded over the same interval length, because you can adjust for them appropriately. They can also be used to model inter-arrival times and time-until events.
+:::
+
+Let's make a new variable that will count the number of times a person uses a personal pronoun word.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+reviews$poss_pronoun <- stringr::str_count(
+  reviews$review_text, 
+  "\\bI\\b|\\bme\\b|\\b[Mm]y\\b|\\bmine\\b|\\bmyself\\b"
+)
+```
+
+##### Python
+
+```{python}
+reviews['poss_pronoun'] = reviews['review_text'].str.count(
+  '"\\bI\\b|\\bme\\b|\\b[Mm]y\\b|\\bmine\\b|\\bmyself\\b"'
+  )
+```
+
+:::
+
+## The (Sometimes) Thin Line
+
+This gets into an area where we need to think long and hard about our dependent variable and what it actually might be. Since Poisson regression gets its name from the Poisson distribution, we should probably see if it follows the Poisson distribution.
+
+```{r}
+#| echo: false
+library(vcd)
+
+poissonTest <- goodfit(reviews$poss_pronoun, type = "poisson")
+
+summary(poissonTest)
+```
+
+This is a $\chi^2$ to test if the distribution deviates from a Poisson. If we see a significant value, we would say that it deviates from the tested distribution. In this case, it is pretty clear that `poss_pronoun` could come from a Poisson distribution.
+
+We can also plot that test using a hanging rootogram:
+
+```{r}
+#| echo: false
+#| label: fig-poisson-test
+#| fig-cap: "Hanging rootogram for Poisson distribution"
+plot(poissonTest)
+```
+
+In @fig-poisson-test, the bars are the observed counts and the red line/points are the fitted counts (i.e., how many would be expected). If a bar does not reach the 0 line, then the model would over-predict for that particular count; if the bar dips below the 0 line, the model under-predicts that count. It looks like we are pretty close for our counts.
+
+### Standard Functions
+
+Recall that every distribution has a link function (or several) that tend to work well for it. The poisson distribution uses a log link function:
+
+$$y = Poisson(\lambda) \\ \text{log}(\lambda) = \alpha + \beta X$$
+
+Using the log link keeps the outcome positive (we cannot deal with negative counts). Logs, as they are prone to do, are going to tend towards an exponential relationship; just be sure that it makes sense over the entire range of your data.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+poisson_test <- glm(poss_pronoun ~ word_count,
+                  data = reviews,
+                  family = poisson)
+
+summary(poisson_test)
+
+exp(poisson_test$coefficients)
+```
+
+
+##### Python
+
+```{python}
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+
+poisson_test = smf.glm(formula = "poss_pronoun ~ word_count",
+                       data = reviews,
+                       family = sm.families.Poisson()).fit()
+
+poisson_test.summary()        
+
+np.exp(poisson_test.params)
+```
+
+:::
+
+We are going to interpret this almost the same as a linear regression. The slight wrinkle here, though, is that we are looking at the log counts (remember that we specified the log link function). In other words, an increase in one one review word leads to an expected log count increase of ~.01. Just like our logisitc regression, we could exponentiate this to get 1.108 – every added word in a review gets us a ~1% increase in the number of possessive pronouns. Let’s see what this looks like in action in @fig-poisson-regression:
+
+```{r}
+#| echo: false
+#| label: fig-poisson-regression
+#| fig-cap: "Poisson regression predictions for word count feature"
+reviews$pred_values <- predict(poissonTest, type = "response")
+
+sjPlot::plot_model(poisson_test, type = "pred", terms = c("word_count")) +
+  theme_minimal()
+```
+
+With everything coupled together, we have a meaningful coefficient for `word_count`, a clear plot, and adequate model fit. Therefore, we might conclude that there is a positive relationship between number of words in a review on the number of times a person uses a personal possessive.
+
+```{r}
+#| echo: false
+library(AER)
+
+dispersiontest(poisson_test)
+```
+
+The dispersion value that we see returned (0.7606014 in our case) should be under 1. A dispersion value over 1 means that we have overdispersion. Our dispersion value, coupled with our high *p*-value, indicates that we would fail to reject the null hypothesis of equidispersion.
+
+We can also look back to our model results to compare our residual deviance to our residual deviance degrees of freedom; if our deviance is greater than our degrees of freedom, we might have an issue with overdispersion. Since we are just a bit over and our overdispersion tests do not indicate any huge issue, we can be relatively okay with our model. If we had some more extreme overdispersion, we would want to flip to a quasi-poisson distribution -- our coefficients would not change, but we would have improved standard errors.
+
+### Model Specification
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+pois_ll <- function(y, X, par) {
+  beta <- par
+  lambda <- exp(beta%*%t(X))
+  loglik <- -sum(dpois(y, lambda, log = TRUE))
+  return(loglik)
+}
+```
+
+##### Python
+
+```{python}
+from scipy.stats import poisson
+
+def pois_ll(par, X, y):
+    beta = par
+    lambda_ = np.exp(X.dot(beta))
+    loglik = -np.sum(poisson.logpmf(y, lambda_))
+    return loglik
+
+```
+
+:::
+
+### Model Fitting
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+form <- as.formula("poss_pronoun ~ word_count")
+model <- model.frame(form, data = reviews)
+X <- model.matrix(form, data = reviews)
+y <- model.response(model)
+
+starts <- c(0, 0)
+
+fit = optim(
+  par = starts ,
+  fn  = pois_ll,
+  X   = X,
+  y   = y,
+  method  = "BFGS",
+  control = list(maxit = 5000, reltol = 1e-12),
+  hessian = TRUE
+)
+
+fit$par
+```
+
+
+##### Python
+
+```{python}
+X = reviews[['word_count']]
+
+y = reviews["poss_pronoun"]
+
+init = np.zeros(X.shape[1])
+
+fit = minimize(
+    fun = pois_ll,
+    x0 = init,
+    args = (X, y),
+    method = 'BFGS',
+    options = {'disp': True}
+)
+
+fit.x
+```
+
+:::
+
+## Wrapping Up
+
+These are just two of the many models that fall under the broad umbrella of generalized linear models. Depending on your data situation, you might want to keep @fig-glm-models in mind:
+
+```{r}
+#| echo: false
+#| label: fig-glm-models
+#| fig-cap: "Targets and distributions for generalized linear models"
+model_df <- data.frame(
+  Target = c(
+    "Proportions", "Exponential response", "3+ categories", "Count"
+  ), 
+  Distribution = c(
+    "beta", "gamma", "multinomial", "negative binomial"
+  )
+)
+
+gt::gt(model_df)
+```
+
+That is, however, just a tiny slice of the potential distributions that you might find yourself needing to use in a GLM. While you could always use the general linear model, the key is to understand the distribution of your target and then find the appropriate link function to connect it to the linear model. Using the proper distribution will always yield better results and get your model a little closer to the "truth".
+
+## Additional Resources
+
+In any given graduate coursework, you might find a whole semester dedicated to GLMs. We've only scratched the surface here, but there are some great resources out there to help you dig deeper. If you are itching for a text book, there isn't any shortage of them out there and you can essentially take your pick. If you are looking for something a bit more applied, you might want to check out Roback and Legler's *Beyond Multiple Linear Regression*, available for free at [https://bookdown.org/roback/bookdown-BeyondMLR/](https://bookdown.org/roback/bookdown-BeyondMLR/)
