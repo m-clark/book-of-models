@@ -31,6 +31,16 @@ The take home messages from this section include the following:
 Having good choices in your data science toolbox means you don't have to waste time with nuance and can get down to what matters- performance! Furthermore, using these common tools means you'll know you're in good company, and that you'll be able to find many resources to help you along the way. Additionally, you'll be able to focus on the data and the problem at hand, rather than the model, which in the end, is just a tool to help you understand the data. If you can get a good understanding of the data with a simple model, then that may be all you need for your situation. If you decide you need a more complex modeling approach, then using these models will still give you a good idea of what you should expect in terms of performance.
 
 
+### Good to know
+
+TODO: ADD LINK TO ESTIMATION CHAPTER
+
+Before diving in, it'd be helpful to be familiar with the following:
+
+- Linear models, esp. linear and logistic regression
+- Basic machine learning concepts as outlined in the the ML Concepts chapter (@sec-core-concepts)
+- Model estiamtion as outlined in the Estimation chapter (@sec-estimation)
+
 
 
 ## General Approach
@@ -203,9 +213,13 @@ pd.concat([x, cats, binaries], axis=1).to_csv(
 )
 ```
 
-FIXME: add appendix link for dataset!
+FIXME: add appendix link for dataset! LINK to DATA Sections!
 
-For our demonstration here, we'll switch things up and use the heart disease dataset. This is a binary classification problem, where we want to predict whether a patient has heart disease, given information such as age, sex, resting heart rate etc. For more details see the appendix. We have done some initial data processing so that you can dive right in. There are two forms of the data, one which is purely numeric, where the binary category features are changed to dummies, and one with labels for those features. The purely numeric version will save any additional data processing for some model/package implementations.  In this data, roughly `r scales::percent(prevalence)` suffered a death, so that is an initial baseline if we're interested in accuracy- we could get `r scales::percent(1-prevalence)` correct by just guessing the majority class. 
+For our demonstration here, we'll switch things up and use the heart disease dataset. This is a binary classification problem, where we want to predict whether a patient has heart disease, given information such as age, sex, resting heart rate etc. For more details see the appendix. We have done some initial data processing so that you can dive right in. 
+
+*There are two forms of the data* - one which is mostly as seen elsewhere, and one that is purely numeric, where the categorical features are dummy coded and where numeric variables have been standardized (@sec-data-transfromations). The purely numeric version will save any additional data processing for some model/package implementations. We also have to drop missing values, so that our 21 century packages don't hurt themselves on them. When we get to the boosting demonstration, you can use the data as is, since the scale of the data doesn't really matter, and missing values are treated in the same way as the rest of the data values.
+
+In this data, roughly `r scales::percent(prevalence)` suffered a death, so that is an initial baseline if we're interested in accuracy- we could get `r scales::percent(1-prevalence)` correct by just guessing the majority class. 
 
 
 :::{.panel-tabset}
@@ -242,11 +256,11 @@ X_complete = df_heart_num.dropna().drop(columns='heart_disease').to_numpy()
 
 library(tidyverse)
 
-df_heart = read_csv("data/heart_disease_processed.csv")
+df_heart = read_csv("data/heart_disease_processed.csv") |> 
+    mutate(across(where(is.character), as.factor))
+
 df_heart_num = read_csv("data/heart_disease_processed_numeric_sc.csv")
 
-df_heart = df_heart |> 
-    mutate(across(where(is.character), as.factor))
 
 # as a data.frame for mlr3
 X_num_df = df_heart_num %>%
@@ -283,7 +297,7 @@ So let's get on with some models already! Let's use the classic linear model as 
 
 ### Elastic Net
 
-Another common linear model approach is **elastic net**, which is a combination of lasso and ridge.  We will not show how to estimate elastic net by hand here, but all you have to know is that it combines two penalties, the same ones for lasso and one for ridge, along with the standard objective for a numeric or categorical target. The relative size of the two penalties is controlled by a mixing parameter, and the optimal value of that parameter is determined by cross-validation.  So for example, you might end up with a 75% lasso penalty and 25% ridge penalty.  
+Another common linear model approach is **elastic net**, which is a combination of lasso and ridge.  We will not show how to estimate elastic net by hand here, but all you have to know is that it combines two penalties, the same ones for lasso and one for ridge, along with the standard objective for a numeric or categorical target. The relative size of the two penalties is controlled by a mixing parameter, and the optimal value of that parameter is determined by cross-validation.  So for example, you might end up with a 75% lasso penalty and 25% ridge penalty.  In the end though, we're just going to do a slightly fancier logistic regression!
 
 Let's apply this to the heart disease data. We'll used the 'processed version' which has dummy codes and has dropped the few observations with missing values. We are only doing simple cross-validation here to get a better performance assessment, but you are more than welcome to tune both the penalty parameter and the mixing ratio as we have demonstrated before. We'll revist hyperparameter tuning towards the end of this chapter.
 
@@ -318,6 +332,8 @@ cv_elastic = cross_validate(
     cv=5,
     scoring='accuracy',
 )
+
+# pd.DataFrame(cv_elastic) # default output
 ```
 
 ```{python}
@@ -351,7 +367,6 @@ print(
 ```{r}
 #| label: elasticnet-r
 #| eval: false
-#|
 
 library(mlr3verse)
 
@@ -372,6 +387,8 @@ cv_elastic = resample(
     learner    = lrn_elastic,
     resampling = rsmp("cv", folds = 5)
 )
+
+# cv_elastic$aggregate(msr('classif.acc')) # default output
 ```
 
 ```{r}
@@ -393,13 +410,14 @@ library(glue)
 cv_elastic = readRDS('ml/data/elasticnet-r-results.rds')
 
 # Evaluate
+acc_inc = round(cv_elastic$aggregate(msr('classif.acc')) / prevalence - 1, 3)
 
 glue("Training Accuracy: {round(cv_elastic$aggregate(msr('classif.acc')), 3)}\nBaseline Prevalence: {round(prevalence, 3)}")
 ```
 
 :::
 
-So we're starting off with what seems to be a good model, and we're definitely doing better than guessing. Now let's see if we can do better!
+So we're starting off with what seems to be a good model. Our average accuracy across the validation sets is definitely doing better than guessing, an increase of almost `r scales::label_percent()(acc_inc)`! Now let's see if we can do better with other models!
 
 
 
@@ -463,7 +481,7 @@ digraph tree {
 }
 ```
 
-![A simple classification tree](img/tree.svg){width=50%}
+![A simple classification tree](img/tree.svg){width=33%}
 
 This is a simple example, but it illustrates the basic idea of a tree-based model, where the **tree** reflects the total process, and **branches** are represented by the splits going down, ultimately ending at **leaves** where predictions are made. We can also think of the tree as a series of `if-then` statements, where we start at the top and work our way down until we reach a leaf node, which is a prediction for all observations that qualify for that leaf.
 
@@ -555,6 +573,9 @@ Note that as of writing, the mlr3 implementation of lightgbm doesn't seem to han
 #| eval: false
 #| label: boost-r
 library(mlr3verse)
+# for lightgbm, you need mlr3extralearners and lightgbm package installed
+# remotes::install_github("mlr-org/mlr3extralearners@*release")
+library(mlr3extralearners) 
 
 set.seed(1234)
 
@@ -608,7 +629,7 @@ glue("Training Accuracy: {round(cv_boost$aggregate(msr('classif.acc')), 3)}\nBas
 :::
 
 
-So here we have a model that is also performing well even without tuning, though not significantly better/worse than our elastic net model. For most situations, this would not be the case, but it also shows why we want a good baseline or simpler model. We'll revisit hyperparameter tuning using this model later.  If you'd like to see an example of how we could implement a form of [gradient boosting by hand](LINKYLINK), see the appendix.
+So here we have a model that is also performing well, though not significantly better or worse than our elastic net model. For most situations, we'd expect boosting to do better, but this shows why we want a good baseline or simpler model. We'll revisit hyperparameter tuning using this model later.  If you'd like to see an example of how we could implement a form of [gradient boosting by hand](LINKYLINK), see the appendix.
 
 ADD GBLINEAR BY HAND TO APPENDIX
 
@@ -709,18 +730,16 @@ digraph neural_network {
 ![A logistic regression as a neural network](img/logregnn.svg){width=50%}
 
 
-#### Trying it out
+### Trying it out
 
 TODO: ADD LINK TO DATA CHAPTER re EMBEDDINGS
 
-For simplicity we'll use the same approach and tools as before, but do know this is probably the very bare minimimum approach for a neural network, and generally you'd prefer on alternative. Too begin with, you'd likely want to tune the architecture a bit. Also, as noted in the data discussion, we'd usually want to use [**embeddings**](#data-cat) for categorical features as opposed to the one-hot approach used here. For this task, it likely doesn't matter much, but in many cases you'd prefer the embeddings[^fastaitab].
+For simplicity we'll use the same approach and tools as before, but do know this is probably the very bare minimimum approach for a neural network, and generally you'd prefer on alternative. Our model is a **multi-layer perceptron** (MLP), which consists of multiple hidden layers of varying sizes. Too begin with, you'd likely want to tune the architecture a bit in normal circumstances just as a starting point. Also, as noted in the data discussion, we'd usually want to use [**embeddings**](#data-cat) for categorical features as opposed to the one-hot approach used here, although it amounts to much the same thing, just with some additional computational load[^fastaitab].
 
-[^fastaitab]: A really good tool for a standard MLP type approach with automatic embedding is `fastai`'s tabular learner. 
-
-
-These provide an easy way to get started with neural networks, and provide a sense of what to expect. For our example, we'll use the processed data with one-hot encoded features. For our architecture, we'll use three hidden layers with 200 nodes each. As noted, these and other settings are hyperparameters that you'd prefer to tune. 
+[^fastaitab]: A really good tool for a standard MLP type approach with automatic categorical embeddings is `fastai`'s tabular learner. 
 
 
+For our example, we'll use the processed data with one-hot encoded features. For our architecture, we'll use three hidden layers with 200 nodes each. As noted, these and other settings are hyperparameters that you'd normally prefer to tune. 
 
 
 :::{.panel-tabset}
@@ -755,6 +774,8 @@ cv_mlp = cross_validate(
   y_complete, 
   cv=5
 ) 
+
+# pd.DataFrame(cv_mlp) # default output
 ```
 
 ```{python}
@@ -836,6 +857,8 @@ cv_mlp = resample(
     learner    = learner_mlp,
     resampling = rsmp("cv", folds = 5),
 )
+
+# cv_mlp$aggregate(msr("classif.acc")) # default output
 ```
 
 ```{r}
@@ -861,7 +884,7 @@ glue('Training Accuracy: {round(cv_mlp$aggregate(msr("classif.acc")), 3)}\nBasel
 :::
 
 
-This actually did pretty well, which is somewhat suprising given the nature of the data- small number of observations with different data types- a type of situation in which neural networks don't usually do as well as others. Just goes to show, you never know until you try. 
+This neural network model actually did pretty well, and we're on par with our accuracy as we were with the other two models. This is somewhat suprising given the nature of the data- small number of observations with different data types- a type of situation in which neural networks don't usually do as well as others. Just goes to show, you never know until you try! 
 
 
 #### Strengths & Weaknesses
@@ -1165,6 +1188,11 @@ test_acc = msr("classif.acc")$score(test_preds)
 glue("Test Accuracy: {round(test_acc, 3)}\nBaseline Prevalence: {round(prevalence, 3)}")
 ```
 
+:::
+
+
+
+## Comparing models
 
 ```{r}
 #| label: tune-comparison-r
@@ -1178,13 +1206,12 @@ library(mlr3torch)
 
 set.seed(1234)
 
-split = initial_split(X_num_df |> drop_na(), prop = .75)
+split = rsample::initial_split(X_num_df |> drop_na(), prop = .75)
 
-df_train = training(split)
-df_test  = testing(split)
+df_train = rsample::training(split)
+df_test  = rsample::testing(split)
 
 tuner = tnr("random_search")
-
 
 task = as_task_classif(
     df_train,
@@ -1195,10 +1222,13 @@ task = as_task_classif(
 lrn_lgbm = lrn(
     "classif.lightgbm",
     predict_type = "prob",
-    num_iterations = to_tune(c(500, 1000)),
+    num_iterations = to_tune(c(250, 500, 1000)),
     learning_rate = to_tune(1e-3, 1e-1),
-    max_depth = to_tune(c(3, 5, 7, 9)),
-    min_data_in_leaf = to_tune(c(1, 5, 10))
+    max_depth = to_tune(c(2, 3, 5, 7, 9)),
+    min_data_in_leaf = to_tune(c(1, 5, 10)),
+    feature_fraction = to_tune(0.75, 1.0),
+    lambda_l1 = to_tune(0, 1.0),
+    lambda_l2 = to_tune(0, 1.0)
 )
 
 instance_lgbm_tune = ti(
@@ -1223,9 +1253,9 @@ lrn_lgbm$param_set$values = instance_lgbm_tune$result_learner_param_vals
 lrn_glmnet_tune = lrn(
     "classif.cv_glmnet",
     predict_type = "prob",
-    alpha = to_tune(0, 1.0) # mixing  
+    alpha = to_tune(0, 1.0), # mixing
+    s = to_tune(1e-3, 1e-1) # penalty
 )
-
 
 instance_glmnet_tune = ti(
     task = task,
@@ -1234,7 +1264,6 @@ instance_glmnet_tune = ti(
     measures = msr("classif.acc"),
     terminator = trm("evals", n_evals = 10)
 )
-
 
 tuner$optimize(instance_glmnet_tune)
 
@@ -1247,7 +1276,6 @@ lrn_glmnet$param_set$values = instance_glmnet_tune$result_learner_param_vals
 
 
 # Tune and setup MLP
-
 library(mlr3torch)
 
 learner_mlp_tune = lrn(
@@ -1301,7 +1329,6 @@ save(
 #| echo: false
 #| eval: false
 
-
 # Run Benchmark 
 
 load("ml/data/tune-comparison-r-results.RData")
@@ -1320,33 +1347,21 @@ save(
     bmr,
     file = "ml/data/benchmark-comparison-r-results.RData"
 )
-
-
-# autoplot(bmr, measure = msr("classif.acc"))
-# bmr$aggregate(msr("classif.acc"))
-
 ```
 
 
-:::
-
-
-
-## Compare models
-
-Let's compare the results of our models head to head. We went back and tuned each model over different settings:
+Let's compare our models head to head. We went back and restarted our process. We first split the data into training and test sets, the latter a 25% holdout. Then with training, we tuned each model over different settings:
 
 - Elastic net: penalty and mixing ratio
-- Boosting: number of trees, learning rate, and maximum depth etc.
+- Boosting: number of trees, learning rate, and maximum depth, etc.
 - Neural network: number of hidden layers, number of nodes in each layer
 
-In our first approach, we just chose some parameters for our cross-validation. In our second approach, we used the tuned values to retrain on the complete data set. Though not necessary, we still show the results of the cross-validation for the already-tuned models, to give a sense of the uncertainty in error estimation.
+After this, we used the tuned values to retrain on the complete data set. At this stage it's not necessary to investigate typically, but here we show the results of the 10-fold cross-validation for the already-tuned models, to give a sense of the uncertainty in error estimation.
 
 ```{r}
 #| label: fig-benchmark
 #| fig-cap: Cross-validation results for tuned models.
 #| echo: false
-
 
 load("ml/data/benchmark-comparison-r-results.RData")
 
@@ -1359,7 +1374,11 @@ autoplot(bmr, measure = msr("classif.acc")) +
 ```
     
     
-We also show the results of the tuned models on the holdout set, which is what we're more interested in.  We saw in our initial cross-validation results that our fastest/best results were the elastic net and boosting models, though not by much for this data set. This is not surprising. Even the simplest neural network takes notable effort to do well, and always longer to train. And while we would definitely use deep learning tools for image classification, natural language processing and other domains, they still struggle to do consistently as well as boosting for the type of data we've been using. 
+<!-- 
+MC: These scores are already presented as we went through each model and would likely only confuse here. We could use them to summarize the previous results, or to start this section maybe.
+
+
+We also show the results of the tuned models on the holdout set, which is what we're more interested in for comparison.  We saw in our initial cross-validation results that our fastest/best results were the elastic net and boosting models, though not by much for this data set. This is not surprising. Even the simplest neural network takes notable effort to do well, and always longer to train. And while we would definitely use deep learning tools for image classification, natural language processing and other domains, they still struggle to do consistently as well as boosting for the type of data we've been using. 
 
 ```{python}
 #| label: tune-boost-py-init
@@ -1436,10 +1455,9 @@ cv_results |>
 ```
 
 :::
+ -->
 
 
-
-When it came to to the holdout set with our best models, we see something you might be surprised about - the simplest model wins! It means we can use the simpler model and not worry about the more complex one, or just that we'd be fine using whichever one we prefer.  This was a good example of the importance of having an adequate baseline, and where complexity didn't really help much, though all our approaches did well.
 
 
 ```{r}
@@ -1450,30 +1468,97 @@ library(mlr3verse)
 
 load("ml/data/tune-comparison-r-results.RData")
 
+set.seed(1234)
+
 lrn_glmnet$train(task)
 lrn_lgbm$train(task)
 lrn_mlp$train(task)
 
-test_accs = list()
-
-for (i in list(lrn_glmnet, lrn_lgbm, lrn_mlp)) {
-    preds = i$predict_newdata(df_test) 
-
-    test_accs = append(
-        test_accs, 
-        mlr3measures::confusion_matrix(preds$truth, preds$response, positive = '1')$measures['acc']
-    )
-}
+test_performance = map_df(
+    list(enet = lrn_glmnet, lgbm = lrn_lgbm, mlp = lrn_mlp),
+    \(x) {
+        preds = x$predict_newdata(df_test)
+        mlr3measures::confusion_matrix(preds$truth, preds$response, positive = '1')$measures
+    },
+    .id = 'model'
+)
 ```
 
 ```{r}
+#| label: prop-test-r
+#| echo: false
+
+acc_interval_enet = prop.test(
+    x = sum(lrn_glmnet$predict_newdata(df_test)$response == lrn_glmnet$predict_newdata(df_test)$truth),
+    n = nrow(df_test),
+    # p = .5,
+    # alternative = 'greater'
+) 
+enet_correct = sum(
+    lrn_glmnet$predict_newdata(df_test)$response == lrn_glmnet$predict_newdata(df_test)$truth
+    )
+lgbm_correct = sum(
+    lrn_lgbm$predict_newdata(df_test)$response == lrn_lgbm$predict_newdata(df_test)$truth
+)
+tab = matrix(
+    c(
+        enet_correct,
+        75 - enet_correct,
+        lgbm_correct,
+        75 - lgbm_correct
+    ), 
+    nrow= 2,
+    byrow = TRUE
+)
+
+diff_interval = prop.test(
+    x = tab
+) 
+
+# a curiosity, but also if we want interval estimates for the other stuff.
+# library(boot)
+
+# # Define the function to calculate the proportion of correct predictions
+# prop_correct <- function(data, indices) {
+#     # Subset the data using the bootstrap indices
+#     bootstrap_data <- data[indices, ]
+    
+#     # Calculate the proportion of correct predictions
+#     prop <- sum(lrn_glmnet$predict_newdata(bootstrap_data)$response == lrn_glmnet$predict_newdata(bootstrap_data)$truth) / nrow(bootstrap_data)
+    
+#     return(prop)
+# }
+
+# # Set the number of bootstrap iterations
+# n_iterations <- 250
+
+# # Perform bootstrap resampling
+# bootstrap_results <- boot(data = df_test, statistic = prop_correct, R = n_iterations)
+
+# # Print the bootstrap results
+# quantile(bootstrap_results$t, c(0.025, 0.975))
+```
+
+When it came to to the holdout set with our best models, we see something you might be surprised about - the simplest model wins! It means we can use the simpler model and not worry about the more complex one, or just that we'd be fine using whichever one we prefer. However, none of these results are likely *statistically different* from each other. As an example, the elastic net model had an accuracy of `r acc_interval_enet$estimate`, but the interval estimate for such a small sample is very wide - from `r round(acc_interval_enet$conf.int[1], 2)` to `r round(acc_interval_enet$conf.int[2], 2)`. The interval estimate for the *difference* in accuracy between the elastic net and boosting models is from `r round(diff_interval$conf.int[1], 2)` to `r round(diff_interval$conf.int[2], 2)`[^proptest].  This was a good example of the importance of having an adequate baseline, and where complexity didn't really help much, though all our approaches did well.
+
+[^proptest]: We just used the `prop.test` function in R for these values with the test being, what proportion of predictions are correct, and are these proportions different? A lot of the metrics people look at from confusion matrices are proportions.
+
+
+
+
+```{r}
 #| label: tbl-benchmark-r
-#| tbl-cap: Holdout results for tuned models.
+#| tbl-cap: Results for tuned models on holdout data.
 #| echo: false
 
 tibble(
-    model = c('Elastic Net', 'LGBM', 'MLP'),
-    `Test Acc.` = unlist(test_accs)
+    model  = c('Elastic Net', 'LGBM', 'MLP'),
+    `Acc.` = test_performance$acc,
+    `TPR`  = test_performance$tpr,
+    `TNR`  = test_performance$tnr,
+    `F1`   = test_performance$f1,
+    `PPV`  = test_performance$ppv,
+    `NPV`  = test_performance$npv
 ) |> 
     gt(decimals = 2)
 ```
@@ -1577,7 +1662,7 @@ Now let's think about a visual display. Here we demonstrate a quick partial depe
 
 ```{python}
 #| label: pdp-py
-#| 
+#| eval: false
 from sklearn.inspection import PartialDependenceDisplay
 
 PartialDependenceDisplay.from_estimator(
@@ -1639,7 +1724,6 @@ effect_dat <- FeatureEffect$new(
     grid.size = 2
 )
 
-
 p_male = effect_dat$results |> 
     mutate(male = factor(male, labels = c('no', 'yes'))) |>
     ggplot(aes(x = male, y = .value)) +
@@ -1696,9 +1780,9 @@ shap.importances(cv_boost_tune.best_estimator_, df_heart.drop(columns='heart_dis
 ```
 
 
-## Other ML Models
+## Other ML Models for Tabular Data
 
-When you look up models used in classical machine learning applied to data of the type we've been exploring, you'll potentially see a lot of different kinds.  Popular methods from the past include *k*-nearest neighbors regression, support vector machines, and more. You don't see these used in practice much though, as these have mostly been made obsolete due to not being as predictive as other options in general (k-nn regression), making strong assumptions about the data distribution (linear discriminant analysis), maybe only works well with 'pretty' data situations (SVM), are computationally infeasible for larger datasets (most of them), or just being less interpretable. 
+When you look up models used in classical machine learning applied to data of the type we've been exploring, you'll potentially see a lot of different kinds. Popular methods from the past include *k*-nearest neighbors regression, support vector machines, and more. You don't see these used in practice much though, as these have mostly been made obsolete due to not being as predictive as other options in general (k-nn regression), making strong assumptions about the data distribution (linear discriminant analysis), maybe only works well with 'pretty' data situations (SVM), are computationally infeasible for larger datasets (most of them), or just being less interpretable. 
 
 While some of these models might still work well in unique situations, when you have tools that can handle a lot of data complexity and predict very well (and typically better) like tree-based methods, there's not much reason to use the historical alternatives these days. If you're interested in learning more about them or think one of them is just 'neat'[^svm], you could potentially use it as a baseline model. Alternatively, you could maybe employ them as part of an ensemble model, where you combine the predictions of multiple models to produce a single prediction. This is a common approach in machine learning, and is often used in Kaggle competitions. We won't go into detail here, but it's worth looking into if you're interested. There are also many other methods that are more specialized, such as those for text, image, and audio data.  We will provide an overview of these in another chapter.
 
@@ -1722,12 +1806,8 @@ You'll always get more payoff by coming up with better features to use in the mo
 Tune a model of your choice to predict whether a movie is good or bad with the [movie review data](data/movie_reviews_processed.csv). Use the processed data which has the categorical outcome, and use one-hot encoded features if needed. Make sure you use a good baseline model for comparison!
 
 
-
-
-
-
-
-## refs
+## Where to go from here
+### refs
 
 RadfordM.Neal.Priorsforinfinitenetworks(tech.rep.no.crg-tr-94-1).UniversityofToronto, 1994a. https://arxiv.org/abs/1711.00165
 
