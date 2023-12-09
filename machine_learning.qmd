@@ -1,5 +1,6 @@
 
-# Core Concepts
+# Core Concepts {#sec-core-concepts}
+
 
 ```{r}
 #| include: False
@@ -19,7 +20,7 @@ Machine learning is a branch of data analysis with a primary focus on predictive
 This is a *different focus* than statistical modeling approaches that put much more emphasis on interpreting coefficients and uncertainty. But it is *not an exclusive one*. Some implementations of machine learning include models that have their basis in traditional statistics, while others are often sufficiently complex that they are scarcely interpretable without a lot of effort, or are used in contexts where interpretation simply isn't important. However, even after you conduct your modeling via machine learning, you may still fall back on statistical analysis for further exploration of the results. For example, you may want to know the uncertainty of your performance metric, or if the model is significantly better than another model. In any event, here we will also discuss some of the key ideas in machine learning, such as model assessment, loss functions, and cross-validation. Later we'll demonstrate common models used, but if you want to dive in, [you can head there now](#common-models)!
 
 
-[^machinelearn]: Although this is implied by the name, this description of ML can be misleading to the newcomer. In fact, many of the most common models in machine learning are not capable of learning on their own at any level, and require a human to specify the model, its parameters, set up the search through that parameter space, analyze the results, update the model, etc. We only very recently, post 2020, have developed the capability where something like a large language model can actually write a working program that would then be able to run on its own. The LLM itself was developed by humans though, through the same human-touch process, so it's still not clear how this notion of ML applies exactly, or else, it would apply to anything that uses optimization to 'learn' the best parameters for a model. However, we don't say a linear regression model 'learns' the best coefficients, even though we can even write a program that would allow it to automatically and continuously update with new data.
+[^machinelearn]: Although this is implied by the name, the description of ML as 'machines learning without human intervention' can be misleading to the newcomer. In fact, many of the most common models in machine learning are not capable of learning 'on their own' at any level, and require human intervention to provide processed data, specify the model, its parameters, set up the search through that parameter space, analyze the results, update the model, etc. We only very recently, post 2020, have developed models that appear to be able to generalize to new tasks as if they have learned them without human intervention, but that would ignore all the hands-on work that went into the development of those models, which never could have such capabilities otherwise.
 
 [^generalize]: Generalization in statistical analysis is more about generalizing from our sample of data to the population from which it's drawn. In order to do that well or precisely, one needs to meet certain assumptions about the model. In machine learning, generalization is more about how well the model will perform on new data, and is often referred to as 'out-of-sample' performance.
 
@@ -67,7 +68,7 @@ We've implemented a variety of objective functions in other chapters, such as me
 #| tbl-cap: Commonly used objective functions in machine learning for standard regression and classification tasks.
 
 
-objective_functions <- tibble(
+objective_functions = tibble(
   Task = c("Regression", "Regression", "Regression", "Regression", "Classification", "Classification"),
   `Objective Function` = c("Mean Squared Error (MSE)", "Mean Absolute Error (MAE)", "Huber Loss", "Log Likelihood", "Binary Cross-Entropy / Log Likelihood (Loss)", "Categorical Cross-Entropy"),
   Description = c("Calculates the average of the squared differences between the predicted and actual values.", 
@@ -115,6 +116,8 @@ cm |>
 
 The diagonal of the confusion matrix is the number of correct predictions, and the off-diagonal is the number of incorrect predictions. In this particular example we have an accuracy of 80 correct out of 100 total, or 80%. However, there are [many metrics we can calculate from this simple confusion matrix](https://en.wikipedia.org/wiki/Confusion_matrix), and many of these can also be extended to the multiclass setting. For example, we can calculate the accuracy in general as well as for each class.
 
+The following table illustrates the most commonly used metrics. Just because these are popular or applicable for your situation, doesn't mean they are the only ones you can or even should use. Nothing keeps you from using more than one metric for assessment, and in fact, it is often a good idea to do so. 
+
 
 ```{r}
 #| echo: false
@@ -122,7 +125,7 @@ The diagonal of the confusion matrix is the number of correct predictions, and t
 #| tbl-cap: Commonly used performance metrics in machine learning.
 
 
-performance_metrics <- tribble(
+performance_metrics = tribble(
   ~Problem_Type, ~Metric, ~Description, ~`Other Names/Notes`,
   "Regression", "RMSE", "Root mean squared error", 'MSE (before square root)',
   "Regression", "MAE", "Mean absolute error", '',
@@ -142,8 +145,6 @@ performance_metrics <- tribble(
   "Classification", 'Phi', 'Correlation between predicted and actual', "Matthews Correlation",
   "Classification", "Log loss", "Negative log likelihood of the predicted probabilities", ''
 )
-
-
 
 performance_metrics %>% 
   group_by(Problem_Type) %>%
@@ -166,11 +167,149 @@ performance_metrics %>%
 ```
 
 
+As an example, and as a reason to get our first taste of machine learning, let's get some additional metrics for our movie review model. Depending on the tool used, getting one type of metric should be as straightforward as most others if we're using common metrics. As we start our journey into machine learning, we'll show Python code first, as it's the dominant tool.
+
+:::{.panel-tabset}
+
+##### Python
+
+In Python, we can use the `sklearn.metrics` module to get a variety of metrics for both regression and classification problems. 
+
+```{python}
+#| label: py-metrics
+#| results: hide
+
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import roc_auc_score, roc_curve, auc, confusion_matrix
+
+from sklearn.linear_model import LinearRegression, LogisticRegression
+
+import pandas as pd
+
+df_movie_reviews = pd.read_csv("data/movie_reviews_processed.csv")
+
+X = df_movie_reviews[
+    [
+        'word_count',
+        'age',
+        'review_year',
+        'release_year',
+        'length_minutes',
+        'children_in_home',
+        'total_reviews',
+    ]
+]
+
+y = df_movie_reviews['rating']
+y_class = df_movie_reviews['rating_good']
+
+model_lin_reg = LinearRegression()
+model_lin_reg.fit(X, y)
+
+# note that sklearn uses regularization by default for logistic regression
+model_log_reg = LogisticRegression() 
+model_log_reg.fit(X, y_class)
+
+y_pred_linreg = model_lin_reg.predict(X)
+y_pred_logreg = model_log_reg.predict(X)
+
+
+# regression metrics
+rmse = mean_squared_error(y, y_pred_linreg, squared=False)
+mae = mean_absolute_error(y, y_pred_linreg)
+r2 = r2_score(y, y_pred_linreg)
+
+
+# classification metrics
+accuracy = accuracy_score(y_class, y_pred_logreg)
+precision = precision_score(y_class, y_pred_logreg)
+recall = recall_score(y_class, y_pred_logreg)
+```
+
+##### R
+
+In R, we can use the `yardstick` package, which has a consistent interface for a variety of metrics. 
+
+```{r}
+#| label: r-metrics
+#| results: hide
+
+library(yardstick)
+
+# convert rating_good to factor for yardstick input
+df_movie_reviews = read_csv("data/movie_reviews_processed.csv") |> 
+  mutate(rating_good = factor(rating_good, levels = c(0, 1), labels = c("bad", "good")))
+
+model_lin_reg = lm(
+    rating ~
+        word_count
+        + age
+        + review_year
+        + release_year
+        + length_minutes
+        + children_in_home
+        + total_reviews,
+    data = df_movie_reviews
+)
+
+model_log_reg = glm(
+    rating_good ~
+        word_count
+        + age
+        + review_year
+        + release_year
+        + length_minutes
+        + children_in_home
+        + total_reviews,
+    data = df_movie_reviews,
+    family = binomial(link = "logit")
+)
+
+y_pred_linreg = predict(model_lin_reg)
+y_pred_logreg = predict(model_log_reg, type = "response")
+y_pred_logreg = factor(ifelse(y_pred_logreg > .5, "good", "bad"))
+
+
+# regression metrics  
+rmse = rmse_vec(df_movie_reviews$rating, y_pred_linreg)
+mae  = mae_vec(df_movie_reviews$rating, y_pred_linreg)
+r2   = rsq_vec(df_movie_reviews$rating, y_pred_linreg)
+
+# classification metrics
+accuracy  = accuracy_vec(df_movie_reviews$rating_good, y_pred_logreg)
+precision = precision_vec(df_movie_reviews$rating_good, y_pred_logreg)
+recall    = recall_vec(df_movie_reviews$rating_good, y_pred_logreg)
+```
+
+:::
+
+We put them all together in the following table. Now we know how to get them, and it was easy! But as we'll see later, there is a lot more to think about before we use these for model assesment.
+
+```{r}
+#| echo: false
+#| label: r-metrics-show
+#| tbl-cap: Demo Metrics
+#| 
+
+tibble(
+  Model = rep(c("Linear Regression", "Logistic Regression"), each = 3),
+  Metric = c("RMSE", "MAE", "R-squared", "Accuracy", "Precision", "Recall"),
+  Value = c(rmse, mae, r2, accuracy, precision, recall)
+) |> 
+  group_by(Model) |>
+  gt() %>%   
+  tab_header(
+    title = "",
+    subtitle = ""
+  )
+```
+
 ## Generalization
 
 One of the key differences separating ML from traditional statistical modeling approaches is the assessment of performance on unseen or future data, a concept commonly referred to as **generalization**. The basic idea is that we want to build a model that will perform well on new data, and not just the data we used to fit the model, because ultimately data is ever evolving, and we don't want to be beholden to a particular set of data we just happened to have at a particular time.
 
-But how  do we do this? For starters, we can simply split our data into two sets, a **training set** and a **test set**, with the latter being typically a smaller subset, say 25%, but this amount is arbitrary. We fit the model on the training set, and then use the model to make predictions on the test set. This is also known as the **holdout method**.  Consider a simple linear regression. We can fit the linear regression model on the training set, which provides us coefficients, etc. We can then use that model result to predict on the test set, and then compare the predictions to the actual values in the test set. Here we demonstrate this with our simple linear model from before.
+But how  do we do this? For starters, we can simply split our data into two sets, a **training set** and a **test set**, often called a **holdout set**. The test set is typically a smaller subset, say 25%, but this amount is arbitrary, and will reflect the data situation. We **fit** the model on the training set, and then use the model to make predictions on, or **score**, the test set. This general approach is also known as the **holdout method**. Consider a simple linear regression. We can fit the linear regression model on the training set, which provides us coefficients, etc. We can then use that model result to predict on the test set, and then compare the predictions to the actual values in the test set. Here we demonstrate this with our simple linear model from before.
 
 :::{.panel-tabset}
 
@@ -183,8 +322,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 import pandas as pd
-
-df_movie_reviews = pd.read_csv("data/movie_reviews_processed.csv")
 
 X = df_movie_reviews[
     [
@@ -228,10 +365,8 @@ print(
 ```{r}
 #| label: r-holdout
 #| results: hide
-df_movie_reviews = read_csv("data/movie_reviews_processed.csv")
 
 # create a train and test set
-
 library(rsample)
 
 set.seed(123)
@@ -270,7 +405,7 @@ glue("RMSE on test: {round(rmse, 2)}")
 
 :::
 
-As we'll see later, there are limitations to doing it this simply, but conceptually this is an important idea, and one we will continue to return to in our discussion of machine learning.
+So there you have it, we have a model that we can use to predict on new data without too much trouble. As we'll soon see though, there are limitations to doing things this simply. But conceptually this is an important idea, and one we will continue to return to in our discussion of machine learning.
 
 <!-- In the validation stage, we usually will separate data into training and validation sets. We will go into details later, but the gist is that we select the model with parameters that result in the best performance on the validation set(s), and then we evaluate that model on a test set that has not been used at all in the modeling process as our final assessment of performance. Although not guaranteed, this is the best way to potentially get an unbiased estimate of the model's performance. We may possibly repeat this process for other models we are considering, and then select the model that performs best on the test set.  -->
 
@@ -278,10 +413,17 @@ As we'll see later, there are limitations to doing it this simply, but conceptua
 
 As we've seen, there are many performance metrics to choose from to assess model performance, and the choice of metric depends on the type of problem. For example, for a problem for numeric targets, we might use RMSE, while for a classification problem, we might use accuracy. As discussed, it turns out that assessing the metric on the data we used to fit the model does not give us the best assessment of that metric. This is because the model will do better on the data it was trained on than on new data it wasn't trained on, and we can generally always improve that metric in training by making the model more complex. However, in many modeling situations, this complexity comes at the expense of generalization, and the model will not perform as well on new data, something we'll discuss in more detail shortly. So what we really want to ultimately say about our model will regard performance on the test set with our chosen metric, and not the data we used to fit the model. At that point, we can also compare multiple models to one another given their performance on the test set, and select the one that performs best.
 
+You should take a moment to compare our result with the holdout method to the intial model we used to get some metrics, where the model was fit on the entire dataset. Metrics are almost always better on the training set, and that's because the model was fit on the entire dataset, and so it was able to capture more of the variability in the data. But that's not what we're interested in. We want to know how well the model will do on new data, and so we use the test set to get a sense of that.
+
+
 
 ### Understanding Test Error and Generalization
 
-In the following discussion, you can think of a standard linear model scenario, e.g. with squared-error loss function, and a data set where we split some of the observations in a random fashion into a training set, for initial model fitting, and a test set, which will be kept separate and independent, and used to measure generalization performance. We note **training error** as the average loss over all the training sets we could create in this process, and **test error** as the average prediction error obtained when a model fitted on the training data is used to make predictions on the test data.  So, in addition to the previously noted goal of finding the 'best' model, **model selection**, we are interested further in estimating the prediction error with new data, **model performance**.
+:::{.callout-info}
+This part gets into the weeds a bit. If you are not so inclined, skip to the summary of this section.
+:::
+
+In the following discussion, you can think of a standard linear model scenario just as we have been using, e.g. with squared-error loss function, and a data set where we split some of the observations in a random fashion into a training set, for initial model fitting, and a test set, which will be kept separate and independent, and used to measure generalization performance. We note **training error** as the average loss over all the training sets we could create in this process, and **test error** as the average prediction error obtained when a model fitted on the training data is used to make predictions on the test data.  So, in addition to the previously noted goal of finding the 'best' model, **model selection**, we are interested further in estimating the prediction error with new data, **model performance**.
 
 
 #### Generalization in the Classical Regime
@@ -309,60 +451,60 @@ We demonstrate this on the classic `mtcars` dataset[^mtcars], which has only 32 
 #| label: fig-double-descent
 #| fig-cap: Double Descent on the classic mtcars dataset
 
-fit_ridgeless <- function(X, y, x_test, y_test) {
-    b <- psych::Pinv(crossprod(X)) %*% crossprod(X, y)
+fit_ridgeless = function(X, y, x_test, y_test) {
+    b = psych::Pinv(crossprod(X)) %*% crossprod(X, y)
 
-    predictions_train <- X %*% b
-    predictions_test  <- x_test %*% b
+    predictions_train = X %*% b
+    predictions_test  = x_test %*% b
 
-    rmse_train <- yardstick::rmse_vec(y, predictions_train[, 1])
-    rmse_test  <- yardstick::rmse_vec(y_test, predictions_test[, 1])
+    rmse_train = yardstick::rmse_vec(y, predictions_train[, 1])
+    rmse_test  = yardstick::rmse_vec(y_test, predictions_test[, 1])
 
     list(b = b, rmse_train = rmse_train, rmse_test = rmse_test)
 }
 
 
-fit_reshuffle <-
+fit_reshuffle =
     function(n,
              scale = TRUE,
              random = FALSE,
              bs = "cs",
              k = 10) {
-        df_cars_shuffled <- mtcars[sample(1:nrow(mtcars)), c(1, sample(2:ncol(mtcars)))] # shuffle rows/columns (keep mpg as first)
+        df_cars_shuffled = mtcars[sample(1:nrow(mtcars)), c(1, sample(2:ncol(mtcars)))] # shuffle rows/columns (keep mpg as first)
 
-        if (scale) df_cars_shuffled <- data.frame(scale(df_cars_shuffled))
+        if (scale) df_cars_shuffled = data.frame(scale(df_cars_shuffled))
 
-        sc_wt <- mgcv::smoothCon(mgcv::s(wt, bs = bs, k = k), data = df_cars_shuffled)[[1]]$X
-        sc_hp <- mgcv::smoothCon(mgcv::s(hp, bs = bs, k = k), data = df_cars_shuffled)[[1]]$X
-        sc_disp <- mgcv::smoothCon(mgcv::s(disp, bs = bs, k = k), data = df_cars_shuffled)[[1]]$X
+        sc_wt = mgcv::smoothCon(mgcv::s(wt, bs = bs, k = k), data = df_cars_shuffled)[[1]]$X
+        sc_hp = mgcv::smoothCon(mgcv::s(hp, bs = bs, k = k), data = df_cars_shuffled)[[1]]$X
+        sc_disp = mgcv::smoothCon(mgcv::s(disp, bs = bs, k = k), data = df_cars_shuffled)[[1]]$X
 
         if (random) {
-            ran_dim <- 10
-            sc_wt <- matrix(rnorm(nrow(df_cars_shuffled) * ran_dim), ncol = ran_dim)
-            sc_hp <- matrix(rnorm(nrow(df_cars_shuffled) * ran_dim), ncol = ran_dim)
-            sc_disp <- matrix(rnorm(nrow(df_cars_shuffled) * ran_dim), ncol = ran_dim)
+            ran_dim = 10
+            sc_wt = matrix(rnorm(nrow(df_cars_shuffled) * ran_dim), ncol = ran_dim)
+            sc_hp = matrix(rnorm(nrow(df_cars_shuffled) * ran_dim), ncol = ran_dim)
+            sc_disp = matrix(rnorm(nrow(df_cars_shuffled) * ran_dim), ncol = ran_dim)
         }
 
-        X <- as.matrix(cbind(1, df_cars_shuffled[, -1], sc_wt, sc_hp, sc_disp))
-        y <- df_cars_shuffled$mpg
+        X = as.matrix(cbind(1, df_cars_shuffled[, -1], sc_wt, sc_hp, sc_disp))
+        y = df_cars_shuffled$mpg
 
-        train_idx <- sample(1:nrow(df_cars_shuffled), n)
+        train_idx = sample(1:nrow(df_cars_shuffled), n)
 
-        X_train <- X[train_idx, , drop = FALSE]
-        X_test <- X[-train_idx, , drop = FALSE]
+        X_train = X[train_idx, , drop = FALSE]
+        X_test = X[-train_idx, , drop = FALSE]
 
-        y_train <- y[train_idx]
-        y_test <- y[-train_idx]
+        y_train = y[train_idx]
+        y_test = y[-train_idx]
 
-        ncol_X_main <- ncol(mtcars) # max model.matrix dim for original data
-        ncol_cubic_wt <- ncol(sc_wt)
-        ncol_cubic_hp <- ncol(sc_hp)
-        ncol_cubic_disp <- ncol(sc_disp)
+        ncol_X_main = ncol(mtcars) # max model.matrix dim for original data
+        ncol_cubic_wt = ncol(sc_wt)
+        ncol_cubic_hp = ncol(sc_hp)
+        ncol_cubic_disp = ncol(sc_disp)
 
         if (random) {
-            total_explore <- 1:ncol(X)
+            total_explore = 1:ncol(X)
         } else {
-            total_explore <- c(
+            total_explore = c(
                 1:ncol_X_main,
                 ncol_X_main + ncol_cubic_wt,
                 ncol_X_main + ncol_cubic_wt + ncol_cubic_hp,
@@ -371,7 +513,7 @@ fit_reshuffle <-
         }
 
         # for each dimension, run fit_ridgless
-        rmse <- map_df(
+        rmse = map_df(
             total_explore,
             ~ fit_ridgeless(X_train[, 1:.x], y_train, X_test[, 1:.x], y_test)[c("rmse_train", "rmse_test")] %>% as_tibble()
         )
@@ -379,16 +521,16 @@ fit_reshuffle <-
         tibble(p = total_explore, rmse)
     }
 
-n <- 10
+n = 10
 
-res <- map_df(1:250, ~ fit_reshuffle(
+res = map_df(1:250, ~ fit_reshuffle(
     n = n,
     random = FALSE,
     bs = "cs",
     k = 10
 ), .id = "sim")
 
-test_error_summary <- res %>%
+test_error_summary = res %>%
     group_by(p) %>%
     summarize(
         rmse_train = mean(rmse_train, na.rm = TRUE),
@@ -399,7 +541,7 @@ test_error_summary <- res %>%
 
 # test_error_summary
 
-p_dd_main <- res %>%
+p_dd_main = res %>%
     pivot_longer(-c(p, sim), names_to = "type", values_to = "rmse") %>%
     mutate(type = str_remove(type, "rmse_")) %>%
     ggplot(aes(as.integer(p), rmse)) +
@@ -462,12 +604,12 @@ p_dd_main
 
 #### Generalization Summary
 
-The take home point is this: our primary concern is generalization error. We can reduce this error by increasing model complexity, but this may eventually cause test error to increase. However, with enough data and model complexity, we can get to the point where we can fit the training data perfectly, and yet still generalize well to new data. Unless you are doing deep learning, you can maybe assume the classical regime holds, but when doing deep learning, you can worry less about the model's complexity. In any event, we still want to employ tools regularization to help reduce generalization error.
+The take home point is this: our primary concern is generalization error. We can reduce this error by increasing model complexity, but this may eventually cause test error to increase. However, with enough data and model complexity, we can get to the point where we can fit the training data perfectly, and yet still generalize well to new data. Unless you are doing deep learning, you can maybe assume the classical regime holds, but when doing deep learning, you can worry less about the model's complexity. In any event, we still want to employ tools to help reduce generalization error, and we prefer smaller and simpler models that can do as well as more complex ones, even if those models are still billions of parameters!
 
 
 ## Regularization
 
-As we've seen, a key aspect of the machine learning approach is to generalize to new data.  One way to improve generalization is through the use of **regularization**, which is a general approach to penalize complexity in a model, and is typically used to prevent **overfitting**. Overfitting occurs when a model fits the training data very well, but does not generalize well to new data, and this is often due to the model being too complex, and thus fitting to noise in the training data that isn't present in other data. Note that the converse can also happen, and is often the case with simpler models, where the model does not fit the training data well, and so does not generalize well to new data either, and this is known as **underfitting**[^underfit].
+As we've seen, a key aspect of the machine learning approach is to generalize to new data.  One way to improve generalization is through the use of **regularization**, which is a general approach to penalize complexity in a model, and is typically used to prevent **overfitting**. Overfitting occurs when a model fits the training data very well, but does not generalize well to new data, and this is often due to the model being too complex for the data setting, and is fitting to noise in the training data that isn't present in other data. Note that the converse can also happen, and is often the case with simpler models, where the model does not fit the training data well, and so does not generalize well to new data either, and this is known as **underfitting**[^underfit].
 
 We demonstrate this in the following visualization. The first plot shows results from a model that is notably complex, and in doing so presents a very wiggly result. This is an example of overfitting, and is often seen in models that are too complex for the underlying data. The second plot shows a straight line fit as we'd get from linear regression, which is an example of underfitting. The third plot shows a model that is a better fit to the data, and is an example of a model that is complex enough to capture the nonlinear aspect of the data, but not so complex that it is trying to capitalize on noise in the data. 
 
@@ -479,9 +621,9 @@ We demonstrate this in the following visualization. The first plot shows results
 
 # create sample data
 set.seed(123)
-# x <- seq(0, 1, length.out = 10)
-# y <- sin(x * pi) + rnorm(10, sd = 0.1)
-# df <- data.frame(x = x, y = y)
+# x = seq(0, 1, length.out = 10)
+# y = sin(x * pi) + rnorm(10, sd = 0.1)
+# df = data.frame(x = x, y = y)
 
 N = 200
 df = mgcv::gamSim(n= N, scale = 1, verbose = FALSE) |> 
@@ -492,9 +634,9 @@ train_idx = sample(1:N, N/2)
 df_train = df[train_idx, , drop = FALSE]
 df_test = df[-train_idx, , drop = FALSE]
 
-mod_over <- lm(y ~ poly(x, 25), data = df_train)
-mod_under <- lm(y ~ x, data = df_train)
-mod_goldie <- mgcv::gam(y ~ s(x), data = df_train)
+mod_over = lm(y ~ poly(x, 25), data = df_train)
+mod_under = lm(y ~ x, data = df_train)
+mod_goldie = mgcv::gam(y ~ s(x), data = df_train)
 
 
 p_over = ggplot(df_train, aes(x, y)) +
@@ -617,7 +759,7 @@ In short, regularization comes in many forms across the modeling landscape, and 
 
 # create example data
 set.seed(123)
-data <- data.frame(x = as.numeric(1:30))
+data = data.frame(x = as.numeric(1:30))
 
 # perform 3-fold cross validation
 p_dat = data  |> 
@@ -665,7 +807,7 @@ p_dat |>
     x = 5,
     y = 'Fold 1',
     size = 10, 
-    label = 'Test',
+    label = 'Validation',
     color = 'white',
     # data = p_dat |> filter(fold == 'Fold 1')
   ) +
@@ -689,7 +831,7 @@ p_dat |>
     x = 15,
     y = 'Fold 2',
     size = 10, 
-    label = 'Test',
+    label = 'Validation',
     color = 'white',
     # data = p_dat |> filter(fold == 'Fold 1')
   ) +
@@ -713,7 +855,7 @@ p_dat |>
     x = 25,
     y = 'Fold 3',
     size = 10, 
-    label = 'Test',
+    label = 'Validation',
     color = 'white',
     # data = p_dat |> filter(fold == 'Fold 1')
   ) +
@@ -732,16 +874,16 @@ So we've talked a lot about generalization to unseen data, so now let's think ab
 
 As noted previously, the simplest approach is to split the data into training and test sets, fit the model on the training set, and then assess performance on the test set. This is all well and good, but the test error has uncertainty, and would be slightly different with any training-test split we came up with. We'd also like to get a better assessment when searching the parameter space, because there are oftentimes parameters for which we have no way of guessing the value beforehand. In this case, we need to figure out the best parameters *before* assessing a final model's performance. One way to do this is to split the data into multiple test sets, which we now call **validation sets**, because we still want a test set to be held out that is in no way used during the training process. We fit the model on the training set, and then assess performance on the validation set(s). We then repeat this process for many different splits of the data into training and validation sets, and average the results. This is known as **K-fold cross-validation**.  
 
-Here is a visualization of 3-fold cross validation. We split the data such that 2/3 of it will be used for training, and 1/3 for test. We then do this for a total of 3 times, such that the test set is on a different part of the data each time, and all observations are used for both training and test at some point. We then average the results of any metric across the test sets. Note that in each case, there is no overlap of data between the training and test sets.
+Here is a visualization of 3-fold cross validation. We split the data such that 2/3 of it will be used for training, and 1/3 for validation. We then do this for a total of 3 times, such that the validation set is on a different part of the data each time, and all observations are used for both training and validation at some point. We then average the results of any metric across the validation sets. Note that in each case here, there is no overlap of data between the training and validation sets.
 
 ![](img/kfold_new.svg)
 
 
 The idea is that we are trying to get a better estimate of the test error by averaging over many different test sets. The number of folds, or splits, is denoted by $K$. The value of $K$ can be any number, but typically is 10 or less. The larger the value of $K$, the more accurate the estimate of the test error, but the more computationally expensive it is, and in application, you generally don't need much to get a good estimate of the mean error. However, with smaller datasets, one can even employ a **leave-one-out** approach, where $K$ is equal to the number of observations in the data. 
 
-So cross-validation provides a better measure of the test error. If we are interested  when we look at models with different parameters, we can pit their respective average errors against one another, and select the model with the lowest average error, a process known generally as **model selection**.  This works for choosing a model within a potential set of hyperparameter settings, for example, with different penalty parameters for regularized regression, or for choosing a model from a set of different model types, for example, standard linear model approach vs. boosting.
+So cross-validation provides a better measure of the test error. If we are interested  when we look at models with different parameters we're trying to figure out, we can pit their respective average errors against one another, and select the model with the lowest average error, a process known generally as **model selection**.  This works for choosing a model within a potential set of hyperparameter settings, for example, with different penalty parameters for regularized regression, but can also aid in choosing a model from a set of different model types, for example, standard linear model approach vs. boosting.
 
-Now how might we go about this for modeling purposes? Very easily with modern packages.  In the following we demonstrate this with a logistic regression model. We use the `LogisticRegressionCV` function in `sklearn` to perform k-fold cross-validation to select the best penalty parameter. We then apply the best model to the test set and calculate accuracy.  We do the same thing in R with the `mlr3` package.  We use the `resample` function to perform k-fold cross-validation to select the best penalty parameter. In both settings we are interested in the average accuracy score.
+Now how might we go about this for modeling purposes? Very easily with modern packages.  In the following we demonstrate this with a logistic regression model. 
 
 
 :::{.panel-tabset}
@@ -768,10 +910,12 @@ clf.fit(X, y)
 # clf.scores_  # show the accuracy score for each fold
 
 # print the average accuracy score
-print(clf.score(X, y))
+clf.scores_[1].mean()
 ```
 
 ##### R
+
+For R, we prefer `mlr3` for our machine learning demonstrations, as we feel it is more like sklearn in spirit, as well as offering computational advantages for when you want to actually do ML with R. The `tidymodels` ecosystem is also a good option.
 
 ```{r}
 #| label: r-kfold
@@ -859,6 +1003,7 @@ Another potential point of concern is that we are using the same data to both se
 
 ![](img/sklearn_k_fold_images/grid_search_cross_validation.png)
 
+
 :::
 
 :::{.callout-note}
@@ -876,7 +1021,7 @@ While this may start to sound complicated, it doesn't have to be, as tools are a
 
 We use the `LogisticRegression` function in `sklearn` to perform k-fold cross-validation to select the best penalty parameter. We then apply the best model to the test set and calculate accuracy.  We do the same thing in R with the `mlr3tuning` package.  We use the `AutoTuner` function to perform k-fold cross-validation to select the best penalty parameter. In both settings we are interested in the average accuracy score across the folds, and ultimately the test set[^logisticskvsmlr].
 
-[^logisticskvsmlr]: If you're comparing the Python vs. R approaches, scikit-learn by default uses ridge regression, while in R we set the value alpha to enforce it, since glmenet by default uses the elastic net, a mixture of lasso and ridge. Also, scikit-learn uses the inverse of the penalty parameter, while mlr3 uses the penalty parameter directly, which is more straightforward. And obviously, no one will agree on what we should name the value (we have no idea where 'C' comes from, though we have seen λ used in various statistical publications).
+[^logisticskvsmlr]: If you're comparing the Python vs. R approaches, scikit-learn by default uses ridge regression, while in R we set the value alpha to enforce it, since glmnet by default uses the elastic net, a mixture of lasso and ridge. Also, scikit-learn uses the inverse of the penalty parameter, while mlr3 uses the penalty parameter directly, which is more straightforward. And obviously, no one will agree on what we should name the value (we have no idea where 'C' comes from, maybe 'complexity'(?), though we have seen λ used in various statistical publications).
 
 :::{.panel-tabset}
 
@@ -896,7 +1041,10 @@ y = df_movie_reviews["rating_good"]
 
 # split the dataset into training and test sets
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.25, random_state=42
+    X, 
+    y, 
+    test_size=0.25, 
+    random_state=42
 )
 
 # define the parameter values for GridSearchCV
@@ -911,6 +1059,13 @@ grid_search = GridSearchCV(
 )
 
 grid_search.fit(X_train, y_train)
+
+best_param = grid_search.best_params_['C']
+
+# apply the best model to the test set and calculate accuracy
+best_model = grid_search.best_estimator_
+acc_train = best_model.score(X_train, y_train)
+acc_test = best_model.score(X_test, y_test)
 ```
 
 
@@ -956,18 +1111,19 @@ print(
 
 # Load necessary libraries
 library(mlr3verse)
-library(paradox)
-
-# split the dataset into training and test sets
-train_idx = sample(1:nrow(df_movie_reviews), nrow(df_movie_reviews) * .75)
+library(paradox) # for tuning
+library(rsample) # for splitting data
 
 df_movie_reviews_ = df_movie_reviews %>% 
   mutate(rating_good = as.factor(rating_good)) |> 
   select(matches('sc|rating_good'))
 
-df_train = df_movie_reviews_[train_idx, , drop = FALSE]
-df_test  = df_movie_reviews_[-train_idx, , drop = FALSE]
+# split the dataset into training and test sets
 
+splits = initial_split(df_movie_reviews_, prop = 0.75)
+
+df_train = training(splits)
+df_test  = testing(splits)
 
 # Define task
 task = TaskClassif$new("movie_reviews", df_train, target = "rating_good")
@@ -976,10 +1132,10 @@ task = TaskClassif$new("movie_reviews", df_train, target = "rating_good")
 learner = lrn("classif.glmnet", alpha = 0, predict_type = "response")
 
 # Define resampling strategy
-resampling <- rsmp("cv", folds = 5)
+resampling = rsmp("cv", folds = 5)
 
 # Define measure
-measure <- msr("classif.acc")
+measure = msr("classif.acc")
 
 # Define parameter space
 param_set = ParamSet$new(
@@ -1000,6 +1156,13 @@ tuner = AutoTuner$new(
 
 # Tune hyperparameters
 tuner$train(task)
+
+# Get best hyperparameters
+best_param = tuner$model$learner$param_set$values
+
+# Use the best model to predict and get metrics
+acc_train = tuner$predict(task)$score(msr("classif.acc"))
+acc_test  = tuner$predict_newdata(df_test)$score(msr("classif.acc"))
 ```
 
 ```{r}
@@ -1037,7 +1200,7 @@ So there you have it. We searched a parameter space, chose the best set of param
 
 #### Search Spaces
 
-In the previous example, we used a grid search to search over a range of values for the penalty parameter.  This is a very simple approach, but it can be computationally expensive.  We can do better by using a more sophisticated approach to search over the parameter space. For example, we can use a random search, where we randomly sample from the parameter space.  This is generally faster than a grid search, and can be just as effective.  Other methods are available that better explore the space and do so more efficiently.
+In the previous example, we used a grid search to search over a range of values for the penalty parameter. This is a very simple approach, but it can be computationally expensive. We can do better by using a more sophisticated approach to search over the parameter space. For example, we can use a **random search**, where we randomly sample from the parameter space. This is generally faster than a grid search, and can be just as effective. Other methods are available that better explore the space and do so more efficiently.
 
 :::{.callout-tip}
 Grid search can work to some extent and is a quick and easy way to get started, but generally we want something that can search a true space rather than a limited grid. Typical options are random, bayesian optimization, hyperband, and genetic algorithms. Most of these are available in `scikit-learn` and `mlr3`.
@@ -1061,16 +1224,14 @@ For **production-level** work, or just for **reproducibility**, it is often usef
 
 We can create a pipeline that performs all of these steps in sequence.  This is useful for a number of reasons. First, doing so makes it far easier to reproduce the results as needed. Second, it is relatively easy to change the steps in the pipeline. For example, we might want to try a different imputation method, or add a new model.  Third, it is relatively easy to apply the pipeline. For example, we might want to use the model on new data.  We can just apply the pipeline to the new data, and it will perform all of the steps in sequence, including fitting the model. Fourth, having a pipeline facilitates model comparison, as we can ensure that the models are receiving the same data process.  Finally, we can save the pipeline for later use- we just save the pipeline as a file, and then load it later when we want to use it again.
 
-Here is an example of a pipeline in Python.  We use the `make_pipeline` function from the `sklearn` package.  This function takes a series of steps as arguments, and then performs them in sequence.  We can then use the pipeline to fit the model, assess its performance, and save it for later use[^sklearnmods]. With R, `mlr3` works in a very similar fashion, which is why we use it for demonstration.  We create a pipeline with the `po`, or pipe operator function, which takes a series of steps as arguments, and then performs them in sequence. 
 
 
-
-[^sklearnmods]: It's a bit annoying that we literally have to import a different package for each step in the pipeline, but that's the way it is.
 
 :::{.panel-tabset}
 
 ##### Python
 
+Here is an example of a pipeline in Python.  We use the `make_pipeline` function from the `sklearn` package.  This function takes a series of steps as arguments, and then performs them in sequence.  We can then use the pipeline to fit the model, assess its performance, and save it for later use. 
 
 ```{python}
 #| label: py-pipeline
@@ -1105,6 +1266,7 @@ accuracy_score(y_test, y_pred)
 
 ##### R
 
+With R, `mlr3` works in a very similar fashion to `sklearn`, which is why we use it for demonstration.  We create a pipeline with the `po`, or pipe operator function, which takes a series of steps as arguments, and then performs them in sequence. 
 
 ```{r}
 #| label: r-pipeline
@@ -1144,12 +1306,12 @@ Development and deployment of pipelines will depend on your specific use case, a
 
 ## Commentary
 
-When machine learning began to take off, it seemed many in the field of statistics sat on their laurels, and often scoffed at these techniques that didn't bother to test their assumptions[^riprip]! ML was, after all, mostly just a rehash of old ideas right? But the machine learning community, which actually comprised both computer scientists and statisticians, was able to make great strides in predictive performance, and the application of machine learning in myriad domains continues to enable us to push the boundaries of what is possible. Statistical analysis wasn't going to provide ChatGPT or self-driving cars, but it remains vitally important whenever we need to understand the uncertainty of our predictions, or when we need to make inferences about the data world. A more general field of **data science** became the way people used statistics *and* machine learning to solve their data challenges. So the two fields are complementary and overlapping, and the best data scientists will be able to draw from both. In the end, use the best tool for the job, worry less about what it's called or whether it's the hot thing right now, and importantly, just have fun!
+When machine learning began to take off, it seemed many in the field of statistics sat on their laurels, and often scoffed at these techniques that didn't bother to test their assumptions[^riprip]! ML was, after all, mostly just a rehash of old ideas right? But the machine learning community, which actually comprised both computer scientists and statisticians, was able to make great strides in predictive performance, and the application of machine learning in myriad domains continues to enable us to push the boundaries of what is possible. Statistical analysis wasn't going to provide ChatGPT or self-driving cars, but it remains vitally important whenever we need to understand the uncertainty of our predictions, or when we need to make inferences about the data world. A more general field of **data science** became the way people used statistics *and* machine learning to solve their data challenges. So the two fields are complementary and overlapping, and the best data scientists will be able to draw from both. In the end, use the best tool for the job, worry less about what it's called or whether it's the hot thing, or has a cool label, and importantly, just have fun!
 
 
 [^riprip]: To paraphrase provocatively, 'machine learning is statistics minus any checking of models and assumptions'. Brian D. Ripley useR! 2004, Vienna (May 2004)  Want to know what's even crazier than that statement? It was said by the guy that literally [wrote the book on neural networks](https://www.cambridge.org/core/books/pattern-recognition-and-neural-networks/4E038249C9BAA06C8F4EE6F044D09C5C) before anyone was even using them in any practical way!  Also interesting to note is that techniques like random forests and others associated with machine learning actually came from established statisticians. In short, there never was a statistics vs. machine learning divide. Tools are tools, and the best data scientists will have many at their disposal for any project.
 
-MOVE TO APPENDIX
+MOVE TO APPENDIX OR Part 3
 
 ## Using R and Python in ML
 
@@ -1205,6 +1367,7 @@ In summary, Python is the best tool for ML, but you can use R for pretty much ev
 
 
 ## Where to go from here
+
 ### refs
 
 ESL for R/Python
