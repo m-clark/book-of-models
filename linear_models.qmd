@@ -41,7 +41,7 @@ Now that you have some idea of what you're getting into, it's time to dive in! W
 [^corbypeirce]: Peirce & Bowditch were well ahead of Pearson and Galton [@rovine2004peirce].
 
 
-### What is a Model?
+### What is a Model? {#sec-lm-what-is-a-model}
 
 At its core, a model is just an **idea**. It's a way of thinking about the world, about how things work, how things change over time, how things are different from each other, and how they are similar. The underlying thread is that **a model expresses relationships** about things in the world around us. One can also think of a **model as a tool**, one that allows us to take information, in the form of data, and act on it in some way. Just like other ideas (and tools), models have consequences in the real world, and they can be used wisely or foolishly.
 
@@ -96,11 +96,11 @@ Chapter goals:
 - Be able to understand the results of a model at a basic level
 - Get a sense of complexity and other issues
 
-### Why this matters
+### Why this matters {#sec-lm-why-this-matters}
 
 The basic linear model underpins so many models from the simplest t-test to the most complex neural network. It takes a bit to get used to the important aspects of it, but it provides a powerful foundation, and one that you'll see in many different contexts.  It's also a model that is relativley easy to understand, and it's one that you can use to understand other models.  So it's a great place to start!
 
-### Good to know
+### Good to know {#sec-lm-good-to-know}
 
 We're just starting out here, but we're kind of assuming you've had some exposure to modeling, even if only from an interpretation standpoint.  We assume you have understanding of basic stats like central tendency and correlation, stuff like that. And if you intend to get into the code examples, you'll need just a basic familiarity to with Python or R.
 
@@ -386,35 +386,36 @@ Not too complicated we hope!  But let's make sure we see what's going on here ju
 - We *map the feature to the target* via the linear model, which provides an initial understanding of how the feature is related to the target.  In this case, we start with a baseline of `r intercept`.  This value makes sense only in the case of a rating with no review, but we have reviews for every observation, so it's not very meaningful as is. We'll talk about ways to get a more meaningful intercept later, but for now, that is our starting point. Moving on, if we add a single word to the review, we expect the rating to go down by `r wc_coef` stars.  So if we had a review that was `r n_words` words long, i.e., the mean word count, we would predict a rating of `r paste(intercept)` + `r glue("{n_words}*{wc_coef}")` = `r round(predict(model_reviews, newdata = data.frame(word_count = n_words)), 1)` stars.
 
 
-### Models as a Graph
+### Models as a Graph {#sec-lm-graph}
 
 We can also express the linear model as a graph, which can be a very useful way to think about models in a visual fashion, and as we see others, can help us literally see how different models relate to one another.  In the following, we have three features predicting a single target, so we have three nodes for the features, and a single node for the target. The feature nodes are combined into a linear combination, or, linear predictor, with each 'edge' signifying the connection, and labeled with the coefficient or weight.  This connection between our linear predictor and the ultimate target is direct, without any additional change. Later on, we'll see more about that, but for our standard linear model, we're all set.
 
-```{dot}
-//| echo: false
-//| cache: false
-//| label: fig-graph-lm
-//| fig-cap: Linear Model as a Graph
-//| fig-width: 4
-//| file: linear_models/misc/graphical_lm.dot
 
 
+```{r}
+#| echo: false
+#| label: fig-graph-lm
+#| fig-cap: Linear Model as a Graph
+g = DiagrammeR::grViz('img/graphical_lm.dot')
+
+g %>%
+    DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_svg("img/graphical_lm.svg")
 ```
 
 
-
+![A linear regression as a graphical model](img/graphical_lm.svg){width=50%}
 
 
 So at this point you have the basics of what a linear model is and how it works. But there is a lot more to it than that. Just getting the model is easy enough, but we need to be able to use it and understand the details better, so we'll get into that now!
 
 
 
-## What do we do with a model? 
+## What do we do with a model? {#sec-lm-what-do-we-do}
 
 
 Once we have a working model, there are two primary ways we can use it.  One way to use a model is to help us understand the relationships between the features and our outcome of interest. In this way the focus can be said to be on **explanation**, or interpreting the model results. The other way to use a model is to use it to make estimates about the outcome for specific observations, often ones we haven't seen in our data. In this way the focus is on **prediction**. In practice, we often do both, but the focus is usually on one or the other. We'll cover both in detail here, starting with prediction.
 
-### Prediction
+### Prediction {#sec-lm-prediction}
 
 It may not seem like much at first, but a model is of no use if it can't be used to make predictions about what we can expect in the world around us. Once our model has been *fit* to the data, we can obtain our predictions by plugging in values for the features that we are interested in, and, using the corresponding weights and other parameters that have been estimated, come to a guess about a specific observation. Let's go back to our results, starting with a simpler depiction.
 
@@ -449,7 +450,7 @@ $$
 The error term is a random variable that represents the difference between the actual value and the predicted value.  We can't know what the error term is, but we can estimate it.  We'll talk more about that in the section on [estimation][#estimation].
 
 
-### What kinds of predictions can we get?
+### What kinds of predictions can we get? {#sec-lm-prediction-types}
 
 What predictions we get depends on the type of model we are using.  For the linear model, we can get predictions for the target, which is a **continuous variable**.  Very commonly, we also can get predictions for a **categorical target**, such as whether the rating is 'good' or 'bad'. This simple breakdown pretty much covers everything, as we typically would be predicting a continuous variable or a categorical variable, or more of them, like multiple continuous variables, or a target with multiple categories, or sequences of categories (e.g. words). In our case, we can get predictions for the rating, which is a number between 1 and 5. Had our target been a binary good vs. bad rating, our predictions would still be numeric, and usually expressed as a probability between 0 and 1. We then would convert that probability to a class of good or bad depending on a chosen probability cutoff. We'll talk about how to get predictions for categorical targets later.
 
@@ -524,7 +525,7 @@ tibble(
 The values reflect the `r word_sign(wc_coef, c('positive', 'negative'))` coefficient from our model, reflecting a `r word_sign(wc_coef, c('increasing', 'decreasing'))` relationship. Further more, we see the power of the model's ability to make predictions for what we can't see. Maybe we limited our data review size, but we know there are 50 word reviews out there, and we can still make a guess as to what the rating would be for such a review.  Maybe in another case, we know a group of people who have on average 12.3 word reviews, and we can make a guess as to what the average rating would be for that group. Our model doesn't know anything about the context of the data, but we can use our knowledge to make predictions about the world around us. This is a very powerful capability, and it's one of the main reasons we use models in the first place.  
 
 
-### Prediction Error
+### Prediction Error {#sec-lm-prediction-error}
 
 As we have seen, predictions are not perfect, and an essential part of the modeling endeavor is to better understand these errors and why they occur. In addition, error assessment is the fundamental way in which we assess a model's performance, and, by extension, compare that performance to other models. In general, prediction error is the difference between the actual value and the predicted value or some function of it, and in statistical models, is also often called the **residual**.  We can look at these individually, or we can look at them in aggregate with a single metric.
 
@@ -630,11 +631,11 @@ np.sqrt(model_reviews.scale)   # RMSE
 At this point you have the gist of prediction and prediction error, but there is a lot more to it. More detail can be found in the [estimation chapter](#estimation), since we often estimate the parameters of our model by picking those that will reduce the prediction error the most.    For now, let's move on to the other main use of models, which is to help us understand the relationships between the features and the target, or **explanation**.
 
 
-## How do we interpret the model?
+## How do we interpret the model? {#sec-lm-interpretation}
 
 When it comes to interpreting the results of our model, there are a lot of tools at our disposal, though many of the tools we can ultimately use depend on the specifics of the model we have employed. In general though, we can group our understanding approach to that of the **feature level** and the **model level**. A feature level understanding regards the relationship between a single feature and the target. Beyond that, we also attempt comparisons of feature contributions to prediction, i.e. relative importance. Model level interpretation is focused on assessments of how well the model 'fits' the data, or more generally, predictive performance. We'll start with the feature level, and then move on to the model level.
 
-### Feature Level 
+### Feature Level {#sec-lm-interpretation-feature}
 
 As mentioned, at the feature level, we are primarily concerned with the relationship between a single feature and the target. More specifically, we are interested in the direction and magnitude of the relationship, but in general, it all boils down to how a feature induces change in the target. For numeric features, we are curious about the change in the target given some amount of change in the feature. For categorical features it's the same, but often we like to express the change in terms of group mean differences or something similar, since the order of categories is not usually meaningful.  Key to the feature level interpretation is the specific predictions made at key feature values.
 
@@ -689,7 +690,7 @@ Aside from the coefficients, the most important output is the **confidence inter
 Keep in mind that your model has a lot to say about what you'll be able to say at the feature level. As an example, as we get into machine learning models, you won't have as easy a time with coefficients and their confidence intervals. For now we'll stop here, but there is a lot more to the story when it comes to feature level interpretation, and we'll continue to return to the topic. But first, let's take a look at interpreting things in another way.
 
 
-### Is it a Good Model?
+### Is it a Good Model? {#sec-lm-interpretation-model}
 
 ```{r}
 #| echo: false
@@ -771,7 +772,7 @@ The one on the left is using the raw target and predictions- very stripey! The r
 
 
 
-#### Model Metrics
+#### Model Metrics {#sec-lm-interpretation-model-metrics}
 
 We've already discussed mean-squared error[^msermse], but there are other metrics we can use to assess **model fit**. As we noted, (R)MSE is a very popular measure for continuous targets, telling us the standard deviation of errors, or how much they bounce around on average. In our case, the value was `r rmse`.  Another metric we can use in this particular situation is the mean absolute error, which is similar to the mean squared error, but instead of squaring the errors, we just take the absolute value. Conceptually it attempts to get at the same idea, how much our predictions miss on average, and here the value is `r mae`, which we actually showed in our initial residual plot \@fig-residuals-plot. With either metric, the closer to zero the better, since as we get closer, we are reducing error.
 
@@ -783,7 +784,7 @@ Note also, that with R^2^ we get a sense of the variance shared between *all* fe
 
 
 
-### Prediction vs. Explanation
+### Prediction vs. Explanation {#sec-lm-prediction-vs-explanation}
 
 In your humble authors' views, one can't stress enough the importance of a model's ability to predict the target. It can be a poor model, maybe because the data is not great, or we're exploring a new area, but we'll always be interested in how well a model **fits** the observed data, and predicts new data.
 
@@ -805,14 +806,12 @@ In the end we'll need to balance our efforts to suit the task at hand. Predictio
 
 
 
-## Adding Complexity
+## Adding Complexity {#sec-lm-complexity}
 
 We've seen how to fit a model with a single feature and interpret the results, and that helps us to get oriented to the process. However, we'll always have more than one feature for a model except under some very specific circumstances, such as exploratory data analysis. So let's see how we can do that with a model that makes more sense. 
 
 
-
-
-### Multiple Features
+### Multiple Features {#sec-lm-multiple-features}
 
 We can add more features to our model very simply. Using the standard functions we've already demonstrated, we just add them to the formula (both R and statsmodels) as follows.
 
@@ -822,7 +821,7 @@ We can add more features to our model very simply. Using the standard functions 
 'y ~ feature_1 + feature_2 + feature_3'
 ```
 
-In other cases, additional features will just be the additional input columns. We might have a lot of features, and even for linear models this could be dozens in some scenarios. A compact depiction of our model uses the matrix representation, which we'll show in the callout below, and you can find more detail in the [matrix section](#matrix) overview. For our purposes, all you really need to know is that this:
+In other cases, additional features will just be the additional input columns. We might have a lot of features, and even for linear models this could be dozens in some scenarios. A compact depiction of our model uses the matrix representation, which we'll show in the callout below, and you can find more detail in the matrix section @sec-matrix-operations overview. For our purposes, all you really need to know is that this:
 
 $$
 y = X\beta\qquad  \textrm{or}\qquad y = \alpha + X\beta
@@ -842,7 +841,7 @@ where $X$ is a matrix of features[^interceptones], and $\beta$ is a vector of co
 
 
 ::: {.callout-note collapse="true" appearance="minimal"}
-## Matrix Representation of a Linear Model
+**Matrix Representation of a Linear Model**
 
 Here we'll show the matrix representation form of the linear model, for the typical case where we have more than one feature in the model. In the following, y is a vector of all target observations, and likewise each x is a (row) vector of all observations for that feature.  The b vector is the vector of coefficients.  The 1 serves as a means to incorporate the intercept. It's just a feature that always has a value of 1.  The matrix multiplication is just a compact way of expressing the sum of the features multiplied by their coefficients.  We can even do it more
 
@@ -1013,7 +1012,7 @@ model_reviews_extra.predict(predict_observation)
 
 :::
 
-In our example we're just getting a single prediction, but don't let that hold you back! You can predict an entire data set if you want, and use any values for the features you want.  We'll do this explicitly in the [machine learning chapter](#machine-learning), but for now, try getting a prediction for a different set of values.
+In our example we're just getting a single prediction, but don't let that hold you back! You can predict an entire data set if you want, and use any values for the features you want.  We'll do this explicitly later on, but for now, try getting a prediction for a different set of values.
 
 
 [^controllingfor]: A lot of statisticians and causal modeling folks get very hung up on the terminology here, but we'll leave that to them as we'd like to get on with things. For our purposes, we'll just say that we're interested in the effect of a feature *after* we've accounted for the other features in the model. 
@@ -1021,9 +1020,9 @@ In our example we're just getting a single prediction, but don't let that hold y
 
 
 
-### More Interpretation Tools
+### More Interpretation Tools {#sec-lm-more-interpretation}
 
-#### SHAP Values
+#### SHAP Values {#sec-lm-shap-values}
 
 Some models are more complicated than can be explained by a simple coefficient, e.g. nonlinear effects in generalized additive models, or may not even have feature-specific coefficients, like gradient boosting models, or may have many parameters associated with a feature, as in deep learning. Such models typically won't come with statistical output like standard errors and confidence intervals either. But we'll still have some tricks up our sleeve to help us figure things out!
 
@@ -1136,6 +1135,7 @@ shap_value = shap_values_linear.values[0, 0]
 ```{r}
 #| echo: false
 #| label: tbl-shap-values-comparison
+#| tbl-cap: SHAP Value Comparison
 tibble(
     ours = shap_value,
     dalex = as_tibble(shap_value_package['word_count', ])[["contribution"]]
@@ -1324,7 +1324,7 @@ map2_df(
 ```
 
 
-### Feature Importance
+### Feature Importance {#sec-lm-feature-importance}
 
 
 How important is a feature? It's a common question, and one that is often asked of models, but the answer ranges from 'it depends' and 'it doesn't matter'. Let's start with some hard facts:
@@ -1338,8 +1338,6 @@ How important is a feature? It's a common question, and one that is often asked 
 - Relative to... what? A poor model will still have relatively 'important' features, but they may not be useful.
 - It rarely makes sense to drop features based on importance alone, and will typically drop performance to do so.
 - In the end, what will you do with the information? 
-
-
 
 To show just how difficult measuring feature importance is, we only have to stick with our simple linear regression. Think again about R^2^: it tells us the proportion of the target explained by our features. An ideal measure of importance would be able to tell us how much each feature contributes to that proportion, or in other words, decomposes R^2^ into the relative contributions of each feature. One of the most common measures of importance in linear models is the standardized coefficient we demonstrated earlier. You know what it doesn't do? Decompose R^2^. The easiest situation we could hope for with regard to feature importance is the basic linear model we've been using.  Everything is linear, with no interactions, or other things going on. And yet there are many logical ways to determine feature importance, and some even break down R^2^, but they won't necessarily agree with each other in ranking or relative differences. If you can get a measure of statistical difference between whatever metric you choose, it's often the case that 'top' features will not be statistically different from other features.  So what do we do? We'll show a few methods here, but the main point is that there is no single answer, and it's important to understand what you're trying to do with the information.
 
@@ -1480,7 +1478,7 @@ ggsave("img/fig-rsq-decomp.png", width = 8, height = 6)
 
 
 
-### Model Level Interpretation
+### Model Level Interpretation {#sec-lm-model-level}
 
 As before we can move beyond feature level interpretation, but we are still going to be concerned with the same sorts of questions - how well does the model fit? Have we impoved the fit significantly? What do our predictions look like, and so on.
 
@@ -1491,9 +1489,9 @@ Part of the output contains an 'adjusted' R^2^.  This is a version of R^2^ that 
 :::
 
 
-### Other Complexity
+### Other Complexity {#sec-lm-other-complexity}
 
-#### Categorical Features
+#### Categorical Features {#sec-lm-categorical-features}
 
 Categorical features can be added to a model just like any other feature.  The main issue is that they have to be represented numerically, because models only work on numerically coded features and targets. The simplest and most common encoding is called a **one-hot encoding** scheme, which creates a new feature for each category, and assigns a 1 if the observation is in that category, and a 0 otherwise. This is also called a **dummy coding** when used for statistical models. Here is an example of what the coding looks like for the season feature. This is really all there is to it.
 
@@ -1596,14 +1594,14 @@ broom::tidy(init) |>
 
 
 
-#### Interactions (a preview)
+#### Interactions {#sec-lm-interactions}
 
-We'll demonstrate this more in the [extensions chapter](#extensions), but a common way to add complexity in linear models is through interactions.  This is where we allow the effect of a feature to vary depending on the values of another feature, or even itself! As a conceptual example, we might expect that the effect of the number of children in the home on rating is different for movies from different genres (much higher for kids movies, maybe lower for horror movies), or that genre and season work together in some way to affect rating (e.g. action movies get higher ratings in summer).  We might also consider that the length of a movie might plateau or even have a negative effect on rating after a certain point, i.e. having a curvilinear effect. All of these are types of interactions we can explore. Interactions allow us to incorporate nonlinear relationships into the model, and so greatly extend the linear model's capabilities - we basically get to use a linear model in a nonlinear way!  
+We'll talk about this more in the other sections, but a common way to add complexity in linear models is through interactions. This is where we allow the effect of a feature to vary depending on the values of another feature, or even itself! As a conceptual example, we might expect that the effect of the number of children in the home on rating is different for movies from different genres (much higher for kids movies, maybe lower for horror movies), or that genre and season work together in some way to affect rating (e.g. action movies get higher ratings in summer).  We might also consider that the length of a movie might plateau or even have a negative effect on rating after a certain point, i.e. having a curvilinear effect. All of these are types of interactions we can explore. Interactions allow us to incorporate nonlinear relationships into the model, and so greatly extend the linear model's capabilities - we basically get to use a linear model in a nonlinear way!  
+
+NEED DEMO SINCE DIDNT MAKE IT TO OTHER CHAPTER
 
 
-
-
-## Assumptions and More
+## Assumptions and More {#sec-lm-assumptions}
 
 MOVE BULK OF THIS TO MODEL CRITICISM??
 
@@ -1640,7 +1638,7 @@ If you do meet those assumptions, your coefficient estimates are unbiased[^unbia
 
 On top of not meeting the assumptions, we may in fact introduce bias to get better prediction!  For example, we might use a **penalized regression** model to reduce the variance in our predictions, at the cost of introducing bias in the coefficients. We'll talk more of this in the [machine learning](#machine-learning) chapter, but suffice it to say for now, if you are more interested in prediction, you may be less interested in the statistical assumptions of the basic linear model.
 
-### More Complex Models
+### More Complex Models {#sec-lm-more-complex}
 
 Let's say your running some XGBoost or Deep Linear Model X and getting outsanding predictions. Assumption smumptions you say! And you might even be right! But if you want to talk confidently about feature contributions, or know something about the uncertainty in the predictions (which you're assessing right?) well, maybe you might want to know if you're meeting your assumptions. Some of them are:
 
@@ -1667,7 +1665,7 @@ Model criticism and diagnostics, but briefly note something here.
  performance::check_model(model_reviews_extra) 
 --->
 
-## Classification
+## Classification {#sec-lm-classification}
 
 We've been using a continuous target, but what about a categorical target? For example, what if we just had a binary target of whether a movie was good or bad? We will dive much more into classification models in our upcoming chapters, but it turns out that we can still formulate it as a linear model problem. The main difference is that we use a transformation of our linear combination, sometimes called a **link function**, and we'll need to use a different **objective function** rather than least squares, such as the binomial likelihood, to deal with the binary target. This also means we'll move away from R^2^ as a measure of model fit, and look at something something else, like accuracy. 
 
@@ -1675,30 +1673,23 @@ Graphically we can see it in the following way, which when compared with our lin
 
 [^revlogit]: The sigmoid function in this case is the inverse logistic function, and the resulting statistical model is called logistic regression. In other contexts the model would not be a logistic regression, but this is still a very commmonly used *activation function*. But many others could potentially be used e.g. using a normal instead of logistic distribution, resulting in the so-called probit model. 
 
+```{r}
+#| echo: false
+#| label: fig-graph-logreg
+#| fig-cap: Linear Model as a Graph
+g = DiagrammeR::grViz('img/graphical_logistic.dot')
 
-```{mermaid}
-%%| echo: false
-%%| eval: true
-%%| fig-cap: Linear Model with Transformation
-
-graph LR
-    n1((X<sub>1</sub>)) --> |b<sub>1</sub>| n4((µ))
-    n2((X<sub>2</sub>)) --> |b<sub>2</sub>| n4((µ))
-    n3((X<sub>3</sub>)) --> |b<sub>3</sub>| n4((µ))
-
-
-    n4 --> n5(("σ(µ)"))
-    n5 --> n6((Y))
-
-    style n1 fill:#f9f,stroke:#333,stroke-width:4px
-    %% style e3 font-size:50%
-
+g %>%
+    DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_svg("img/graphical_logistic.svg")
 ```
+
+
+![A Linear Model with Transformation Can Be a Logistic Regression](img/graphical_logistic.svg){width=75%}
 
 As soon as we move away from the standard linear model and use transformations of our linear predictor, simple coefficient interpretation becomes difficult, sometimes exceedingly so. What will help 
 
 
-## More linear models
+## More linear models {#sec-lm-more}
 
 Before we leave our humble linear model, let's look at some others
 
@@ -1736,7 +1727,7 @@ What about nonlinear models?
 
 
 
-## Commentary
+## Commentary {#sec-lm-commentary}
 
 Linear models are a very popular tool for data analysis, and for good reason.  They are relatively easy to understand, and they are very flexible.  They can be used for prediction, explanation, and inference, and they can be used for a wide variety of data types.  They are also very easy to interpret, and there are many tools at our disposal to help us understand them.  But they are not without their limitations, and we'll discuss some of those here.
 
@@ -1744,19 +1735,35 @@ Linear models are a very popular tool for data analysis, and for good reason.  T
 - Limitations/Failure points
 - Summary
 
-### Choose your own adventure
+### Choose your own adventure {#sec-lm-adventure}
 
 Now that you've got the basics, where do you want to go?
 
-- If you want a deeper dive into how we get the results from our model: head [Estimation](#estimation)
-- If you want to know more about how to understand the model: head to  [Model Criticism](#model-criticism)
-- If you want to do some more modeling: go to [Extensions](#extensions) or [Machine Learning](#machine-learning)
-- Got more data questions? Go to the [Data chapter](#data)
+- If you want a deeper dive into how we get the results from our model: head to @sec-estimation
+- If you want to know more about how to understand the model: @sec-knowing
+- If you want to do some more modeling: @sec-glm, @sec-lm-extend or @sec-ml-core-concepts
+- Got more data questions? Go to the @sec-data
 
+If you are interested in a deeper dive into the theory and assumptions behind linear models, you can check out more statistical/econometric treatments such as:
 
-## Exercise
+- @gelman_regression_2020
+- @gelman_what_2013
+- @harrell_regression_2015
+- @fahrmeir_regression_2013
+- @faraway_linear_2014
+- @wooldridge_introductory_2012
+- @greene_econometric_2017
+- @grolemund_welcome_2023
+- @kuhn_tidy_2023
 
-- Import X Data. Stick with the current data if you want, just try out other features, or maybe try the world happiness data 2018 data . You can find details about it in the appendix  ADD LINK.
+But there are many, many books on statistical analysis, linear models, and linear regression specifically. There are those that show nothing but applied results, and those that are very theoretical. They get more mathy and theoretical as you go back in time, to mostly applied treatments today. You will likely need to do a lot of perusing to find one you like best.
+
+## Exercise {#sec-lm-exercise}
+
+- Import some data. Stick with the current data if you want and just try out other features, or maybe try the world happiness data 2018 data. You can find details about it in the appendix @sec-data-descript.
+
+TODO: ADD LINK
+
 - Fit a linear model, try to keep it to no more than three features.
 - Get all the predictions for the data, and try at least
 - Interpret the coefficients
@@ -1772,17 +1779,5 @@ happy |>
     select(-(democratic_quality:gini_index_world_bank_estimate)) |> 
     drop_na() |> 
     write_csv('data/world_happiness_2018.csv')
-
-
 ```
 
-
- # refs to add
-
-Statistical modeling rigorous:
-Econometrics books like Wooldrigde, Greene, etc.
-
-Basic DS?
-
-Assumptions:
-https://statmodeling.stat.columbia.edu/2013/08/04/19470/
