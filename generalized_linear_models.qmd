@@ -77,11 +77,11 @@ library(ggplot2)
 
 library(dplyr)
 
-binom.25 <- dbinom(1:100, size = 100, prob = .25)
+binom.25 = dbinom(1:100, size = 100, prob = .25)
 
-binom.5 <- dbinom(1:100, size = 100, prob = .5)
+binom.5 = dbinom(1:100, size = 100, prob = .5)
 
-binom.75 <- dbinom(1:100, size = 100 , prob = .75)
+binom.75 = dbinom(1:100, size = 100 , prob = .75)
 
 as.data.frame(rbind(binom.25, binom.5, binom.75)) %>% 
   mutate(prob = row.names(.)) %>% 
@@ -133,7 +133,7 @@ Probability lies at the heart of all of this.  We can look at the relationship b
 
 ```{r}
 #| echo: false
-probability <- seq(.0001, .9999, by = .01)
+probability = seq(.0001, .9999, by = .01)
 ```
 
 With that list of probability values, we can convert them to odds with $\\p\, / 1 - p$. 
@@ -143,12 +143,12 @@ With that list of probability values, we can convert them to odds with $\\p\, / 
 #| label: fig-odds-log-odds
 #| fig-cap: "Log odds and odds values for a range of probabilities"
 
-oddsConversion <- function(p) {
+oddsConversion = function(p) {
   res = p / (1 - p)
   return(res)
 }
 
-odds <- oddsConversion(probability)
+odds = oddsConversion(probability)
 
 ggplot(
   data.frame(log_odds = log(odds), odds = odds),
@@ -189,19 +189,19 @@ We are going to return to our movie reviews data and we are going to use `rating
 ##### R
 
 ```{r}
-reviews <- read.csv("data/movie_reviews_processed.csv")
+reviews = read.csv("data/movie_reviews_processed.csv")
 ```
 
 ```{r}
-X <- reviews[, c("word_count", "gender")]
+X = reviews[, c("word_count", "gender")]
 
 X = cbind(1, X)
 
-X$gender <- ifelse(X$gender == "male", 1, 0)
+X$gender = ifelse(X$gender == "male", 1, 0)
 
-X <- as.matrix(X)
+X = as.matrix(X)
 
-y <- reviews$rating_good
+y = reviews$rating_good
 ```
 
 ##### Python
@@ -230,7 +230,7 @@ To get started with our first logistic regression model, let's use the `glm` fun
 ##### R
 
 ```{r}
-model_logistic <- glm(
+model_logistic = glm(
     rating_good ~ word_count + gender, 
     data = reviews,
     family = binomial
@@ -279,12 +279,14 @@ We would say that our probability of moving from a "bad" review to a "good" revi
 
 And visualizing those probabilities is absolutely the best way to see how the features influence the target:
 
+TODO: Use output to make a better visual
+
 ```{r}
 #| echo: false
 #| label: fig-logistic-regression-count
 #| fig-cap: "Logistic regression predictions for word count feature"
 library(sjPlot)
-
+# this apparently can randomly fail sometimes on updates and it's not clear why
 plot_model(
   model_logistic, 
   type   = "pred", 
@@ -328,7 +330,7 @@ Let's see how we can pick that work apart to create our own functions. We can us
 ##### R
 
 ```{r}
-logreg_ml <- function(par, X, y) {
+logreg_ml = function(par, X, y) {
   beta = par
   N = nrow(X)
   LP = X %*% beta                           
@@ -462,7 +464,7 @@ Let's make a new variable that will count the number of times a person uses a pe
 ##### R
 
 ```{r}
-reviews$poss_pronoun <- stringr::str_count(
+reviews$poss_pronoun = stringr::str_count(
   reviews$review_text, 
   "\\bI\\b|\\bme\\b|\\b[Mm]y\\b|\\bmine\\b|\\bmyself\\b"
 )
@@ -486,7 +488,7 @@ Let's think long and hard about our target variable and what it actually might b
 #| echo: false
 library(vcd)
 
-poissonTest <- goodfit(reviews$poss_pronoun, type = "poisson")
+poissonTest = goodfit(reviews$poss_pronoun, type = "poisson")
 
 summary(poissonTest)
 ```
@@ -519,7 +521,7 @@ Using the log link keeps the outcome positive (we cannot deal with negative coun
 ##### R
 
 ```{r}
-model_poisson <- glm(
+model_poisson = glm(
   poss_pronoun ~ word_count,
   data = reviews,
   family = poisson
@@ -556,7 +558,7 @@ We are going to interpret this almost the same as a linear regression. The sligh
 #| echo: false
 #| label: fig-poisson-regression
 #| fig-cap: "Poisson regression predictions for word count feature"
-reviews$pred_values <- predict(poissonTest, type = "response")
+reviews$pred_values = predict(poissonTest, type = "response")
 
 sjPlot::plot_model(
   model_poisson, 
@@ -588,10 +590,10 @@ TODO: Need some text here
 ##### R
 
 ```{r}
-pois_ll <- function(y, X, par) {
-  beta <- par
-  lambda <- exp(beta%*%t(X))
-  loglik <- -sum(dpois(y, lambda, log = TRUE))
+pois_ll = function(y, X, par) {
+  beta = par
+  lambda = exp(beta%*%t(X))
+  loglik = -sum(dpois(y, lambda, log = TRUE))
   return(loglik)
 }
 ```
@@ -617,12 +619,12 @@ def pois_ll(par, X, y):
 ##### R
 
 ```{r}
-form <- as.formula("poss_pronoun ~ word_count")
-model <- model.frame(form, data = reviews)
-X <- model.matrix(form, data = reviews)
-y <- model.response(model)
+form = as.formula("poss_pronoun ~ word_count")
+model = model.frame(form, data = reviews)
+X = model.matrix(form, data = reviews)
+y = model.response(model)
 
-starts <- c(0, 0)
+starts = c(0, 0)
 
 fit = optim(
   par = starts ,
@@ -667,7 +669,7 @@ These are just two of the many models that fall under the broad umbrella of gene
 #| echo: false
 #| label: tbl-glm-models
 #| tbl-cap: "Targets and distributions for generalized linear models"
-model_df <- data.frame(
+model_df = data.frame(
   Target = c(
     "Proportions", "Exponential response", "3+ categories", "Count"
   ), 
@@ -684,4 +686,4 @@ That is, however, just a tiny slice of the potential distributions that you migh
 
 ## Additional Resources {#sec-glm-resources}
 
-In any given graduate coursework, you might find a whole semester dedicated to GLMs. We've only scratched the surface here, but there are some great resources out there to help you dig deeper. If you are itching for a text book, there isn't any shortage of them out there and you can essentially take your pick. If you are looking for something a bit more applied, you might want to check out Roback and Legler's *Beyond Multiple Linear Regression*, available for free at [https://bookdown.org/roback/bookdown-BeyondMLR/](https://bookdown.org/roback/bookdown-BeyondMLR/)
+In any given graduate coursework, you might find a whole semester dedicated to GLMs. We've only scratched the surface here, but there are some great resources out there to help you dig deeper. If you are itching for a text book, there isn't any shortage of them out there and you can essentially take your pick. If you are looking for something a bit more applied to get you going, you might want to check out Roback and Legler's *Beyond Multiple Linear Regression*, available for free at [https://bookdown.org/roback/bookdown-BeyondMLR/](https://bookdown.org/roback/bookdown-BeyondMLR/).
