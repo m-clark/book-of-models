@@ -391,16 +391,18 @@ minimize(
 
 :::
 
-## Additive Models
+## Additive Models {#sec-gam}
 
 > Wiggle, wiggle, wiggle, yeah!
 > -- LMFAO
 
-### Why Should You Care?
+TODO: GAM gets a bit deep, but we do want to keep discussion of penalized appoach, and ultimately a word on the random effect connection.
+
+### Why Should You Care? {#sec-gam-why}
 
 Not every relationship is linear and not every relationship is monotonic. Sometimes, you need to be able to model a relationship that has a fair amount of nonlinearity -- they can appear as slight curves, waves, and any other type of wiggle that you can imagine. Additive models will give you the ability to model those nonlinear relationships between your features and target.
 
-### When Straight Lines Aren't Enough
+### When Straight Lines Aren't Enough {#sec-gam-curve}
 
 Fitting a line through your data is always going to be useful, regardless of whether you are using the median or the mean. Those lines give us a wonderful ability to say important things about the relationships between variables and how one variable might influence another. What if we just want to dispense with the notion that we need to fit a straight line through some mass of the data? What if we relax the idea that we need a straight line and think in terms of fitting something curvy through the data.
 
@@ -415,7 +417,9 @@ ggplot(reviews, aes(total_reviews, rating)) +
   theme_minimal()
 ```
 
-To the curve seen in @fig-gam_model_line:
+TODO: there is actually a poly effect for length in minutes, but it may not
+
+To the curve seen here:
   
 ```{r, gam_model_line}
 #| echo: false
@@ -434,15 +438,22 @@ $$
 y = f(x) + \epsilon
 $$
 
-These additive features have no concern about linearity with the outcome and will capture nonlinearities in our data very nicely. At this point, you might be asking yourself, "Couldn't I just use some type of polynomial regression or even a nonlinear regression?" Of course you could, but both have pretty serious limitations. The typical polynomial regression likely doesn't fit beyond the data that you currently have and **you** are forcing curves to fit through the data. To use a nonlinear model, you need to know what the underlying nonlinear form actually looks like before you can even specify the model. A GAM will do away with both of these issues; it will produce a curve that will best fit through the data, without the need to know the underlying linear form. 
+This isn't much different than before, and technically, it really isn't. It's the same linear combination of features we have with a basic linear model. The difference is that we are going to let $f(x)$ be a function of $x$ that allows us to capture other types of relationships by expanding the feature $x$ in different ways, some that can be complex, but on the practical side are just extra columns in the **model matrix**. If you are familiar with polynomial regression, you can think of this as a generalization of that approach, but which is identical in spirit[^polyspline].
 
-### Standard Functions
+[^polyspline]: If we penalized the coefficients of the polynomial regression, we would have a penalized spline. It's not used that much in GAMs these days, but there's nothing wrong with doing so. See @sec-estimation-penalty for more information on penalized regression.
 
-Now that you have some background, let's use the `mgcv` package in R and the `pygam` package in Python to fit a GAM.
+These additive features will allow us to capture nonlinearities in our data very nicely. At this point, you might be asking yourself, "Why couldn't I just use some type of polynomial regression or even a nonlinear regression?". Of course you could, but both have limitations. The typical polynomial regression tends to overfit the data you currently have, and **you** are forcing curves to fit through the data. To use a nonlinear model, you need to know what the underlying nonlinear form actually looks like before you can even specify the model, and without extra steps, will also tend to overfit. A GAM handles this situation a little better in that it will produce a curve that will best fit through the data, without the need to know the underlying functional form. 
+
+### Standard Functions {#sec-gam-standard}
+
+Now that you have some background, let's . In most respects, we can use the same sort of approach as we did with our other model examples.
 
 :::{.panel-tabset}
 
 ##### R
+
+We'll use the very powerful `mgcv` package in R. The `s` function will allow us to use a spline approach to capture the nonlinearity.
+
 ```{r, r_gam_demo}
 #| echo: true
 #| label: r_gam_demo
@@ -455,6 +466,8 @@ summary(gam_model)
 
 ##### Python
 
+We use the `pygam` package in Python to fit a GAM. It's very much in the spirit of R's `mgcv`. The `s` function will allow us to use a spline approach to capture the nonlinearity.
+
 ```{python, python_gam_demo}  
 #| echo: true
 #| label: python_gam_demo
@@ -463,23 +476,77 @@ from pygam import LinearGAM, s
 
 y = reviews['rating']
 
-X = pd.DataFrame(
-  {'intercept': 1, 
-  'total_reviews': reviews['total_reviews']}
-)
+X = pd.DataFrame({'total_reviews_sc': reviews['total_reviews_sc']})
 
-gam_model = LinearGAM(s(0)).fit(X, y)
+gam_model = LinearGAM(s(0, n_splines=10)).fit(X, y)
 
 gam_model.summary()
 ```
 
 :::
 
-For the results of our gam model, one of the best places to look first is the `edf` column. The `edf` column is the *effective degrees of freedom*. You can think of `edf` as a measure of wiggle in the relationship between the predictor and the target. The higher the `edf`, the more wiggle you have. If you have a value close to 1, then you have a linear relationship. With an `edf` of 8.672, we can be pretty confident that a nonlinear relationship gives a better idea about the relationship between `total_reviews` and `rating` than a linear relationship.
+For the results of our gam model, one of the best places to look first is the `edf`/`EDoF` column. This column indicates the *effective degrees of freedom*. You can think of it as a measure of wiggle in the relationship between the predictor and the target. The higher the value, the more wiggle you have. If you have a value close to 1, then you have a linear relationship. With our current result, we can be pretty confident that a nonlinear relationship gives a better idea about the relationship between `total_reviews` and `rating` than a linear relationship.
 
-We also get information about our Adjusted $R^2$ (**R-sq.(adj)**) and **Deviance explained**, which is an analog to the unadjusted $R^2$ value for a Gaussian model. We also have **GCV** -- the generalized cross validation score. It is an estimate of the mean square prediction error based on a leave-one-out cross validation estimation process. Naturally, the lower the GCV, the better the model.
+Depending on the tool we used, we may also get information about our Adjusted $R^2$ (**R-sq.(adj)**) and **Deviance explained**, which is an analog to the unadjusted $R^2$ value for a Gaussian model. We also have **GCV** -- the generalized cross validation score. It is an estimate of the mean square prediction error based on a leave-one-out cross validation estimation process. Naturally, the lower the GCV, the better the model.
 
-### Splines
+TODO: NEED VISUAL
+
+Beyond this the real approach to interpretation is in the visualization. We can use the `plot` function to get a sense of the relationship between our features and target. 
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| eval: false
+#| label: r_gam_plot
+
+plot(gam_model, se = TRUE)
+```
+
+##### Python
+
+```{python}
+#| eval: false
+#| label: python_gam_plot
+
+from pygam.utils import generate_X_grid
+import matplotlib.pyplot as plt
+
+X_grid = generate_X_grid(gam_model)
+
+plt.plot(X_grid, gam_model.predict(X_grid), color = "#00AAFF")
+plt.plot(X_grid, gam_model.prediction_intervals(X_grid), color = "#00AAFF", ls = '--')
+plt.scatter(X, y, alpha = .5)
+```
+
+:::
+
+
+Unfortunately the default package plots are not pretty, and sadly aren't provided in the same way we'd expect for interpretation. But they're fine for looking at your wiggly result. But we provide a better looking one[^gamplot]. The main interpretation is that we're mostly flat for total reviews less than the mean. At that point we get more of a positive linear effect, followed by a bit of a mixed bag for moviews with lots of total reviews.
+
+[^gamplot]: We used the `see` in R for a quick plot. We also recommend its functionality via the `gratia` package to visualize the derivatives, which will show more of where the effect is changing most.
+
+```{r}
+#| echo: false
+#| label: fig-gam_plot
+#| fig-cap: Visualizing a GAM
+
+library(see)
+
+plot(modelbased::estimate_relation(gam_model, length = 100))# +
+  # geom_vline(xintercept = 0) + 
+  # geom_vline(xintercept = 1)  
+
+# deriv  modelbased::estimate_slopes(gam_model,  length = 10)
+# plot(deriv)
+# gratia::draw(gratia::derivatives(gam_model)) +
+#   geom_hline(yintercept = 0) 
+```
+
+TODO: Move to estimation, but may need to nix for pdf brevity, and needs some work to fit well.
+
+### Splines {#sec-gam-splines}
 
 Now that you've gotten a taste of a standard way of specifying a GAM, let's roll our own. We are going to need to generate several functions to make this work. The first will be to produce the *cubic spline*. Do take note that there are many different types of splines that could be used.
 
@@ -510,7 +577,7 @@ def cubic_spline(x,z):
 
 :::
 
-### Model Matrix Function
+### Model Matrix Function {#sec-gam-model-matrix}
 
 Then we a function to produce the model matrix:
 
@@ -553,7 +620,7 @@ This model matrix will help us to produce an *unpenalized spline*.
 
 
 
-### Model Matrix
+### Model Matrix {#sec-gam-model-matrix}
 
 We can create a model with 4 knots -- you can think of knots as places where individual regression lines will get joined together. You can always experiment with more or less knots. Once we have our knots ready, we can create the model matrix.
 
@@ -574,7 +641,7 @@ knots = 1:4/5
 #| label: r_model_matrix_spline
 rating = reviews$rating
 
-x = reviews$total_reviews
+x = reviews$total_reviews_sc
 
 X = splX(x, knots)            
 ```
@@ -598,7 +665,7 @@ knots = np.arange(1, 5) / 5
 #| echo: true
 #| label: python_model_matrix_spline
 
-x = reviews['total_reviews']
+x = reviews['total_reviews_sc']
 
 rating = reviews['rating']
 
@@ -614,7 +681,7 @@ X[:5,:]
 
 :::
 
-### Model Fitting
+### Model Fitting {#sec-gam-model-fitting}
 
 Now that we have a model matrix, `X`, we can fit the model. All of the hardwork was done in creating the model matrix and we can just use `lm` or `OLS` to fit the model.
   
@@ -624,7 +691,7 @@ Now that we have a model matrix, `X`, we can fit the model. All of the hardwork 
 ```{r, r_cubic_model_fitting}
 #| echo: true
 #| label: r_cubic_model_fitting
-fit_lm = lm(rating ~ X)
+fit_lm = lm(rating ~ X - 1)
 
 fit_lm
 ```
@@ -647,6 +714,8 @@ fit_lm.summary()
 
 We can set some prediction values for this model:
 
+TODO: fix this to reflect total reviews, not 0:1; Don't worry until we know where it goes.
+
 :::{.panel-tabset}
 
 ##### R
@@ -654,7 +723,8 @@ We can set some prediction values for this model:
 ```{r, r_predictions}
 #| echo: true
 #| label: r_predictions
-xp = seq(0, 1, by = .01)
+# xp = seq(0, 1, by = .01)
+xp = seq(-3, 3, by = .01)
 Xp = splX(xp, knots)  
 ```
 
@@ -676,14 +746,14 @@ While creating those predictions is nice, using them to visualize the model is f
 #| label: fig-spline_viz
 #| fig-cap: Visualizing cubic regression spline
 ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
-  geom_point(color = "#FF5500") +
+  geom_point() +
   geom_smooth(method = "gam", se = FALSE, color = "#00AAFF") +
   theme_minimal()
 ```
 
 In @fig-spline_viz, we can see that the relationship starts a bit flat, increases, and then flattens out again. This is a pretty good example of a nonlinear relationship.
 
-### Penalized Cubic Spline
+### Penalized Cubic Spline {#sec-gam-penalty}
 
 Recall that this is an unpenalized cubic spline. If we want to have a finer degree of control over that wiggly line, we can include a **lambda penalty**. 
 
@@ -750,7 +820,7 @@ def mat_sqrt(S):
 
 :::
 
-### Penalized Model Fitting Function
+### Penalized Model Fitting Function {#sec-gam-penalty-model}
 
 With those functions in hand, we can create the function to fit the entire model.
 
@@ -792,7 +862,7 @@ def prs_fit(y, x, knots, lamba):
 
 Notice again that magic happens in the model matrix, but that we are still just using `lm` or `OLS` to fit the model.
 
-### Penalized Model Fitting
+### Penalized Model Fitting {#sec-gam-penalty-fitting}
 
 Let's stick with 4 knots and see what happens when we set our lambda to .1:
 
@@ -835,16 +905,18 @@ Xp = splX(xp, knots)
 
 :::
 
-As shown in @fig-r_lambda_1_viz, there is definitely some wiggle to that line, but it is not as extreme as what we saw with our unpenalized cubic spline. 
+As shown in @fig-r_lambda_1_viz, there is some wiggle to that line, but it is not as extreme as what we saw with our unpenalized cubic spline. 
+
+TODO: fix plot scale (doesn't match raw or scaled data)
 
 ```{r, r_lambda_1_viz}
 #| echo: false
 #| label: fig-r_lambda_1_viz
 #| fig-cap: GAM model with lambda set to .1
 ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
-  geom_point(color = "#FF5500") +
-  geom_line(aes(x = xp, y = Xp %*% coef(fit_penalized)),
-            data = data.frame(xp, Xp),
+  geom_point() +
+  geom_line(aes(x = xp, y = fit[,1]),
+            data = tibble(xp, fit = Xp %*% coef(fit_penalized)),
             color = "#00AAFF") +
   theme_minimal()
 ```
@@ -875,8 +947,12 @@ plot_data = purrr::map_df(c(.9, .5, .1, .01, .001), ~{
 
 ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
   geom_point() +
-  geom_line(aes(x = x, y = y, color = lambda),
-            data = plot_data) +
+  geom_line(
+    aes(x = x, y = y, color = lambda),
+    data = plot_data
+  ) +
+  scale_color_manual(values = okabe_ito[c(-1,-4)]) +
+  coord_cartesian(xlim = c(-2, 2)) +
   theme_minimal()
 ```
 
@@ -884,13 +960,13 @@ What can we take from @fig-lambda_value_viz? As lambda values get closer to 1, w
 
 Naturally, this is a great time to think about how these models would work on new data. As lambda gets smaller, we are fitting our in-sample data much better. How do you think this would fare with unseen data? If you'd say that we would do well with training and horrible on testing, we'd likely agree with you. 
 
-## Mixed Models
+## Mixed Models {#sec-mixed-models}
 
-### Why Should You Care?
+### Why Should You Care? {#sec-mixed-models-why}
 
-Structures within your data are important and paying attention to how data might be grouped in some way will let you generate more insights about how observations within and between groups might behave. After all, people working in the same department are likely to have a more similar experience than people working in a different department. Mixed models will let us handle nested and grouped data, all while getting the benefits of a standard linear model.
+Structures within your data are important and paying attention to how data might be grouped in some way will let you generate more insights about how observations within and between groups might behave. For example, people working in the same organization, or students in the same school, are likely to have a more similar experiences than those from different organizations or schools. This shared connection within groups may ultimately affect what we see in our chosen outcomes. Mixed models will let us handle grouped data such as this, all while getting the benefits of a standard linear model.
 
-### Knowing Your Data
+### Knowing Your Data {#sec-mixed-models-knowing}
 
 As much fun as modeling is, knowing your data is far more important. You can throw any model you want at your data, from simple to fancy, but you can count on disappointment if you don't fundamentally know the structures that live within your data. Let's take a quick look at the following visualizations:
 
