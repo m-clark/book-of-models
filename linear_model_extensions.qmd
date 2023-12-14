@@ -988,19 +988,18 @@ In @fig-year-release-rating, we see a pretty solid positive relationship between
 #| fig-cap: Linear relationship between year of movie release and rating, with genre.
 ggplot(reviews, aes(total_reviews, rating, color = as.factor(genre))) +
   # geom_point() +
-  geom_smooth(method="lm", se = FALSE) +
-  theme_minimal()
+  geom_smooth(method="lm", se = FALSE)
 ```
 
 A very quick examination of @fig-year-release-genre-rating might suggest that the relationship between user age and rating varies significantly over the different genres. Most genres show a positive relationship, while one (`other`) shows a negative relationship, and all with various levels of strength.
 
-Just for fun, try to group by genre and summarize it by the mean rating. You'll find that the averages are very different across the genre! Then, subtract the overal mean rating from those values. Keep them handy!
+Just for fun, try to group by genre and summarize it by the mean rating. You'll find that the averages are very different across the genre! Then, subtract the overal mean rating from those values, so that they represent deviations from the mean. Keep them handy!
 
-Clearly, genre is offering some type of additional information to the model, but how can we incorporate that information into our model? An interaction might come to find at first, but that becomes a tricky interpretation endeavour. Instead, the **mixed model** can be used to incorporate that information into our model, without much hassle and with a huge boost in explanability. 
+Clearly, genre is offering some type of additional information to the model, but how can we incorporate that information into our model? An interaction might come to find at first, and that's the right way to think about it. A **mixed model** can be used to incorporate that information, which is largely a group interaction, into our model, without much hassle and with a huge boost in explanability. 
 
-The term **mixed model** is as vanilla as we can possibly make it,but you might have heard of different flavors of them before. If you've come from the Social Sciences, you might have heard of *Hierarchical Linear Models*. You might have even heard the words *multilevel models* or *mixed-effects models* tossed around before. Maybe you've even be exposed to ideas like *random effects* or *random slopes*. No matter what word you say, they are all instances of a **mixed model**. 
+The term **mixed model** is as vanilla as we can possibly make it, but you might have heard of different flavors of them before. You might have heard of *Hierarchical Linear Models*, or even *multilevel models*, or heard *mixed-effects models* tossed around before. Maybe you've even be exposed to ideas like *random effects* or *random slopes*. No matter what word you say, they are all instances of what we'll call a **mixed model**. 
 
-What makes a model a mixed model? The mixed model is characterized by the idea that a model can have *fixed* and *random* effects. Fortunately, you've already encountered *fixed* effects -- those are the features that we have been using in all of our models so far! The *random effect*, though, is typically some type of grouping-based variable that contributes to unique variance in the outcome and we are going to let them vary from the rest of the model. Grouping variables can be actual groups, with the classic example being students in a classroom. Those groups can also be nested within larger groups -- students nested within classrooms, nested within schools, nested within districts. These groups can also capture the notion of a repeated measure for an individual, like repeated test scores. 
+What makes a model a mixed model? The mixed model is characterized by the idea that a model can have *fixed* and *random* effects. Fortunately, you've already encountered *fixed* effects -- those are the features that we have been using in all of our models so far! In the mixed model context, the *random effect*, typically comes from some type of grouping variable that contributes to unique variance in the outcome and we are going to let them vary from the rest of the model. Grouping variables can be actual groups, with the classic example being students in a classroom. Those groups can also be nested within larger groups -- students nested within classrooms, nested within schools, nested within districts. These groups can also capture the notion of a repeated measure for an individual, like repeated test scores. 
 
 While we aren't rejecting the idea of a mean with these mixed-models, we are implying that each group (whether it is a group, nested group, or repeated observations from a person) has its own unique mean that can be useful for modeling the target. Formally, we might specify something like this:
 
@@ -1008,13 +1007,38 @@ $$
 \textrm{rating} = b_{\textrm{0\_genre}} + b_\textrm{year}*\textrm{year}
 $$
 
-We are explicitly saying that genre has its own unique slope for this model, where $b_{\text{0\_genre}} ~ \eta(b_{intercept}, \tau)$, meaning that the random intercepts will be normally distributed and the overall intercept is just the mean of those random intercepts. 
+We are explicitly saying that genre has its own unique effect for this model in the form of specific intercepts for each genre. We also posit that those come from a *random* distribution. We can specify that as:
 
-Before we go to modeling our reviews, let's consider an example training program to increase vertical jump, with average vertical increases of 2 inches. That really doesn't sound all that impressive; however, that increase came across 5 distinct groups: NBA players, NFL players, NHL players, MLB players, and data analysts. We can be pretty certain that each group has a very different vertical jump distribution coming into this training program. Given the amount of jumping that NBA players do, this program is unlikely to produce dramatic increases in vertical jump for them. We would probably expect modest gains in the NFL and even greater gains within NHL and MLB players. Where we are going to see the best gains, though, is from data analysts -- they might want to jump to conclusions, but don't need to jump over their computers very often. Now that we know the additional information, can we just look at the average increase and be satisfied? Probably not. Instead, we need to look at the group that we might be in and judge accordingly. A mixed-model is going to let us to model all of this without too much work.
+$$b_{\textrm{0\_genre}} \sim \textrm{N}(b_\textrm{intercept}, \sigma_\textrm{genre})$$
 
-### Standard Functions
+This means that the random intercepts will be normally distributed and the overall intercept is just the mean of those random intercepts, and with its own variance, an extra paramter we'll eventually have to estimate as part of the model. Another very common depiction is:
 
-Let's fit some mixed models with `lme4` or `statsmodels`. We will also create `null models` (i.e., models with an intercept only), since we will need some infomration from them later.
+$$\textrm{re\_group} \sim \textrm{N}(0, \sigma_\textrm{genre})$$
+
+$$b_{\textrm{0\_genre}} = b_\textrm{intercept} +\textrm{re\_group}$$
+
+
+TODO: Need another example?
+
+Before we go to modeling our reviews, let's consider an example training program to increase vertical jump, with average vertical increases of 2 inches. That really doesn't sound all that impressive; however, that increase came across 5 distinct groups: NBA players, NFL players, NHL players, MLB players, and data analysts. We can be pretty certain that each group has a very different vertical jump distribution coming into this training program. Given the amount of jumping that NBA players do, this program is unlikely to produce dramatic increases in vertical jump for them. We would probably expect modest gains in the NFL and even greater gains within NHL and MLB players. Where we are going to see the best gains, though, is from data analysts -- they might want to jump to conclusions, but don't need to jump over their computers very often. Now that we know the additional information, can we just look at the average increase and be satisfied? Probably not. Instead, we need to look at the group that individuals might be in and judge accordingly. A mixed-model is going to let us to model all of this without too much work.
+
+You might be asking? Why don't I just put genre into the model like other categorical features? In the case of genre, that's okay, but consider thousands of county voting percentages for an election, would you just put a county indicator into the model as is? Mixed models provide several advantages:
+
+
+- Any coefficient can be allowed to vary by groups, including other random effects. It actually is just an interaction in the end.
+- The group-specific effects are penalized, which shrinks them toward the overall mean. This helps to avoid overfitting, and that penalty is related to the variance estimate of the random effect. In other words, you're just running a penalized linear model where the penalty is applied to the group-specific effects.
+- Standard modeling approaches only estimate the variance, and get the estimated group effects via a predictive method. This allows only one additional parameter to estimate rather than a weight or coefficient for every group.
+- The group effects are like a very simplified **embedding**, where we have taken a cateogrical feature and turned it into a numeric one. This will help you understand techniques that are used in other places like deep learning.
+- When you start to think aobut random effects and/or distributions for effects, you're already thinking like a Bayesian, who is always thinking about the distributions for various effects. Mixed models are a perfect segue from standard linear model estimation to Bayesian estimation.
+- The random effect is akin to a latent variable of 'unspecified group causes'. This is a very powerful idea that can be used in many different ways, but importantly, you might want to start thinking about how you can figure out what those 'unspecified' causes may be!
+- Group effects will almost always improve your model's performance relative to not having them, especially if you weren't including those groups in your model because of how many there were.
+
+
+In short, mixed models are a fun way to incorporate additional interpretive color to your model, while also getting several additional benefits!
+
+### Standard Functions {#sec-mixed-models-standard}
+
+Now let's fit some mixed models with `lme4` or `statsmodels`. We will also create `null models` (i.e., models with an intercept only), since we will need some infomration from them later.
 
 :::{.panel-tabset}
 
@@ -1032,7 +1056,7 @@ null_model = lmer(rating ~ 1 + (1 | genre),
                    reviews, 
                    REML = FALSE)
 
-summary(null_model)                  
+summary(null_model, correlation = FALSE)
 ```
 
 ##### Python
@@ -1053,7 +1077,7 @@ null_model = sm.MixedLM.from_formula("rating ~ 1", reviews,
 
 :::
 
-What can we take from these summaries and what are we getting beyond the linear model? 
+What can we take from these summaries, and what are we getting beyond the linear model? 
 
 For starters, we should notice a change in our standard errors -- by integrating information about the groups, we are getting a better sense of how much uncertainty our model contains at the global average level.
 
@@ -1071,11 +1095,14 @@ $$
 
 This is what is known as the intraclass correlation (ICC). It ranges from 0 (no variance between clusters) to 1 (variance between clusters). With an ICC of .25, we can say that 25% of the variance in scores is accounted for by the genre alone.
 
+
+TODO: WEED PULLING
+
 We can also use various bits of information in our output to create different *R^2* values. 
 
 For the first level of the model, we can calculate the $R^2$ as:
 
-$$R^2_11 - \frac{\sigma^2_{M1} + \tau^2_{M1}}{\sigma^2_{M0} + \tau^2_{M0}}$$
+$$R^2_1 - \frac{\sigma^2_{M1} + \tau^2_{M1}}{\sigma^2_{M0} + \tau^2_{M0}}$$
 
 We can pull that information from our two model outputs:
 
@@ -1251,7 +1278,7 @@ exp(fit$par) # compare to sd of random effects
 ##### Python
 
 ```{python}
-#| echo: true
+#| eval: false
 #| label: mixed_model_fit
 
 from scipy import optimize as opt
@@ -1306,8 +1333,8 @@ fit_mer = lmer(rating ~ total_reviews + (1 | genre),
                model_data, 
                REML = FALSE)
 
-gt::gt(
-  data.frame(model = c("standard", "median", "gam", "mixed"), 
+gt(
+  tibble(model = c("standard", "median", "gam", "mixed"), 
              rmse = c(modelr::rmse(lm_test, model_data),
                       modelr::rmse(median_test, model_data),
                       modelr::rmse(gam_test, model_data), 
@@ -1318,16 +1345,20 @@ gt::gt(
 
 Let's check out the results in @fig-model_performance_comp. Unsurprisingly, the standard linear model and the median regression were pretty close to each other. GAM offered a small bump in performance, but our best model came from the mixed model. This finding may or may not surprise you -- as you spend more time with models, you often encounter situations where simple models outperform more complex models, or are on par with them. Here, we are seeing that the mixed model is offering us a better fit to the data than the other models. However, that doesn't mean that you can just go right to the mixed model. You need to know your data and know what you are trying to accomplish.
 
-## Wrapping Up
+## Wrapping Up {#sec-lm-extend-wrap}
 
 The standard linear model is useful across many different data situations. It does, unfortunately, have some issues when data becomes a little bit more "real". When you have extreme scores or relationships that a standard model might miss, you don't need to abandon your linear model in favor of something more exotic. Instead, you might just need to think about how you are actually fitting the line through your data. 
 
-## Additional Resources
 
-No matter how much we cover in this book, there is always more to learn. Here are some additional resources that you might find helpful. 
 
-If you want absolute depth on quantile regression, we will happily point you to the OG of quantile regression, Roger Koenker. His book, *Quantile Regression* is a must read for anyone wanting to dive deeper into quantile regression. If you don't want to spring for the book, you might want to check out his 2005 article, *Galton, Edgeworth, Frisch, and prospects for quantile regression in econometrics*. You can find it at [https://www.econometricsociety.org/publications/econometrica/2005/03/01/galton-edgeworth-frisch-and-prospects-quantile-regression](https://www.econometricsociety.org/publications/econometrica/2005/03/01/galton-edgeworth-frisch-and-prospects-quantile-regression).   
+## Next Steps {#sec-lm-extend-next-steps}
 
-If you want to dive more into the GAM world, we would recommend that you start with the **Moving Beyond Linearity** chapter in *An Introduction to Statistical Learning* (James, Witten, Hastie, & Tibshirani). Not only do they have versions for both R and Python, but both have been made available online at [https://www.statlearning.com/](https://www.statlearning.com/). If you are wanting more after that, you can't beat Simon Wood's book, *Generalized Additive Models: An Introduction with R*.
+No matter how much we cover in this book, there is always more to learn. Here are some additional resources that you might find helpful related to this task. But if you've got a good grip on linear models and related topics, feel free to try out some machine learning @sec-ml-core-concepts!
 
-There is no shortage of great references for mixed effects models. If you are looking for a great introduction to mixed models, we would recommend to start with the tutorial by one of your fearless authors! Michael Clark's *Mixed Models with R* is a great introduction to mixed models and is available at [https://m-clark.github.io/mixed-models-with-R/](https://m-clark.github.io/mixed-models-with-R/). If you want to dig just a little deeper, the `lme4` vignette for *Fitting Linear Mixed-Effects Models Using lme4* is a great resource. You can find it at [https://cran.r-project.org/web/packages/lme4/vignettes/lmer.pdf](https://cran.r-project.org/web/packages/lme4/vignettes/lmer.pdf). 
+
+
+If you want absolute depth on quantile regression, we will happily point you to the OG of quantile regression, Roger Koenker. His book, *Quantile Regression* is a must read for anyone wanting to dive deeper into quantile regression [-@koenker_quantile_2005-1], or just play around with his R package `quantreg`. *Galton, Edgeworth, Frisch, and prospects for quantile regression in econometrics* is another resource from him.
+
+If you want to dive more into the GAM world, we would recommend that you start with the **Moving Beyond Linearity** chapter in *An Introduction to Statistical Learning* [@james_introduction_2021]. Not only do they have versions for both R and Python, but both have been made [available online](https://www.statlearning.com/). If you are wanting more after that, you can't beat Simon Wood's book, *Generalized Additive Models: An Introduction with R* [-@wood_generalized_2017], or a more digestible covering of the same content by one of your own humble authors [@clark_generalized_2022].
+
+There is no shortage of great references for mixed effects models. If you are looking for a great introduction to mixed models, we would recommend to start with yet another tutorial by one of your fearless authors! Michael Clark's *Mixed Models with R* [-@clark_mixed_2023], is a great introduction to mixed models and is [freely available](https://m-clark.github.io/mixed-models-with-R/). If you want to dig just a little deeper, the `lme4` vignette for [*Fitting Linear Mixed-Effects Models Using lme4*](https://cran.r-project.org/web/packages/lme4/vignettes/lmer.pdf) is a great resource.
