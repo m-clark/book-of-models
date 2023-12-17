@@ -6,6 +6,27 @@
 #| echo: false
 #| cache: false
 
+source("load_packages.R")
+source("setup.R")
+source("functions/utils.R")
+reticulate::use_condaenv("book-of-models")
+```
+
+```{python}
+#| label: py-setup-Estimation
+#| echo: false
+import pandas as pd
+import numpy as np
+
+np.set_printoptions(formatter={'float': lambda x: "{0:0.4f}".format(x)})
+pd.set_option('display.float_format', lambda x: '%.3f' % x)
+```
+
+```{r}
+#| label: r-setup-data
+#| include: false
+#| echo: false
+#| cache: false
 
 library(tidyverse)
 # load("linear_models/data/model_reviews.RData")
@@ -21,21 +42,16 @@ df_happiness = read_csv("data/world_happiness_2018.csv") |>
 
 model_reviews = lm(rating ~ word_count_sc, data = df_reviews_pr)
 
-source("load_packages.R")
-source("setup.R")
-source("functions/utils.R")
-reticulate::use_condaenv("book-of-models")
-
 intercept = round(coef(model_reviews)[1], 2)
-wc_coef = round(coef(model_reviews)[2], 2)
-sd_y = round(sd(df_reviews$rating), 2)
-sd_x = round(sd(df_reviews$word_count), 2)
-wc_ci = round(confint(model_reviews)[2, ], 2)
-n_char = 50
+wc_coef   = round(coef(model_reviews)[2], 2)
+sd_y      = round(sd(df_reviews$rating), 2)
+sd_x      = round(sd(df_reviews$word_count), 2)
+wc_ci     = round(confint(model_reviews)[2, ], 2)
+n_char    = 50
 ```
 
 ```{python}
-#| label: py-setup-Estimation
+#| label: py-setup-data
 #| echo: false
 
 import pandas as pd
@@ -43,6 +59,10 @@ import numpy as np
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from scipy.optimize import minimize
+
+np.set_printoptions(formatter={'float': lambda x: "{0:0.4f}".format(x)})
+pd.set_option('display.float_format', lambda x: '%.3f' % x)
+
 
 df_reviews = pd.read_csv('data/movie_reviews.csv').dropna()
 df_reviews_pr = pd.read_csv('data/movie_reviews_processed.csv').dropna()
@@ -71,7 +91,7 @@ We can use **estimation** as general term for finding parameters, while **optimi
 
 ## Key Ideas {#sec-estim-key-ideas}
 
-A few concepts we'll keep using here are:
+A few concepts we'll keep using here are fundamental to understanding estimation and optimization.  We'll return to these throughout the book, so it's good to get some basic familiarity.
 
 - **Parameters** are the values associated with a model, that we have to estimate.
 - **Estimation** is the process of finding the parameters associated with a model.
@@ -115,14 +135,28 @@ Happiness = df_happiness |>
 
 Our happiness score has values from around 3-7, life expectancy and gdp appear to have some notable variability, and corruption perception is skewed toward lower values.  We can also see that the features and target are correlated with each other, which is not surprising.
 
+TODO: check the width of this table in pdf
+
+\small
+
 ```{r}
 #| echo: false
 #| label: r-happiness-data-correlation
 #| tbl-cap: Correlation matrix for world happiness data
 Happiness |>
+    rename(
+        happiness  = happiness_score,
+        life_exp   = healthy_life_expectancy_at_birth,
+        log_gdp_pc = log_gdp_per_capita,
+        corrupt    = perceptions_of_corruption
+    ) |>
     corrr::correlate() |>
     gt()
+
+htmltools::br()
 ```
+
+\normalsize
 
 We'll do some minor cleaning and renaming of columns, and we'll drop any rows with missing values.  We'll also scale the features so that they are on the same scale, which as noted in the data chapter, can help make estimation easier.  
 
@@ -148,9 +182,10 @@ df_happiness = read_csv("data/world_happiness_2018.csv") |>
         log_gdp_pc = log_gdp_per_capita,
         corrupt    = perceptions_of_corruption
     ) |>
+    # put gdp back on original scale before scaling
     mutate(
-        gdp_pc = exp(log_gdp_pc), # put back on original scale before scaling
-        across(life_exp:gdp_pc, \(x) (x - mean(x)) / sd(x))
+        gdp_pc = exp(log_gdp_pc), 
+        across(life_exp:gdp_pc, \(x) scale(x)[,1])
     ) |>
     select(-log_gdp_pc) # drop the log version
 ```
@@ -212,7 +247,7 @@ In this case, our offset (or intercept) is the mean of the target, and our coeff
 
 ## Prediction Error {#sec-estim-prediction-error}
 
-We can compare the predictions from each guess to the actual values of the target.  We can do this by calculating the **prediction error**, or in the context of a linear model, they are also called **residuals**.  The prediction error is the difference between the actual value of the target and the predicted value of the target.  We can express this as:
+We can compare the predictions from each guess to the actual values of the target, and observe how far off our predictions are from the observed target. This difference is the **prediction error**, or in the context of a linear model, they are also called **residuals**. We can express this as:
 
 $$
 \epsilon = y - \hat{y}
@@ -221,11 +256,15 @@ $$
 \textrm{error} = \textrm{target} - \textrm{(model based) guess}
 $$
 
-Not only does this tell us how far off our model prediction is, it gives us a way to compare models.  With a measure of prediction error, we can get a **metric** for total error for all observations/predictions, or similarly the average error. If one model or parameter set has less total or average error, we can say it's a better model than one that has more. Ideally we'd like to choose a model with the least error, but we'll see that this is not always possible[^neverbest]. For now, let's calculate the error for our two guesses. One thing though, if we miss the mark above or below our target, we still want it to count the same in terms of prediction error. In other words, if the true happiness score is 5 and our model predicts 5.5 or 4.5, we want those to count the same when we total up our error[^absloss]. However, if we just take the average, you'll see that it is roughly zero! This is by design for many common models. One way we can get around this is to use the squared error value, or maybe the absolute value. We'll use squared error here, and we'll calculate the mean of the squared errors for all our predictions.  We'll do this for our two models above.
+Not only does this tell us how far off our model prediction is, it gives us a way to compare models.  With out measure of prediction error, we can calculate a **metric** for total error for all observations/predictions, or similarlym the average error. If one model or parameter set has less total or average error, we can say it's a better model than one that has more. Ideally we'd like to choose a model with the least error, but we'll see that this is not always possible[^neverbest]. For now, let's calculate the error for our two guesses. One thing though, if we miss the mark above or below our target, we still want it to count the same in terms of prediction error. In other words, if the true happiness score is 5 and our model predicts 5.5 or 4.5, we want those to count as the same kind of error when we total up our error[^absloss]. 
+
+However, if we just take the average, you'll see that it is roughly zero! This is by design for many common models, were we even will explicitly write the formula for the error as coming from a normal distribution with mean of zero. So we need to do something else to get a meaningful error metric. One way we can get around this is to use the squared error value, or maybe the absolute value. We'll use squared error here, and we'll calculate the mean of the squared errors for all our predictions.  We'll do this for our two models above.
+
+[^zeroerror]: Think of it this way, if we only guesed the mean target value, *on average*, we'd be correct, since on average, the values are the mean value.
 
 [^absloss]: We don't have to do it this way, but it's the default in most scenarios. As an example, maybe for your situation overshooting is worse than undershooting, and so you might want to use an approach that would weight those errors more heavily.
 
-[^neverbest]: It turns out that our error metric is itself an *estimate* of the true error. We'll get more into this later, but for now this means that we can't ever know the true error, and so we can't ever really know the best or true model. However we can still get a good or better model relative to others in our current data setting.
+[^neverbest]: It turns out that our error metric is itself an *estimate* of the true error. We'll get more into this later, but for now this means that we can't ever know the true error, and so we can't ever really know the best or true model. However, we can still choose a good or better model relative to others based on our estimate.
 
 :::{.panel-tabset}
 
@@ -262,12 +301,12 @@ mse_other  = np.mean((y - prediction)**2)
 
 :::
 
-Now let's look at our **Mean Squared Error** (MSE), and we'll also inspect the square root of it, or the **Root Mean Squared Error**, as that puts things back on the original target scale, and tells us the standard deviation of our prediction errors. We also add the **Mean Absolute Error** (MAE) as another metric. Inspecting the metrics, we can see that we are off on average by over a point for our '#4' model, but notably less when guessing the mean. 
+Now let's look at our **Mean Squared Error** (MSE), and we'll also inspect the square root of it, or the **Root Mean Squared Error**, as that puts things back on the original target scale, and tells us the standard deviation of our prediction errors. We also add the **Mean Absolute Error** (MAE) as another metric with straightforward interpretation. Inspecting the metrics, we can see that we are off on average by over a point for our '#4' model, but notably less when guessing the mean. 
 
 ```{r}
 #| echo: false
 #| label: compare-error
-#| tbl-cap: Comparison of error metrics for our two guesses
+#| tbl-cap: Comparison of error metrics for two models
 
 mse_tab = tibble(
     Model = c("#4", "Other"),
@@ -292,14 +331,14 @@ mse_tab |>
 
 We can see that the 'other' model is not only better, but results in a `r mse_tab[['RMSE % drop']][2]` drop in RMSE, and similar for MAE. We'd definitely prefer that model over the '#4' model. Furthermore, we can see how we can compare models in a general fashion.
 
-Well, this is useful, and at least we can say one model is better than another. But you're probably hoping there is an easier way to do get a good guess for our model parameters, especially when we have possibly dozens of features and/or parameters to keep track of, and there is!
+Now all of this is useful, and at least we can say one model is better than another. But you're probably hoping there is an easier way to do get a good guess for our model parameters, especially when we have possibly dozens of features and/or parameters to keep track of, and there is!
 
 
 [^sklearnnomax]: You may find that some packages will only minimize (or maximize) a function, possibly one that you come up with yourself. It'd be nice if they did this internally, or allowed the user to specify the direction like most packages, but you'll need to take care when implementing your own metrics.
 
 
 
-## Ordinary Least Squares
+## Ordinary Least Squares {#sec-estim-ols}
 
 For a simple linear model, we can estimate the parameters in several ways, but the most common is to use the **Ordinary Least Squares (OLS)** method. OLS is a method of estimating the coefficients that minimizes the sum of the squared errors, which we've just been doing in the previous section[^notamodel]. In other words, it finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.  We can express this as:
 
@@ -311,7 +350,7 @@ $$
 
 Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model.  The sum of the squared errors is also called the **residual sum of squares** (RSS), as opposed to the total sums of squares (i.e. the variance of the target), and the part explained by the model (model or explained sums of squares). The OLS method finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values. It's called *ordinary* least squares because there are other least squares methods - generalized least squares, weighted least squares, and others, but we don't need to worry about that for now. What matters is that we have a way to estimate the coefficients that minimizes the sum of the squared errors. 
 
-The resulting value - the sum or mean of the squared errors, as we noted can be referred to as our **objective value**, while the **objective function** is just the process of taking the predictions and observed target values and totaling up their squared differences.  We can use this value to find the best parameters for a specific model, as well as compare models with different parameters, such as a model with additional features versus one with fewer.  We can also use this value to compare different types of models that are using the same objective function, such as a linear model and a decision tree model.  
+The resulting value - the sum or mean of the squared errors - can be referred to as our **objective value**, while the **objective function** is just the process of taking the predictions and observed target values as inputs and totaling up their squared differences to be returned as an output. We can use this value to find the best parameters for a specific model, as well as compare models with different parameters, such as a model with additional features versus one with fewer. We can also use this value to compare different types of models that are using the same objective function, such as a linear model and a decision tree model.
 
 Let's calculate the OLS estimate for our model. From our steps above, we need guesses and a way to update them. For now, we can just provide a bunch of guesses, and just move along from one set to the next, and ultimately just choose whichever has the lowest value.
 
@@ -321,8 +360,14 @@ Let's calculate the OLS estimate for our model. From our steps above, we need gu
 ##### R
 ```{r}
 #| label: r-ols
+
+# for later comparison
+model_happy = lm(happiness ~ life_exp, data = df_happiness)
+
 ols = function(X, y, par, sum_sq = FALSE) {
+    # add a column of 1s for the intercept
     X = cbind(1, X)
+
     # Calculate the predicted values
     y_hat = X %*% par # %*% is matrix multiplication
 
@@ -357,6 +402,10 @@ ols(
 ##### Python
 ```{python}
 #| label: py-ols
+
+# for later comparison
+model_happy = smf.ols('happiness ~ life_exp', data = df_happiness)
+model_happy = model_happy.fit()
 
 def ols(par, X, y, sum = False):
     # add a column of 1s for the intercept
@@ -400,6 +449,7 @@ Now we want to calculate the loss for each guess and find which one gives us the
 
 ```{r}
 #| echo: false
+#| label: r-ols-get-mse
 
 model_happy_life = lm(happiness ~ life_exp, data = df_happiness)
 int_happy = round(coef(model_happy_life)[1], 2)
@@ -423,7 +473,7 @@ min_loss = guesses %>% filter(objective == min(objective))
 
 predictions = min_loss$b0 + min_loss$b1 * df_happiness$life_exp
 
-guesses |>
+p_ols = guesses |>
     ggplot(aes(x = b0, y = b1)) +
     geom_tile(aes(fill = objective), show.legend = FALSE) +
     geom_point(
@@ -432,26 +482,23 @@ guesses |>
         color = "white",
         alpha = 1
     ) +
-    geom_text(
-        data = min_loss,
-        aes(label = glue("Our minimum at ({round(b0, 2)}, {round(b1, 3)})
-                          Objective value:   {round(objective, 4)}")),
+    annotate(
+        geom = 'text',
+        # aes(
+        x = min_loss$b0, 
+        y = min_loss$b1,
+        label = glue("Our minimum at ({round(min_loss$b0, 2)}, {round(min_loss$b1, 3)})
+        Objective value:   {round(min_loss$objective, 4)}"),
         size = 3,
         hjust = 1.5,
         color = "#ffffff"
     ) +
-    # geom_point(
-    #     aes(x = int_happy, y = coef_happy),
-    #     size = 6,
-    #     color = "white",
-    #     alpha = 1
-    # ) +
     annotate(
         geom = "text",
         x = int_happy,
         y = coef_happy,
         label = glue("OLS estimate at ({int_happy}, {coef_happy})
-                      Objective value: {mse_happy_life}"),
+        Objective value: {mse_happy_life}"),
         size = 3,
         hjust = c(-0.1, -0.1),
         color = "#ffffff"
@@ -460,13 +507,18 @@ guesses |>
     #     # xlim = c(-1, 1),
     #     ylim = c(-1, 1)
     # ) +
-    scico::scale_fill_scico() +
+    scico::scale_fill_scico(begin = .1, end = 1, direction = 1) +
     labs(
         x = "b0",
         y = "b1",
         title = "Objective value (loss) for different guesses of b0 and b1"
     )
+
+# p_ols
+ggsave(p_ols, filename = "img/ols_guesses.svg", width = 8, height = 6)
 ```
+
+![Results of parameter search](img/ols_guesses.svg){width=50%}
 
 
 If we inspect our results from the built-in functions, we had estimates of `r int_happy` and `r coef_happy` for our coefficients. These are very similar but not exactly the same, but in the end we can see that we get pretty dang close to what our basic `lm` or `statsmodels` functions would get us. Pretty neat!
@@ -476,7 +528,8 @@ If we inspect our results from the built-in functions, we had estimates of `r in
 #| eval: false
 #| label: ols-compare-prediction-vs-observed
 
-# MOVE THIS PLOT TO MODEL CRITICISM, DOESN'T REALLY ADD TO OPTIMIZATION
+# TODO: MOVE THIS PLOT TO MODEL CRITICISM, DOESN'T REALLY ADD TO OPTIMIZATION
+
 p1 = df_happiness |>
     mutate(prediction = predictions) |>
     ggplot(aes(x = prediction, y = happiness)) +
@@ -512,9 +565,9 @@ One thing to keep in mind is that it is not a magical process. It takes good dat
 :::
 
 
-## Optimization
+## Optimization {#sec-estim-opt}
 
-Before we get into other objective functions, let's think about a better way to find the best parameters for our model. Rather than just guessing, we can use a more systematic approach, and thankfully, there are tools out there to help us.  We just use a function like our OLS function, give it a starting point, and let the algorithms do the rest! Thanks to some nifty approaches to making better guesses, these tools eventually arrive at a pretty good set of parameters.  Well, they usually do, but not always- nothing's perfect!  But they are pretty good, and they are a lot better than guessing. Let's see how we can use one of these tools to find the best parameters for our model.
+Before we get into other objective functions, let's think about a better way to find the best parameters for our model. Rather than just guessing, we can use a more systematic approach, and thankfully, there are tools out there to help us. We just use a function like our OLS function, give it a starting point, and let the algorithms do the rest! Thanks to some nifty approaches to making better guesses, these tools eventually arrive at a pretty good set of parameters.  Well, they usually do, but not always- nothing's perfect!  But they are pretty good, and they are a lot better than guessing. Let's see how we can use one of these tools to find the best parameters for our model.
 
 Previously we created a set of guesses to search over to see which set of parameters resulted in prediction that matched the data best. What we did is called a **grid search**, and it is a bit of a brute force approach to finding the best fitting model. You can imagine that a couple of unfortunate or problematic scenarios, such as having a very large number of parameters, or that our specified range doesn't allow us to get to the right sets of parameters, or we specify a very large range, but the best fitting model is within a very narrow part of that range, such that we waste a lot of time.
 
@@ -862,7 +915,8 @@ ggplot(data.frame(mus, L)) +
     geom_vline(aes(xintercept = 5), alpha = .5, lty = 2) +
     geom_hline(aes(yintercept = max(L)), alpha = .5, lty = 2) +
     geom_path(aes(x = mus, y = L), lwd = 2) +
-    geom_text(
+    annotate(
+        geom = "text",
         x = 5, 
         y = max(L), 
         label = lab, 
