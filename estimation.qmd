@@ -193,7 +193,7 @@ df_happiness = read_csv("data/world_happiness_2018.csv") |>
 ##### Python
 
 ```{python}
-#| label: py-happiness-data-setu
+#| label: py-happiness-data-setup
 df_happiness = (
     pd.read_csv('data/world_happiness_2018.csv')
     .dropna()
@@ -477,7 +477,8 @@ p_ols = guesses |>
     ggplot(aes(x = b0, y = b1)) +
     geom_tile(aes(fill = objective), show.legend = FALSE) +
     geom_point(
-        data = min_loss,
+        x = model_happy_life$coefficients[1],
+        y = model_happy_life$coefficients[2],
         size = 3,
         color = "white",
         alpha = 1
@@ -485,22 +486,22 @@ p_ols = guesses |>
     annotate(
         geom = 'text',
         # aes(
-        x = min_loss$b0, 
+        x = min_loss$b0-1, 
         y = min_loss$b1,
-        label = glue("Our minimum at ({round(min_loss$b0, 2)}, {round(min_loss$b1, 3)})
+        label = glue("Best guess at ({round(min_loss$b0, 2)}, {round(min_loss$b1, 3)})
         Objective value:   {round(min_loss$objective, 4)}"),
         size = 3,
-        hjust = 1.5,
+        hjust = 0,
         color = "#ffffff"
     ) +
     annotate(
         geom = "text",
-        x = int_happy,
+        x = int_happy + .66,
         y = coef_happy,
         label = glue("OLS estimate at ({int_happy}, {coef_happy})
         Objective value: {mse_happy_life}"),
         size = 3,
-        hjust = c(-0.1, -0.1),
+        # hjust = c(-0.1, -0.1),
         color = "#ffffff"
     ) +
     # coord_cartesian(
@@ -521,7 +522,55 @@ ggsave(p_ols, filename = "img/ols_guesses.svg", width = 8, height = 6)
 ![Results of parameter search](img/ols_guesses.svg){width=50%}
 
 
-If we inspect our results from the built-in functions, we had estimates of `r int_happy` and `r coef_happy` for our coefficients. These are very similar but not exactly the same, but in the end we can see that we get pretty dang close to what our basic `lm` or `statsmodels` functions would get us. Pretty neat!
+```{r}
+#| echo: false
+#| label: r-ols-apply-altenative
+#  guesses |>
+#     ggplot(aes(x = b0, y = b1)) +
+#     geom_point(aes(size = -objective), show.legend = FALSE) +
+#     geom_point(
+#         x = model_happy_life$coefficients[1],
+#         y = model_happy_life$coefficients[2],
+#         size = 6,
+#         color = "black",
+#         alpha = 1
+#     ) +
+#     annotate(
+#         geom = 'text',
+#         # aes(
+#         x = min_loss$b0-1, 
+#         y = min_loss$b1,
+#         label = glue("Best guess at ({round(min_loss$b0, 2)}, {round(min_loss$b1, 3)})
+#         Objective value:   {round(min_loss$objective, 4)}"),
+#         size = 3,
+#         hjust = 0,
+#         color = "#ffffff"
+#     ) +
+#     annotate(
+#         geom = "text",
+#         x = int_happy + .66,
+#         y = coef_happy,
+#         label = glue("OLS estimate at ({int_happy}, {coef_happy})
+#         Objective value: {mse_happy_life}"),
+#         size = 6,
+#         vjust = 1.5,
+#         # hjust = c(-0.1, -0.1),
+#         # color = "#ffffff"
+#     ) +
+#     # coord_cartesian(
+#     #     # xlim = c(-1, 1),
+#     #     ylim = c(-1, 1)
+#     # ) +
+#     scale_size_continuous(range = c(.01, 5)) +
+#     scico::scale_fill_scico(begin = .1, end = 1, direction = 1) +
+#     labs(
+#         x = "b0",
+#         y = "b1",
+#         title = "Objective value (loss) for different guesses of b0 and b1"
+#     )
+```
+
+If we inspect our results from the built-in functions, we had estimates of `r int_happy` and `r coef_happy` for our coefficients versus the best guess from our approach of `r min_loss$b0` and `r min_loss$b1`. These are very similar but not exactly the same, but this is mostly due to the granularity of our guesses.  Even so, in the end we can see that we get pretty dang close to what our basic `lm` or `statsmodels` functions would get us. Pretty neat!
 
 ```{r}
 #| echo: false
@@ -569,7 +618,7 @@ One thing to keep in mind is that it is not a magical process. It takes good dat
 
 Before we get into other objective functions, let's think about a better way to find the best parameters for our model. Rather than just guessing, we can use a more systematic approach, and thankfully, there are tools out there to help us. We just use a function like our OLS function, give it a starting point, and let the algorithms do the rest! Thanks to some nifty approaches to making better guesses, these tools eventually arrive at a pretty good set of parameters.  Well, they usually do, but not always- nothing's perfect!  But they are pretty good, and they are a lot better than guessing. Let's see how we can use one of these tools to find the best parameters for our model.
 
-Previously we created a set of guesses to search over to see which set of parameters resulted in prediction that matched the data best. What we did is called a **grid search**, and it is a bit of a brute force approach to finding the best fitting model. You can imagine that a couple of unfortunate or problematic scenarios, such as having a very large number of parameters, or that our specified range doesn't allow us to get to the right sets of parameters, or we specify a very large range, but the best fitting model is within a very narrow part of that range, such that we waste a lot of time.
+Previously we created a set of guesses to search over to see which set of parameters resulted in prediction that matched the data best. What we did is called a **grid search**, and it is a bit of a brute force approach to finding the best fitting model. You can imagine a couple of unfortunate or problematic scenarios, such as having a very large number of parameters, or that our specified range doesn't allow us to get to the right sets of parameters, or we specify a very large range, but the best fitting model is within a very narrow part of that range. In any of these cases we waste a lot of time, and may not find an optimal solution.
 
 In general, we can think of **optimization** as a way to find the best parameters for our model. We start with an initial guess, see how well it does in terms of our objective function, and then try to improve it with a new guess. We continue to do so until a stopping point is reached.  Here is an example.
 
@@ -577,11 +626,11 @@ In general, we can think of **optimization** as a way to find the best parameter
 - Calculate the objective function given the parameters
 - **Update the parameters** to a new guess (that hopefully improves the objective function)
 - Calculate the objective function given the new parameters
-- **Repeat** until the improvement is small enough or we reach a maximum number of iterations we want to attempt
+- **Repeat** until the improvement is small enough, or we reach the desired number of iterations we want to attempt
 
-This is what we described before with estimation in general. The key idea now is how we *update* the old parameters with a new guess at each iteration. Different **optimization algorithms** use different approaches to find the updated parameters. At some point, either the improvement is small enough, or we reach a maximum number of iterations we want to attempt, and either of these is something we can set ourselves. If we meet the terms of our objective, we say that we have reached **convergence**. Sometimes, the number of iterations is not enough for us to reach convergence, and we have to try again with a different set of parameters, a different algorithm, maybe use some data transformations, or something else.
+This is what we described before with estimation in general. The key idea now is how we *update* the old parameters with a new guess at each iteration. Different **optimization algorithms** use different approaches to find the updated parameters. At some point, either the improvement is no longer practical, often refered to as our **tolerance**, or we reach a maximum number of iterations we want to attempt, and either of these is something we can set ourselves. If we meet the terms of our objective, we say that our model has **converged**. Sometimes, the number of iterations is not enough for us to reach convergence in terms of tolerance, and we have to try again with a different set of parameters, a different algorithm, maybe use some data transformations, or something else.
 
-So let's try it out! Both R and Python offer a function where we can specify the objective function, and it will try to find the best parameters for us.  We'll use the `optim` function in R and the `minimize` function in Python. It needs several inputs:
+So let's try it out! Both R and Python offer a function where we can specify the objective function, and it will try to find the best parameters for us. It needs several inputs:
 
 - the objective function
 - the initial guess for the parameters to get things going
@@ -594,23 +643,30 @@ So let's try it out! Both R and Python offer a function where we can specify the
 
 ##### R
 
+We'll use the `optim` function in R. 
 ```{r}
 #| label: r-optim-ols
 #| echo: true
 #| cache: false
 
 our_result = optim(
-    par    = c(1, 0),
-    fn     = ols,
-    X      = df_happiness$life_exp,
-    y      = df_happiness$happiness,
-    method = "BFGS" # optimization algorithm
+    par     = c(1, 0),
+    fn      = ols,
+    X       = df_happiness$life_exp,
+    y       = df_happiness$happiness,
+    method  = "BFGS", # optimization algorithm
+    control = list(   # specify tolerance, max iter, etc. here
+        tol   = 1e-6,
+        maxit = 500
+    )  
 )
 
 # our_result
 ```
 
 ##### Python
+
+We'll use the  `minimize` function in Python.
 
 ```{python}
 #| label: py-optim-ols
@@ -621,8 +677,15 @@ from scipy.optimize import minimize
 our_result = minimize(
     fun    = ols,
     x0     = np.array([1., 0.]),
-    args   = (np.array(df_happiness['life_exp']), np.array(df_happiness['happiness'])),
-    method = 'BFGS' # optimization algorithm
+    args   = (
+        np.array(df_happiness['life_exp']), 
+        np.array(df_happiness['happiness'])
+    ),
+    method = 'BFGS', # optimization algorithm
+    tol    = 1e-6,   # tolerance
+    options = {
+        'maxiter': 500
+    }
 )
 
 # our_result
@@ -648,20 +711,18 @@ our_result_tbl |>
     gt(decimals = 4)
 ```
 
-So our little function and the right tool allows us to come up with the same thing as base R and `statsmodels`! I hope you're feeling pretty good at this point because you should! You just proved you could do what seems like magic, but really all it took is just a little knowledge about some key concepts.  Let's try some more!
-
-
+So our little function and the right tool allows us to come up with the same thing as base R and `statsmodels`! I hope you're feeling pretty good at this point because you should! You just proved you could do what seemed before to be like magic, but really all it took is just a little knowledge about some key concepts.  Let's try some more!
 
 
 
 
 
 :::{.callout type="info" title="A Note on Terminology"}
-The objective function is often called the **loss function**, and sometimes the **cost function**. However, these both imply that we are trying to minimize the function, which is not always the case[^sklearnnomax], and it's arbitrary whether you want to minimize or maximize the function. In fact, some people will minimize the *negative* likelihood when using *maximum* likelihood! As such we'll try to stick to the more neutral term objective function, but you may see the other terms used interchangeably in this text. In addition, some packages will use the term **metric** to refer a value that you might want to examine as well, or even use to compare models. For example, the MSE is a metric, but it may also be the objective function we are trying to minimize. Other metrics we could calculate without being the objective might be Adjusted R-squared and median absolute error. We could also use MSE as the objective, but use percentage drop in error from baseline when selecting among several models that minimized MSE. This can be very confusing when starting out! We'll try to stick to the term *metric* for additional values that we might want to examine separate from the *objective function value*.
+The objective function is often called the **loss function**, and sometimes the **cost function**. However, these both imply that we are trying to minimize the function, which is not always the case[^sklearnnomax], and it's arbitrary whether you want to minimize or maximize the function. In fact, some people will minimize the *negative* likelihood when using *maximum* likelihood! As such we'll try to stick to the more neutral term 'objective function', but you may see the other terms used interchangeably in this text. In addition, some packages will use the term **metric** to refer a value that you might want to examine as well, or even use to compare models. For example, the MSE is a metric, but it may also be the objective function we are trying to minimize. Other metrics we could calculate without being the objective might be Adjusted R-squared and mean absolute error. We could also use MSE as the objective, but use percentage drop in error from baseline when selecting among several models that minimized MSE. This can be very confusing when starting out! We'll try to stick to the term *metric* for additional values that we might want to examine separate from the *objective function value*.
 :::
 
 
-## Maximum Likelihood 
+## Maximum Likelihood {#sec-estim-maxlike}
 
 In our example thus far, we have been minimizing the specific objective (or loss) function, which basically takes our parameter estimates, produces a prediction, and returns the sum or mean of the squared errors. But this is just one approach we could take. Now we'd like you to think about the **data generating process**.  We have a model that says happiness is a function of life expectancy, but more specifically, let's think about how the observed value of the happiness score is generated in a statistical sense. In particular, what kind of probability distribution might be involved?  Ignoring the model, we might think that each happiness value is generated by some random process, and that the process is the same for each observation. Let's assume that random process is a normal distribution. So something like this would describe it mathematically:
 
@@ -691,20 +752,20 @@ $$
 \textrm{Pr}(\textrm{happiness} \mid \mu, \sigma)
 $$
 
-Even more generally, the likelihood gives us a sense of the probability given the parameter estimates $\theta$.
+Even more generally, the likelihood gives us a sense of the probability of the observed data given the parameter estimates $\theta$.
 $$
 \textrm{Pr}(\textrm{Data} \mid \theta)
 $$
 
 Here is a simple code demo to get a likelihood in the context of our model. The values you see are referred to statistically as probability density values, and they are technically not probabilities, but rather the probability density, or **relative likelihood**, at that observation[^probzero]. For your conceptual understanding, if it makes it easier, you can think of them in the same was as you do probabilities, but just know that technically they are not.
 
-[^probzero]:The actual probability of a *specific value* is 0, but the probability of a range of values is not 0. You can find out more about likelihoods and probabilities at the discussion [here](https://stats.stackexchange.com/questions/2641/what-is-the-difference-between-likelihood-and-probability), but in general many traditional statistical texts will have a discussion of this.
+[^probzero]:The actual probability of a *specific value* is 0, but the probability of a range of values is not 0. You can find out more about likelihoods and probabilities at the discussion [here](https://stats.stackexchange.com/questions/2641/what-is-the-difference-between-likelihood-and-probability), but in general many traditional statistical texts will cover this also.
+
+TODO: UPDATE VALUES WHEN DEMO IS SETTLED
 
 :::{.panel-tabset}
 
 ##### R
-
-UPDATE VALUES WHEN DEMO IS SETTLED
 
 ```{r}
 #| label: r-demo-Likelihood
@@ -754,9 +815,9 @@ L
 :::
 
 
-Given a guess at the parameters, and an assumption about the distribution of the data, we can calculate the likelihood of observing each data point, and total those sum those up, just like we did with our squared errors. In theory, we'd deal with the product of each likelihood, but in practice we sum the log of the likelihood, otherwise values would get too small for our computers to handle. Here is a corresponding function we can use to calculate the likelihood of the data given our parameters. Note that the actual likelihood value returned isn't really interpretable, we just use it to compare models with different sets of parameter guesses. Even if our total likelihoods under comparison are negative, we prefer the model with the relatively higher likelihood.  As we just demonstrated, we'll use `optim` to help us get good guesses[^lowerbound].
+So, given a guess at the parameters, and an assumption about the distribution of the data, we can calculate the likelihood of observing each data point, and sum those up, just like we did with our squared errors. In theory, we'd deal with the product of each likelihood, but in practice we sum the log of the likelihood, otherwise values would get too small for our computers to handle. Here is a corresponding function we can use to calculate the likelihood of the data given our parameters. Note that the actual likelihood value returned isn't really interpretable, just that higher is better from a maximization standpoint. But we can use it to compare models with different sets of parameter guesses. Even if our total likelihoods under comparison are negative, we prefer the model with the relatively higher likelihood.  As we just demonstrated, we'll use `optim` to help us get good guesses[^lowerbound].
 
-[^lowerbound]: Those who have experience here will notice we aren't putting a lower bound on sigma. You typically want to do this otherwise you may get nonsensical results. You can do this by using the `lower` parameter in `optim` with an algorithm that uses boundaries, or even more simply by exponentiating the parameter, i.e. `exp(par[1])`.  Just remember that the returned value will be on the log scale, so you'll have to exponentiate to get to the correct scale. We leave this detail out of the code for now to keep things simple.
+[^lowerbound]: Those who have experience here will notice we aren't putting a lower bound on sigma. You typically want to do this otherwise you may get nonsensical results. You can do this by using the `lower` parameter in `optim` with an algorithm that uses boundaries, or even more simply by exponentiating the parameter, i.e. `exp(par[1])`.  Just remember that the returned value will be on the log scale, so you'll have to exponentiate it to get to the correct scale. We leave this detail out of the code for now to keep things simple.
 
 
 :::{.panel-tabset}
@@ -818,23 +879,41 @@ def likelihood(par, X, y):
 our_result = minimize(
     fun  = likelihood,
     x0   = np.array([1, 0, 0]),
-    args = (np.array(df_happiness['life_exp']), np.array(df_happiness['happiness']))
+    args = (
+        np.array(df_happiness['life_exp']), 
+        np.array(df_happiness['happiness'])
+    )
 )
 ```
 
 :::
 
-How would we switch to a maximum likelihood approach using readily available functions?  In both R and Python you can switch to using `glm` and `GLM` respectively would be the place to start.  We can use different likelihoods distributions corresponding to the binomial, poisson and others. Still other packages would allow even more distributions for consideration. In general, we choose a distribution that we feel best reflects the data generating process. For binary targets for example, we typically would feel a bernoulli or binomial distribution is appropriate. For count data, we might choose a poisson or negative binomial distribution.  For targets that fall between 0 and 1, we might go for a beta distribution. There are many distributions, and even when some might feel more appropriate, we might choose another for convenience. Some distributions tend toward a normal (a.k.a. gaussian) distribution depending on various factors, while others are special cases of more general distributions. For example, the exponential distribution is a special case of the gamma distribution, and a cauchy is equivalent to a t distribution with 1 degree of freedom, and the t tends toward a normal with increasing degrees of freedom. Here is a visualization of the relationships among some of the more common distributions.
+How would we switch to a maximum likelihood approach using readily available functions?  In both R and Python you can switch to using `glm` and `GLM` respectively as a start.  We can use different likelihoods corresponding to the binomial, poisson and other distributions. Still other packages would allow even more distributions for consideration. In general, we choose a distribution that we feel best reflects the data generating process. For binary targets for example, we typically would feel a bernoulli or binomial distribution is appropriate. For count data, we might choose a poisson or negative binomial distribution.  For targets that fall between 0 and 1, we might go for a beta distribution. There are many distributions, and even when some might feel more appropriate, we might choose another for convenience. Some distributions tend toward a normal (a.k.a. gaussian) distribution depending on various factors, while others are special cases of more general distributions. For example, the exponential distribution is a special case of the gamma distribution, and a cauchy is equivalent to a t distribution with 1 degree of freedom, and the t tends toward a normal with increasing degrees of freedom. Here is a visualization of the relationships among some of the more common distributions @wikipedia_relationships_2023.
 
+
+
+TODO: fig needs work for pdf
+
+\newpage
+
+\blandscape
 
 ```{r}
 #| echo: false
 #| label: fig-distribution-relationships
 #| fig-width: 6
-#| fig-cap: Relationships among some of univariate probability distributions. Image from [Wikipedia](https://en.wikipedia.org/wiki/File:Relationships_among_some_of_univariate_probability_distributions.jpg)
+#| fig-cap: Relationships among some of univariate probability distributions.
 
-knitr::include_graphics("img/distribution_relationships.jpg")
+
+# knitr::include_graphics("img/distribution_relationships.jpg")
 ```
+
+![Relationships among some of probability distributions](img/distribution_relationships.jpg)
+
+\elandscape
+
+\newpage
+
 
 
 Here are examples of standard GLM functions in R and Python
@@ -860,9 +939,23 @@ glm(count ~ x1 + x2, data = some_data, family = poisson)
 
 import statsmodels.formula.api as smf
 
-smf.glm('happiness ~ life_exp', data = df_happiness, family = sm.families.Gaussian())
-smf.glm('binary_target ~ x1 + x2', data = some_data, family = sm.families.Binomial())
-smf.glm('count ~ x1 + x2', data = some_data, family = sm.families.Poisson())
+smf.glm(
+    'happiness ~ life_exp', 
+    data = df_happiness, 
+    family = sm.families.Gaussian()
+)
+
+smf.glm(
+    'binary_target ~ x1 + x2', 
+    data = some_data, 
+    family = sm.families.Binomial()
+)
+
+smf.glm(
+    'count ~ x1 + x2', 
+    data = some_data, 
+    family = sm.families.Poisson()
+)
 ```
 
 :::
@@ -873,6 +966,7 @@ With that in mind, we can compare our result to a built-in function that has cap
 ```{r}
 #| echo: false
 #| label: tbl-r-likelihood
+#| tbl-cap: Comparison of our results to built-in function
 
 glm_happy_life = glm(happiness ~ life_exp, data = df_happiness)
 
@@ -940,12 +1034,14 @@ Now let's add a parameter. If we have more than one parameter, we now have a sur
 [^zerointorigin]: Linear regression will settle on a line that cuts through the means, and when standardizing the mean of the features and target are both zero, so the line goes through the origin.  
 
 
-CANT DO INTERACTIVE WITH PDF/LATEX. NEED WORKAROUND.
+TODO: CANT DO INTERACTIVE WITH PDF/LATEX. NEED WORKAROUND.
+
 ```{r}
 #| echo: false
+#| eval: true
 #| label: fig-r-likelihood-plot-3d
-#| fig-cap: Likelihood surface with two parameters
 
+# evaluate for estimates used in subsequent plot
 mod_ = glm(scale(happiness) ~ life_exp, data = df_happiness)
 sig = sqrt(summary(mod_)$dispersion)
 
@@ -1007,77 +1103,89 @@ estimates = mle_est |>
     rename(b1 = V2, sigma = V3, ll = V4) |>
     mutate(across(everything(), as.numeric))
 # scico::scico_palette_show()
-plot_ly(
-    z = ~llsurf,
-    x = ~b1,
-    y = ~sigma,
-    type = "surface",
-    # colors = viridis::plasma(500)
-    colors = scico::scico(500, palette = "lipari", direction = -1),
-    showscale = FALSE
-    # showlegend = FALSE
-    ) |>
-    # plotly may invert the axes for the marker, so we have to switch them
-    add_trace(
-        y = bbmle::coef(mlnorm)["b1"],
-        x = bbmle::coef(mlnorm)["sigma"],
-        # x = b1[minll[,1]],
-        # y = sigma[minll[,2]],
-        z = min(c(llsurf)),
-        # marker = list(color = palettes$orange$complementary, size = 10),
-        type = "scatter3d",
-        mode = "markers",
-        showlegend = FALSE
-    ) |>
-    # add_trace(
-    #     y = estimates$b1,
-    #     x = estimates$sigma,
-    #     # x = minll[,1],
-    #     # y = minll[,2],
-    #     z = estimates$ll,
-    #     # marker = list(color = palettes$orange$complementary, size = 10),
-    #     type = "scatter3d",
-    #     mode = "line",
-    #     line = list(shape = "spline"),
-    #     showlegend = FALSE
-    # ) |>
-    add_surface(
-        contours = list(
-            z = list(
-                show = TRUE,
-                usecolormap = TRUE,
-                highlightcolor = "#ff0000",
-                start = min(llsurf),
-                end = max(llsurf),
-                size = 1,
-                project = list(z = TRUE)
-            )
-        )
-    ) |>
-    visibly::theme_plotly() |>
-    plotly::layout(
-        # title = 'Likelihood Surface',
-        scene = list(
-            xaxis = list(title = "sigma", range = b1_range),
-            yaxis = list(title = "b1", range = sigma_range),
-            zaxis = list(title = "-LL", angle = -90, range = c(100, 135)),
-            camera = list(eye = list(x = 1.25, y = 2, z = 1)),
-            # camera = list(eye = list(x = 0, y = 2, z = .66)),
-            paper_bgcolor = "rgba(0,0,0,0)",
-            plot_bgcolor = "rgba(0,0,0,0)"
-        )
-    )
+# p = plot_ly(
+#     z = ~llsurf,
+#     x = ~b1,
+#     y = ~sigma,
+#     type = "surface",
+#     # colors = viridis::plasma(500)
+#     colors = scico::scico(500, palette = "lipari", direction = -1),
+#     showscale = FALSE
+#     # showlegend = FALSE
+#     ) |>
+#     # plotly may invert the axes for the marker, so we have to switch them
+#     add_trace(
+#         y = bbmle::coef(mlnorm)["b1"],
+#         x = bbmle::coef(mlnorm)["sigma"],
+#         # x = b1[minll[,1]],
+#         # y = sigma[minll[,2]],
+#         z = min(c(llsurf)),
+#         # marker = list(color = palettes$orange$complementary, size = 10),
+#         type = "scatter3d",
+#         mode = "markers",
+#         showlegend = FALSE
+#     ) |>
+#     # add_trace(
+#     #     y = estimates$b1,
+#     #     x = estimates$sigma,
+#     #     # x = minll[,1],
+#     #     # y = minll[,2],
+#     #     z = estimates$ll,
+#     #     # marker = list(color = palettes$orange$complementary, size = 10),
+#     #     type = "scatter3d",
+#     #     mode = "line",
+#     #     line = list(shape = "spline"),
+#     #     showlegend = FALSE
+#     # ) |>
+#     add_surface(
+#         contours = list(
+#             z = list(
+#                 show = TRUE,
+#                 usecolormap = TRUE,
+#                 highlightcolor = "#ff0000",
+#                 start = min(llsurf),
+#                 end = max(llsurf),
+#                 size = 1,
+#                 project = list(z = TRUE)
+#             )
+#         )
+#     ) |>
+#     visibly::theme_plotly() |>
+#     plotly::layout(
+#         # title = 'Likelihood Surface',
+#         scene = list(
+#             xaxis = list(title = "sigma", range = b1_range),
+#             yaxis = list(title = "b1", range = sigma_range),
+#             zaxis = list(title = "-LL", angle = -90, range = c(100, 135)),
+#             camera = list(eye = list(x = 1.25, y = 2, z = 1)),
+#             # camera = list(eye = list(x = 0, y = 2, z = .66)),
+#             paper_bgcolor = "rgba(0,0,0,0)",
+#             plot_bgcolor = "rgba(0,0,0,0)"
+#         )
+#     )
+# 
+# save_image(p, file = 'img/likelihood_surface.svg', width = 1600, height = 1200)
 
 detach(package:plotly)
 detach(package:bbmle)
 ```
 
-We can also see the path our estimates take, starting at a rather poor point, but quickly updating to better values. We also see little exploratory jumps creating a star like pattern, before things ultimately settle to the best values. In general, these updates and paths are dependent on the optimization algorithm one uses.
+```{r}
+#| echo: false
+#| label: fig-show-r-likelihood-surface
+#| fig-cap: Likelihood surface for two parameters
+
+knitr::include_graphics("img/likelihood_surface.svg")
+```
+
+<!-- ![Likelihood Surface](img/likelihood_surface.svg) -->
+
+We can also see the path our estimates take, starting at a rather poor point, but quickly updating to estimates that result in a better likelihood value. We also see little exploratory jumps creating a star like pattern, before things ultimately settle to the best values. In general, these updates and paths are dependent on the optimization algorithm one uses.
 
 ```{r}
 #| echo: false
 #| label: fig-r-likelihood-path
-#| fig-cap: Optimization path two parameters
+#| fig-cap: Optimization path for two parameters
 
 estimates |>
     filter(b1 < 1, sigma > .5, sigma < 1) |>
@@ -1090,9 +1198,9 @@ estimates |>
         size = 1,
         # position = position_jitter(width = .05)
     ) +
-    # geom_path() +
     scico::scale_color_scico(begin = .25, palette = "lipari", direction = -1) +
-    scale_size_continuous(range = c(.5, 3))
+    guides(color = guide_legend(title = "LL")) + # neat how this and several alternatives do nothing
+    scale_size_continuous(range = c(.5, 3)) 
 ```
 
 ```{r}
@@ -1146,7 +1254,7 @@ It turns out that in the case of a normal distribution, the maximum likelihood e
 
 #### Additional Thoughts on Maximum Likelihood 
 
-NEEDS WORK
+TODO: Remove?
 
 One of the key things to note is that maximum likelihood is an estimation technique that relies on specifying the probability distribution that serves as the data generating process. Maximum likelihood allows us to be explicit about why we think those target values are the way they are. The likelihood also serves as a fundamental part of Bayesian analysis, which we'll discuss more later. 
 In general, maximum likelihood is a powerful technique that can be used in many contexts, and likelihoods can be used as the objective for many machine learning algorithms as well.
@@ -1154,7 +1262,7 @@ In general, maximum likelihood is a powerful technique that can be used in many 
 
 ## Estimation: Quick Review
 
-MOVE WHERE? NEEDED?
+TODO: MOVE WHERE? NEEDED?
 
 At this point we understand a few things:
 
