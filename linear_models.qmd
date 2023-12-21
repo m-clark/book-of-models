@@ -450,7 +450,7 @@ $$
 What is $\hat{y}$? The hat over the $y$ just means that it's a predicted value of the model, rather than the one we actually observe. Our first equations that just used $y$ implicilty suggested that we would get a perfect rating value given the model, but that's not the case. We can only get an estimate. The $\hat{y}$ is also the linear predictor in our graphical version (@fig-graph-lm), which makes clear it is not the actual target, but a combination of the features that is related to the target.
 
 
-To make our first equation accurately reflect the relationship between the target and our features, we need to add what is usually referred to as an **error term**, $\epsilon$, to account for the fact that our predictions will not be perfect[^perfect_prediction].  So the full linear model is:
+To make our first equation accurately reflect the relationship between the target and our features, we need to add what is usually referred to as an **error term**, $\epsilon$, to account for the fact that our predictions will not be perfect[^perfect_prediction].  So the full linear (regression) model is:
 
 [^perfect_prediction]: In most circumstances, if you ever have perfect prediction, or even near perfect prediction, the usual issues are that you have either asked a rather obvious/easy question of your data (e.g., predicting whether an image is of a human or a car), or have accidentally included the target in your features (or a combination of them) in some way.
 
@@ -465,9 +465,9 @@ TODO: think about which of the following parts of of prediction can move to the 
 
 ### What kinds of predictions can we get? {#sec-lm-prediction-types}
 
-What predictions we get depends on the type of model we are using.  For the linear model, we can get predictions for the target, which is a **continuous variable**.  Very commonly, we also can get predictions for a **categorical target**, such as whether the rating is 'good' or 'bad'. This simple breakdown pretty much covers everything, as we typically would be predicting a continuous variable or a categorical variable, or more of them, like multiple continuous variables, or a target with multiple categories, or sequences of categories (e.g. words). In our case, we can get predictions for the rating, which is a number between 1 and 5. Had our target been a binary good vs. bad rating, our predictions would still be numeric, and usually expressed as a probability between 0 and 1. We then would convert that probability to a class of good or bad depending on a chosen probability cutoff. We'll talk about how to get predictions for categorical targets later.
+What predictions we get depends on the type of model we are using.  For the linear model, we can get predictions for the target, which is a **continuous variable**.  Very commonly, we also can get predictions for a **categorical target**, such as whether the rating is 'good' or 'bad'. This simple breakdown pretty much covers everything, as we typically would be predicting a continuous variable or a categorical variable, or more of them, like multiple continuous variables, or a target with multiple categories, or sequences of categories (e.g. words). In our case, we can get predictions for the rating, which is a number between 1 and 5. Had our target been a binary good vs. bad rating, our predictions would still be numeric, and usually expressed as a probability between 0 and 1, say, for the 'good' category. Higher probabilities would mean we'd more likely predict the movie is good. We then would convert that probability to a class of good or bad depending on a chosen probability cutoff. We'll talk about how to get predictions for categorical targets later.
 
-We saw a prediction for a single observation, but we can also get predictions for multiple observations at once.  In fact, we can get predictions for all observations in our dataset. Besides that, we can also get predictions for observations that we don't have data for. The following shows how we can get predictions for all data, and for a single observation with a word count of 5.
+We previously saw a prediction for a single observation, but we can also get predictions for multiple observations at once.  In fact, we can get predictions for all observations in our dataset. Besides that, we can also get predictions for observations that we don't even have data for! Fun! The following shows how we can get predictions for all data, and for a single observation with a word count of 5.
 
 ::: {.panel-tabset}
 
@@ -493,7 +493,8 @@ single_prediction = model_reviews.predict(pd.DataFrame({'word_count': [5]}))
 
 
 
-Here is a plot of our predictions versus the actual ratings[^jitter]. The reference line is where the points would fall if we had perfect prediction. We can see that the predictions are definitely not perfect, but they are not completely off base either. We'll talk about how to assess the quality of our predictions later, but we can at least get a sense that we have a correspondence relationship between our predictions and target, which is definitely better than not having a relationship at all!
+Here is a plot of our predictions for the observed data versus the actual ratings[^jitter]. 
+The reference line is where the points would fall if we had perfect prediction. We can see that the predictions are definitely not perfect, but we don't expect this. They are not completely off base either, in that generally higher predicted scores are associated with higher observed values. We'll talk about how to assess the quality of our predictions later, but we can at least get a sense that we have a correspondence relationship between our predictions and target, which is definitely better than not having a relationship at all!
 
 [^jitter]: Word count is **discrete**- it can only take whole numbers like 3 or 20, and it is our only feature.  Because of this, we can only make very limited predicted rating values, while the observed rating can take on many other values. Because of this, the true plot would show a more banded result with many points overlapping, so we use a technique called **jittering** to move the points around a little bit so we can see them all.  The points are still roughly in the same place, but they are moved around a little bit so we can see them all.  
 
@@ -519,7 +520,8 @@ df_reviews |>
     )
 ```
 
-Now let's look at what our prediction looks like for a single observation, and we'll add in a few more- one for 10 words, and one for a 50 word review, which is beyond the length of any review in this dataset, and one for 12.3 words, which isn't even possible for this data.
+Now let's look at what our prediction looks like for a single observation, and we'll add in a few more- one for 10 words, and one for a 50 word review, which is beyond the length of any review in this dataset, and one for 12.3 words, which isn't even possible for this data, since words are only counted as whole values. To get these values we just use the same prediction approach we showed above (@my-first-model-predictions-r), and we specify the word count value we want to predict for. 
+
 
 ```{r}
 #| echo: false
@@ -535,20 +537,22 @@ tibble(
     fmt_number(decimals = 1)
 ```
 
-The values reflect the `r word_sign(wc_coef, c('positive', 'negative'))` coefficient from our model, reflecting a `r word_sign(wc_coef, c('increasing', 'decreasing'))` relationship. Further more, we see the power of the model's ability to make predictions for what we can't see. Maybe we limited our data review size, but we know there are 50 word reviews out there, and we can still make a guess as to what the rating would be for such a review.  Maybe in another case, we know a group of people who have on average 12.3 word reviews, and we can make a guess as to what the average rating would be for that group. Our model doesn't know anything about the context of the data, but we can use our knowledge to make predictions about the world around us. This is a very powerful capability, and it's one of the main reasons we use models in the first place.  
+The values reflect the `r word_sign(wc_coef, c('positive', 'negative'))` coefficient from our model, reflecting `r word_sign(wc_coef, c('increasing', 'decreasing'))` ratings with increasing word counts. Furthermore, we see the power of the model's ability to make predictions for what we don't see in the data. Maybe we limited our data review size, but we know there are 50 word reviews out there, and we can still make a guess as to what the rating would be for such a review.  Maybe in another case, we know a group of people who have on average 12.3 word reviews, and we can make a guess as to what the average rating would be for that group. Our model doesn't know anything about the context of the data, but we can use our knowledge to make predictions about the world around us. This is a very powerful capability, and it's one of the main reasons we use models in the first place.  
 
+TODO: summarize some thoughts but move bulk to 'knowing your model' chapter
 
 ### Prediction Error {#sec-lm-prediction-error}
 
 As we have seen, predictions are not perfect, and an essential part of the modeling endeavor is to better understand these errors and why they occur. In addition, error assessment is the fundamental way in which we assess a model's performance, and, by extension, compare that performance to other models. In general, prediction error is the difference between the actual value and the predicted value or some function of it, and in statistical models, is also often called the **residual**.  We can look at these individually, or we can look at them in aggregate with a single metric.
 
 
-Let's start with looking at the residuals visually. Often the modeling package you use will have this as a default plotting method when doing a standard linear regression, so it's wise to take advantage of it. We plot both the distribution of raw error scores and the cumulative distribution of absolute prediction error. Here we see a couple things. First, the distribution is roughly normal, which is a good thing, since statistical linear regression assumes our prediction error is normally distributed. Second, we see that the mean of the errors is zero, which is a consequence of linear regression, and the reason we look at the mean squared error rather than the mean error when assessing model performance. We can also see that most of our predictions are within 1 star rating. 
+Let's start with looking at the residuals visually. Often the modeling package you use will have this as a default plotting method when doing a standard linear regression, so it's wise to take advantage of it. We plot both the distribution of raw error scores and the cumulative distribution of absolute prediction error. Here we see a couple things. First, the distribution is roughly normal, which is a good thing, since statistical linear regression assumes our error is normally distributed, and the prediction error serves as an estimate of that. Second, we see that the mean of the errors is zero, which is a consequence of linear regression, and the reason we look at other metrics when assessing model performance. We can also see that most of our predictions are within 1 star rating. 
 
 ```{r}
 #| echo: false
 #| label: my-first-model-error-plot
 #| fig-cap: Distribution of Prediction Errors
+#| out-width: 100%
 p_hist <- tibble(
     error = resid(model_reviews)
 ) |>
@@ -587,7 +591,7 @@ p_hist + p_ecdf
 
 ```
 
-Of more practical concern however, is that we don't see extreme values or clustering that might indicate a failure on the part of the model to pick up certain segments of the data.  It still is good to look at the extremes just in case we can pick up on some aspect of the data that we could potentially incorporate into the model. 
+Of more practical concern is that we don't see extreme values or clustering, which might indicate a failure on the part of the model to pick up certain segments of the data. It can still be a good idea to look at the extremes just in case we can pick up on some aspect of the data that we could potentially incorporate into the model.
 
 ```{r}
 #| echo: false
@@ -600,7 +604,7 @@ worst_prediction = df_reviews |>
 ```
 
 
-Looking at our worst prediction in absolute terms, we see the observation has a typical word count, and so our simple model will just predict a fairly typical rating. But the actual rating is `r worst_prediction$rating`, which is `r abs(round(worst_prediction$rating - worst_prediction$prediction, 1))` away from our prediction, a very noticeable difference.
+Looking at our worst prediction in absolute terms, we see the observation has a typical word count, and so our simple model will just predict a fairly typical rating. But the actual rating is `r worst_prediction$rating`, which is `r abs(round(worst_prediction$rating - worst_prediction$prediction, 1))` away from our prediction, a very noticeable difference. Further data inspection may be required to figure out whiy this came about.
 
 
 ```{r}
@@ -616,7 +620,7 @@ worst_prediction |>
 
 We can also get an overall assessment of the prediction error. In the case of the linear model we've been looking at, we can express this in a single metric as the sum or mean of our (squared) errors, the latter of which is a very commonly used modeling metric- **MSE** or **mean squared error**, or also, its square root - **RMSE** or **root mean squared error**. 
 
-If we look back at our results, we can see this expressed as the part of the output or as an attribute of the model[^sigmanotrmse]. The RMSE is more interpretable, and it gives us a sense that we can expect an average prediction error for rating of `r model_rmse`.  Given that the rating is on a 1-5 scale, this maybe isn't bad, but we could definitely hope to do better than get within roughly half a point on this scale.  We'll talk about ways to improve this later.
+If we look back at our results, we can see this expressed as the part of the output or as an attribute of the model[^sigmanotrmse]. The RMSE is more interpretable, as it gives us a sense that our typical errors bounce around by about `r model_rmse`.  Given that the rating is on a 1-5 scale, this maybe isn't bad, but we could definitely hope to do better than get within roughly half a point on this scale. We'll talk about ways to improve this later.
 
 
 [^sigmanotrmse]: The actual divisor for linear regression output depends on the complexity of the model, and in this case the sum of the squared errors is divided by N-2 (due to estimating the intercept and coefficient) instead of N. This is a technical detail that would only matter for data too small to make much of in the first place, and not important for our purposes here.
@@ -641,7 +645,7 @@ np.sqrt(model_reviews.scale)   # RMSE
 :::
 
 
-At this point you have the gist of prediction and prediction error, but there is a lot more to it. More detail can be found in the [estimation chapter](#estimation), since we often estimate the parameters of our model by picking those that will reduce the prediction error the most.    For now, let's move on to the other main use of models, which is to help us understand the relationships between the features and the target, or **explanation**.
+At this point you have the gist of prediction and prediction error, but there is a lot more to it. More detail can be found in the estimation chapter (@sec-estimation), since we often estimate the parameters of our model by picking those that will reduce the prediction error the most. Makes sense right?  For now though, let's move on to the other main use of models, which is to help us understand the relationships between the features and the target, or **explanation**.
 
 
 ## How do we interpret the model? {#sec-lm-interpretation}
