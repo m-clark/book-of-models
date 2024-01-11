@@ -832,7 +832,8 @@ Suffice it to say at this point that how much one focuses on prediction vs. expl
 In the end we'll need to balance our efforts to suit the task at hand. Prediction and explanation are both fundamental to the modeling endeavor.
 
 
-TODO: Move interactions to GLM and shap etc. to 'knowing your model' chapter
+TODO: Move interactions to GLM and shap etc. to 'knowing your model' chapter.  This should have multiple features
+
 ## Adding Complexity {#sec-lm-complexity}
 
 We've seen how to fit a model with a single feature and interpret the results, and that helps us to get oriented to the process. However, we'll always have more than one feature for a model except under some very specific circumstances, such as exploratory data analysis. So let's see how we can do that with a model that makes more sense. 
@@ -848,7 +849,7 @@ We can add more features to our model very simply. Using the standard functions 
 'y ~ feature_1 + feature_2 + feature_3'
 ```
 
-In other cases, additional features will just be the additional input columns. We might have a lot of features, and even for linear models this could be dozens in some scenarios. A compact depiction of our model uses the matrix representation, which we'll show in the callout below, and you can find more detail in the matrix section @sec-matrix-operations overview. For our purposes, all you really need to know is that this:
+In other cases, additional features will just be the additional input columns, and nothing about the model code actually changes. We might have a lot of features, and even simpler for linear models this could be dozens in some scenarios. A compact depiction of our model uses the matrix representation, which we'll show in the callout below, and you can find more detail in the matrix section @sec-matrix-operations overview. For our purposes, all you really need to know is that this:
 
 $$
 y = X\beta\qquad  \textrm{or}\qquad y = \alpha + X\beta
@@ -860,7 +861,7 @@ $$
 y = \alpha + \beta_1 x_1 + \beta_2 x_2 + \beta_3 x_3 \dots
 $$
 
-where $X$ is a matrix of features[^interceptones], and $\beta$ is a vector of coefficients. Matrix multiplication allows us an efficient way to get our expected value/prediction. 
+where $X$ is a matrix of features[^interceptones], and $\beta$ is a vector of coefficients. Matrix multiplication provides us an efficient way to get our expected value/prediction. 
 
 [^interceptones]: For linear regression as we estimate it here, there is actually an additional column at the beginning of the matrix that is all ones, which is a way to incorporate the intercept. However, most models that use a matrix as input will not have the intercept column, as it's not part of the model estimation or is estimated separately.
 
@@ -868,6 +869,7 @@ where $X$ is a matrix of features[^interceptones], and $\beta$ is a vector of co
 
 
 ::: {.callout-note collapse="true" appearance="minimal"}
+
 **Matrix Representation of a Linear Model**
 
 Here we'll show the matrix representation form of the linear model, for the typical case where we have more than one feature in the model. In the following, y is a vector of all target observations, and likewise each x is a (row) vector of all observations for that feature.  The b vector is the vector of coefficients.  The 1 serves as a means to incorporate the intercept. It's just a feature that always has a value of 1.  The matrix multiplication is just a compact way of expressing the sum of the features multiplied by their coefficients.  We can even do it more
@@ -912,9 +914,11 @@ $$
 \textbf{y = Xb }
 $$ {#eq-lm-mat-mult}
 
+You will also see it depicted in a transposed fashion, such that $y = \beta X$, which is just a matter of preference, except that it assumes your data is formatted in a way you'll likely never see in practice, where the features are the rows and the observations are the columns.  We'll stick with the above representation, which is the more common way you'll have your data organized.
+
 :::
 
-With that in mind, let's get to our model! In what follows, we keep the word count, but now we add some aspects of the reviewer, such as age and the number of children in the household, features related to the movie- the release year, the length of the movie in minutes, and the total reviews received. We'll also add another review level feature- the year the review was written.  We'll use the same approach as before, and literally just add them as we depicted in our linear model formula (@eq-lm-basic).
+With that in mind, let's get to our model! In what follows, we keep the word count, but now we add some aspects of the reviewer, such as age and the number of children in the household, and features related to the movie, like the release year, the length of the movie in minutes, and the total reviews received. We'll also add another review level feature- the year the review was written.  We'll use the same approach as before, and literally just add them as we depicted in our linear model formula (@eq-lm-basic).
 
 :::{.panel-tabset}
 
@@ -991,9 +995,9 @@ mre_metrics = round(performance::performance(model_reviews_extra), 2)
 mre_mae = round(performance::performance_mae(model_reviews_extra), 2)
 ```
 
-There is definitely more to unpack here but it's important to note that it's just *more* stuff, not different stuff.  The model-level components are the same in that we still see R^2^ etc., although they are all 'better' (higher R^2^, lower error) because we have a more predictive model. Our coefficents look the same also, and the fact is we'd interpret the in the same way.  Starting with word count, we see that it's still statistically significant, but it has been reduced just slightly from our previous model where it was the only feature (`r wc_coef` vs. `r mre_coef['word_count']`).  Why? This suggests that word count has some non-zero correlation, sometimes called **collinearity**, with other features that are also explaining the target to some extent. Our linear model shows the effect of each feature *controlling for other features*, or, *holding other features constant*[^controllingfor]. Conceptually this means that the effect of word count is the effect of word count *after* we've accounted for the other features in the model. In this case, an increase of a single word results in a `r round(mre_coef['word_count'], 2)` `r word_sign(mre_coef['word_count'], c('bump', 'drop'))`. Looking at another feature, the addition of a child to the home is associated with `r mre_coef['children_in_home']` `r word_sign(mre_coef['children_in_home'], c('bump', 'drop'))` in rating, accounting for the other features.
+There is definitely more to unpack here, but it's important to note that it's just *more* stuff, not *different* stuff.  The model-level components are the same in that we still see R^2^ etc., although they are all 'better' (higher R^2^, lower error) because we have a more predictive model. Our coefficents look the same also, and we'd interpret the in the same way.  Starting with word count, we see that it's still statistically significant, but it has been reduced just slightly from our previous model where it was the only feature (`r wc_coef` vs. `r mre_coef['word_count']`).  Why? This suggests that word count has some non-zero correlation, sometimes called **collinearity**, with other features that are also explaining the target to some extent. Our linear model shows the effect of each feature *controlling for other features*, or, *holding other features constant*[^controllingfor]. Conceptually this means that the effect of word count is the effect of word count *after* we've accounted for the other features in the model. In this case, an increase of a single word results in a `r round(mre_coef['word_count'], 2)` `r word_sign(mre_coef['word_count'], c('bump', 'drop'))`, even after adjusting for the effect of other features. Looking at another feature, the addition of a child to the home is associated with `r mre_coef['children_in_home']` `r word_sign(mre_coef['children_in_home'], c('bump', 'drop'))` in rating, accounting for the other features.
 
-Thinking about prediction, how would we get a prediction for a movie rating with a review that is 12 words long, written in 2020, by a 30 year old with one child, for a movie that is 100 minutes long, released in 2015, with 10000 total reviews?  Conceptually we just plug in the values for each feature into the model equation exactly as we did for a single feature. But since that'd be tedious, we'll just use the `predict` function, which is a bit easier and what we'd normally do.
+Thinking about prediction, how would we get a prediction for a movie rating with a review that is 12 words long, written in 2020, by a 30 year old with one child, for a movie that is 100 minutes long, released in 2015, with 10000 total reviews?  Exactly the same as we did before (@sec-lm-prediction-types)! We just create a data frame with the values we want, and predict accordingly.
 
 :::{.panel-tabset}
 
@@ -1045,7 +1049,7 @@ In our example we're just getting a single prediction, but don't let that hold y
 [^controllingfor]: A lot of statisticians and causal modeling folks get very hung up on the terminology here, but we'll leave that to them as we'd like to get on with things. For our purposes, we'll just say that we're interested in the effect of a feature *after* we've accounted for the other features in the model. 
 
 
-
+TODO: MOVE TO KNOWING YOUR MODEL CHAPTER, but maybe mention a bit about added complexity in interpretation
 
 ### More Interpretation Tools {#sec-lm-more-interpretation}
 
@@ -1053,7 +1057,7 @@ In our example we're just getting a single prediction, but don't let that hold y
 
 Some models are more complicated than can be explained by a simple coefficient, e.g. nonlinear effects in generalized additive models, or may not even have feature-specific coefficients, like gradient boosting models, or may have many parameters associated with a feature, as in deep learning. Such models typically won't come with statistical output like standard errors and confidence intervals either. But we'll still have some tricks up our sleeve to help us figure things out!
 
-A very common interpretation tool is called a **SHAP value**. SHAP stands for **SHapley Additive exPlanations**, and it provides a means to understand how much each feature contributes to a specific prediction. It's based on a concept from game theory called the **Shapley value**, which is a way to understand how much each player contributes to the outcome of a game. The reason we bring it up here is that it is has a nice intuition in the linear model case, and demonstrating now is a good way to get a sense of how it works. While the actual computations can be tedious, the basic idea is relatively straightforward- for a given prediction at a specific observation with set feature values, we can calculate the difference between the prediction at that observation and the average prediction. This is the **local effect** of the feature.  However, we must also consider doing this for all possible values of other features that might be in a model, as well as considering whether other features are present for the prediction or not. The initial Shapley approach is to average the local effects over all possible combinations of features, which is computationally intractable for all but the simplest models. The SHAP approach offers more computationally feasible methods for estimation which, while still computationally intensive, is doable for many models. The SHAP approach also has the benefit of being able to be applied to *any* model, and it's the approach we'll use here and return to with some of our other models.
+A very common interpretation tool is called a **SHAP value**. SHAP stands for **SHapley Additive exPlanations**, and it provides a means to understand how much each feature contributes to a specific prediction. It's based on a concept from game theory called the **Shapley value**, which is a way to understand how much each player contributes to the outcome of a game. The reason we bring it up here is that it is has a nice intuition in the linear model case, and demonstrating now is a good way to get a sense of how it works. While the actual computations can be tedious, the basic idea is relatively straightforward- for a given prediction at a specific observation with set feature values, we can calculate the difference between the prediction at that observation and the average prediction. This is the **local effect** of the feature.  However, we must also consider doing this for all possible values of other features that might be in a model, as well as considering whether other features are present for the prediction or not. The initial Shapley approach is to average the local effects over all possible combinations of features, which is computationally intractable for all but the simplest model/data settings. The SHAP approach offers more computationally feasible methods for estimation which, while still computationally intensive, is doable for many models. The SHAP approach also has the benefit of being able to be applied to *any* model, and it's the approach we'll use here and return to with some of our other models.
 
 Let's look at the SHAP values for our model.  We'll start with a single feature value/observation, using our multifeature model. Here we'll use the first observation where there are 12 words for word count, age of reviewer is 30, a movie length of 100 minutes etc. To aid our understanding, we calculate the shap value related to word count at that observation by hand, and using a package.
 
@@ -1068,7 +1072,6 @@ Let's look at the SHAP values for our model.  We'll start with a single feature 
 # first we need to get the average prediction
 avg_pred = mean(predict(model_reviews_extra))
 
-
 # then we need to get the prediction for the feature value of interest
 # for all observations, and average them
 pred_observation = predict(
@@ -1077,7 +1080,7 @@ pred_observation = predict(
 )
 
 # then we can calculate the shap value
-shap_value = mean(pred_observation) - avg_pred
+shap_value_ours = mean(pred_observation) - avg_pred
 
 # we can also use the DALEX package to do this for us
 explainer = DALEX::explain(model_reviews_extra, verbose = FALSE)
@@ -1093,11 +1096,15 @@ obs_of_interest = tibble(
     review_year = 2020,
 )
 
-shap_value_package = DALEX::predict_parts(
+shap_value_package = DALEX::predict_parts_shap(
     explainer,
-    obs_of_interest,
-    type = "shap"
+    obs_of_interest
 )
+
+# c(
+#     shap_value_ours, 
+#     shap_value_package['word_count', 'contribution']
+# )
 ```
 
 
@@ -1114,7 +1121,7 @@ avg_pred = model_reviews_extra.predict(df_reviews).mean()
 pred_observation = model_reviews_extra.predict(df_reviews.assign(word_count = 12))
 
 # then we can calculate the shap value
-shap_value = pred_observation.mean() - avg_pred
+shap_value_ours = pred_observation.mean() - avg_pred
 
 
 # now use the shap package for this; it does not work with statsmodels though,
@@ -1153,7 +1160,9 @@ obs_of_interest = pd.DataFrame({
 
 shap_values_linear = explainer_linear(obs_of_interest)
 
-shap_value = shap_values_linear.values[0, 0]
+shap_value_package = shap_values_linear.values[0, 0]
+
+# (shap_value_ours, shap_value_package)
 ```
 
 :::
@@ -1164,13 +1173,13 @@ shap_value = shap_values_linear.values[0, 0]
 #| label: tbl-shap-values-comparison
 #| tbl-cap: SHAP Value Comparison
 tibble(
-    ours = shap_value,
-    dalex = as_tibble(shap_value_package['word_count', ])[["contribution"]]
+    ours  = shap_value_ours,
+    dalex = shap_value_package |> filter(variable_name == 'word_count') |> pull(contribution)
 ) |>
     gt(decimals = 3)
 ```
 
-So we see the contribution to a prediction for a single feature, but the shap-related packages provide them for all features, and thus get a sense of each feature's contribution to the predicion. The following shows this as a visualization, either a force plot and waterfall plot. Smaller contributions are aggregated to one effect to simplify the plot. The dotted line represents the average prediction from our model (E[f(x)]) and the prediction we have for the observation (f(x)). We see that total reviews and length in minutes contribute most to the prediction at this observation, followed by release year.  We can also see that the effect of movie length is negative.
+So we see the contribution to a prediction for a single feature, but the shap-related packages provide them for all features, and so we get a sense of each feature's contribution to the prediction. The following shows this as a visualization, as a **force plot** and **waterfall plot**. Smaller contributions are aggregated to one effect to simplify the plot. The dotted line represents the average prediction from our model and the prediction we have for the observation. We see that total reviews and length in minutes contribute most to the prediction at this observation, followed by release year.  We can also see that the effect of movie length is negative.
 
 ```{r}
 #| echo: false
@@ -1227,21 +1236,20 @@ bd / wf +
 #     xlab("Importance")
 ```
 
-Pretty neat huh? So for any observation we want to, and more importantly, for any model we might use, we can get a sense of how features contribute to that prediction.  We also can get a sense of how much each feature contributes to the model as a whole by aggregating these values across all observations in our data, and this provides a measure of **feature importance**, but we'll come back to that in a bit.
+Pretty neat huh? So for any observation we want to inspect, and more importantly, for any model we might use, we can get a sense of how features contribute to that prediction.  We also can get a sense of how much each feature contributes to the model as a whole by aggregating these values across all observations in our data, and this provides a measure of **feature importance**, but we'll come back to that in a bit.
 
 If we are concerned with a single feature's relationship with the target, we can also look at the **partial dependence plot** (PDP). The PDP shows the relationship between a feature and the target, but averaged over all other features. In other words, it shows the effect of a feature on the target, but averaged over all other features. For the linear case, it has a direct correspondence to the shap value. The SHAP value is the value the difference between the average prediction and the point on the PDP for a feature at a specific feature value. 
 
-We can also look at the **individual conditional expectation** (ICE) plot, which is a PDP for a single observation.  The PDP is a very common plot for understanding the relationship between a feature and the target, and we'll see it again with other models.  The ICE plot is less common, but it's a nice way to see how a feature affects the target for a single observation.  
+We can also look at the **individual conditional expectation** (ICE) plot, which is a PDP plot for a single observation. By looking at several observations, we can get a sense of the variability in the feature's effect. This becomes more interesting when we have interactions or other nonlinearities in our model.
 
-In addition, there are other plots that are similar to the PDP and ICE, such as the **accumulated local effect** (ALE) plot, which is a bit more robust to correlated features than the PDP plo. Where the PDP and ICE plots show the average effect of a feature on the target, the ALE plot focuses on average differences in predictions for the feature at a specific value versus predictions at feature values nearby, and centers the result so that the average difference is zero. We'll show all three here.
-
-https://christophm.github.io/interpretable-ml-book/ (good reference for all plots)
+In addition, there are other plots that are similar to the PDP and ICE, such as the **accumulated local effect** (ALE) plot, which is a bit more robust to correlated features than the PDP plot. Where the PDP and ICE plots show the average effect of a feature on the target, the ALE plot focuses on average *differences* in predictions for the feature at a specific value versus predictions at feature values nearby, and centers the result so that the average difference is zero. We show all three here.
 
 ```{r}
 #| echo: false
-#| label: pdp-ice-r
-#| fig-cap: Partial Dependence and Individual Conditional Expectation Plots
+#| label: fig-pdp-ice-r
+#| fig-cap: PDP, ICE, and ALE Plots
 #| fig-height: 10
+#| fig-width: 8
 # elements of this come from initial shap calculation demo
 
 library(ggplot2)
@@ -1274,7 +1282,7 @@ pdp = FeatureEffect$new(p_init, 'word_count', method = "pdp")$plot() +
     ) +
     annotate(
         "text", 
-        x = obs_of_interest$word_count + 2, 
+        x = obs_of_interest$word_count + 4, 
         y = mean(df_reviews$rating) + - .02, 
         label = "SHAP Value"
     ) +
@@ -1307,7 +1315,9 @@ pdp + ice + ale +
     theme(
         plot.subtitle = element_text(size = 14)
     ) 
+# ggsave("img/pdp-ice-ale.png", width = 8, height = 6)
 ```
+
 
 Kinda cool but maybe not so interesting in that they all kind of tell us the same thing about our negative relationship between word count and rating, which we already knew from our coefficient value. The real power will come in later when we use interactions, nonlinear effects, and other models. But it's good to note now that the PDP, ICE, and ALE plots are a nice way to get a sense of the relationship between a feature and the target, and we'll see them again with other models.
 
@@ -1359,14 +1369,14 @@ How important is a feature? It's a common question, and one that is often asked 
 - There is no single definition of importance.
 - There is no single metric for *any* model that will definitively tell you how important a feature is relative to others in all data/model contexts.
 - There are many metrics for a given model that are equally valid, but may come to different conclusions.
-- Any non-zero feature contribution is potentially 'imortant', however small.
-- Many metrics of importance fail to adequately capture interactions and deal with correlated features.
+- Any non-zero feature contribution is potentially 'important', however small.
+- Many metrics of importance fail to adequately capture interactions and/or deal with correlated features.
 - All measures of importance are measured with uncertainty, and the uncertainty can be large.
-- Relative to... what? A poor model will still have relatively 'important' features, but they may not be useful.
-- It rarely makes sense to drop features based on importance alone, and will typically drop performance to do so.
+- Relative to... what? A poor model will still have relatively 'important' features, but they still may not be useful.
+- It rarely makes sense to drop features based on importance alone, and doing so will typically drop performance as well.
 - In the end, what will you do with the information? 
 
-To show just how difficult measuring feature importance is, we only have to stick with our simple linear regression. Think again about R^2^: it tells us the proportion of the target explained by our features. An ideal measure of importance would be able to tell us how much each feature contributes to that proportion, or in other words, decomposes R^2^ into the relative contributions of each feature. One of the most common measures of importance in linear models is the standardized coefficient we demonstrated earlier. You know what it doesn't do? Decompose R^2^. The easiest situation we could hope for with regard to feature importance is the basic linear model we've been using.  Everything is linear, with no interactions, or other things going on. And yet there are many logical ways to determine feature importance, and some even break down R^2^, but they won't necessarily agree with each other in ranking or relative differences. If you can get a measure of statistical difference between whatever metric you choose, it's often the case that 'top' features will not be statistically different from other features.  So what do we do? We'll show a few methods here, but the main point is that there is no single answer, and it's important to understand what you're trying to do with the information.
+To show just how difficult measuring feature importance is, we only have to stick with our simple linear regression. Think again about R^2^: it tells us the proportion of the target explained by our features. An ideal measure of importance would be able to tell us how much each feature contributes to that proportion, or in other words, decomposes R^2^ into the relative contributions of each feature. One of the most common measures of importance in linear models is the standardized coefficient we demonstrated earlier. You know what it doesn't do? It doesn't decompose R^2^ into relative contributions. The easiest situation we could hope for with regard to feature importance is the basic linear model we've been using.  Everything is linear, with no interactions, or other things going on. And yet there are many logical ways to determine feature importance, and some even break down R^2^ into relative contributions, but they won't necessarily agree with each other in ranking or relative differences. If you can get a measure of statistical difference between whatever metric you choose, it's often the case that 'top' features will not be statistically different from other features.  So what do we do? We'll show a few methods here, but the main point is that there is no single answer, and it's important to understand what you're trying to do with the information.
 
 Let's start things off by returning to our SHAP value. If we take the average absolute shap for each feature, we get a sense of the typical contribution size for the features. We can then rank order them as accordingly. Here we see that the most important features here are the number of reviews and the length of the movie. Note that we can't speak to direction here, only magnitude.  We can also see that word count is relatively less important. 
 
@@ -1374,7 +1384,7 @@ Let's start things off by returning to our SHAP value. If we take the average ab
 #| echo: false
 #| label: shap-importance-bar
 #| fig-cap: SHAP Importance
-
+#| fig-width: 6
 
 p_dat_shap = sv_importance(plot_dat_shap)$data
 
@@ -1420,14 +1430,16 @@ p_dat_shap |>
     )
 ```
 
-Now here are some additional methods, some more reasonable than others, some which decompose R^2^ and those that do not. Aside from SHAP, the value represents the proportion of the R^2^ value that is attributable to the feature. The ones that truly decompose R^2^ are in agreement for the most part and seem to think highly of word count. The latter seem to be more varied, and only SHAP devalues word count, but possibly for good reason. Which is best? Which is correct? None. But we can get a sense at least that total reviews and length in minutes are likely useful features to our model.
+Now here are some additional methods[^relaimpo], some more reasonable than others, some which decompose R^2^ and those that do not. Aside from SHAP, the other values represent the proportion of the R^2^ value that is attributable to the feature, or at least attempt to. The ones that truly decompose R^2^ are in agreement for the most part and seem to think highly of word count. The others seem to be more varied, and only SHAP devalues word count, but possibly for good reason. Which is best? Which is correct? None. But by looking at a few of these, we can get a sense at least that total reviews and length in minutes are likely useful features to our model.
 
+
+[^relaimpo]: The non-shap values were provided by the [relaimpo]{.pack} package in R.
 ```{r}
 #| echo: false
 #| eval: true
 #| label: fig-importance
 #| fig-cap: Feature Importance by Various Methods
-#| fig-height: 8
+#| fig-height: 12
 
 # library(relaimpo) # do not call directly, imports MASS ffs
 metrics = c("lmg", "last", "first", "betasq", "pratt", "genizi", "car")
@@ -1454,7 +1466,7 @@ pdat_rela = df_rela |>
     pivot_longer(-feature, names_to = "metric", values_to = "value") |>
     mutate(
         metric = fct_inorder(metric),
-        true_decompose = ifelse(metric %in% decomposer2, "Decomposes R-squared", "Does not")
+        true_decompose = ifelse(metric %in% decomposer2, "Decomposes R-sq", "Does not")
     ) |> 
     bind_rows(
         p_dat_shap |> mutate(metric = 'shap', true_decompose = 'Does not')
@@ -1465,7 +1477,7 @@ pdat_rela |>
     ggplot(aes(value, fct_inorder(feature))) +
     geom_col(
         aes(
-            alpha = I(ifelse(true_decompose == "Decomposes R-squared", 1, .25)),
+            alpha = I(ifelse(true_decompose == "Decomposes R-sq", 1, .25)),
             color = feature == "word_count",
             fill  = feature == "word_count",
             width = I(ifelse(feature == "word_count", .5, .1)) # says it ignores this, but doesn't
@@ -1497,10 +1509,12 @@ pdat_rela |>
         title = "Relative Importance"
     ) +
     facet_wrap(vars(true_decompose, metric), scales = "free", ncol = 2, dir = "v") +
-    theme(        plot.caption = element_text(vjust = -2)
+    theme(
+        plot.caption = element_text(vjust = -2),
+        strip.text = element_text(size = 10)
     )
 
-ggsave("img/fig-rsq-decomp.png", width = 8, height = 6)
+# ggsave("img/fig-rsq-decomp.png", width = 8, height = 6)
 ```
 
 
@@ -1509,7 +1523,7 @@ ggsave("img/fig-rsq-decomp.png", width = 8, height = 6)
 
 As before we can move beyond feature level interpretation, but we are still going to be concerned with the same sorts of questions - how well does the model fit? Have we impoved the fit significantly? What do our predictions look like, and so on.
 
-As an example, we see that our R^2^ has gone up to `r mre_metrics$R2`, but this comes with an important caveat - adding any feature would increase our R^2^, even one that was pure noise! So while it is informative, we want to look at MSE or MAE to determine whether the model has truly improved. In both cases they've been reduced. For example, RMSE is now `r mre_metrics$RMSE` a reduction of `r scales::label_percent()(1 - mre_metrics$RMSE/mr_metrics$RMSE)`, so we can feel confident that our model has improved. While there is more a lot more to unpack, we will save doing so for the Model Criticism chapter. At least at this point, we have an idea of how to assess our this added complexity at the model level.
+As an example, we see that our R^2^ has gone up to `r mre_metrics$R2`, but this comes with an important caveat - adding any feature would increase our R^2^, even one that was pure noise! So while it is informative, we can also look at MSE or MAE to determine whether the model has improved. In both cases they've been reduced. For example, RMSE is now `r mre_metrics$RMSE`, a reduction of `r scales::label_percent()(1 - mre_metrics$RMSE/mr_metrics$RMSE)`, so that provides some confidence that our model has improved over our initial single feature moredl. There's more we can look at, but at least with  we have an idea of how to assess our this added complexity at the model level.
 
 :::{.callout-note title='Adjusted R^2^'}
 Part of the output contains an 'adjusted' R^2^.  This is a version of R^2^ that penalizes the addition of features to the model as a way to account for the fact that adding features will always increase R^2^, even if they are not useful. This is why we can't use R^2^ alone to determine whether a model has improved, and why we suggest only considering it as a descriptive statistic. But the adjusted version is kind of a hack, and can even be negative for very poor models. If you want to compare models, use MSE, MAE, and similar metrics.
@@ -1517,6 +1531,9 @@ Part of the output contains an 'adjusted' R^2^.  This is a version of R^2^ that 
 
 
 ### Other Complexity {#sec-lm-other-complexity}
+
+
+TODO: Reconcile with Data chapter, possibly remove from this chapter entirely. If we do, maybe add this model example to that chapter.
 
 #### Categorical Features {#sec-lm-categorical-features}
 
@@ -1585,7 +1602,7 @@ model_cat.summary()
 
 We now see the usual output. There is word count again, with its slightly negative assocation with rating. And we have an effect for each season as well... except, wait a second, where is the fall effect? The coefficients are interepreted the same way - as we move one unit on x, we see a corresponding change in y. But moving from one category to another requires starting at some category in the first place! So one is chosen arbitrarily, but you would have control over this.  In our model, fall is chosen because its first alphabetically.  So if we look at say, the effect of summer, we see an increase in the rating of `r round(coef(model_cat)[['seasonSummer']], 2)` relative to fall. 
 
-A better approach to understanding categorical features for standard linear models is through what are called **marginal effects**, which can provide a kind of average prediction for each category while accounting for the other features in the model. Better still is to visualize these, and we can use something like our PDP approach from before to do so[^mepy]. It's actually tricky to define 'average' when there are multiple features and interactions involved, so be careful, but we'd interpret the result similarly. In this case, we expect higher ratings for summer releases.
+A better approach to understanding categorical features for standard linear models is through what are called **marginal effects**, which can provide a kind of average prediction for each category while accounting for the other features in the model. Better still is to visualize these, and we can use something like our PDP approach from before to do so[^mepy]. It's actually tricky to define 'average' when there are multiple features and interactions involved, so be careful, but we'd interpret the result similarly in those cases as best we can. In this case, we expect higher ratings for summer releases.
 
 ```{r}
 #| echo: false
@@ -1624,9 +1641,9 @@ TODO: Reconcile with previous section on Interactions
 
 #### Interactions {#sec-lm-interactions}
 
-We'll talk about this more in the other sections, but a common way to add complexity in linear models is through interactions. This is where we allow the effect of a feature to vary depending on the values of another feature, or even itself! As a conceptual example, we might expect that the effect of the number of children in the home on rating is different for movies from different genres (much higher for kids movies, maybe lower for horror movies), or that genre and season work together in some way to affect rating (e.g. action movies get higher ratings in summer).  We might also consider that the length of a movie might plateau or even have a negative effect on rating after a certain point, i.e. having a curvilinear effect. All of these are types of interactions we can explore. Interactions allow us to incorporate nonlinear relationships into the model, and so greatly extend the linear model's capabilities - we basically get to use a linear model in a nonlinear way!  
+We'll talk about this more in the other sections, but a common way to add complexity in linear models is through **interactions**. This is where we allow the effect of a feature to vary depending on the values of another feature, or even itself! As a conceptual example, we might expect that the effect of the number of children in the home on rating is different for movies from different genres (much higher for kids movies, maybe lower for horror movies), or that genre and season work together in some way to affect rating (e.g. action movies get higher ratings in summer).  We might also consider that the length of a movie might plateau or even have a negative effect on rating after a certain point, i.e., it would have a **curvilinear** effect. All of these are types of interactions we can explore. Interactions allow us to incorporate nonlinear relationships into the model, and so greatly extend the linear model's capabilities - we basically get to use a linear model in a nonlinear way!  
 
-NEED DEMO SINCE DIDNT MAKE IT TO OTHER CHAPTER
+TODO: NEED DEMO
 
 
 ## Assumptions and More {#sec-lm-assumptions}
@@ -1809,3 +1826,6 @@ happy |>
     write_csv('data/world_happiness_2018.csv')
 ```
 
+## refs
+
+@molnar_interpretable_2023
