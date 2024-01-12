@@ -1,8 +1,4 @@
-
-
-
-
-# Beyond the Basics
+# Extending the Linear Model {#sec-lm-extend}
 
 ```{r}
 #| label: setup-extensions
@@ -14,9 +10,26 @@ source("functions/utils.R")
 reticulate::use_condaenv("book-of-models")
 ```
 
-## Quantile Regression
+With thin linear model and generalized linear models, we have a solid foundation for modeling. We've seen how there is a notable amount we can do with a conceptually simple approach. We've also seen how we can extend the linear model to handle different types of data to help us understand and make some inferences about the relationships between our features and target.
 
-<!-- # Extending Beyond Regression Means -->
+In this chapter, we want to show you how to extend the linear model even further with still common tools. These particular methods are also good examples of how we can think about our data and approach in different ways, and can serve as a good starting point for even more techiques you may want to explore in the future.
+
+## Key Ideas {#sec-lm-extend-key-ideas}
+
+- The linear and generalized linear models are great and powerful starting points for modeling, but they are not the only options. But it's good to know a few more ways we can extend the approach.
+- Quantile regression, GAMs, and mixed models allow us to model relationships that are not linear or monotonic, and can help us to better understand our data.
+- While these seem like very different approaches, we can still use our linear model concepts and approach at the core, take similar estimation steps, and even have similar, albeit more, interpretation.
+
+
+### Why this matters? {#sec-lm-extend-why}
+
+The linear model is a great starting point for modeling. It is a simple approach that can be used to model a wide variety of relationships between features and targets. It is also a great way to get a feel for how to think about modeling. But linear and generalized models are just the starting point, and the models depicted here are very common extensions used in a variety of disciplines and industries. 
+
+### Good to know {#sec-lm-extend-good}
+
+While these models are extensions of the linear model, they are not necessarily more complex.  They are also not necessarily more difficult to interpret. However, you likely want to be fairly comfortable with standard linear models at least before you start to explore these extensions.
+
+## Quantile Regression {#sec-lm-extend-quantile}
 
 > Oh, you think the mean is your ally. But you merely adopted the mean; I was born in it, molded by it. I didn’t see anything interesting until I was already a man. And by then, it was nothing to me but illuminating.
 > -- Bane (probably)
@@ -31,15 +44,15 @@ reticulate::use_condaenv("book-of-models")
 
 People generally understand the concept of the arithmetic mean. You see it some time during elementary school, it gets tossed around in daily language (usually using the word "average"), and it is statistically important. After all, where would the normal distribution be without a mean? Why, though, do we feel so tied to it from a regression modeling perspective? Yes, it has handy features, but it is also a bit restrictive to the types of relationships that it can actually model well. 
 
-In this chapter, we want to show you what to do when the mean betrays you -- and trust us, the mean will betray you at some point. 
+In this chapter, we want to show you what to do when the mean betrays you -- and trust us, the mean will betray you at some point!
 
-### Why Should You Care?
+### Why Should You Care? {#sec-quantile-why}
 
-When fitting a line through the mean doesn't make sense, whether due to extreme scores or you're interested at how your model is performing in different parts of your data, quantile regression can be helpful. Quantile regression will give you the ability to model the relationship between your features and target at different quantiles of your target. Maybe people who are older are more likely to rate movies higher, but that relationship is stronger for people who rate movies higher than the median. Quantile regression will let you model that relationship.
+Sometimes the mean doesn't make as much sense to focus on for summarizing our data, whether due to extreme scores that have too much influence, or you're interested at how your model is performing in different parts of your data, such as the top 10%, quantile regression can be helpful. Quantile regression will give you the ability to model the relationship between your features and target at different quantiles of your target, with the median being a starting point. Maybe people who are older are more likely to rate movies higher, but that relationship is stronger for people who rate movies higher than the median. Quantile regression will let you model that relationship.
 
-### When The Mean Breaks Down
+### When The Mean Breaks Down {#sec-quantile-break}
 
-In a perfect data world, the mean is equal to the middle observation of the data: the *median*. That is only in the perfect world, though, and usually our data comes loaded with challenges. Extreme scores in your data will cause a rift between the median and the mean. 
+In a perfect data world, we like to assume the mean is equal to the middle observation of the data: the *median*. But that is only when things are symmetric though, and usually our data comes loaded with challenges. Skewness and even just a few extreme scores in your data may cause a rift between the median and the mean. 
 
 Let's say we take the integers between 1 and 10, and find the mean. 
 
@@ -85,7 +98,7 @@ Now, what would happen if we replaced a few of our observations with extreme sco
 ```{r linear_line_extremes}
 #| echo: false
 #| label: linear_line_extremes
-#| tbl-cap: Linear line with extreme scores
+#| fig-cap: Linear line with extreme scores
 new_df = dfXy
 
 new_df$y[dfXy$y > quantile(dfXy$y, .95) & 
@@ -97,8 +110,7 @@ new_df$X1[dfXy$y > quantile(dfXy$y, .95) &
 ggplot(new_df, aes(x = X1, y = y)) +
   geom_point() +
   geom_smooth(method = "lm", se = FALSE) +
-  xlab("x") +
-  ylab("y") +
+  labs(x = "x", y = "y") +
   theme_minimal()
 ```
 
@@ -107,24 +119,38 @@ With just a casual glance, it doesn't look like our two regression lines are tha
 ```{r, both_lines_plotted}
 #| echo: false
 #| label: both_linear_lines
-#| tbl-cap: Line lines with and without extreme scores
+#| fig-cap: Line lines with and without extreme scores
 
 ggplot() +
-  geom_smooth(aes(X1, y, color = "No extreme scores"), 
-              data = dfXy, method = 'lm', 
-              se = FALSE) +
-  geom_smooth(aes(X1, y, color = "Extreme scores"), 
-              data = new_df, method = 'lm', 
-              se = FALSE) +
+  geom_smooth(
+    aes(X1, y, color = "No extreme scores"), 
+    data = dfXy, 
+    method = 'lm',
+    se = FALSE
+  ) +
+  geom_smooth(
+    aes(X1, y, color = "Extreme scores"), 
+    data = new_df, 
+    method = 'lm',
+    se = FALSE
+  ) +
   xlab("x") +
   ylab("y") +
-  theme_minimal() +
-  scale_color_manual(name='Data',
-                     breaks=c('No extreme scores', 'Extreme scores'),
-                     values=c('No extreme scores'='red', 'Extreme scores'='blue'))
+  # theme_minimal() +
+  scale_color_manual(
+    name='',
+    breaks=c('No extreme scores', 'Extreme scores'),
+    values=c('No extreme scores'=okabe_ito[5], 'Extreme scores'=okabe_ito[6])
+  ) +
+  theme(
+    panel.grid.major = element_line(color = alpha('black', .1)),
+    # panel.grid.minor = element_line(color = alpha('black', .1)),
+  )
 ```
 
-With 1000 observations, we see that having just 10 extreme scores is enough to change the regression line, even if just a little. There are a few approaches we could take here, with common approaches being dropping those observations or Windsorizing them. Throwing away data because you don't like the way it behaves is nearing on statistical abuse and Windsorization is just replacing those extreme values with numbers that you like a little bit better.
+With 1000 observations, we see that having just 10 extreme scores is enough to change the regression line, even if just a little. But that little bit can mean a huge difference for predictions or just the conclusions we come to.
+
+There are a few approaches we could take here, with common approaches being dropping those observations or Windsorizing them. Throwing away data because you don't like the way it behaves is nearing on statistical abuse and Windsorization is just replacing those extreme values with numbers that you like a little bit better. Let's not do that!
 
 A better answer to this challenge might be to not fit the regression line through the mean, but the median instead. This is where quantile regression becomes handy. Formally, this model can be expressed as:
 
@@ -134,15 +160,23 @@ $$
 
 Where we can find the estimation of $\beta_\tau$ as:
 
+TODO: change a bit to other loss function depiction, add the explicit quantile function
+
 $$
 \hat\beta_\tau = \arg \min_{\beta \in \mathbb{R}^k} \sum_{i-1}^n(\rho_\tau(Y_i-X_i\beta))
 $$
 
+$$
+=\underset{q\in \mathbb{R}}{\mbox{arg min}}  \left[(\tau - 1)\sum_{y_{i}<q}(y_{i}-q)+\tau\sum_{y_{i}\geq q}(y_{i}-q) \right]
+$$
+
 With quantile regression, we are given an extra parameter for the model: $\tau$ or *tau*. The tau parameter let's us choose which quantile we want to use for our line fitting. Since the median splits the data in half, we can translate that to a quantile of .5. 
 
-### Data Import and Preparation
+### Data Import and Preparation {#sec-quantile-data}
 
 Let's bring in our movie reviews data. Let's say that we are curious about the relationship between the `total_reviews` variable and the `rating` variable. First, we need to get our data ready for our home-brewed functions.
+
+TODO: Rescale total_reviews or use the scaled version
 
 :::{.panel-tabset}
 
@@ -178,7 +212,7 @@ y = reviews['rating']
 ```
 :::
 
-### Standard Functions
+### Standard Functions {#sec-quantile-standard}
 
 We can see how we can use `quantreg` and `statsmodels` to create a quantile regression. For both, we will start with a median regression; in other words, a quantile of .5.
 
@@ -210,9 +244,9 @@ median_test.summary()
 
 :::
 
-Fortunately, our interpretation of this result isn't all that different from a standard linear model -- the ratings should increase by .00007 for every additional review. However, this is at the median, not the mean, like the standard linear model. 
+Fortunately, our interpretation of this result isn't all that different from a standard linear model -- the rating should increase by .00007 for every additional review. However, this is at rating median, not the mean, like the standard linear model. 
 
-Quantile regression is not a one-trick-pony. Remember, it is called quantile regression -- not median regression. Being able to compute a median regression is just a nice by-product. What we can do with quantile regression is to model different quantiles of the same data. It gives us the ability to answer brand new questions -- does the relationship between user age and their ratings change at different quantiles of rating?
+Quantile regression is not a one-trick-pony. Remember, it is called quantile regression -- not median regression. Being able to compute a median regression is just the default. What we can do also is to model different quantiles of the same data. It gives us the ability to answer brand new questions -- does the relationship between user age and their ratings change at different quantiles of rating? Very cool!
 
 ```{r, quantile_lines}
 #| echo: false
@@ -239,13 +273,14 @@ ggplot() +
                             intercept = intercept, 
                             color = tau),
               data = quant_values) +
-  theme_minimal()
-
+  scale_color_manual(values = okabe_ito[c(-1,-4)])
 ```
 
 Instead of a single model to capture the trend through the mean of the data, we can now examine the trends within 5 different quantiles of the data (we aren't limited to just those quantiles, though, and you can examine any of them that you might find interesting). If we had to put some words to our visualization, we could say that all of the quantiles show a positive relationship. While they all appear to have roughly the same slope, it appears that the 90th quantile has a slightly steeper slope than the other quantiles, if only modestly so.
 
-### Quantile Loss Function
+TODO: MOVE TO ESTIMATION OR ONLINE ONLY
+
+### Quantile Loss Function {#sec-quantile-loss}
 
 Now that we know how to use standard functions for quantile regression, let's see one way that we can create a least squares loss function for fitting a linear regression model and compare it with a function for quantile loss.
 
@@ -276,9 +311,11 @@ quantile_loss = function(par, X, y, tau) {
   
   residual = y - linear_parameters
   
-  loss = ifelse(residual < 0 , 
-                (-1 + tau)*residual, 
-                tau*residual)
+  loss = ifelse(
+    residual < 0 , 
+    (-1 + tau)*residual, 
+    tau*residual
+  )
   
   sum(loss)
 }
@@ -320,7 +357,7 @@ def quantile_loss(par, X, y, tau):
 
 You'll notice right away that we have a few differences. Our quantile loss function includes the **tau** argument, which will let us set our quantile of interest; naturally, it can be any value between 0 and 1. The residual is multiplied by the tau value, only if the residual is greater than 0. If the residual is negative, we need to add tau to -1. Since we need a positive value for our loss values, we will multiply our negative residuals by the negative value produced from -1 plus our tau value. After that, we just sum all of those positive loss values and do our best to minimize that summed value. 
 
-### Model Fitting
+### Model Fitting {#sec-quantile-model}
 
 Now that we have our data and our loss function, we can fit the model almost exactly like our standard linear model. Again, note the difference here with our tau value, which we've set to .5 to represent the median.
 
@@ -354,16 +391,18 @@ minimize(
 
 :::
 
-## Additive Models
+## Additive Models {#sec-gam}
 
 > Wiggle, wiggle, wiggle, yeah!
 > -- LMFAO
 
-### Why Should You Care?
+TODO: GAM gets a bit deep, but we do want to keep discussion of penalized appoach, and ultimately a word on the random effect connection.
+
+### Why Should You Care? {#sec-gam-why}
 
 Not every relationship is linear and not every relationship is monotonic. Sometimes, you need to be able to model a relationship that has a fair amount of nonlinearity -- they can appear as slight curves, waves, and any other type of wiggle that you can imagine. Additive models will give you the ability to model those nonlinear relationships between your features and target.
 
-### When Straight Lines Aren't Enough
+### When Straight Lines Aren't Enough {#sec-gam-curve}
 
 Fitting a line through your data is always going to be useful, regardless of whether you are using the median or the mean. Those lines give us a wonderful ability to say important things about the relationships between variables and how one variable might influence another. What if we just want to dispense with the notion that we need to fit a straight line through some mass of the data? What if we relax the idea that we need a straight line and think in terms of fitting something curvy through the data.
 
@@ -378,7 +417,9 @@ ggplot(reviews, aes(total_reviews, rating)) +
   theme_minimal()
 ```
 
-To the curve seen in @fig-gam_model_line:
+TODO: there is actually a poly effect for length in minutes, but it may not
+
+To the curve seen here:
   
 ```{r, gam_model_line}
 #| echo: false
@@ -397,15 +438,22 @@ $$
 y = f(x) + \epsilon
 $$
 
-These additive features have no concern about linearity with the outcome and will capture nonlinearities in our data very nicely. At this point, you might be asking yourself, "Couldn't I just use some type of polynomial regression or even a nonlinear regression?" Of course you could, but both have pretty serious limitations. The typical polynomial regression likely doesn't fit beyond the data that you currently have and **you** are forcing curves to fit through the data. To use a nonlinear model, you need to know what the underlying nonlinear form actually looks like before you can even specify the model. A GAM will do away with both of these issues; it will produce a curve that will best fit through the data, without the need to know the underlying linear form. 
+This isn't much different than before, and technically, it really isn't. It's the same linear combination of features we have with a basic linear model. The difference is that we are going to let $f(x)$ be a function of $x$ that allows us to capture other types of relationships by expanding the feature $x$ in different ways, some that can be complex, but on the practical side are just extra columns in the **model matrix**. If you are familiar with polynomial regression, you can think of this as a generalization of that approach, but which is identical in spirit[^polyspline].
 
-### Standard Functions
+[^polyspline]: If we penalized the coefficients of the polynomial regression, we would have a penalized spline. It's not used that much in GAMs these days, but there's nothing wrong with doing so. See @sec-estim-penalty for more information on penalized regression.
 
-Now that you have some background, let's use the `mgcv` package in R and the `pygam` package in Python to fit a GAM.
+These additive features will allow us to capture nonlinearities in our data very nicely. At this point, you might be asking yourself, "Why couldn't I just use some type of polynomial regression or even a nonlinear regression?". Of course you could, but both have limitations. The typical polynomial regression tends to overfit the data you currently have, and **you** are forcing curves to fit through the data. To use a nonlinear model, you need to know what the underlying nonlinear form actually looks like before you can even specify the model, and without extra steps, will also tend to overfit. A GAM handles this situation a little better in that it will produce a curve that will best fit through the data, without the need to know the underlying functional form. 
+
+### Standard Functions {#sec-gam-standard}
+
+Now that you have some background, let's . In most respects, we can use the same sort of approach as we did with our other model examples.
 
 :::{.panel-tabset}
 
 ##### R
+
+We'll use the very powerful `mgcv` package in R. The `s` function will allow us to use a spline approach to capture the nonlinearity.
+
 ```{r, r_gam_demo}
 #| echo: true
 #| label: r_gam_demo
@@ -418,6 +466,8 @@ summary(gam_model)
 
 ##### Python
 
+We use the `pygam` package in Python to fit a GAM. It's very much in the spirit of R's `mgcv`. The `s` function will allow us to use a spline approach to capture the nonlinearity.
+
 ```{python, python_gam_demo}  
 #| echo: true
 #| label: python_gam_demo
@@ -426,23 +476,77 @@ from pygam import LinearGAM, s
 
 y = reviews['rating']
 
-X = pd.DataFrame(
-  {'intercept': 1, 
-  'total_reviews': reviews['total_reviews']}
-)
+X = pd.DataFrame({'total_reviews_sc': reviews['total_reviews_sc']})
 
-gam_model = LinearGAM(s(0)).fit(X, y)
+gam_model = LinearGAM(s(0, n_splines=10)).fit(X, y)
 
 gam_model.summary()
 ```
 
 :::
 
-For the results of our gam model, one of the best places to look first is the `edf` column. The `edf` column is the *effective degrees of freedom*. You can think of `edf` as a measure of wiggle in the relationship between the predictor and the target. The higher the `edf`, the more wiggle you have. If you have a value close to 1, then you have a linear relationship. With an `edf` of 8.672, we can be pretty confident that a nonlinear relationship gives a better idea about the relationship between `total_reviews` and `rating` than a linear relationship.
+For the results of our gam model, one of the best places to look first is the `edf`/`EDoF` column. This column indicates the *effective degrees of freedom*. You can think of it as a measure of wiggle in the relationship between the predictor and the target. The higher the value, the more wiggle you have. If you have a value close to 1, then you have a linear relationship. With our current result, we can be pretty confident that a nonlinear relationship gives a better idea about the relationship between `total_reviews` and `rating` than a linear relationship.
 
-We also get information about our Adjusted $R^2$ (**R-sq.(adj)**) and **Deviance explained**, which is an analog to the unadjusted $R^2$ value for a Gaussian model. We also have **GCV** -- the generalized cross validation score. It is an estimate of the mean square prediction error based on a leave-one-out cross validation estimation process. Naturally, the lower the GCV, the better the model.
+Depending on the tool we used, we may also get information about our Adjusted $R^2$ (**R-sq.(adj)**) and **Deviance explained**, which is an analog to the unadjusted $R^2$ value for a Gaussian model. We also have **GCV** -- the generalized cross validation score. It is an estimate of the mean square prediction error based on a leave-one-out cross validation estimation process. Naturally, the lower the GCV, the better the model.
 
-### Splines
+TODO: NEED VISUAL
+
+Beyond this the real approach to interpretation is in the visualization. We can use the `plot` function to get a sense of the relationship between our features and target. 
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| eval: false
+#| label: r_gam_plot
+
+plot(gam_model, se = TRUE)
+```
+
+##### Python
+
+```{python}
+#| eval: false
+#| label: python_gam_plot
+
+from pygam.utils import generate_X_grid
+import matplotlib.pyplot as plt
+
+X_grid = generate_X_grid(gam_model)
+
+plt.plot(X_grid, gam_model.predict(X_grid), color = "#00AAFF")
+plt.plot(X_grid, gam_model.prediction_intervals(X_grid), color = "#00AAFF", ls = '--')
+plt.scatter(X, y, alpha = .5)
+```
+
+:::
+
+
+Unfortunately the default package plots are not pretty, and sadly aren't provided in the same way we'd expect for interpretation. But they're fine for looking at your wiggly result. But we provide a better looking one[^gamplot]. The main interpretation is that we're mostly flat for total reviews less than the mean. At that point we get more of a positive linear effect, followed by a bit of a mixed bag for moviews with lots of total reviews.
+
+[^gamplot]: We used the `see` in R for a quick plot. We also recommend its functionality via the `gratia` package to visualize the derivatives, which will show more of where the effect is changing most.
+
+```{r}
+#| echo: false
+#| label: fig-gam_plot
+#| fig-cap: Visualizing a GAM
+
+library(see)
+
+plot(modelbased::estimate_relation(gam_model, length = 100))# +
+  # geom_vline(xintercept = 0) + 
+  # geom_vline(xintercept = 1)  
+
+# deriv  modelbased::estimate_slopes(gam_model,  length = 10)
+# plot(deriv)
+# gratia::draw(gratia::derivatives(gam_model)) +
+#   geom_hline(yintercept = 0) 
+```
+
+TODO: Move to estimation, but may need to nix for pdf brevity, and needs some work to fit well.
+
+### Splines {#sec-gam-splines}
 
 Now that you've gotten a taste of a standard way of specifying a GAM, let's roll our own. We are going to need to generate several functions to make this work. The first will be to produce the *cubic spline*. Do take note that there are many different types of splines that could be used.
 
@@ -473,7 +577,7 @@ def cubic_spline(x,z):
 
 :::
 
-### Model Matrix Function
+### Model Matrix Function {#sec-gam-model-matrix}
 
 Then we a function to produce the model matrix:
 
@@ -516,7 +620,7 @@ This model matrix will help us to produce an *unpenalized spline*.
 
 
 
-### Model Matrix
+### Model Matrix {#sec-gam-model-matrix}
 
 We can create a model with 4 knots -- you can think of knots as places where individual regression lines will get joined together. You can always experiment with more or less knots. Once we have our knots ready, we can create the model matrix.
 
@@ -537,7 +641,7 @@ knots = 1:4/5
 #| label: r_model_matrix_spline
 rating = reviews$rating
 
-x = reviews$total_reviews
+x = reviews$total_reviews_sc
 
 X = splX(x, knots)            
 ```
@@ -561,7 +665,7 @@ knots = np.arange(1, 5) / 5
 #| echo: true
 #| label: python_model_matrix_spline
 
-x = reviews['total_reviews']
+x = reviews['total_reviews_sc']
 
 rating = reviews['rating']
 
@@ -577,7 +681,7 @@ X[:5,:]
 
 :::
 
-### Model Fitting
+### Model Fitting {#sec-gam-model-fitting}
 
 Now that we have a model matrix, `X`, we can fit the model. All of the hardwork was done in creating the model matrix and we can just use `lm` or `OLS` to fit the model.
   
@@ -587,7 +691,7 @@ Now that we have a model matrix, `X`, we can fit the model. All of the hardwork 
 ```{r, r_cubic_model_fitting}
 #| echo: true
 #| label: r_cubic_model_fitting
-fit_lm = lm(rating ~ X)
+fit_lm = lm(rating ~ X - 1)
 
 fit_lm
 ```
@@ -610,6 +714,8 @@ fit_lm.summary()
 
 We can set some prediction values for this model:
 
+TODO: fix this to reflect total reviews, not 0:1; Don't worry until we know where it goes.
+
 :::{.panel-tabset}
 
 ##### R
@@ -617,7 +723,8 @@ We can set some prediction values for this model:
 ```{r, r_predictions}
 #| echo: true
 #| label: r_predictions
-xp = seq(0, 1, by = .01)
+# xp = seq(0, 1, by = .01)
+xp = seq(-3, 3, by = .01)
 Xp = splX(xp, knots)  
 ```
 
@@ -639,14 +746,14 @@ While creating those predictions is nice, using them to visualize the model is f
 #| label: fig-spline_viz
 #| fig-cap: Visualizing cubic regression spline
 ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
-  geom_point(color = "#FF5500") +
+  geom_point() +
   geom_smooth(method = "gam", se = FALSE, color = "#00AAFF") +
   theme_minimal()
 ```
 
 In @fig-spline_viz, we can see that the relationship starts a bit flat, increases, and then flattens out again. This is a pretty good example of a nonlinear relationship.
 
-### Penalized Cubic Spline
+### Penalized Cubic Spline {#sec-gam-penalty}
 
 Recall that this is an unpenalized cubic spline. If we want to have a finer degree of control over that wiggly line, we can include a **lambda penalty**. 
 
@@ -713,7 +820,7 @@ def mat_sqrt(S):
 
 :::
 
-### Penalized Model Fitting Function
+### Penalized Model Fitting Function {#sec-gam-penalty-model}
 
 With those functions in hand, we can create the function to fit the entire model.
 
@@ -755,7 +862,7 @@ def prs_fit(y, x, knots, lamba):
 
 Notice again that magic happens in the model matrix, but that we are still just using `lm` or `OLS` to fit the model.
 
-### Penalized Model Fitting
+### Penalized Model Fitting {#sec-gam-penalty-fitting}
 
 Let's stick with 4 knots and see what happens when we set our lambda to .1:
 
@@ -798,16 +905,18 @@ Xp = splX(xp, knots)
 
 :::
 
-As shown in @fig-r_lambda_1_viz, there is definitely some wiggle to that line, but it is not as extreme as what we saw with our unpenalized cubic spline. 
+As shown in @fig-r_lambda_1_viz, there is some wiggle to that line, but it is not as extreme as what we saw with our unpenalized cubic spline. 
+
+TODO: fix plot scale (doesn't match raw or scaled data)
 
 ```{r, r_lambda_1_viz}
 #| echo: false
 #| label: fig-r_lambda_1_viz
 #| fig-cap: GAM model with lambda set to .1
 ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
-  geom_point(color = "#FF5500") +
-  geom_line(aes(x = xp, y = Xp %*% coef(fit_penalized)),
-            data = data.frame(xp, Xp),
+  geom_point() +
+  geom_line(aes(x = xp, y = fit[,1]),
+            data = tibble(xp, fit = Xp %*% coef(fit_penalized)),
             color = "#00AAFF") +
   theme_minimal()
 ```
@@ -838,8 +947,12 @@ plot_data = purrr::map_df(c(.9, .5, .1, .01, .001), ~{
 
 ggplot(aes(x = x, y = rating), data = data.frame(x, rating)) +
   geom_point() +
-  geom_line(aes(x = x, y = y, color = lambda),
-            data = plot_data) +
+  geom_line(
+    aes(x = x, y = y, color = lambda),
+    data = plot_data
+  ) +
+  scale_color_manual(values = okabe_ito[c(-1,-4)]) +
+  coord_cartesian(xlim = c(-2, 2)) +
   theme_minimal()
 ```
 
@@ -847,13 +960,13 @@ What can we take from @fig-lambda_value_viz? As lambda values get closer to 1, w
 
 Naturally, this is a great time to think about how these models would work on new data. As lambda gets smaller, we are fitting our in-sample data much better. How do you think this would fare with unseen data? If you'd say that we would do well with training and horrible on testing, we'd likely agree with you. 
 
-## Mixed Models
+## Mixed Models {#sec-mixed-models}
 
-### Why Should You Care?
+### Why Should You Care? {#sec-mixed-models-why}
 
-Structures within your data are important and paying attention to how data might be grouped in some way will let you generate more insights about how observations within and between groups might behave. After all, people working in the same department are likely to have a more similar experience than people working in a different department. Mixed models will let us handle nested and grouped data, all while getting the benefits of a standard linear model.
+Structures within your data are important and paying attention to how data might be grouped in some way will let you generate more insights about how observations within and between groups might behave. For example, people working in the same organization, or students in the same school, are likely to have a more similar experiences than those from different organizations or schools. This shared connection within groups may ultimately affect what we see in our chosen outcomes. Mixed models will let us handle grouped data such as this, all while getting the benefits of a standard linear model.
 
-### Knowing Your Data
+### Knowing Your Data {#sec-mixed-models-knowing}
 
 As much fun as modeling is, knowing your data is far more important. You can throw any model you want at your data, from simple to fancy, but you can count on disappointment if you don't fundamentally know the structures that live within your data. Let's take a quick look at the following visualizations:
 
@@ -875,19 +988,18 @@ In @fig-year-release-rating, we see a pretty solid positive relationship between
 #| fig-cap: Linear relationship between year of movie release and rating, with genre.
 ggplot(reviews, aes(total_reviews, rating, color = as.factor(genre))) +
   # geom_point() +
-  geom_smooth(method="lm", se = FALSE) +
-  theme_minimal()
+  geom_smooth(method="lm", se = FALSE)
 ```
 
 A very quick examination of @fig-year-release-genre-rating might suggest that the relationship between user age and rating varies significantly over the different genres. Most genres show a positive relationship, while one (`other`) shows a negative relationship, and all with various levels of strength.
 
-Just for fun, try to group by genre and summarize it by the mean rating. You'll find that the averages are very different across the genre! Then, subtract the overal mean rating from those values. Keep them handy!
+Just for fun, try to group by genre and summarize it by the mean rating. You'll find that the averages are very different across the genre! Then, subtract the overal mean rating from those values, so that they represent deviations from the mean. Keep them handy!
 
-Clearly, genre is offering some type of additional information to the model, but how can we incorporate that information into our model? An interaction might come to find at first, but that becomes a tricky interpretation endeavour. Instead, the **mixed model** can be used to incorporate that information into our model, without much hassle and with a huge boost in explanability. 
+Clearly, genre is offering some type of additional information to the model, but how can we incorporate that information into our model? An interaction might come to find at first, and that's the right way to think about it. A **mixed model** can be used to incorporate that information, which is largely a group interaction, into our model, without much hassle and with a huge boost in explanability. 
 
-The term **mixed model** is as vanilla as we can possibly make it,but you might have heard of different flavors of them before. If you've come from the Social Sciences, you might have heard of *Hierarchical Linear Models*. You might have even heard the words *multilevel models* or *mixed-effects models* tossed around before. Maybe you've even be exposed to ideas like *random effects* or *random slopes*. No matter what word you say, they are all instances of a **mixed model**. 
+The term **mixed model** is as vanilla as we can possibly make it, but you might have heard of different flavors of them before. You might have heard of *Hierarchical Linear Models*, or even *multilevel models*, or heard *mixed-effects models* tossed around before. Maybe you've even be exposed to ideas like *random effects* or *random slopes*. No matter what word you say, they are all instances of what we'll call a **mixed model**. 
 
-What makes a model a mixed model? The mixed model is characterized by the idea that a model can have *fixed* and *random* effects. Fortunately, you've already encountered *fixed* effects -- those are the features that we have been using in all of our models so far! The *random effect*, though, is typically some type of grouping-based variable that contributes to unique variance in the outcome and we are going to let them vary from the rest of the model. Grouping variables can be actual groups, with the classic example being students in a classroom. Those groups can also be nested within larger groups -- students nested within classrooms, nested within schools, nested within districts. These groups can also capture the notion of a repeated measure for an individual, like repeated test scores. 
+What makes a model a mixed model? The mixed model is characterized by the idea that a model can have *fixed* and *random* effects. Fortunately, you've already encountered *fixed* effects -- those are the features that we have been using in all of our models so far! In the mixed model context, the *random effect*, typically comes from some type of grouping variable that contributes to unique variance in the outcome and we are going to let them vary from the rest of the model. Grouping variables can be actual groups, with the classic example being students in a classroom. Those groups can also be nested within larger groups -- students nested within classrooms, nested within schools, nested within districts. These groups can also capture the notion of a repeated measure for an individual, like repeated test scores. 
 
 While we aren't rejecting the idea of a mean with these mixed-models, we are implying that each group (whether it is a group, nested group, or repeated observations from a person) has its own unique mean that can be useful for modeling the target. Formally, we might specify something like this:
 
@@ -895,13 +1007,38 @@ $$
 \textrm{rating} = b_{\textrm{0\_genre}} + b_\textrm{year}*\textrm{year}
 $$
 
-We are explicitly saying that genre has its own unique slope for this model, where $b_{\text{0\_genre}} ~ \eta(b_{intercept}, \tau)$, meaning that the random intercepts will be normally distributed and the overall intercept is just the mean of those random intercepts. 
+We are explicitly saying that genre has its own unique effect for this model in the form of specific intercepts for each genre. We also posit that those come from a *random* distribution. We can specify that as:
 
-Before we go to modeling our reviews, let's consider an example training program to increase vertical jump, with average vertical increases of 2 inches. That really doesn't sound all that impressive; however, that increase came across 5 distinct groups: NBA players, NFL players, NHL players, MLB players, and data analysts. We can be pretty certain that each group has a very different vertical jump distribution coming into this training program. Given the amount of jumping that NBA players do, this program is unlikely to produce dramatic increases in vertical jump for them. We would probably expect modest gains in the NFL and even greater gains within NHL and MLB players. Where we are going to see the best gains, though, is from data analysts -- they might want to jump to conclusions, but don't need to jump over their computers very often. Now that we know the additional information, can we just look at the average increase and be satisfied? Probably not. Instead, we need to look at the group that we might be in and judge accordingly. A mixed-model is going to let us to model all of this without too much work.
+$$b_{\textrm{0\_genre}} \sim \textrm{N}(b_\textrm{intercept}, \sigma_\textrm{genre})$$
 
-### Standard Functions
+This means that the random intercepts will be normally distributed and the overall intercept is just the mean of those random intercepts, and with its own variance, an extra paramter we'll eventually have to estimate as part of the model. Another very common depiction is:
 
-Let's fit some mixed models with `lme4` or `statsmodels`. We will also create `null models` (i.e., models with an intercept only), since we will need some infomration from them later.
+$$\textrm{re\_group} \sim \textrm{N}(0, \sigma_\textrm{genre})$$
+
+$$b_{\textrm{0\_genre}} = b_\textrm{intercept} +\textrm{re\_group}$$
+
+
+TODO: Need another example?
+
+Before we go to modeling our reviews, let's consider an example training program to increase vertical jump, with average vertical increases of 2 inches. That really doesn't sound all that impressive; however, that increase came across 5 distinct groups: NBA players, NFL players, NHL players, MLB players, and data analysts. We can be pretty certain that each group has a very different vertical jump distribution coming into this training program. Given the amount of jumping that NBA players do, this program is unlikely to produce dramatic increases in vertical jump for them. We would probably expect modest gains in the NFL and even greater gains within NHL and MLB players. Where we are going to see the best gains, though, is from data analysts -- they might want to jump to conclusions, but don't need to jump over their computers very often. Now that we know the additional information, can we just look at the average increase and be satisfied? Probably not. Instead, we need to look at the group that individuals might be in and judge accordingly. A mixed-model is going to let us to model all of this without too much work.
+
+You might be asking? Why don't I just put genre into the model like other categorical features? In the case of genre, that's okay, but consider thousands of county voting percentages for an election, would you just put a county indicator into the model as is? Mixed models provide several advantages:
+
+
+- Any coefficient can be allowed to vary by groups, including other random effects. It actually is just an interaction in the end.
+- The group-specific effects are penalized, which shrinks them toward the overall mean. This helps to avoid overfitting, and that penalty is related to the variance estimate of the random effect. In other words, you're just running a penalized linear model where the penalty is applied to the group-specific effects.
+- Standard modeling approaches only estimate the variance, and get the estimated group effects via a predictive method. This allows only one additional parameter to estimate rather than a weight or coefficient for every group.
+- The group effects are like a very simplified **embedding**, where we have taken a cateogrical feature and turned it into a numeric one. This will help you understand techniques that are used in other places like deep learning.
+- When you start to think aobut random effects and/or distributions for effects, you're already thinking like a Bayesian, who is always thinking about the distributions for various effects. Mixed models are a perfect segue from standard linear model estimation to Bayesian estimation.
+- The random effect is akin to a latent variable of 'unspecified group causes'. This is a very powerful idea that can be used in many different ways, but importantly, you might want to start thinking about how you can figure out what those 'unspecified' causes may be!
+- Group effects will almost always improve your model's performance relative to not having them, especially if you weren't including those groups in your model because of how many there were.
+
+
+In short, mixed models are a fun way to incorporate additional interpretive color to your model, while also getting several additional benefits!
+
+### Standard Functions {#sec-mixed-models-standard}
+
+Now let's fit some mixed models with `lme4` or `statsmodels`. We will also create `null models` (i.e., models with an intercept only), since we will need some infomration from them later.
 
 :::{.panel-tabset}
 
@@ -919,7 +1056,7 @@ null_model = lmer(rating ~ 1 + (1 | genre),
                    reviews, 
                    REML = FALSE)
 
-summary(null_model)                  
+summary(null_model, correlation = FALSE)
 ```
 
 ##### Python
@@ -940,7 +1077,7 @@ null_model = sm.MixedLM.from_formula("rating ~ 1", reviews,
 
 :::
 
-What can we take from these summaries and what are we getting beyond the linear model? 
+What can we take from these summaries, and what are we getting beyond the linear model? 
 
 For starters, we should notice a change in our standard errors -- by integrating information about the groups, we are getting a better sense of how much uncertainty our model contains at the global average level.
 
@@ -958,11 +1095,14 @@ $$
 
 This is what is known as the intraclass correlation (ICC). It ranges from 0 (no variance between clusters) to 1 (variance between clusters). With an ICC of .25, we can say that 25% of the variance in scores is accounted for by the genre alone.
 
+
+TODO: WEED PULLING
+
 We can also use various bits of information in our output to create different *R^2* values. 
 
 For the first level of the model, we can calculate the $R^2$ as:
 
-$$R^2_11 - \frac{\sigma^2_{M1} + \tau^2_{M1}}{\sigma^2_{M0} + \tau^2_{M0}}$$
+$$R^2_1 - \frac{\sigma^2_{M1} + \tau^2_{M1}}{\sigma^2_{M0} + \tau^2_{M0}}$$
 
 We can pull that information from our two model outputs:
 
@@ -1118,6 +1258,7 @@ def mixed_log_likelihood(theta, y, X, Z):
 ##### R
 
 ```{r}
+#| label: r-mixed_model_fit
 param_init = c(0, 0)
 
 names(param_init) = c('tau', 'sigma')
@@ -1128,20 +1269,30 @@ fit = optim(
   y   = y,
   Z   = Z,
   par = param_init,
-  control = list(reltol = 1e-10)
+  # control = list(reltol = 1e-10)
 )
 
-fit$par
+exp(fit$par) # compare to sd of random effects
 ```
 
 ##### Python
 
 ```{python}
-#| echo: true
+#| eval: false
 #| label: mixed_model_fit
 
 from scipy import optimize as opt
-
+def mixed_log_likelihood(theta, y, X, Z):
+    tau = np.exp(theta[0])
+    sigma = np.exp(theta[1])
+    n = len(y)
+    
+    e = (Z.dot(Z.T) * tau**2) + (np.eye(n) * sigma**2)
+    b = np.linalg.lstsq(X, y, rcond=None)[0]
+    mu = X.dot(b) 
+    
+    ll = stats.multivariate_normal.logpdf(y, mu, e)
+    return -ll
 theta = np.array([0, 0])
 
 mixed_log_likelihood(theta, y, X, Z)
@@ -1150,10 +1301,10 @@ fit = opt.minimize(
     fun=mixed_log_likelihood,
     x0=theta,
     args=(y, X, Z),
-    tol=1e-10
+    # tol=1e-5
 )
 
-fit.x
+np.exp(fit.x) # compare to sd of random effects
 ```
 
 :::
@@ -1182,8 +1333,8 @@ fit_mer = lmer(rating ~ total_reviews + (1 | genre),
                model_data, 
                REML = FALSE)
 
-gt::gt(
-  data.frame(model = c("standard", "median", "gam", "mixed"), 
+gt(
+  tibble(model = c("standard", "median", "gam", "mixed"), 
              rmse = c(modelr::rmse(lm_test, model_data),
                       modelr::rmse(median_test, model_data),
                       modelr::rmse(gam_test, model_data), 
@@ -1194,16 +1345,20 @@ gt::gt(
 
 Let's check out the results in @fig-model_performance_comp. Unsurprisingly, the standard linear model and the median regression were pretty close to each other. GAM offered a small bump in performance, but our best model came from the mixed model. This finding may or may not surprise you -- as you spend more time with models, you often encounter situations where simple models outperform more complex models, or are on par with them. Here, we are seeing that the mixed model is offering us a better fit to the data than the other models. However, that doesn't mean that you can just go right to the mixed model. You need to know your data and know what you are trying to accomplish.
 
-## Wrapping Up
+## Wrapping Up {#sec-lm-extend-wrap}
 
 The standard linear model is useful across many different data situations. It does, unfortunately, have some issues when data becomes a little bit more "real". When you have extreme scores or relationships that a standard model might miss, you don't need to abandon your linear model in favor of something more exotic. Instead, you might just need to think about how you are actually fitting the line through your data. 
 
-## Additional Resources
 
-No matter how much we cover in this book, there is always more to learn. Here are some additional resources that you might find helpful. 
 
-If you want absolute depth on quantile regression, we will happily point you to the OG of quantile regression, Roger Koenker. His book, *Quantile Regression* is a must read for anyone wanting to dive deeper into quantile regression. If you don't want to spring for the book, you might want to check out his 2005 article, *Galton, Edgeworth, Frisch, and prospects for quantile regression in econometrics*. You can find it at [https://www.econometricsociety.org/publications/econometrica/2005/03/01/galton-edgeworth-frisch-and-prospects-quantile-regression](https://www.econometricsociety.org/publications/econometrica/2005/03/01/galton-edgeworth-frisch-and-prospects-quantile-regression).   
+## Next Steps {#sec-lm-extend-next-steps}
 
-If you want to dive more into the GAM world, we would recommend that you start with the **Moving Beyond Linearity** chapter in *An Introduction to Statistical Learning* (James, Witten, Hastie, & Tibshirani). Not only do they have versions for both R and Python, but both have been made available online at [https://www.statlearning.com/](https://www.statlearning.com/). If you are wanting more after that, you can't beat Simon Wood's book, *Generalized Additive Models: An Introduction with R*.
+No matter how much we cover in this book, there is always more to learn. Here are some additional resources that you might find helpful related to this task. But if you've got a good grip on linear models and related topics, feel free to try out some machine learning @sec-ml-core-concepts!
 
-There is no shortage of great references for mixed effects models. If you are looking for a great introduction to mixed models, we would recommend to start with the tutorial by one of your fearless authors! Michael Clark's *Mixed Models with R* is a great introduction to mixed models and is available at [https://m-clark.github.io/mixed-models-with-R/](https://m-clark.github.io/mixed-models-with-R/). If you want to dig just a little deeper, the `lme4` vignette for *Fitting Linear Mixed-Effects Models Using lme4* is a great resource. You can find it at [https://cran.r-project.org/web/packages/lme4/vignettes/lmer.pdf](https://cran.r-project.org/web/packages/lme4/vignettes/lmer.pdf). 
+
+
+If you want absolute depth on quantile regression, we will happily point you to the OG of quantile regression, Roger Koenker. His book, *Quantile Regression* is a must read for anyone wanting to dive deeper into quantile regression [-@koenker_quantile_2005-1], or just play around with his R package `quantreg`. *Galton, Edgeworth, Frisch, and prospects for quantile regression in econometrics* is another resource from him.
+
+If you want to dive more into the GAM world, we would recommend that you start with the **Moving Beyond Linearity** chapter in *An Introduction to Statistical Learning* [@james_introduction_2021]. Not only do they have versions for both R and Python, but both have been made [available online](https://www.statlearning.com/). If you are wanting more after that, you can't beat Simon Wood's book, *Generalized Additive Models: An Introduction with R* [-@wood_generalized_2017], or a more digestible covering of the same content by one of your own humble authors [@clark_generalized_2022].
+
+There is no shortage of great references for mixed effects models. If you are looking for a great introduction to mixed models, we would recommend to start with yet another tutorial by one of your fearless authors! Michael Clark's *Mixed Models with R* [-@clark_mixed_2023], is a great introduction to mixed models and is [freely available](https://m-clark.github.io/mixed-models-with-R/). If you want to dig just a little deeper, the `lme4` vignette for [*Fitting Linear Mixed-Effects Models Using lme4*](https://cran.r-project.org/web/packages/lme4/vignettes/lmer.pdf) is a great resource.
