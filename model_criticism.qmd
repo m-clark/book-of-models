@@ -1,3 +1,955 @@
-# Model criticism
+# Knowing Your Model {#sec-knowing}
 
-PLACEHOLDER
+```{r}
+#| label: setup-critic
+#| include: false
+source("load_packages.R")
+source("setup.R")
+source("functions/utils.R")
+
+reticulate::use_condaenv("book-of-models")
+```
+
+In addition to giving the world one of the greatest television show theme songs -- Quincy Jones' *The Streetbeater* --  *Sanford & Son* gave us an insightful quote for offering criticism: "You big dummy." While we don't advocate for swearing at or denigrating your model, how do you know if your model is performing up to your expectations? It is easy to look at your coefficients, *t*-values, and an adjusted $R^2$, and say, "Wow! Look at this great model!" Your friends will be envious of such terrific *p*-values, and all of the strangers that you see at social functions will be impressed. What happens if that model falls apart on new data, though? What if a stakeholder wants to know exactly how a prediction was made for a specific business decision? Sadly, all of the stars that you gleefully pointed towards in your console will not offer you any real answers. 
+
+Instead of falling in immediate love with your model, you should ask real questions of it. How does it perform on different slices of data? Do predictions make sense? Is your classification cut-point appropriate? In other words, you should criticize your model before you decide it can be used for its intended purposes. Remember that it is **data modeling**, not **data truthing**. In other words, you should always be prepared to call your model a "big dummy". 
+
+## Key Ideas {#sec-knowing-key}
+
+- Metrics can help you assess how well your model is performing, and they can also help you compare different models.
+- Different metrics can be used depending on the goals of your model.
+- Visualizations can help you understand how your model is making predictions and which variables are important.
+
+
+### Why this matters {#sec-knowing-why}
+
+It's never good enough to simply get model results. You need to know how well your model is performing and how it is making predictions. You also should be comparing your model to other alternatives. Doing so provides more confidence in your model and helps you to understand how it is working, and just as importantly, where it fails. This is actionable knowledge.
+
+### Good to know {#sec-knowing-good}
+
+This takes some of the things we see in other chapters on linear models and machine learning. We'd suggest have linear model basics down pretty well. 
+
+
+## Model Metrics {#sec-knowing-metrics}
+
+Regression and classification have very different metrics for assessing model performance. We want to give you a sample of some of the more common one, but we also want to acknowledge that there are many more that you can use! We would always recommend looking at a few different metrics to get a better sense of how your model is performing.
+
+### Regression Metrics {#sec-knowing-reg-metrics}
+
+Recall that a primary goal of our standard linear model is to produce $\hat{y}$ -- the predicted outcome. Since we are predicting a value, we need to be able to compare that prediction to its actual value. The closer our prediction is to the actual value, the better our model is performing.
+
+Before we create a model, we are going to read in our data and then create two different splits within our data: a **training** set and a **testing** set. In other words, we are going to **partition** our data so that we can train a model and then see how well that model does with new data.
+
+:::{.callout-info}
+This basic split is the foundation of **cross-validation**. Cross-validation is a method for partitioning data into training and testing sets, but it does so in a way that allows you to train and test your model multiple times. We will not be covering cross-validation in this book, but we would strongly encourage you to learn more about it.
+:::
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+reviews = read.csv(
+  "data/movie_reviews_processed.csv"
+)
+
+initial_split = sample(
+  x = 1:nrow(reviews), 
+  size = nrow(reviews) * .75, 
+  replace = FALSE
+)
+
+training_data = reviews[initial_split, ]
+
+testing_data = reviews[-initial_split, ]
+```
+
+##### Python
+
+```{python}
+import pandas as pd
+import numpy as np
+
+reviews = pd.read_csv("data/movie_reviews_processed.csv")
+
+initial_split = np.random.choice(
+    reviews.index, 
+    size = int(reviews.shape[0] * .75), 
+    replace = False
+)
+
+training_data = reviews.iloc[initial_split, :]
+
+testing_data = reviews.iloc[-initial_split, :]
+```
+
+:::
+
+You'll notice that we created training data with 75% of our data and we will use the other 25% to test our model. With training data in hand, let's produce a model to predict rating
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+model_train = lm(
+  rating ~ 
+    review_year_0 + release_year_0 + 
+    age_sc + length_minutes_sc + 
+    total_reviews_sc + word_count_sc +
+    genre + gender +
+    reviewer_type + work_status +
+    season, 
+  training_data
+)
+```
+
+##### Python
+
+```{python}
+import statsmodels.api as sm
+
+features = ["review_year_0", "release_year_0",
+  "age_sc", "length_minutes_sc", 
+  "total_reviews_sc", "word_count_sc", 
+  "genre", "gender", 
+  "reviewer_type", "work_status", 
+  "season"]
+
+X_features = training_data[features]
+X_features = sm.add_constant(X_features)
+X_features = pd.get_dummies(X_features)
+X_features = X_features.drop(
+  columns=["work_status_Unemployed", "season_Winter"]
+  )
+X_features = X_features.values.astype(float)
+y_target = training_data["rating"].values.astype(float)
+
+model_train = sm.OLS(y_target, X_features).fit()
+```
+
+:::
+
+Now that we have a model on our training data, we can use it to make predictions on our test data:
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+predictions = predict(model_train, newdata = testing_data)
+```
+
+##### Python
+
+```{python}
+X_features_testing = testing_data[features]
+X_features_testing = sm.add_constant(X_features_testing)
+X_features_testing = pd.get_dummies(X_features_testing)
+X_features_testing = X_features_testing.drop(
+  columns=["work_status_Unemployed", "season_Winter"]
+  )
+X_features_testing = X_features_testing.values.astype(float)
+y_target_testing = testing_data["rating"].values.astype(float)
+
+predictions = model_train.predict(X_features_testing)
+```
+
+:::
+
+The goal now is to find out how close our predictions match reality. Let's look at them first:
+
+```{r}
+#| echo: false
+library(ggplot2)
+ggplot(data.frame(observed = testing_data$rating, 
+                  predicted = predictions), 
+       aes(observed, predicted)) +
+  geom_point() +
+  theme_minimal()
+```
+
+Obviously, our points for do not make a perfect line. Therefore, we need to determine how far off we are. There are a number of metrics that can be used to measure this. We'll go through a few of them here.
+
+#### Mean Squared Error {#sec-knowing-metrics-mse}
+
+One of the most common metrics is the mean squared error (MSE). The MSE is the average of the squared differences between the predicted and actual values. It is calculated as follows:
+
+$$MSE = \frac{1}{n}\sum_{i=1}^{n}(y_i - \hat{y}_i)^2$$
+
+MSE is a great metric for penalizing large errors. Since errors are squared, the larger the error, the larger the penalty.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+mean((testing_data$rating - predictions)^2)
+
+Metrics::mse(testing_data$rating, predictions)
+```
+
+##### Python
+
+```{python}
+from sklearn.metrics import mean_squared_error
+
+np.mean((testing_data.rating - predictions)**2)
+
+mean_squared_error(testing_data.rating, predictions)
+```
+
+:::
+
+#### Mean Absolute Error {#sec-knowing-metrics-mae}
+
+The mean absolute error (MAE) is the average of the absolute differences between the predicted and actual values. It is calculated as follows:
+
+$$MAE = \frac{1}{n}\sum_{i=1}^{n}|y_i - \hat{y}_i|$$
+
+MAE is a great metric when all you really want to know is how far off your predictions are from the actual values. It is not as sensitive to large errors as the MSE.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+mean(abs(testing_data$rating - predictions))
+
+Metrics::mae(testing_data$rating, predictions)
+```
+
+##### Python
+
+```{python}
+from sklearn.metrics import mean_absolute_error
+
+np.mean(abs(testing_data.rating - predictions))
+
+mean_absolute_error(testing_data.rating, predictions)
+```
+
+:::
+
+#### Root Mean Squared Error {#sec-knowing-metrics-rmse}
+
+Perhaps the regression metric that you are most likely to encounter in the wild, the root mean squared error (RMSE) is the square root of the average of the squared differences between the predicted and actual values. It is calculated as follows:
+
+$$RMSE = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(y_i - \hat{y}_i)^2}$$
+
+:::{.panel-tabset}
+
+Like MSE, RMSE is a great metric for penalizing large errors. If you want to penalize those large errors and still have a metric that is in the same units as the original data, RMSE is the metric for you.
+
+##### R
+
+```{r}
+sqrt(mean((testing_data$rating - predictions)^2))
+
+Metrics::rmse(testing_data$rating, predictions)
+```
+
+##### Python
+
+```{python}
+from sklearn.metrics import mean_squared_error
+
+np.sqrt(np.mean((testing_data.rating - predictions)**2))
+
+np.sqrt(mean_squared_error(testing_data.rating, predictions))
+```
+
+:::
+
+#### Mean Absolute Percentage Error {#sec-knowing-metrics-mape}
+
+The mean absolute percentage error (MAPE) is the average of the absolute differences between the predicted and actual values, expressed as a percentage of the actual values. It is calculated as follows:
+
+$$MAPE = \frac{1}{n}\sum_{i=1}^{n}\frac{|y_i - \hat{y}_i|}{y_i}$$
+
+:::{.panel-tabset}
+
+MAPE is a great metric when you want to know how far off your predictions are from the actual values, but you want to express that difference as a percentage of the actual value. It is not as sensitive to large errors as the MSE.
+
+##### R
+
+```{r}
+mean(
+  abs(testing_data$rating - predictions) / 
+    testing_data$rating
+)
+
+Metrics::mape(testing_data$rating, predictions)
+```
+
+##### Python
+
+```{python}
+from sklearn.metrics import mean_absolute_percentage_error
+
+np.mean(
+    abs(testing_data.rating - predictions) / 
+    testing_data.rating
+)
+
+mean_absolute_percentage_error(testing_data.rating, predictions)
+```
+
+:::
+
+#### Which To Use?
+
+In the end, it won't hurt to look at a few of these metrics to get a better idea of how well your model is performing. You will **always** be using these metrics to compare different models, so use a few of them to get a better sense of how well your models are performing relative to one another. Does adding a variable help drive down RMSE, indicating that the variable helps to reduce large errors? In other words, does adding complexity to your model provide a big reduction in error? If adding variables doesn't help reduce error, do you really need to include it in your modelU+0203D;
+
+### Classification Metrics {#sec-knowing-class-metrics}
+
+Whenever we are classifying outcomes, we don't have the same ability to compare a predicted score to an observed score -- instead, we are going to use the predicted probability of an outcome, establish a cut-point for that probability, convert everything below that cut-point to 0, and then convert everything at or above that cut-point to 1. We can then compare a table predicted and actual **classes**.
+
+Let's start with a model to predict whether a review is "good" or "bad". We will use the same training and testing data that we created above.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+logistic_model_train = glm(
+  rating_good ~ 
+    review_year_0 + release_year_0 + 
+    age_sc + length_minutes_sc + 
+    total_reviews_sc + word_count_sc +
+    genre + gender +
+    reviewer_type + work_status +
+    season, 
+  training_data, 
+  family = binomial
+)
+```
+
+##### Python
+
+```{python}
+import statsmodels.api as sm
+from statsmodels.genmod.families import Binomial
+
+logistic_model_train = sm.GLM(
+    training_data.rating_good,
+    X_features,
+    family = Binomial()
+).fit()
+```
+
+:::
+
+Now that we have our model trained, we can use it to get the predicted probabilities for each observation.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+predictions = predict(logistic_model_train, 
+                       newdata = testing_data, 
+                       type = "response")
+```
+
+##### Python
+
+```{python}
+predictions = logistic_model_train.predict(X_features_testing)
+```
+:::
+
+We are going to take those probability values and make a decision to convert everything above .49 to the positive class (a "good" review). It is a bold assumption, but one that we will make at first!
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+predictions = ifelse(predictions > .49 , 1, 0)
+```
+
+
+##### Python
+
+```{python}
+predictions = np.where(predictions > .49, 1, 0)
+
+predictions = pd.Series(predictions)
+```
+
+:::
+
+#### Confusion Matrix {#sec-knowing-metrics-confusion}
+
+The confusion matrix is a table that shows the number of correct and incorrect predictions made by the model.
+
+```{r}
+#| echo: false
+confusion_matrix = table(predictions, 
+                          observed = testing_data$rating_good)
+```
+
+Let's give some names to each element in that table, so that we have a little more clarity about what they signify:
+
+```{r}
+#| echo: false
+new_confusion_matrix = as.data.frame.matrix(confusion_matrix)
+
+new_confusion_matrix$`0`[1] = paste0("TN:", new_confusion_matrix$`0`[1])
+new_confusion_matrix$`1`[2] = paste0("TP:", new_confusion_matrix$`1`[2])
+new_confusion_matrix$`1`[1] = paste0("FN:", new_confusion_matrix$`1`[1])
+new_confusion_matrix$`0`[2] = paste0("FP:", new_confusion_matrix$`0`[2])
+new_confusion_matrix
+```
+
+-   **TN**: A True Negative is an outcome where the model correctly predicts the negative class -- the model correctly predicted that the review was not good.
+
+-   **FN**: A False Negative is an outcome where the model incorrectly predicts the negative class -- the model incorrectly predicted that the review was not good.
+
+-   **FP**: A False Positive is an outcome where the model incorrectly predicts the positive class -- the model incorrectly predicted that the review was good.
+
+-   **TP**: A True Positive is an outcome where the model correctly predicts the positive class -- the model correctly predicted that the review was good.
+
+In an ideal world, we would have all of our observations fitting nicely in the diagonal of that table. Unfortunately, we don't live in the ideal world and we always have values in the off diagonal. The more values we have in the off diagonal (i.e., in the FN and FP spots), the worse our model is at classifying outcomes. 
+
+Let's look at some metrics that will help to see if we've got a suitable model or not.
+
+#### Accuracy
+
+Accuracy is the first thing you see and the last thing that you trust! Of all the metrics to assess the quality of classification, accuracy is the easiest to cheat. If you have any **class imbalance** (i.e., one class within the target has far more observations than the other), you can get a high accuracy by simply predicting the majority class all of the time. 
+
+Accuracy's allure is in its simplicity. The accuracy is the proportion of correct predictions made by the model. It is calculated as follows:
+
+$$Accuracy = \frac{TP + TN}{TP + TN + FP + FN}$$
+
+From our table above, we can calculate the accuracy as follows:
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+TN = 88
+TP = 123
+FN = 10
+FP = 29
+
+(TN + TP) / (TN + TP + FN + FP)
+```
+
+##### Python
+
+```{python}
+TN = 88
+TP = 123
+FN = 10
+FP = 29
+
+(TN + TP) / (TN + TP + FN + FP)
+```
+:::
+
+To get around the false sense of confidence that accuracy alone can promote, we can look at a few other metrics.
+
+:::{.callout-warning}
+Seriously, accuracy alone should not be trusted unless you have a perfectly even split in the target! If you find yourself in a meeting where people are presenting their classification models and they only talk about accuracy, you should be very skeptical of their model; this is especially true when those accuracy values seem too good to be true.
+:::
+
+#### Sensitivity/Recall/True Positive Rate {#sec-knowing-metrics-sensitivity}
+
+Sensitivity, also known as recall or the true positive rate, is the proportion of **actual positives** that are correctly identified as such. If you want to know how well your model predicts the positive class, sensitivity is the metric for you. It is calculated as follows:
+
+$$Sensitivity = \frac{TP}{TP + FN}$$
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+TP / (TP + FN)
+```
+
+##### Python
+
+```{python}
+TP / (TP + FN)
+```
+
+:::
+
+#### Specificity/True Negative Rate {#sec-knowing-metrics-specificity}
+
+Specificity, also known as the true negative rate, is the proportion of **actual negatives** that are correctly identified as such. If you want to know how well your model will work with the negative class, specificity is a great metric. It is calculated as follows:
+
+$$Specificity = \frac{TN}{TN + FP}$$
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+TN / (TN + FP)
+```
+
+##### Python
+
+```{python}
+TN / (TN + FP)
+```
+
+:::
+
+#### Precision/Positive Predictive Value {#sec-knowing-metrics-precision}
+
+The precision is the proportion of **positive predictions** that are correct. It is calculated as follows:
+
+$$Precision = \frac{TP}{TP + FP}$$
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+TP / (TP + FP)
+```
+
+##### Python
+
+```{python}
+TP / (TP + FP)
+```
+
+:::
+
+
+#### Negative Predictive Value {#sec-knowing-metrics-npv}
+
+The negative predictive value is the proportion of **negative predictions** that are correct. It is calculated as follows:
+
+$$NPV = \frac{TN}{TN + FN}$$
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+TN / (TN + FN)
+```
+
+##### Python
+
+```{python}
+TN / (TN + FN)
+```
+
+:::
+
+We can get almost all of that with the `confusionMatrix` function from the `caret` package in R:
+
+```{r}
+caret::confusionMatrix(as.factor(predictions), 
+                as.factor(testing_data$rating_good), 
+                positive = "1")
+```
+
+We also get:
+
+- kappa: A measure of how much better the model is than random guessing. It is calculated as follows:
+
+$$\kappa = \frac{Accuracy - ExpectedAccuracy}{1 - ExpectedAccuracy}$$
+
+where the expected accuracy is calculated as follows:
+
+$$ExpectedAccuracy = \frac{(TP + FN)(TP + FP) + (FP + TN)(FN + TN)}{(TP + TN + FP + FN)^2}$$
+
+- Prevalence: The proportion of actual positives in the data. It is calculated as follows:
+
+$$Prevalence = \frac{TP + FN}{TP + TN + FP + FN}$$
+
+- Balanced Accuracy: The average of the sensitivity (TPR) and specificity (TNR). It is calculated as follows:
+
+$$Balanced Accuracy = \frac{Sensitivity + Specificity}{2}$$
+
+#### Ideal Decision Points
+
+Earlier, we used a predicted probability value of 0.49 to establish our predicted class. That is a pretty bold assumption on our part and we should probably make sure that the cut-off value we choose is going to offer use the best performance.
+
+To handle this task, we will start by creating a **Receiver Operating Characteristic** (ROC) curve. This curve plots the true positive rate (TPR) against the false positive rate (FPR) at various threshold settings. The **area under the curve** (AUC) is a measure of how well the model is able to distinguish between the two classes. The closer the AUC is to 1, the better the model is at distinguishing between the two classes.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+library(pROC)
+
+prediction_prob = predict(logistic_model_train, 
+                           testing_data, 
+                           type = "response")
+
+roc = roc(
+  testing_data$rating_good, 
+  prediction_prob
+  )
+
+plot(roc)
+
+auc(roc)
+```
+
+##### Python
+
+```{python}
+from sklearn.metrics import roc_curve, auc
+
+fpr, tpr, thresholds = roc_curve(
+    testing_data.rating_good, 
+    predictions
+)
+
+auc(fpr, tpr)
+```
+:::
+
+With ROC curves and AUC values, we can get a sense of how well our model is able to distinguish between the two classes. Now we can find the ideal cut-point for balancing the TPR and FPR. 
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+coords(roc, "best", ret = "threshold", transpose = TRUE)
+```
+
+##### Python
+
+```{python}
+thresholds[np.argmax(tpr - fpr)]
+```
+:::
+
+Those coordinates are going to give us the "best" decision cut-point. Instead of being naive about setting our probability to .5, this will give a cut-point that will lead to better classifications for our testing data.
+
+We will leave it to you to take that ideal cut-point value and update your metrics to see how much of a difference it will make. 
+
+Whether it is a meager, modest, or meaningful improvement is going to vary from situation to situation, as will how you determine if your model is "good" or "bad". If we look back to our original `Balanced Accuracy` value of 0.6490, we'd imagine that our model gets a True Positive or True Negative about 65% of the time, leaving us wrong 35% of the time. Is that good or bad?
+
+## Model Visualizations
+
+Using various fit metrics to assess your model's performance is critical for knowing how well it will do with new data. As good as it might be to know if it is useful, you might also want to know what is actually happening in the model. Which variables are important? How did a specific observation reach its predicted value? 
+
+For these tasks, and many others, we can turn to visualizations to gain a better understanding of our model. Afterall, we can't really criticize something we don't understand, can we? To help us along, we are going to use `DALEX` to create **model explainers**. 
+
+We will focus on two types of explainers: **variable importance** and **localized predictions**. We will look at them individually for regression and classification tasks.
+
+### Regression
+
+We are going to add some more features to our model to make it a little more interesting, check that model's performance, and then look at the **Partial Dependence Plots**, which will give us a good idea about the relationship between the features and the target. 
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+library(DALEX)
+
+features = c(
+  "review_year_0", "release_year_0",
+  "age_sc", "length_minutes_sc", 
+  "total_reviews_sc", "word_count_sc", 
+  "genre", "gender", 
+  "reviewer_type", "work_status", 
+  "season")
+
+train_explain = explain(
+  model_train, 
+  data = training_data[, features], 
+  y = training_data$rating,
+  verbose = FALSE
+)
+
+train_performance = model_performance(train_explain)
+
+# train_performance # not shown
+
+train_var_effect = model_profile(train_explain, features)
+```
+
+
+```{r}
+#| label: fig-r_perf-plot
+#| fig-cap: "R Performance Plot"
+plot(train_var_effect)
+```
+
+##### Python
+
+```{python}
+import dalex as dx
+import matplotlib.pyplot as plt
+
+train_explain = dx.Explainer(
+    model_train, 
+    data = X_features, 
+    y = training_data.rating,
+    verbose = False
+)
+
+train_performance = train_explain.model_performance()
+
+perf_plot = train_performance.plot()
+```
+
+
+```{python}
+#| label: fig-py_perf-plot
+#| fig-cap: "Python Performance Plot"
+perf_plot.show()
+```
+
+:::
+
+We can see what R and Python offer us for model performance plots in @fig-r_perf-plot and @fig-py_perf-plot. We can dig into more specific information about our model, beyond just the general performance.
+
+#### Variable Importance
+
+As with any model, knowing which variables are important is a critical piece of information. We can use the `model_parts` function to get a sense of which variables are most important to our model. Dalex creates feature importance by assessing how a model's RMSE changes when a feature is permuted. The more the loss changes, the more important the feature!
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+model_var_imp = model_parts(
+  train_explain, type = "variable_importance"
+)
+```
+
+
+```{r}
+#| label: fig-r_var-imp
+#| fig-cap: "R Variable Importance Plot"
+plot(model_var_imp)
+```
+
+##### Python
+
+```{python}
+model_var_imp = train_explain.model_parts(
+  type = "variable_importance"
+)
+```
+
+
+```{python}
+#| label: fig-py_var-imp
+#| fig-cap: "Python Variable Importance Plot"
+model_var_imp.plot()
+```
+
+:::
+
+TODO: ONLY SHOW ONE PRETTY PLOT, BUT ALLOW THE CODE TO SHOW HOW TO OBTAIN
+
+In @fig-r_var-imp and @fig-py_var-imp, we see that `total_reviews_sc`, `length_minutes_sc`, `word_count_sc`, and `release_year_0` are the most important features in our model. Now that we know the variables that are pulling the most weight, we can turn to exploring predictions.
+
+#### Localized Predictions
+
+If you are every curious to see how a particular observation reached its predicted value, you can use the `predict_parts` function to get a sense of how each feature contributed to the final prediction. We will look at the second observation in our testing_data to see how it was predicted.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+break_down_plot = predict_parts(
+  train_explain, 
+  new_observation = testing_data[2, ], 
+  type = "break_down")
+```
+
+
+```{r}
+#| label: fig-r_break-down
+#| fig-cap: "R Break Down Plot"
+plot(break_down_plot)
+```
+
+##### Python
+
+```{python}
+break_down_plot = train_explain.predict_parts(
+    new_observation = X_features_testing[1],
+    type = "break_down"
+)
+```
+
+
+```{python}
+#| label: fig-py_break-down
+#| fig-cap: "Python Break Down Plot"
+break_down_plot.plot()
+```
+
+:::
+
+The Break down plots in @fig-r_break-down and @fig-py_break-down show us how each feature contributed to the final prediction for an observation. If a prediction from a model has ever surprised you, this is a great way to see how that prediction actually happened! 
+
+#### Shap Plots
+
+**Shapley values** are a way to explain the predictions made by machine learning models. They break down a prediction to show the impact of each feature. The Shapley value was originally developed in game theory to determine how much each player in a cooperative game has contributed to the total payoff of the game. You'll commonly see them used in conjunction with tree-based models, like xgboost, but they can be used with any model.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+shap_plot = predict_parts(
+  train_explain, 
+  new_observation = testing_data, 
+  type = "shap")
+```
+
+
+```{r}
+#| label: fig-r_shap
+#| fig-cap: "R Shap Plot"
+plot(shap_plot)
+```
+
+##### Python
+
+```{python}
+shap_plot = train_explain.predict_parts(
+    new_observation = X_features_testing[1], 
+    type = "shap"
+)
+```
+
+
+```{python}
+#| label: fig-py_shap
+#| fig-cap: "Python Shap Plot"
+shap_plot.plot()
+```
+
+:::
+
+The Shap plots in @fig-r_shap and @fig-py_shap show us how each feature contributed to the final prediction for an observation. 
+
+### Classification
+
+The set-up and functions are exactly the same for classification models, so we want to show you how we can also incorporate information from categorical variables into our explainers.
+
+We'll create our explainer and then look at the **Partial Dependence Plots** for our model, but broken down by `genre`.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+train_explain = explain(
+  logistic_model_train, 
+  data = training_data[, features], 
+  y = training_data$rating_good,
+  verbose = FALSE
+)
+
+train_performance = model_performance(train_explain)
+
+# train_performance # not shown
+
+partial_model_profile = model_profile(train_explain, 
+                                  features, 
+                                  groups = "genre",
+                                  type = "partial")
+```
+
+
+```{r}
+#| label: fig-r_partial-plot
+#| fig-cap: "R Partial Dependence Plot by Genre"
+plot(partial_model_profile)
+```
+
+##### Python
+
+```{python}
+train_explain = dx.Explainer(
+    logistic_model_train, 
+    data = X_features, 
+    y = training_data.rating_good, 
+    verbose = False
+)
+
+train_performance = train_explain.model_performance()
+
+partial_model_profile = train_explain.model_profile(
+    type = "partial"
+)
+```
+
+
+```{python}
+#| label: fig-py_partial-plot
+#| fig-cap: "Python Partial Dependence Plot"
+partial_model_profile.plot()
+```
+:::
+
+We can see what R and Python offer us for partial dependence plots in @fig-r_partial-plot and @fig-py_partial-plot. In @fig-r_partial-plot, we see those are broken down by the different genres, allowing us to see the differences between genres.
+
+#### Variable Importance
+
+We can also look at the variable importance for our classification model. While it operates on the same principle of the regression model, variable importance for classification models is calculated by assessing how a model's AUC changes when a feature is permuted, as opposed to RMSE.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+model_var_imp = model_parts(train_explain, type = "variable_importance")
+```
+
+
+```{r}
+#| label: fig-r_var-imp-class
+#| fig-cap: "R Variable Importance Plot for Classification"
+plot(model_var_imp)
+```
+
+##### Python
+
+```{python}
+model_var_imp = train_explain.model_parts(
+  type = "variable_importance"
+  )
+```
+
+
+```{python}
+#| label: fig-py_var-imp-class
+#| fig-cap: "Python Variable Importance Plot for Classification"
+model_var_imp.plot()
+```
+
+:::
+
+The variable importance plots in @fig-r_var-imp-class and @fig-py_var-imp-class show us the variables that are the most globally important for making our classifications. How do those variables differ from what we saw in our linear regression model?
+
+Since we have already seen that there isn't much difference between models with regard to producing these plots, we will leave it up to you to produce localized plots for your classification models!
+
+## Wrapping Up
+
+It is easy to get caught up in the excitement of creating a model and then using it to make predictions. It is also easy to get caught up in the excitement of seeing a model perform well on a test set. It is much harder to take a step back and ask yourself, "Is this model really doing what I want it to do?" You should always be looking at which variables are pulling the most weight in your model and how predictions are being made. 
+
+## Additional Resources
+
+If this chapter has piqued your curiosity, we would encourage you to check out the following resources. 
+
+Even though we did not use the `mlr3` package in this chapter, the **Evaluation and Benchmarking** chapter of the companion book, [Applied Machine Learning Using mlr3 in R](https://mlr3book.mlr-org.com/chapters/chapter3/evaluation_and_benchmarking.html), offers a great conceptual take on model metrics and evaluation. 
+
+For a more Pythonic look at model evaluation, we would highly recommend going through the sci-kit learn documentation on [Model Evaluation](https://scikit-learn.org/stable/modules/model_evaluation.html). It has you absolutely covered on code examples and concepts.
+
+To get the most out of `DaLEX` visualizations, we would recommend checking out Christoph Molnar's book, [Interpretable Machine Learning](https://christophm.github.io/interpretable-ml-book/). It is a great resource for learning more about model explainers and how to use them.
