@@ -955,7 +955,13 @@ car::vif(model_reviews_extra)
 ```{python}
 #| label: lm-extra-features-py
 model_reviews_extra = smf.ols(
-    formula = 'rating ~ word_count + age + review_year + release_year + length_minutes + children_in_home + total_reviews',
+    formula = 'rating ~ word_count \
+        + age \
+        + review_year \
+        + release_year \
+        + length_minutes \
+        + children_in_home \
+        + total_reviews',
     data = df_reviews
 ).fit()
 
@@ -1118,19 +1124,30 @@ shap_value_package = DALEX::predict_parts_shap(
 avg_pred = model_reviews_extra.predict(df_reviews).mean()
 
 # then we need to get the prediction for the feature value of interest
-pred_observation = model_reviews_extra.predict(df_reviews.assign(word_count = 12))
+pred_observation = model_reviews_extra.predict(
+    df_reviews.assign(word_count = 12)
+)
 
 # then we can calculate the shap value
 shap_value_ours = pred_observation.mean() - avg_pred
 
 
 # now use the shap package for this; it does not work with statsmodels though,
-# and single feature models are a bit cumbersome, but we still get there in the end!
+# and single feature models are a bit cumbersome, 
+# but we still get there in the end!
 import shap
 from sklearn.linear_model import LinearRegression
 
 # set data up for shap and sklearn
-fnames = ['word_count', 'age', 'review_year', 'release_year', 'length_minutes', 'children_in_home', 'total_reviews']
+fnames = [
+    'word_count', 
+    'age', 
+    'review_year', 
+    'release_year', 
+    'length_minutes', 
+    'children_in_home', 
+    'total_reviews'
+]
 
 X = df_reviews[fnames]
 y = df_reviews['rating']
@@ -1174,7 +1191,7 @@ shap_value_package = shap_values_linear.values[0, 0]
 #| tbl-cap: SHAP Value Comparison
 tibble(
     ours  = shap_value_ours,
-    dalex = shap_value_package |> filter(variable_name == 'word_count') |> pull(contribution)
+    dalex = shap_value_package['word_count', 'contribution']
 ) |>
     gt(decimals = 3)
 ```
@@ -1595,7 +1612,7 @@ model_cat = smf.ols(
     data = df_reviews
 ).fit()
 
-model_cat.summary()
+model_cat.summary(slim = True)
 ```
 
 :::
