@@ -1,0 +1,187 @@
+# Causal Modeling
+
+> All those causal effects will be lost in time, like tears in rain... without adequate counterfactual considerations.
+> ~ Roy Batty (paraphrased)
+
+
+Causal inference is a very important topic in machine learning and statistics, and it is also a very difficult topic to understand well, or consistently, because not everyone agrees on how to define **causal** in the first place. Our focus here is merely practical- we just want to show how it plays out in the modeling landscape from a high level overview. This is such a rabbit hole, that we will not be able to go into much detail, but we will try to give you a sense of the landscape, and some of the key ideas.
+
+
+## Key ideas
+
+- No model can tell you whether a relationship is causal or not. Causality is inferred, not proven, based on the available evidence.
+- The exact same models would be used for similar data settings to answer a causal question, or a predictive question. The difference is in the interpretation of the results.
+- Experimental design, such as randomized control trials, are the gold standard for causal inference. But in this case, the gold standard is often not practical, and not without its shortcomings even when it is, and never perfectly implemented. More like a silver standard?
+- Causal inference is often done with observational data, which is often the only option, and that's okay.
+- Several models exist which are typically employed to answer a more causal-oriented question. These include structural equation models, graphical models, uplift modeling, and more.
+- Interactions are the norm, if not the reality. Causal inference generally regards a single effect. If the normal setting is that such an effect would always vary depending on other features, you should question why you want to aggregate your results to a single 'effect', since that effect would be potentially misleading.
+
+## Why it matters
+
+Often we need a precise statement about the feature-target relationship, not just whether there is some relationship. For example, we might want to know whether a drug works well, or whether showing an advertisement results in a certain amount of new sales. Whether or not random assignment was used, we generally need to know whether the effect is real, and the size of the effect, and often, the uncertainty in that estimate. Causal modeling is, like machine learning, more of an approach than a specific model, and that approach may involve the design or implementing models we've already seen in a different way to answer the key question. Without more precision in our understanding, we could miss the effect, or overstate it, and make bad decisions as a result.
+
+
+### Good to know
+
+Honestly this section is pretty high level, and we are not going to go into much detail here so even just some understanding of correlation and modeling would likely be enough.
+
+
+## Classic Experimental Design
+
+Many of those who have taken a statistics course have been exposed to the simple t-test to determine whether two groups are different. While it can be applied to any binary group setting, for our purposes here we can assume the two groups result from some sort of **treatment** that is applied to one group, and not the other. The 'treatment' could regard a new drug, demographic groups, a marketing campaign, a new app's feature, or anything else.
+
+This is a very simple example of an experimental design, and it is a very powerful one. Ideally, we would randomly assign our observational units to the two groups, one which gets the treatment and one which doesn't.Then we'd measure the difference between the two groups, using some metric to conclude that the two groups are different. This is the basic idea behind the t-test, which would compare the target means of the two groups.
+
+The t-test tells us whether the difference in means between the two groups is *statistically* significant. It definitely does not tell us whether the treatment itself caused the difference, whether the effect is large, nor whether the effect is real, or even if the treatment is a good idea to do in the first place. It just tells us whether the two groups are statistically different.
+
+Turns out, a t-test is just a linear regression. It's a special case of linear regression where there is only one independent variable, and it is a categorical variable with two levels. The coefficient from the linear regression would tell you the mean difference, i.e. as you go from one group to the other, how much does the target mean change? The t-test is just a special case of this, but under the same conditions, the t-statistic from the linear regression and t-test, and corresponding p-value would be identical.
+
+Analysis of variance, or **ANOVA*,* allows the t-test to be extended to more than two groups, and multiple features, and is also commonly employed to analyze the results of experimental design settings.  But ANOVA is still just a linear regression. Even when we get into more complicated design settings such as repeated measures and mixed design, it's still just a linear regression, we'd just be using mixed models. 
+TODO: LINK TO MIXED MODELS
+
+If using a linear regression didn't suggest any notion of causality to you before, it certainly shouldn't now either. The model is *identical* whether there was an experimental design with random assignment or not. The only difference is that the data was collected in a different way, and the theoretical assumptions and motivations are different. Experimental design can give us more confidence in the causal explanation of model results, whatever model is used, and this is why we like to use random assignment when we can. It gives us control for the unobserved factors that might otherwise be influencing the results. If we can be fairly certain the observations are essentially the same *except* for the treatment, then we can be more confident that the treatment is the cause of the difference, and we can be more confident in the causal interpretation of the results. But it doesn't change the model itself, and the results of a model do not in any way prove a causal relationship.
+
+
+
+
+:::{.callout-note}
+**A/B testing** is just marketing-speak for a two-group setting where one could employ the same mindset they would if they were doing a t-test. It implies randomized assignment, but you'd have to know the context to know if that is actually the case.
+:::
+
+
+## Natural Experiments
+
+As we noted, random assignment or a formal experiment is not always possible or practical to implement. But sometimes we get to do it anyway, or at least close enough! Sometimes, the world gives us a **natural experiment**, where the assignment to the groups is essentially random, or where there is clear break before and after some event occurs, such that we examine the change as we would in pre-post design. 
+
+For example, a certain recent pandemic allowed us to examine vaccination effects, policy effects, remote work, and more. This was not a tightly controlled experiment, but it's something we can treat very similar to an experiment, and we can compare the differences in various outcomes before and after the pandemic to see what changes took place. 
+
+
+## Causal Inference
+
+Reasoning about causality is a very old topic, philosophically dating back millenia, and more formally [hundreds of years](https://plato.stanford.edu/entries/causation-medieval/). Random assignment is a relatively new idea, say [150 years old](https://plato.stanford.edu/entries/peirce/), but was even posited before Wright, Fisher, and Neyman Pearson and the 20th century rise of statistics. But with stats and random assignment we had a way to start using models to help us reason about causal relationships. [Pearl and others](https://muse.jhu.edu/pub/56/article/867087/summary) came along to provide a perspective from computer science, and things have been progressing along. We were actually using programming approaches to do causal inference before back in the 1970s even! Economists eventually got into the game too (e.g., Heckman), though largely reinventing the wheel.
+
+Now we can use recently developed modeling approaches to help us reason about causal relationships, which can be both a blessing and a curse. Our models can be more complex, and we can use more data, which can potentially give us more confidence in our conclusions. But we can still be easily fooled by our models, as well as by ourselves. So we'll need to be careful in how we go about things, but let's see what some of our options are!
+
+
+
+## Models for Causal Inference
+
+### Linear Regression
+
+Yep, [linear regression](https://matheusfacure.github.io/python-causality-handbook/05-The-Unreasonable-Effectiveness-of-Linear-Regression.html). Your old #1 is quite possibly the mostly widely used model for causal inference, historically speaking.  We've even already seen linear regression as a graphical model @fig-graph-lm, and in that sense can serve as the starting point for structural equation models and related, or be used as a baseline for other approaches. Linear regression also tells us for any particular effect, what that effect is, accounting for all the other features constant, which kind of already gets into a causal mindset.
+
+However, your standard linear model doesn't care where the data came from and will tell you about group differences whether they come from a randomized experiment or not. And if you don't include features that would have a say in the treatment, you'll potentially get a biased estimate of the effect. As such, linear regression by itself cannot save us from the difficulties of causal inference. But it can be used in conjunction with other approaches, and it can be used to help us reason about causal relationships. For example, we can use it to help us understand the effect of a treatment, or to help us understand the effect of a feature on the target, accounting for other features.
+
+
+### Structural Equation Models
+
+TODO: LINK LATENT VARIABLES
+
+**Structural Equation Models** are basically multivariate models, as in multiple targets, used for regression and classification. They are widely employed in the social sciences, and are often used to model both observed and latent variables, with either serving as features or targets. They are also used to model causal relationships, to the point that historically they were called causal graphical models or causal structural models, and are a special case of **graphical models** more generally speaking. They have one of the longest histories of formal statistical modeling dating back over a century[^wright]. Economists later reinvented the approach under various guises, and computer scientists joined the party after that.
+
+[^wright]: [Wright](https://en.wikipedia.org/wiki/Sewall_Wright) is credited with coming up with what would be called **path analysis** in the 1920s, which is a precursor to and part of SEM. 
+
+Unfortunately for those looking for causal effects, the basic input for SEM is a correlation matrix, and the basic output is a correlation matrix. Insert your favorite modeling quote here - you know which one. Also, a linear regression and even deep-learning models like autoencoders can be depicted as graphical models, as we have seen. The point is that SEM, like linear regression, can no more tell you whether a relationship is causal than the linear regression, or for that matter, the t-test, could.
+
+
+### Counterfactual Thinking
+
+When we think about causality, we really out to think about **counterfactuals**. What would have happened if I had done something different? What would have happened if I had not done something? What would have happened if I had done something sooner rather than later? What would have happened if I had done nothing at all? These questions are all examples of counterfactual thinking. And this is one of the best ideas to take aways from this... 
+
+> the question is not whether there is a difference between A and B but whether there would still be a difference if A *was* B and B *was* A.
+
+This is the essence of counterfactual thinking. It's not about whether there is a difference between two groups, but whether there would still be a difference if those in one group had actually been treated differently. In this sense, we are concerned with the **potential outcomes** of the treatment, however defined.
+
+Here is a more concrete example:
+
+- Roy is shown ad A, and buys the product.
+- Pris is shown ad B, and does not buy the product.
+
+What are we to make of this? Which ad is better? **A** seems to be, but maybe Pris wouldn't have bought the product if shown that ad either, and maybe Roy would have bought the product if shown ad **B** too! With counterfactual thinking, we are concerned with the potential outcomes of the treatment, which in this case is whether or not to show the ad. 
+
+Let's say ad A is the new one, i.e., our treatment group, and B is the status quo ad, our control group.  Our real question can't be answered by a simple test of whether means or predictions are different among the two groups, as this estimate would be biased if the groups are already different in the first place. The real effect is whether, for those who saw ad A, what the difference in the target would be if they hadn't seen it.
+
+From a prediction stand point, we can get an estimate straightforwardly. For those in the treatment, we can just plug in their feature values with treatment set to ad A. Then we just make a prediction with treatment set to ad B.
+
+:::{.panel-tabset}
+
+##### Python
+
+```{python}
+#| eval: false
+#| label: py-demo-counterfactual
+model.predict(X.assign(treatment = 'A')) - 
+    model.predict(X.assign(treatment = 'B'))
+```
+
+##### R
+
+```{r}
+#| eval: false
+#| label: r-demo-counterfactual
+predict(model, X |> mutate(treatment = 'A')) - 
+    predict(model, X |> mutate(treatment = 'B'))
+```
+
+:::
+
+With counterfactual thinking explicitly in mind, we can see that the difference in predictions is the difference in the potential outcomes of the treatment. 
+
+
+### Uplift Modeling
+
+The counterfactual prediction we just did can be called the **uplift** or **gain** from the treatment. **Uplift modeling** is a general term applied to models where counterfactual thinking is at the forefront, especially in a marketing context. Uplift modeling is not *a* model, but any model that is used to answer a question about the potential outcomes of a treatment. The key question is what is the gain, or uplift, in applying a treatment vs. not?  Typically any statistical model can be used to answer this question, and often the model is a classification model, whether Roy both the product or not. 
+
+Some in uplift modeling distinguish:
+
+- **Sure things**: those who would buy the product whether or not shown the ad.
+- **Lost causes**: those who would not buy the product whether or not shown the ad.
+- **Sleeping dogs**: those who would buy the product if not shown the ad, but not if shown the ad. 'Do not disturb'!
+- **Persuadables**: those who would buy the product if shown the ad, but not if not shown the ad.
+
+One of additional goals in uplift modeling is to identify persuadables for additional marketing efforts, and to avoid wasting money on the lost causes. But to get there, we have to think causally first!
+
+:::{.callout-tip}
+There appear to be more widely used tools for uplift modeling and meta-learners in Python than in R, but there are some options in R as well. In Python you can check out [causalml](https://causalml.readthedocs.io/en/latest/index.html) and [sci-kit uplift](https://www.uplift-modeling.com/en/v0.5.1/index.html) for some nice tutorials and documentation.
+:::
+
+### Meta-Learning
+
+[Meta-learners](https://arxiv.org/pdf/1706.03461.pdf) are used in uplift modeling and other contexts to assess potentially causal relationships between some treatment and outcome. 
+
+- **S-learner** - **s**ingle model for both groups; predict the difference as when all observations are treated vs when all are not, similar to our code demo above.
+- **T-learner** - **t**wo models, one for each treatment group; predict the difference as when all observations are treated vs when all are not for both models, and take the difference
+- **X-learner** - a more complicated modification to the T-learner also using a multi-step approach.
+- **Misc-learner** - other meta-learners that are not as popular, but might be applicable for your problem.
+- **Transformed outcome**: transform your uplift modeling into a regression problem in which the prediction is the difference in the potential outcomes. This simplifies the problem to a single model, and can be quite effective. 
+
+:::{.callout-note}
+Meta-learners are not to be confused with **meta-analysis**, which is also related to understanding causal effects. Meta-analysis attempts to combine the results of multiple *studies* to get a better estimate of the true effect. The studies are typically conducted by different researchers and in different settings.  **Meta-learning** has also been used to refer to what is more commonly called ensemble learning.
+:::
+
+### Others approaches
+
+Note that there are many model approaches that would fall under the umbrella of causal inference, and several that are discipline specific but really only a special application of some of the ones we've mentioned here. A few you might come across:
+
+- Marginal structural models
+- Instrumental variables and two-stage least squares
+- Propensity score matching/weighting
+- Meta-analysis
+- Bayesian networks
+
+
+## Commentary
+
+You will often hear people speak very strongly about causality in the context of modeling, and those who assume that employing an experimental design solves every problem. But anyone who has actually conducted experiments knows that the implementation is never perfect, often not even close, especially when humans are involved as participants or as experimenters. Experimental design is hard, and if done well, can be very potent, but by itself does not prove anything regarding causality. You will also hear people say that you cannot infer causality from observational data, but it's done all the time, and it's often the only option.
+
+In the end, the main thing is that when we want to make causal statements, we'll make do with what data setting we have, and be careful that we rule out some of the other obvious explanations and issues. The better we can control the setting, or the better we can do things from a model standpoint, the more confident we can be in making causal claims. Causal modeling is an exercise in reasoning, which makes it such an interesting endeavor.
+
+
+
+## Where to go from here
+
+We have only scratched the surface here, and there is a lot more to learn. Here are some resources to get you started:
+
+- @barrett_causal_2023
+- @cunningham_causal_2023
+- @facure_alves_causal_2022
