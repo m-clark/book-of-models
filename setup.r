@@ -71,6 +71,7 @@ update_geom_defaults("hline", list(color = "gray25", alpha = .25)) # usually a z
 update_geom_defaults("point", list(color = "#E69F00", alpha = .5)) # alpha as usually there are many points
 update_geom_defaults("smooth", list(color = "#56B4E9", alpha = .15))
 update_geom_defaults("line", list(color = "#56B4E9", alpha = .75))
+update_geom_defaults("path", list(color = "#56B4E9", alpha = .75))
 update_geom_defaults("abline", list(color = "#56B4E9", alpha = 1))
 update_geom_defaults("bar", list(color = "#E69F00", fill = "#E69F00"))
 update_geom_defaults("col", list(color = "#E69F00", fill = "#E69F00"))
