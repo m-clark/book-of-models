@@ -1,5 +1,6 @@
 # Extending the Linear Model {#sec-lm-extend}
 
+
 ```{r}
 #| label: setup-extensions
 #| include: false
@@ -10,20 +11,21 @@ source("functions/utils.R")
 reticulate::use_condaenv("book-of-models")
 ```
 
-With thin linear model and generalized linear models, we have a solid foundation for modeling. We've seen how there is a notable amount we can do with a conceptually simple approach. We've also seen how we can extend the linear model to handle different types of data to help us understand and make some inferences about the relationships between our features and target.
+With just linear model and generalized linear models, we have a solid foundation for modeling, and we've seen how there is a notable amount we can do with a conceptually simple approach. We've also seen how we can extend the linear model to handle different types of target distributions to help us understand and make some inferences about the relationships between our features and target.
 
-In this chapter, we want to show you how to extend the linear model even further with still common tools. These particular methods are also good examples of how we can think about our data and approach in different ways, and can serve as a good starting point for even more techiques you may want to explore in the future.
+In this chapter, we want to show you how to extend the linear model even further with still common tools. These particular methods are also good examples of how we can think about our data and approach in different ways, and can serve as a good starting point for even more techiques you may want to explore in the future. A thread that binds these techniques together is the ability to use a linear model to explore nonlinear relationships!
 
 ## Key Ideas {#sec-lm-extend-key-ideas}
 
-- The linear and generalized linear models are great and powerful starting points for modeling, but they are not the only options. But it's good to know a few more ways we can extend the approach.
-- Quantile regression, GAMs, and mixed models allow us to model relationships that are not linear or monotonic, and can help us to better understand our data.
+- The linear and generalized linear models are great and powerful starting points for modeling, but there's even more we can do!
+- Various technqiues are availabel allow us to model relationships that are not linear or monotonic, and can help us to better understand our data, even while still being linear models.
 - While these seem like very different approaches, we can still use our linear model concepts and approach at the core, take similar estimation steps, and even have similar, albeit more, interpretation.
 
 
 ### Why this matters? {#sec-lm-extend-why}
 
-The linear model is a great starting point for modeling. It is a simple approach that can be used to model a wide variety of relationships between features and targets. It is also a great way to get a feel for how to think about modeling. But linear and generalized models are just the starting point, and the models depicted here are very common extensions used in a variety of disciplines and industries. 
+The linear model is a great starting point for modeling. It is a simple approach that can be used to model a wide variety of relationships between features and targets, and it's also a great way to get a feel for how to think about modeling. But linear and generalized models are just the starting point, and the models depicted here are very common extensions used in a variety of disciplines and industries. 
+
 
 ### Good to know {#sec-lm-extend-good}
 
@@ -31,26 +33,206 @@ While these models are extensions of the linear model, they are not necessarily 
 
 
 
-TODO: This can be a chapter with a focus on nonlinearities: intearctions in general and mixed model, gam (effects vary with self or other), quantile (effects vary with target). Also remind GLM as introducing nonlinearity.
+TODO: This can be a chapter with a general focus on nonlinearities: intearctions in general and mixed model, gam (effects vary with self or other), quantile (effects vary with target). Also remind GLM as introducing nonlinearity.
 
 ## Interactions {#sec-lm-interactions}
 
-We'll talk about this more in the other sections, but a common way to add complexity in linear models is through **interactions**. This is where we allow the effect of a feature to vary depending on the values of another feature, or even itself! As a conceptual example, we might expect that the effect of the number of children in the home on rating is different for movies from different genres (much higher for kids movies, maybe lower for horror movies), or that genre and season work together in some way to affect rating (e.g. action movies get higher ratings in summer).  We might also consider that the length of a movie might plateau or even have a negative effect on rating after a certain point, i.e., it would have a **curvilinear** effect. All of these are types of interactions we can explore. Interactions allow us to incorporate nonlinear relationships into the model, and so greatly extend the linear model's capabilities - we basically get to use a linear model in a nonlinear way!  
+Things can be quite complex in a typical model with multiple features, but just adding features may not be enough to capture the complexity of the relationships between features and target. Sometimes, we need to consider how features interact with each other to better understand the relationships between features and target. A common way to add complexity in linear models is through **interactions**. This is where we allow the effect of a feature to vary depending on the values of another feature, or even itself! 
 
-TODO: NEED DEMO
+As a conceptual example, we might expect that the effect of the number of children in the home on a movie's rating is different for movies from different genres (much higher for kids movies, maybe lower for horror movies), or that genre and season work together in some way to affect rating (e.g. action movies get higher ratings in summer).  We might also consider that the length of a movie might plateau or even have a negative effect on rating after a certain point, i.e., it would have a **curvilinear** effect. All of these are types of interactions we can explore. Interactions allow us to incorporate nonlinear relationships into the model, and so greatly extend the linear model's capabilities - we basically get to use a linear model in a nonlinear way!  
+
+With that in mind, let's explore how we can add interactions to our models. Going with our first example, let's see how having kids impacts the relationship between genre and rating. We'll start with a standard linear model, and then add an interaction term. Using a formula approach makes it very straightforward to add an interaction term. We just need to add a `:` between the two features we want to interact.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| echo: true
+#| eval: false
+#| label: model-interaction-r
+df_reviews = read_csv("data/movie_reviews_processed.csv")
+
+model_base = lm(rating ~ children_in_home + genre, data = df_reviews)
+model_interaction = lm(rating ~ children_in_home * genre, data = df_reviews)
+
+summary(model_interaction)
+```
+
+```{r}
+#| echo: false
+#| eval: true
+
+# because we can't only evaluate some lines? suppposedly can with knitr engine but tried various ways and it failed
+df_reviews = read_csv("data/movie_reviews_processed.csv")
+
+model_base = lm(rating ~ children_in_home + genre, data = df_reviews)
+model_interaction = lm(rating ~ children_in_home * genre, data = df_reviews)
+```
+
+##### Python
+
+```{python}
+#| echo: true
+#| label: model-interaction-py
+#| eval: false
+import pandas as pd
+import statsmodels.formula.api as smf
+
+df_reviews = pd.read_csv("data/movie_reviews_processed.csv")
+
+model_base = smf.ols(
+  formula = 'rating ~ children_in_home + genre', 
+  data = df_reviews
+).fit()
+
+model_interaction = smf.ols(
+  formula = 'rating ~ children_in_home * genre', 
+  data = df_reviews
+).fit()
+
+model_interaction.summary()
+```
+
+:::
+
+
+```{r}
+#| echo: false
+#| label: model-interaction-get-reference-group
+ref = model_base$xlevels$genre[1]
+```
+
+Here is a quick look at the model output for the interaction vs. no interaction. Starting with the base model the coefficients look like what we've seen before, but we have several coefficients for genre. The reason is that genre is composed of several categories, and converted to a set of dummy variables (refer to @sec-lm-categorical-features and @sec-data-cat). If we have no interaction, the model would tell us what each effect is for each genre relative to a reference group, in this case `r ref`, and an effect for the number of children in the home. The intercept tells us the rating for `r ref`.
+
+```{r}
+#| echo: false
+#| label: tbl-model-interaction-output
+#| tbl-cap: Model coefficients with interaction
+
+library(broom)
+library(gt)
+
+tidy_base <- tidy(model_base) |> 
+  rename(
+    feature = term,
+    coef = estimate,
+    se = std.error,
+    t = statistic,
+    p = p.value
+  )
+
+tidy_interaction <- tidy(model_interaction) |> 
+  rename(
+    feature = term,
+    coef = estimate,
+    se = std.error,
+    t = statistic,
+    p = p.value
+  )
+
+nkids_coef = round(coef(model_interaction)['children_in_home'], 2)
+sign_nkids_coef = sign(nkids_coef)
+nkids_comedy_coef = round(coef(model_interaction)['children_in_home:genreComedy'], 2)
+nkids_kids_coef = round(coef(model_interaction)['children_in_home:genreKids'], 2)
+sign_nkids_kids_coef = sign(nkids_kids_coef)
+# mean(df_reviews$children_in_home == 0)
+# mean(df_reviews$genre == ref)
+
+# Create a gt table from the tidy coefficients
+tidy_base |> 
+  full_join(tidy_interaction, by = 'feature', suffix = c('_base', '_inter')) |>
+  select(feature, starts_with('coef')) |>
+  gt(decimals = 4) |> 
+  sub_missing(
+    missing_text = "",
+  ) |> 
+  gt_highlight_rows(
+    columns = vars(coef_base, coef_inter),
+    rows = str_detect(feature, 'children_in_home$|children.*Kids'),
+    fill = okabe_ito[5],
+    alpha = .1
+  ) |>
+  tab_caption("Model coefficients with and without an interaction") 
+```
+
+But we have an interaction in our other model, and an interaction basically tells us that the effects of feature A change depending on the values of feature B and vice versa. In this setting, feature A can be children in the home or genre, and B can be genre or children in the home.  So let's start with the coefficient for children in the home. It is `r nkids_coef`, which means that for every additional child in the home, the rating `r ifelse(sign_nkids_coef, 'increases', 'decreases')` by that amount. But! Due to our interaction, we now interpret that as just the effect of children in the home when genre is the reference group `r ref`. Now let's look at the interaction effect for children in home and the kids genre. It is `r nkids_kids_coef`, which means that for the kids genre, the *effect of having children in the home `r ifelse(sign_nkids_kids_coef, 'increases', 'decreases')`* by that amount. So our actual effect for an additional child in the home for the kids genre is  `r nkids_coef` + `r nkids_kids_coef` = `r round(nkids_coef + nkids_kids_coef, 2)` `r ifelse(sign_nkids_coef + sign_nkids_kids_coef, 'increase', 'decrease')` in the review rating.
+
+Here is a plot of the predictions from interaction model. We hightlight the predictions for the kids genre, and we can see that the effect of children in the home is strongest for kids movies than for other genres, which makes a whole lot of sense! In other cases it seems to have little effect, and in others it still has a positive effect, but not as strong as for kids movies.
+
+
+
+```{r}
+#| echo: false
+#| label: fig-model-interaction-plot
+#| fig-cap: Interaction plot
+
+library(ggeffects)
+
+p_init = plot(
+  ggpredict(model_interaction, terms = c("children_in_home", "genre")), 
+  alpha = .05, 
+  # line_size = I(rep(c(rep(.10, 7), 2), 4)) # values of children in home = 0:3, kids is last genre, but it's ignored anyway
+  line_size = 1
+  )$data |>
+  as_tibble()
+
+p_init |> 
+  ggplot(aes(x = x, y = predicted, color = group, fill = group)) +
+  geom_line(linewidth = .25) +
+  # geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .1, color = NA) +
+  geom_borderline(linewidth = 1.5, data = p_init |> filter(group == 'Kids') ) +
+  # scale_color_manual(values = okabe_ito, aesthetics = c('color', 'fill')) +
+  scale_color_brewer(palette = 'Set1', aesthetics = c('color', 'fill')) +
+  scale_y_continuous(breaks = seq(0, 5, .25)) +
+  labs(x = "Children in home", y = "Predicted rating") +
+  theme_clean() +
+  theme(
+    panel.grid.major = element_line(color = alpha('black', .05)),    
+  )
+```
+
+
+So we can see that interactions can allow a linear effect to vary depending on the values of another feature. But the real take home message from this is that *the general effect is actually not linear*! The effect changes depending on the setting. Furthermore, the coefficient for children in the home is only the effect of children in the home when genre is the reference group, or more generally, when other features are at their reference group or zero if they are numeric. Whenever you have interactions, you really can't talk about a singular effect of a feature, but rather the effect of a feature at a particular setting of the other features. Some think this is a drawback, but it's actually the reality of most feature-target relationships. Interactions allow us to model more complex relationships between features and target, and they are very common in practice.
+
+
+#### Average Effects {#sec-lm-extend-avgeffect}
+
+So what is the effect of children in the home? Or genre, for that matter? We can't really say, because the effect of one feature depends on the setting of the other feature. We can say what the effect of a feature is *on average* across the settings of the other features. This is called the **average marginal effect**[^ME]. We can compute this by averaging the effect of a feature across the values of the other features. 
+
+[^ME]: These results are provided by the [marginaleffects]{.pack} package, which is great for this and has pretty much no equal in the Python realm.
+
+```{r}
+#| echo: false
+#| label: tbl-model-interaction-avg-effect
+#| tbl-cap: Marginal effects
+library(marginaleffects)
+me_children = marginaleffects::avg_slopes(model_interaction, variables = c("children_in_home"))
+me_children |> 
+  as_tibble() |> 
+  select(-s.value) |> 
+  gt() |> 
+  tab_header(
+    title = "", 
+    subtitle = "Average coefficient for children in home by genre"
+  ) |> 
+  fmt_number(
+    columns = vars(estimate), 
+    decimals = 3
+  )
+```
+
+
+So-called **marginal** effects and related approaches such as SHAP values (see @sec-model-explore-shap-values) attempt to boil down the effect of a feature to a single number, but this is difficult even in the simpler GLM settings, and downright misleading in more complex settings.  Here we see the average coefficient for children in the home is `r round(me_children$estimate, 2)`, but we saw in @tbl-model-interaction-output that this is slightly larger than what we would estimate in the non-interaction model, and we saw in @fig-model-interaction-plot it's actually near zero (flat) for most genres. So what is the average effect really telling us? Consider a more serious case of drug effects across demographic groups, where the effect of the drug is much stronger for some groups than others. Would you want your doctor to prescribe you a drug based on the average effect across all groups? Probably not.
+
+In the end, when it comes to interactions, it's better to think about the effect of a feature in terms of the setting of the other features, and to visualize the effect of a feature across a range of settings of the other features. It's also good to think about what the actual prediction for your outcome is at key values of the features, and how that changes depending on what the feature values are. This is what we've done here with interactions, and it's a good approach to take in general.
+
 
 
 ## Quantile Regression {#sec-lm-extend-quantile}
 
-> Oh, you think the mean is your ally. But you merely adopted the mean; I was born in it, molded by it. I didn’t see anything interesting until I was already a man. And by then, it was nothing to me but illuminating.
+> Oh, you think the median is your ally. But you merely adopted the median; I was born in it, molded by it. I didn't see anything interesting until I was already a man. And by then, it was nothing to me but illuminating.
 > -- Bane (probably)
-  
-```{r, include = FALSE}
-# source("load_packages.R")
-# source("setup.R")
-
-# reticulate::use_condaenv("book-of-models")
-```
 
 
 People generally understand the concept of the arithmetic mean. You see it some time during elementary school, it gets tossed around in daily language (usually using the word "average"), and it is statistically important. After all, where would the normal distribution be without a mean? Why, though, do we feel so tied to it from a regression modeling perspective? Yes, it has handy features, but it is also a bit restrictive to the types of relationships that it can actually model well. 
@@ -408,6 +590,8 @@ minimize(
 > -- LMFAO
 
 TODO: GAM gets a bit deep, but we do want to keep discussion of penalized appoach, and ultimately a word on the random effect connection.
+
+But what if we want to allow the effect of a feature to vary depending on its own values? This is called a **curvilinear** effect, and we can use an interaction to capture this as well. Let's say we want to allow the effect of the length of a movie to vary depending on the length of the movie. We can do this by adding an interaction between the length of the movie and itself.
 
 ### Why Should You Care? {#sec-gam-why}
 
