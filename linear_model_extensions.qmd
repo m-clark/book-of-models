@@ -123,7 +123,7 @@ Here is a quick look at the model output for the interaction vs. no interaction 
 library(broom)
 library(gt)
 
-tidy_base <- tidy(model_base) |> 
+tidy_base = tidy(model_base) |> 
   rename(
     feature = term,
     coef = estimate,
@@ -132,7 +132,7 @@ tidy_base <- tidy(model_base) |>
     p = p.value
   )
 
-tidy_interaction <- tidy(model_interaction) |> 
+tidy_interaction = tidy(model_interaction) |> 
   rename(
     feature = term,
     coef = estimate,
@@ -386,8 +386,8 @@ see::plots(
 
 
 # Calculate ICC for each feature
-# feature_icc <- purrr::map_df(stringr::str_subset(colnames(df_reviews), '_0|_sc'), function(feature) {
-#   model <- lme4::lmer(paste("rating ~", feature, "+ (1 +", feature, "| genre)", sep = ""), data = df_reviews)
+# feature_icc = purrr::map_df(stringr::str_subset(colnames(df_reviews), '_0|_sc'), function(feature) {
+#   model = lme4::lmer(paste("rating ~", feature, "+ (1 +", feature, "| genre)", sep = ""), data = df_reviews)
 #   as_tibble(performance::icc(model))
 # }, .id = 'feature')
 
@@ -514,11 +514,11 @@ fit_ran_slope.summary()
 
 :::
 
-With @tbl-mixed_model, we can see typical output from a mixed model. The fixed effect part is your basic GLM result and interpreted as such. Nothing new there, and we can see a general positive relationship between length and rating, but maybe not a strong one. But the random effects are where the action is! We can see the standard devation (or variance) of the random effects, i.e., the intercepts and slopes. We can also see the standard deviation of the residual, which conceptually identical to your standard regression model's residual standard deviation, but won't be the same value. We can also see the correlation between the random intercepts and random slopes. Depending on your tool, the default may be in terms of variances and covariances rather than standard deviations and correlations, but you would not see anything fundamentally different.
+With @tbl-mixed-model we can see some typical output from a mixed model. The fixed effect part is your basic GLM result and interpreted as such. Nothing new there, and we can see a general positive relationship between length and rating, but maybe not a strong one. But the random effects are where the action is! We can see the standard devation (or variance) of the random effects, i.e., the intercepts and slopes. We can also see the standard deviation of the residual, which conceptually identical to your standard regression model's residual standard deviation, but won't be the same value. We can also see the correlation between the random intercepts and random slopes. Depending on your tool, the default may be in terms of variances and covariances rather than standard deviations and correlations, but you would not see anything fundamentally different.
 
 ```{r}
 #| echo: false
-#| label: tbl-mixed_model
+#| label: tbl-mixed-model
 #| tbl-cap: Mixed model results
 
 library(lme4)
@@ -541,15 +541,29 @@ cor_sign = ifelse(sign(vcor[2]) > 0, 'positive', 'negative')
 
 
 # mixedup::summarise_model(fit_ran_slope) 
-library(flextable)
+# library(flextable)
 
-as_flextable(fit_ran_slope) |> 
-  set_header_labels(
-    estimate = 'Estimate',
-    std.error = 'Std. Err.',
-    statistic = 't value',
-    p.value = 'Pr(>|t|)'
-  ) 
+# NOTE: flextable continues to have issues with pdf; I've seen the same undefined error creep up repeatedly on the issues, and the attempts to fix seem to be in vain. Unfortunately, it's also the better format for mixed and GAM models. Maybe revisit or hope gtsummary eventually does better.
+# flextable::as_flextable(fit_ran_slope) |> 
+#   set_header_labels(
+#     estimate = 'Estimate',
+#     std.error = 'Std. Err.',
+#     statistic = 't value',
+#     p.value = 'Pr(>|t|)'
+#   ) 
+# broom.mixed::tidy(fit_ran_slope)
+# gtsummary::tbl_regression(fit_ran_slope, tidy_fun = broom.mixed::tidy) # doesn't include intercept and default is 'include everything'.
+broom.mixed::tidy(fit_ran_slope) |>
+    mutate(
+      effect = ifelse(str_detect(effect, 'ran_pars'), 'Random', 'Fixed'),
+      term = ifelse(str_detect(term, 'Observation'), '', term),
+      term = str_remove_all(term, '\\(|\\)'),
+    ) |>
+    group_by(effect) |>
+    gt() |> 
+    sub_missing(
+      missing_text = "",
+    )
 
 ```
 
@@ -748,7 +762,7 @@ We can also get a good sense of the random effect estimates:
 
 ```{r}
 #| echo: false
-#| label: fig-random_effects
+#| label: fig-random-effects-2
 #| fig-cap: Random effects estimates
 library(sjPlot)
 
@@ -931,7 +945,7 @@ In other words, we can go from the straight line here:
   
 ```{r}
 #| echo: false
-#| label: fig-regular_linear_line
+#| label: fig-regular-linear-line
 #| fig-cap: A standard linear model
 
 df_happiness = read_csv('data/world_happiness_2018.csv')
@@ -948,7 +962,7 @@ To the curve seen here:
   
 ```{r, gam_model_line}
 #| echo: false
-#| label: fig-gam_model_line
+#| label: fig-gam-model-line
 #| fig-cap: A generalized additive model
 
 df_happiness |> 
@@ -958,7 +972,7 @@ df_happiness |>
   theme_clean()
 ```
 
-That curved line in @fig-gam_model_line is called a **spline**. It is created by a feature and expanding it to multiple columns, each of which is a function of the original feature. We then a fit a model to that data as usual. Oddly enough, the result is that we can use a linear model to fit a curve through the data. While this might not give us the same tidy explanation that a typical line would offer, we will certainly get better prediction, and a better understanding of the reality and complexity of the true relationship. But often it's useful for exploratory purposes, and tools like ggplot, plotly[^ggplotly] and others make it easy to do so.
+That curved line in @fig-gam-model-line is called a **spline**. It is created by a feature and expanding it to multiple columns, each of which is a function of the original feature. We then a fit a model to that data as usual. Oddly enough, the result is that we can use a linear model to fit a curve through the data. While this might not give us the same tidy explanation that a typical line would offer, we will certainly get better prediction, and a better understanding of the reality and complexity of the true relationship. But often it's useful for exploratory purposes, and tools like ggplot, plotly[^ggplotly] and others make it easy to do so.
 
 [^ggplotly]: [Plotly]{.pack} is directly available in R and Python, and [plotnine]{.pack} is the [ggplot]{.pack} equivalent in Python.
 
@@ -1024,7 +1038,7 @@ In this case, each $X_j$ is a matrix of the feature and its **basis expansion**,
 
 ### A Standard GAM {#sec-gam-standard}
 
-Now that you have some background, let's give this a shot! In most respects, we can use the same sort of approach as we did with our other linear model examples. For our exmaple here, we'll use model what was depicted in figure @fig-gam_model_line, which looks at the relationship between the `healthy_life_expectancy_at_birth` and `happiness_score` variables from the world happiness data.
+Now that you have some background, let's give this a shot! In most respects, we can use the same sort of approach as we did with our other linear model examples. For our exmaple here, we'll use model what was depicted in figure @fig-gam-model-line, which looks at the relationship between the `healthy_life_expectancy_at_birth` and `happiness_score` variables from the world happiness data.
 
 :::{.panel-tabset}
 
@@ -1079,7 +1093,7 @@ gam_happiness_result.summary()
 
 ```{r}
 #| echo: false
-#| label: tbl-gam_model_output
+#| label: tbl-gam-model-output
 #| tbl-cap: GAM model output
 
 library(mgcv)
@@ -1091,38 +1105,26 @@ gam_model = gam(
   data = df_happiness
 )
 
-library(flextable)
+# library(flextable)
 # looks best but not easy to manipulate at all, docs for models are non-existent, the only thing it says about signif is to remove the R global option which then proceeds to f up the footer
+# this is awful to have to do and not at all generalizable, but it works for now.
 
-options(show.signif.stars = FALSE)
-as_flextable(gam_model)  |> 
-  delete_part('footer')  |> 
-  fit_to_width(max_width = 6)
+d_0 = flextable::as_flextable(gam_model)$body$dataset  |>
+    mutate(
+      Term = ifelse(Term == '(Intercept)', 'Intercept', Term),
+      Component = str_remove(Component, 'A. |B. '),
+      across(where(is.numeric), \(x) round(x, 2))
+    ) |> 
+    select(-signif)
+header_smooth = str_to_upper(c('','', 'edf','Ref.df','F.value','p.value'))
+d_0[2,] = header_smooth
+  
+d_0 |> 
+    gt() |> 
+    tab_style(locations = cells_body(rows = 2), style = cell_text(size = 'small', color = 'gray50'))  |> # px or words but not actual font size specification
+    tab_style(locations = cells_column_labels(), style = cell_text(color = 'gray50'))
 
 
-# as_flextable(gam_model)  |> 
-#   delete_part('body') |> 
-#   delete_part('header')
-# gtsummary::tbl_regression(gam_model)
-# flextable::fontsize(size = 8, part = 'footer') 
-options(show.signif.stars = TRUE)
-#|>
-  # delete_columns(7) |>
-  # delete_rows(3) 
-  # delete_part('footer') 
-
-# modelsummary::modelsummary(
-#   gam_model,
-#   # estimate = "estimate",
-#   statistic = c(
-#     "Std.Error" = "std.error", 
-#     "t-value" = "statistic", 
-#     "p-value" = "p.value"
-#   ),
-#   shape = term ~ model + statistic,
-# )
-
-# gtsummary::as_flex_table(gtsummary::tbl_regression(gam_model))
 ```
 
 When you look at the model output, what you get will depend a lot on the tool you use, and the details are mostly beyond the scope we want to present here ([check out this for more](https://m-clark.github.io/generalized-additive-models/application.html)). But in general, the following information will be provided as part of the summary or as an attribute of the model object:
@@ -1178,7 +1180,7 @@ Unfortunately the default package plots are not pretty, and sadly aren't provide
 
 ```{r}
 #| echo: false
-#| label: fig-gam_plot
+#| label: fig-gam-plot
 #| fig-cap: Visualizing a GAM
 # TODO: GRAB DATA FROM SEE PACKAGE RESULT AND REPLOT TO CONTROL COLOR/ALPHA ETC.
 
@@ -1658,7 +1660,7 @@ Consider the following regression line:
   
 ```{r}
 #| echo: false
-#| label: linear_line_no_extremes
+#| label: fig-linear-line-no-extremes
 #| tbl-cap: Linear line without extreme scores
 
 library(ggplot2)
@@ -1683,7 +1685,7 @@ Now, what would happen if we replaced a few of our observations with extreme sco
   
 ```{r linear_line_extremes}
 #| echo: false
-#| label: linear_line_extremes
+#| label: fig-linear-line-extremes
 #| fig-cap: Linear line with extreme scores
 new_df = dfXy
 
@@ -1704,7 +1706,7 @@ With just a casual glance, it doesn't look like our two regression lines are tha
   
 ```{r}
 #| echo: false
-#| label: both_linear_lines
+#| label: fig-both-linear-lines
 #| fig-cap: Line lines with and without extreme scores
 
 ggplot() +
@@ -2031,8 +2033,8 @@ Just for giggles, we should see how all of our models perform:
 
 ```{r, model_performace_comp}
 #| echo: false
-#| label: fig-model_performance_comp
-#| fig-cap: Comparing model performance with RMSE
+#| label: tbl-model-performance-comp
+#| tbl-cap: Comparing model performance with RMSE
 library(mgcv)
 model_data = data.frame(rating = df_reviews$rating, 
                          total_reviews = df_reviews$total_reviews_sc, 
@@ -2059,7 +2061,7 @@ gt(
 )
 ```
 
-Let's check out the results in @fig-model_performance_comp. Unsurprisingly, the standard linear model and the median regression were pretty close to each other. GAM offered a small bump in performance, but our best model came from the mixed model. This finding may or may not surprise you -- as you spend more time with models, you often encounter situations where simple models outperform more complex models, or are on par with them. Here, we are seeing that the mixed model is offering us a better fit to the data than the other models. However, that doesn't mean that you can just go right to the mixed model. You need to know your data and know what you are trying to accomplish.
+Let's check out the results in @tbl-model-performance-comp. Unsurprisingly, the standard linear model and the median regression were pretty close to each other. GAM offered a small bump in performance, but our best model came from the mixed model. This finding may or may not surprise you -- as you spend more time with models, you often encounter situations where simple models outperform more complex models, or are on par with them. Here, we are seeing that the mixed model is offering us a better fit to the data than the other models. However, that doesn't mean that you can just go right to the mixed model. You need to know your data and know what you are trying to accomplish.
 
 ## Wrapping Up {#sec-lm-extend-wrap}
 
