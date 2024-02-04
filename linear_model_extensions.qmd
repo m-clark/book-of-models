@@ -70,26 +70,13 @@ With that in mind, let's explore how we can add interactions to our models. Goin
 ##### R
 
 ```{r}
-#| echo: true
-#| eval: false
 #| label: model-interaction-r
 df_reviews = read_csv("data/movie_reviews_processed.csv")
 
 model_base = lm(rating ~ children_in_home + genre, data = df_reviews)
 model_interaction = lm(rating ~ children_in_home * genre, data = df_reviews)
 
-summary(model_interaction)
-```
-
-```{r}
-#| echo: false
-#| eval: true
-
-# because we can't only evaluate some lines? suppposedly can with knitr engine but tried various ways and it failed
-df_reviews = read_csv("data/movie_reviews_processed.csv")
-
-model_base = lm(rating ~ children_in_home + genre, data = df_reviews)
-model_interaction = lm(rating ~ children_in_home * genre, data = df_reviews)
+# summary(model_interaction)
 ```
 
 ##### Python
@@ -163,6 +150,7 @@ sign_nkids_kids_coef = sign(nkids_kids_coef)
 # mean(df_reviews$genre == ref)
 
 # Create a gt table from the tidy coefficients
+# COLOR CODING WON'T WORK IN LATEX BECAUSE IT SUCKS
 tidy_base |> 
   full_join(tidy_interaction, by = 'feature', suffix = c('_base', '_inter')) |>
   select(feature, starts_with('coef')) |>
@@ -170,12 +158,12 @@ tidy_base |>
   sub_missing(
     missing_text = "",
   ) |> 
-  gt_highlight_rows(
-    columns = vars(coef_base, coef_inter),
-    rows = str_detect(feature, 'children_in_home$|children.*Kids'),
-    fill = okabe_ito[5],
-    alpha = .1
-  ) |>
+  # gt_highlight_rows(
+  #   columns = vars(coef_base, coef_inter),
+  #   rows = str_detect(feature, 'children_in_home$|children.*Kids'),
+  #   fill = okabe_ito[5],
+  #   alpha = .1
+  # ) |>
   tab_caption("Model coefficients with and without an interaction") 
 ```
 
@@ -309,12 +297,9 @@ anova(model_interaction) |>
 The ANOVA approach can be generalized to provide a statistical test to compare models. For example, we can compare the base model to the interaction model to see if the interaction model is a better fit. However, it's entirely consistent with just looking at the interaction result in the ANOVA for the interaction model, so doesn't provide additional information, and the only models that can be compared in a meaningful way must be nested in this way, i.e., one model is a subset of the other.
 
 
-It's perhaps worth noting that ANOVA is often confused with being a model itself. When people use it as such, it is just a linear regression with only categorical features, something that can typically only happen within strict experimental designs that ignore interactions with continuous features. It's pretty difficult to think of a linear regression setting where no continuous features would be of interest, but back when people were doing this stuff by hand, they just categorized everything to enable this approach. It's a bit of a historical artifact, but still might be useful for exploratory purposes.
+It's perhaps worth noting that ANOVA is often confused with being a model itself. When people use it as such, it is just a linear regression with only categorical features, something that can typically only happen within strict experimental designs that ignore interactions with continuous features. It's pretty difficult to think of a linear regression setting where no continuous features would be of interest, but back when people were doing this stuff by hand, they just categorized everything to enable this approach. It's a bit of a historical artifact, but still might be useful for exploratory purposes. Beyond that, ANOVA can be used to compare models more generally, but other approaches are a little more general or not confined to nested models- ones that can be seen as subsets of another.
 
 
-
-
-TODO: MAYBE MOVE TO AFTER INTERACTION
 
 ## Mixed Models {#sec-mixed-models}
 
@@ -324,7 +309,7 @@ Structures within your data are important and paying attention to how data might
 
 ### Knowing Your Data {#sec-mixed-models-knowing}
 
-As much fun as modeling is, knowing your data is far more important. You can throw any model you want at your data, from simple to fancy, but you can count on disappointment if you don't fundamentally know the structure that lies within your data. Let's take a quick look at the following visualizations:
+As much fun as modeling is, knowing your data is far more important. You can throw any model you want at your data, from simple to fancy, but you can count on disappointment if you don't fundamentally know the structure that lies within your data. Let's take a look at the following visualizations. In @fig-length-release-rating, we see a positive relationship between the length of the movie and ratings. 
 
 ```{r}
 #| echo: false
@@ -336,7 +321,7 @@ ggplot(df_reviews, aes(length_minutes, rating)) +
   theme_clean()
 ```
 
-In @fig-length-release-rating, we see a positive relationship between the length of the movie and ratings. We could probably just stop there, but we might be ignoring something substantial within our data: genre. We might want to ask a question, "Does this relationship work the same way across the different genre?"
+We could probably just stop there, but we might be ignoring something substantial within our data: genre. We might want to ask a question, "Does this relationship work the same way across the different genres?"
 
 ```{r}
 #| echo: false
@@ -352,34 +337,44 @@ In @fig-length-release-rating, we see a positive relationship between the length
 #   labs(title = '', y = '') +
 #   theme_clean()
 
+mods = df_reviews |> 
+  nest_by(genre) |>
+  mutate(model = list(lm(rating ~ length_minutes, data = data))) |>
+  summarize(broom::augment(model))
 
-p_slopes = ggplot(df_reviews, aes(length_minutes, rating, color = genre)) +
-  # geom_point() +
-  geom_smooth(method="lm", se = FALSE) +
+p_slopes = ggplot(mods, aes(length_minutes, .fitted, color = genre)) +
+  geom_borderline(lwd = 1.5) +
   scale_y_continuous(limits = c(1, 5)) +
-  theme_clean()
+  labs(title = '', y = '', x = '') 
 
 p_mod = lm(rating ~ genre, df_reviews |> mutate(genre = recode(genre, "Action/Adventure" = "Act/Adv")))
 
 p_dat = plot(modelbased::estimate_means(p_mod))$data
+
 p_group_means = p_dat |> 
   ggplot(aes(x = genre, y = Mean)) +
-  geom_point(
-    aes(genre, rating), 
+  geom_dotplot(
+    aes(x = genre, y= rating),
+    binaxis='y', 
+    stackdir='center',
+    dotsize=.1,
+    color = 'black',
     data = df_reviews |> 
     mutate(genre = recode(genre, "Action/Adventure" = "Act/Adv")), 
-    position = position_jitter(width = .1),
-    alpha = .05
+    position = position_jitter(width = .0, height = .15),
+    alpha = .1
   ) +
   geom_pointrange(
     aes(ymin = CI_low, ymax = CI_high, color = genre),
+    fatten = 5,
     alpha = 1,
     show.legend = FALSE
   ) +
   scale_x_discrete(guide = guide_axis(n.dodge=2)) +
-  labs(title = '', y = '') +
-  scale_y_continuous(limits = c(1, 5)) +
-  theme_clean()
+  labs(title = '', y = '', x = '') +
+  scale_y_continuous(limits = c(1, 5))
+  
+
 
 see::plots(
   p_slopes,
@@ -396,24 +391,25 @@ see::plots(
 #   as_tibble(performance::icc(model))
 # }, .id = 'feature')
 
-# feature_icc |> mutate(feature = stringr::str_subset(colnames(df_reviews), '_0|_sc')) |> 
+# feature_icc |> 
+#   mutate(feature = stringr::str_subset(colnames(df_reviews), '_0|_sc')) |> 
 #   arrange(ICC_adjusted)
 ```
 
-A very quick examination of @fig-length-genre-rating might suggest that the rating varies by genre, and that the relationship between length and rating varies significantly over the different genres. The group means in the right panel show variability across genre. In addtion, on the left panel, some genres show a strong positive relationship, some show less of a positive relationship, a couple even show a negative relationship, and one even looks flat. We can also see that they would have different intercepts. This is a very important thing to know about your data! If we has just run a model with length as a feature and nothing else, we would have missed this important information.
+A very quick examination of @fig-length-genre-rating might suggest that the rating varies by genre, and that the relationship between length and rating varies significantly over the different genres. The group means in the right panel show variability across genre. In addtion, on the left panel, some genres show a strong positive relationship, some show less of a positive relationship, a couple even show a negative relationship, and one even looks flat. We can also see that they would have different intercepts. This is a very important thing to know about your data! If we had just run a model with length as a feature and nothing else, we would have missed this important information.
 
 <!-- 
 Just for fun, try to group by genre and summarize it by the mean rating. You'll find that the averages are very different across the genre! Then, subtract the overal mean rating from those values, so that they represent deviations from the mean. Keep them handy! -->
 
-### Overview of Mixed Models
+### Overview of Mixed Models {#sec-mixed-models-overview}
 
-Clearly genre is offering some type of additional information to the model, but how can we incorporate that into our model? An interaction might come to mind at first, and that's the right way to think about it! A **mixed model** can be used to allow that information, which is largely a group interaction, into our model, without much hassle and additional explanability.
+Clearly genre is offering some type of additional information to the model, but how can we incorporate that into our model? An interaction might come to mind at first, and that's the right way to think about it! A **mixed model** can be used to get at that type of relationship into our model, which we can think of as a group interaction, without much hassle and additional explanability.
 
-Before going too much further, the term *mixed model* is as vanilla as we can possibly make it, but you might have heard of different flavors of them before. You might have heard of *hierarchical linear models*, or *multilevel models*, or heard *mixed-effects models* tossed around before. Maybe you've even be exposed to ideas like *random effects* or *random slopes*. No matter what word you say, they are all instances of what we're calling a mixed model. 
+Before going too much further, the term *mixed model* is as vanilla as we can possibly make it, but you might have heard of different flavors of them before. You might have heard of *hierarchical linear models*, or *multilevel models*, or maybe *mixed-effects models* tossed around before. Maybe you've even been exposed to ideas like *random effects* or *random slopes*. These are in fact all instances of what we're calling a mixed model. 
 
-What makes a model a *mixed* model? The mixed model is characterized by the idea that a model can have **fixed effects** and **random effects**. Fortunately, you've already encountered *fixed* effects -- those are the features that we have been using in all of our models so far! We are assuming a single parameter (coefficient/weight) for each of those features, and that parameter is fixed.
+What makes a model a *mixed* model? The mixed model is characterized by the idea that a model can have **fixed effects** and **random effects**. Fortunately, you've already encountered *fixed* effects -- those are the features that we have been using in all of our models so far! We are assuming a single true parameter (coefficient/weight) for each of those features to estimate, and that parameter is *fixed*.
 
-In the mixed model context, the *random effect* typically comes from some type of specific distribution, usually a normal distribution, that contributes uniquely to the variance in the outcome. This distribution of effects can be characterized from something like a grouping variable (such as genre), such that we let those parameters, i.e. coefficients, vary across the groups, creating the observed distribution of values. 
+In the mixed model context, the *random effect* typically comes from some type of specific distribution, almost always a normal distribution, that contributes uniquely to the variance in the outcome. This distribution of effects can be characterized from something like a grouping variable (such as genre), such that we let those parameters, i.e. coefficients (or weights), vary across the groups, creating the observed distribution of values. 
 
 
 
@@ -424,33 +420,36 @@ In the mixed model context, the *random effect* typically comes from some type o
 Formally, we might specify something like this:
 
 $$
-\textrm{rating} = b_{\textrm{0[genre]}} + b_\textrm{length}*\textrm{length}
+\text{rating} = b_{\text{0[genre]}} + b_\text{length}*\text{length}
 $$
 
-We are explicitly saying that genre has its own unique effect for this model in the form of specific intercepts for each genre. We also posit that those come from a *random* distribution. We can specify that as:
+We are explicitly saying that genre has its own unique effect for this model in the form of specific intercepts for each genre. This means that whenever an observation belongs to a specific genre, it will have an intercept reflect that genre, and that means that two observations with the same length but from different genres would have different predictions.
 
-$$b_{\textrm{0[genre]}} \sim \textrm{N}(b_\textrm{intercept}, \sigma_\textrm{genre})$$
 
-This means that the random intercepts will be normally distributed and the overall intercept is just the mean of those random intercepts, and with its own variance, an extra paramter we'll eventually have to estimate as part of the model. Another very common depiction is:
+We also posit that those come from a *random* distribution. We can specify that as:
 
-$$\textrm{re[genre]} \sim \textrm{N}(0, \sigma_\textrm{genre})$$
+$$b_{\text{0[genre]}} \sim \text{N}(b_\text{intercept}, \sigma_\text{int\_genre})$$
 
-$$b_{\textrm{0[genre]}} = b_\textrm{intercept} +\textrm{re[genre]}$$
+This means that the random intercepts will be normally distributed and the overall intercept is just the mean of those random intercepts, and with its own variance, an extra parameter we'll eventually have to estimate as part of the model. Another very common depiction is:
+
+$$\text{re}_{[\text{int\_genre}]} \sim \text{N}(0, \sigma_\text{int\_genre})$$
+
+$$b_{\text{0[genre]}} = b_\text{intercept} +\text{re}_{[\text{int\_genre}]}$$
 
 The same approach would apply with a random slope, where we would have a random slope for each group, and that random slope would be normally distributed with its own variance.
 
-$$b_{\textrm{length[genre]}} \sim \textrm{N}(b_\textrm{length}, \sigma_\textrm{length})$$
+$$b_{\text{length[genre]}} \sim \text{N}(b_\text{length}, \sigma_\text{length\_genre})$$
 
 
 
-<!-- TODO: Not sure weed another example?
+<!-- TODO: Not sure need another example?
 
 Before we go to modeling our reviews, let's consider an example training program to increase vertical jump, with average vertical increases of 2 inches. That really doesn't sound all that impressive; however, that increase came across 5 distinct groups: NBA players, NFL players, NHL players, MLB players, and data analysts. We can be pretty certain that each group has a very different vertical jump distribution coming into this training program. Given the amount of jumping that NBA players do, this program is unlikely to produce dramatic increases in vertical jump for them. We would probably expect modest gains in the NFL and even greater gains within NHL and MLB players. Where we are going to see the best gains, though, is from data analysts -- they might want to jump to conclusions, but don't need to jump over their computers very often. Now that we know the additional information, can we just look at the average increase and be satisfied? Probably not. Instead, we need to look at the group that individuals might be in and judge accordingly. A mixed-model is going to let us to model all of this without too much work. -->
 
 
-### Using a Mixed Model  {#sec-mixed-models-standard}
+### Using a Mixed Model  {#sec-mixed-models-using}
 
-For mixed models, we have to specify a group effect in some way, but that's the primary difference from using our approaches for linear or generalized linear models. We can specify a random effect in a few different ways, but we'll start with the simplest way, which is to just add a random effect to the model.
+To use mixed models, at a minimum we have to specify a group effect in some way, but that's the primary difference from our approaches used for linear or generalized linear models previously. We can specify a random effect in a few different ways, but we'll start with the simplest way, which is to just add a random effect to the model.
 
 
 :::{.panel-tabset}
@@ -484,7 +483,7 @@ summary(fit_ran_slope)
 
 As with our recommendation with GAMs later, you really should just use R for mixed models. The functionality is overwhelmingly better there. However, you can use [statsmodels]{.pack} in Python to fit mixed models[^mixedpy]. But as an example, this doesn't even converge with default settings even after scaling the data, so we had to switch the optimization method. These results correspond with the R results.
 
-[^mixedpy]: One of your authors worked for several years with the key developer of the mixed models functionality in [statsmodels]{.pack}. As such, we can say there is zero doubt about the expertise going into its development, as there are few in the world with such knowledge. However, that functionality is not as mature as what you get in R.
+[^mixedpy]: One of your authors worked for several years with the key developer of the mixed models functionality in [statsmodels]{.pack}. As such, we can say there is zero doubt about the expertise going into its development, as there are few in the world with such knowledge. Even so, the functionality is not as mature or as expansive as what you get in R.
 
 
 ```{python}
@@ -515,7 +514,7 @@ fit_ran_slope.summary()
 
 :::
 
-With @tbl-mixed_model, we can see typical output from a mixed model. The fixed effect part is your basic GLM result and interpreted as such. Nothing new there, and we can see a general positive relationship between length and rating, but maybe not a strong one. But the random effects are where the action is! We can see the standard devation (or variance) of the random effects, i.e., the intercepts and slopes. We can also see the variance of the residual, which conceptually identical to your standard regression model's residual variance. We can also see the correlation between the random intercepts and random slopes. 
+With @tbl-mixed_model, we can see typical output from a mixed model. The fixed effect part is your basic GLM result and interpreted as such. Nothing new there, and we can see a general positive relationship between length and rating, but maybe not a strong one. But the random effects are where the action is! We can see the standard devation (or variance) of the random effects, i.e., the intercepts and slopes. We can also see the standard deviation of the residual, which conceptually identical to your standard regression model's residual standard deviation, but won't be the same value. We can also see the correlation between the random intercepts and random slopes. Depending on your tool, the default may be in terms of variances and covariances rather than standard deviations and correlations, but you would not see anything fundamentally different.
 
 ```{r}
 #| echo: false
@@ -535,23 +534,15 @@ fit_ran_slope = lmer(
   df_reviews
 )
 
+vc = fit_ran_slope |> mixedup::extract_vc(ci_level = 0)
+vcor = fit_ran_slope |> mixedup::extract_vc(ci_level = 0, show_cor = TRUE)
+vcor = vcor$Cor$genre
+cor_sign = ifelse(sign(vcor[2]) > 0, 'positive', 'negative')
 
-# library(modelsummary)
-
-# modelsummary(
-#   fit_ran_slope,
-#   shape = term ~ statistic , # this removes too much info but has no solution GH issue #620
-#   title = 'ba'
-#   # gof_map = "AIC",
-#   # add_rows = tibble(
-#   #   ` ` = 'ICC = .2',
-#   #   estimate = "1.00",
-#   #   test = 2
-#   # )  
-# )  
 
 # mixedup::summarise_model(fit_ran_slope) 
 library(flextable)
+
 as_flextable(fit_ran_slope) |> 
   set_header_labels(
     estimate = 'Estimate',
@@ -562,9 +553,9 @@ as_flextable(fit_ran_slope) |>
 
 ```
 
-In this case, we can see notable variance attributable to the random effects, and there is a slight positive correlation, which means that the groups with higher intercepts also have higher slopes. Now let's look at the estimates for the random effects for the model with both intercepts and slopes[^mixedup].
+In this case, we can see notable variability attributable to the random effects. How do we know? Well, if if our rating is on a 1-5 scale, and we naturally have a standard deviation of `r round(sd(df_reviews$rating), 2)` for rating before accounting for anything else, we mights surmise that having an effect of that size for just genre (roughly `r round(vc$sd[1], 2)`)  is a relatively notable amount. We can also see that the correlation between the random intercepts and random slopes is  `r cor_sign`, which means that the groups with higher intercepts have `r ifelse(cor_sign == 'positive', 'more positive', 'more negative')` slopes. Now let's look at the estimates for the random effects for the model with both intercepts and slopes[^mixedup].
 
-[^mixedup]: One of your authors provides a package for mixed models in R called [mixedup]{.pack}. It provides a nice way to extract random, and you can see the results for this model [here](https://m-clark.github.io/mixedup/articles/plotting-mixed-models.html#plotting-the-random-effects-1).
+[^mixedup]: One of your authors provides a package for mixed models in R called [mixedup]{.pack}. It provides a nice way to extract random effects and summarize such models ([link](https://github.com/m-clark/mixedup)).
 
 
 :::{.panel-tabset}
@@ -605,36 +596,34 @@ x = visibly::plot_coefficients(fit_ran_slope, ranef = TRUE, which_ranef = 'genre
   theme_clean() 
 ```
 
-TODO: talk about different covariance structures
+How do we interpret these *deviations*? For the intercept plot, we see that Kids, Sci-Fi, and Action/Adventure have a lower default value for rating, while Drama and Comedy start off relatively higher. These values reflect what's happening when the length is zero, which, since it's standardized, means that we're talking about what's happening for an average length movie.
 
-How do we interpret these *deviations*? For the intercept plot, we see that Kids, Sci-Fi, and Action/Adventure have a lower default value for rating, while Drama and Comedy start off relatively higher. Comedy's estimated trend over length suggests that it has a smaller slope, and relative to the global slope, this means a negative relationship for Comedy movies, i.e. longer is not better! Longer romance movies, on the other hand, have an even larger positive coefficient, and so seem to do better seem to do better than short ones- maybe all the short ones are mostly awful Rom-Coms!
+Comedy's estimated trend over length suggests that it has a smaller slope, and relative to the global slope, this means a negative relationship for Comedy movies, i.e. longer is not better! Longer romance movies, on the other hand, have an even larger positive coefficient, and so seem to do better seem to do better than short ones- maybe all the short ones are mostly awful Rom-Coms!
 
-:::{.callout-tip title='Always standardize for mixed models'}
+:::{.callout-tip title='Always scale features for mixed models'}
 
-Your authors have run a lot of these models. Save yourself some trouble and standardize your features before fitting the model. Just trust us, or at least, don't be surprised when your model doesn't converge.
+Your authors have run a lot of these models. Save yourself some trouble and standardize or otherwise scale your features before fitting the model. Just trust us, or at least, don't be surprised when your model doesn't converge.
 
 :::
 
 
 ### Mixed Model Summary {#sec-mixed-models-summary}
 
-You might be asking? Why don't I just put genre into the model like other categorical features? In the case of genre, that's okay, but even that would add several coefficients to the model before counting any interactions. Now consider thousands of county voting percentages for elections over time- would you just put 3000+ county indicator variables into the model as is? You can try, but you'll likely run into estimation problems for any typical GLM setting. In addition, mixed models can correlate the random effects, which can be very useful for understanding the relationships between the groups. As an example, you might want to know if the effect of genre on rating (group intercepts) is correlated to the effect of genre on length (group slopes). Furthermore, mixed models estimate the correlation of the observations within groups. Default mixed models assume this correlation is constant, but this can be modified to allow for different correlation structures. For example, you might want to assume that the correlation between observations within a group decreases as the time between observations increases. This is a very common approach for longitudinal data, where the correlation between observations decreases as the time between observations increases.
+Even with just one feature, we certainly had a lot to talk about! This is just a glimpse of what mixed models have to offer, and the approach can be even richer than what we've just seen.  But you might be asking- Why don't I just put genre into the model like other categorical features? In the case of genre, that's okay, but doing even just that would add several coefficients to the model before counting any interactions. Now consider thousands of United States county voting percentages for elections over time- would you just put 3000+ county indicator variables into the model as is? You can try, but you'll likely run into estimation problems for typical GLM settings. In addition, as we saw, mixed models can correlate the random effects, which can be very useful for understanding the relationships between the groups. Furthermore, mixed models estimate the correlation of the observations within groups. Default mixed models assume this correlation is constant, but this can be modified to allow for different correlation structures. For example, in a longitudinal study you might want to assume that the correlation between observations within a group decreases as the time between observations increases. This is a very common approach for longitudinal data, where the correlation between observations decreases as the time between observations increases.
 
-
-Mixed models provide several advantages:
-
+In general mixed models provide several advantages for the data scientist:
 
 - Any coefficient can be allowed to vary by groups, including other random effects. It actually is just an interaction in the end as far as the linear predictor is concerned.
 - The group-specific effects are *penalized*, which shrinks them toward the overall mean, and makes this a different approach from just adding a 'mere interaction'. This helps to avoid overfitting, and that penalty is related to the variance estimate of the random effect. In other words, you can think of it as running a penalized linear model where the penalty is applied to the group-specific effects.
 - Also unlike standard interaction approaches, we can estimate the covariance of the random effects, which can be useful for understanding the relationships between the groups. We can specify different covariance structures for observations within groups.
-- Standard modeling approaches only estimate the variance, and get the estimated group-specific effects via a predictive method as part of model post-processing. This allows only the variances and covariances of the random effects to require estimatition, rather than a weight or coefficient for every group.
-- The group effects are like a very simplified **embedding**, where we have taken a cateogrical feature and turned it into a numeric one. This may help you understand other embedding techniques that are used in other places like deep learning if you think of this as the simplest embedding approach.
+- Standard modeling approaches actually only estimate the variance part of the random effects, and get the estimated group-specific effects via a predictive method as part of model post-processing. This allows only the variances and covariances of the random effects to require estimation, rather than a weight or coefficient for every group.
+- The group effects are like a very simplified **embedding**, where we have taken a cateogrical feature and turned it into a numeric one, like those shown in @fig-random-effects. This may help you understand other embedding techniques that are used in other places like deep learning if you think of this as the simplest embedding approach.
 - When you start to think aobut random effects and/or distributions for effects, you're already thinking like a Bayesian, who is always thinking about the distributions for various effects. Mixed models are a perfect segue from standard linear model estimation to Bayesian estimation, where everything is random.
 - The random effect is akin to a latent variable of 'unspecified group causes'. This is a very powerful idea that can be used in many different ways, but importantly, you might want to start thinking about how you can figure out what those 'unspecified' causes may be!
 - Group effects will almost always improve your model's performance relative to not having them, especially if you weren't including those groups in your model because of how many there were.
 
 
-In short, mixed models are a fun way to incorporate additional interpretive color to your model, while also getting several additional benefits!
+In short, mixed models are a fun way to incorporate additional interpretive color to your model, while also getting several additional benefits to help you understand your data!
 
 
 <!-- 
@@ -918,410 +907,6 @@ np.exp(fit.x) # compare to sd of random effects
  -->
 
 
-## Quantile Regression {#sec-lm-extend-quantile}
-
-TODO: CHANGE EXAMPLE TO WORD COUNT
-
-> Oh, you think the median is your ally. But you merely adopted the median; I was born in it, molded by it. I didn't see anything interesting until I was already a man. And by then, it was nothing to me but illuminating.
-> -- Bane (probably)
-
-
-People generally understand the concept of the arithmetic mean. You see it some time during elementary school, it gets tossed around in daily language (usually using the word "average"), and it is statistically important. After all, where would the normal distribution be without a mean? Why, though, do we feel so tied to it from a regression modeling perspective? Yes, it has handy features, but it is also a bit restrictive to the types of relationships that it can actually model well. 
-
-Here we'll show you what to do when the mean betrays you -- and trust us, the mean will betray you at some point!
-
-<!-- ### Why Should You Care? {#sec-quantile-why}
-
-Sometimes the mean doesn't make as much sense to focus on for summarizing our data, whether due to extreme scores that have too much influence, or you're interested at how your model is performing in different parts of your data, such as the top 10%, quantile regression can be helpful. Quantile regression will give you the ability to model the relationship between your features and target at different quantiles of your target, with the median being a starting point. Maybe people who are older are more likely to rate movies higher, but that relationship is stronger for people who rate movies higher than the median. Quantile regression will let you model that relationship. -->
-
-### When The Mean Breaks Down {#sec-quantile-break}
-
-In a perfect data world, we like to assume the mean is equal to the middle observation of the data: the *median*. But that is only when things are symmetric though, and usually our data comes loaded with challenges. Skewness and even just a few extreme scores in your data may cause a rift between the median and the mean. 
-
-Let's say we take the integers between 1 and 10, and find the mean. 
-
-$$\frac{1+2+3+4+5+6+7+8+9+10}{10} =  5.5$$
-
-The middle value in that vector of numbers would also be 5.5. 
-
-What happens we replace the 1 with a more extreme value, like -10?
-
-$$\frac{-10+2+3+4+5+6+7+8+9+10}{10} =  4.5$$
-
-With just one dramatic change, our mean went down by a whole point. The median observation, though, is still 5.5. In short, the median is invariant to wild swings out in the tails of your numbers.  
-
-You might be saying to yourself, "Why should I care about this central tendency chicanery?" Let us tell you why you should care -- the least squares approach to the standard linear model dictates that the regression line needs to be fit through the means of the variables. If you have extreme scores that influence the mean, then your regression line will also be influenced by those extreme scores.
-
-Consider the following regression line:
-  
-```{r}
-#| echo: false
-#| label: linear_line_no_extremes
-#| tbl-cap: Linear line without extreme scores
-
-library(ggplot2)
-
-set.seed(123)
-N = 1000 
-k = 2   
-X = matrix(rnorm(N * k), ncol = k)  
-y = -.5 + .2*X[, 1] + .1*X[, 2] + rnorm(N, sd = .5)  
-
-dfXy = data.frame(X, y)
-
-ggplot(dfXy, aes(x = X1, y = y)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = FALSE) +
-  xlab("x") +
-  ylab("y") +
-  theme_clean()
-```
-
-Now, what would happen if we replaced a few of our observations with extreme scores?
-  
-```{r linear_line_extremes}
-#| echo: false
-#| label: linear_line_extremes
-#| fig-cap: Linear line with extreme scores
-new_df = dfXy
-
-new_df$y[dfXy$y > quantile(dfXy$y, .95) & 
-           dfXy$X1 > quantile(dfXy$X1, .95)] = rnorm(10, 2.5, .1)
-
-new_df$X1[dfXy$y > quantile(dfXy$y, .95) & 
-            dfXy$X1 > quantile(dfXy$X1, .95)] = rnorm(10, 2.5, .1)
-
-ggplot(new_df, aes(x = X1, y = y)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = FALSE) +
-  labs(x = "x", y = "y") +
-  theme_clean()
-```
-
-With just a casual glance, it doesn't look like our two regression lines are that different. They both look like they have a similar positive slope, so all should be good. To offer a bit more clarity, though, let's put those lines in the same space:
-  
-```{r}
-#| echo: false
-#| label: both_linear_lines
-#| fig-cap: Line lines with and without extreme scores
-
-ggplot() +
-  geom_smooth(
-    aes(X1, y, color = "No extreme scores"), 
-    data = dfXy, 
-    method = 'lm',
-    se = FALSE
-  ) +
-  geom_smooth(
-    aes(X1, y, color = "Extreme scores"), 
-    data = new_df, 
-    method = 'lm',
-    se = FALSE
-  ) +
-  xlab("x") +
-  ylab("y") +
-  # theme_clean() +
-  scale_color_manual(
-    name='',
-    breaks=c('No extreme scores', 'Extreme scores'),
-    values=c('No extreme scores'=okabe_ito[5], 'Extreme scores'=okabe_ito[6])
-  ) +
-  theme(
-    panel.grid.major = element_line(color = alpha('black', .1)),
-    # panel.grid.minor = element_line(color = alpha('black', .1)),
-  )
-```
-
-With 1000 observations, we see that having just 10 relatively extreme scores is enough to change the regression line, even if just a little. But that little bit can mean a huge difference for predictions or just the conclusions we come to.
-
-There are a few approaches we could take here, with common approaches being dropping those observations or Windsorizing them. Throwing away data because you don't like the way it behaves is nearing on statistical abuse, and Windsorization is just replacing those extreme values with numbers that you like a little bit better. Let's not do that!
-
-A better answer to this challenge might be to not fit the regression line through the mean, but the median instead. This is where a model like **quantile regression** becomes handy. Formally, the objective function for the model can be expressed as:
-<!-- 
-$$
-Q_{Y\vert X}(\tau) = X\beta_\tau
-$$
-
-Where we can find the estimation of $\beta_\tau$ as:
-
-TODO: change a bit to other loss function depiction, add the explicit quantile function -->
-
-$$
-\textrm{Objective} =  \Sigma \left((\tau - 1)\sum_{y_{i}<q}(y_{i}-q)+\tau\sum_{y_{i}\geq q}(y_{i}-q) \right)
-$$
-
-With quantile regression, we are given an extra parameter for the model: $\tau$ or *tau*. The tau parameter let's us choose which quantile we want to use for our line fitting. Since the median splits the data in half, we can translate that to a quantile of .5. The objective function treats positive residuals differently than negative residuals. If the residual is positive, then we multiply it by the tau value. If the residual is negative, then we multiply it by -1 plus the tau value.
-
-
-We can again use our movie reviews data. Let's say that we are curious about the relationship between the `word_count` variable and the `rating` variable to keep things simple. To make it even more straightforward, we will use the standardized (scaled) version of the variable. In our default approach, we will start with a median regression, in other words, a quantile of .5.
-
-
-<!-- 
-### Data Import and Preparation {#sec-quantile-data}
-
-TODO: Rescale total_reviews or use the scaled version
-
-:::{.panel-tabset}
-
-##### R
-
-```{r}
-#| eval: false
-#| label: r_data_prep
-df_reviews = read.csv("data/movie_reviews_processed.csv")
-
-df_reviews = na.omit(df_reviews)
-
-X = df_reviews$total_reviews
-X = cbind(1, X)
-y = df_reviews$rating
-```
-
-##### Python
-
-```{python}
-#| eval: false
-#| label: py_data_prep
-import pandas as pd
-import numpy as np
-
-df_reviews = pd.read_csv("data/movie_reviews_processed.csv")
-
-df_reviews = df_reviews.dropna()
-
-X = pd.DataFrame(
-  {'intercept': 1, 
-  'total_reviews': df_reviews['total_reviews']}
-)
-y = df_reviews['rating']
-```
-::: 
- -->
-
-
-:::{.panel-tabset}
-
-##### R
-
-```{r}
-#| echo: true
-#| label: r_quantreg
-#| results: hide
-library(quantreg)
-
-model_median = rq(
-  rating ~ word_count_sc, 
-  tau = .5,
-  data = df_reviews
-)
-
-summary(model_median)
-```
-
-##### Python
-
-```{python} 
-#| label: py_quantreg
-#| results: hide
-import pandas as pd
-import statsmodels.formula.api as smf
-
-df_reviews = pd.read_csv("data/movie_reviews_processed.csv")
-
-model_median = smf.quantreg('rating ~ word_count_sc',  data = df_reviews)
-model_median = model_median.fit(q = .5)
-                           
-model_median.summary()                           
-```
-
-:::
-
-
-```{r}
-#| echo: false
-#| label: tbl-quantile-model-output
-#| tbl-cap: Quantile regression model output
-
-broom::tidy(model_median) |> 
-  rename(
-    feature = term,
-    coef = estimate
-  ) |> 
-  select(-tau) |> 
-  gt()
-```
-
-Fortunately, our interpretation of this result isn't all that different from a standard linear model -- the rating should decrease by `r round(coef(model_median)['word_count_sc'],2)` for every bump in standard deviation for number of words, which in this case is about `r round(sd(df_reviews$word_count))` words. However, this is concerns the rating median, not the mean, like the standard linear model. 
-
-Quantile regression is not a one-trick-pony. Remember, it is called quantile regression -- not median regression. Being able to compute a median regression is just the default. What we can do also is to model different quantiles of the same data. It gives us the ability to answer brand new questions -- does the relationship between user age and their ratings change at different quantiles of rating? Very cool!
-
-Instead of a single model to capture the trend through the mean of the data, we can now examine the trends within 5 different quantiles of the data - .1, .3 .5, .7, and .9.  We aren't limited to just those quantiles though, and you can examine any of them that you might find interesting.  Here is a plot of the results of these models.
-
-```{r}
-#| echo: false
-#| label: fig-quantile-lines
-#| fig-cap: Quantile regression lines
-tau_values = c(.1, .3, .5, .7, .9)
-
-quant_values = purrr::map_df(tau_values, ~{
-  result = coef(rq(rating ~ word_count_sc, tau = .x, 
-                    data = df_reviews))
-  result$tau = .x
-  result
-})
-
-colnames(quant_values) = c("intercept", "word_count_sc", "tau")
-
-quant_values$tau = as.factor(quant_values$tau)
-
-ggplot() +
-  geom_point(
-    data = df_reviews, 
-    mapping = aes(word_count_sc, rating), 
-    alpha = .25
-  ) +
-  geom_abline(
-    aes(slope = word_count_sc, intercept = intercept, color = tau),
-    linewidth = 2,
-    data = quant_values
-  ) +
-  labs(x = "Word Count (Standardized)", y = "Rating") +
-  scale_color_manual(values = okabe_ito[c(-1,-4)])
-```
-
-
-If we had to put some words to our visualization, we could say that all of the quantiles show a negative relationship. The 10th and 90th quantiles show the weakest relationship, while those in the middle show a notably stronger relationship. We can also see that that the 90th percentile is better able to capture those values that would otherwise be deemed as outliers using other standard techniques.
-
-```{r}
-#| echo: false
-#| label: tbl-quantile-model-output-multi-quants
-#| tbl-cap: Quantile regression model output
-
-rq(
-  rating ~ word_count_sc, 
-  tau = tau_values, 
-  data = df_reviews
-) |> 
-  broom::tidy() |> 
-  rename(
-    feature = term,
-    coef = estimate,
-    quantile = tau
-  ) |>
-  gt()
-```
-
-
-
-TODO: MOVE TO ESTIMATION OR ONLINE ONLY
-
-### Quantile Loss Function {#sec-quantile-loss}
-
-Now that we know how to use standard functions for quantile regression, let's see one way that we can create a least squares loss function for fitting a linear regression model and compare it with a function for quantile loss.
-
-:::{.panel-tabset}
-
-##### R
-
-```{r}
-#| echo: true
-#| label: quantile_loss
-quantile_loss = function(par, X, y, tau) {
-  
-  linear_parameters = X %*% par
-  
-  residual = y - linear_parameters
-  
-  loss = ifelse(
-    residual < 0, 
-    (tau-1)*residual, 
-    tau*residual
-  )
-  
-  sum(loss)
-}
-```
-
-##### Python
-
-```{python}
-#| echo: true
-def quantile_loss(par, X, y, tau):
-  linear_parameters = X.dot(par)
-  
-  residual = y - linear_parameters
-  
-  loss = []
-  
-  loss = np.where(
-    residual < 0, 
-    (tau-1)*residual, 
-    tau*residual
-  )
-
-  # for i in residual:
-  #   if i < 0: loss.append((-1 + tau)*i)
-  #   else: loss.append(tau*i)
-  
-  return sum(loss)
-
-```
-
-:::
-
-You'll notice right away that we have a few differences. Our quantile loss function includes the **tau** argument, which will let us set our quantile of interest; naturally, it can be any value between 0 and 1. The residual is multiplied by the tau value, only if the residual is greater than 0. If the residual is negative, we need to add tau to -1. Since we need a positive value for our loss values, we will multiply our negative residuals by the negative value produced from -1 plus our tau value. After that, we just sum all of those positive loss values and do our best to minimize that summed value. 
-
-### Model Fitting {#sec-quantile-model}
-
-Now that we have our data and our loss function, we can fit the model almost exactly like our standard linear model. Again, note the difference here with our tau value, which we've set to .5 to represent the median.
-
-:::{.panel-tabset}
-
-##### R
-
-```{r}
-#| echo: true
-#| label: r_quantile_optim
-
-X = cbind(1, df_reviews$word_count_sc)
-y = df_reviews$rating
-
-optim(
-  par = c(intercept = 0, word_count_sc = 0),
-  fn  = quantile_loss,
-  X   = X,
-  y   = y,
-  tau = .5
-)$par
-```
-
-##### Python
-
-```{python}
-from scipy.optimize import minimize
-import numpy as np
-
-X = pd.DataFrame(
-  {'intercept': 1, 
-  'word_count_sc': df_reviews['word_count_sc']}
-)
-y = df_reviews['rating']
-
-minimize(
-  quantile_loss, 
-  x0 = np.array([0, 0]), 
-  args = (X, y, .5)
-  ).x
-```
-
-:::
-
-
-::: {.callout-tip title='Another Interaction' collapse="true"}
-One way to interpret this result is that we have a nonlinear relationship between the word count and the rating, in the same we we had an interaction previously. In this case, our effect of number of reviews interacts with the target! In other words, we have a different word count effect for different ratings. This is a bit of a mind bender, but it's a good example of how a linear approach can be used to model quirky relationships!
-:::
-
-
 ## Additive Models {#sec-gam}
 
 > Wiggle, wiggle, wiggle, yeah!
@@ -1418,7 +1003,7 @@ fig.add_trace(
 
 :::
 
-Such models belong to a broad group of *generalized additive models* (**GAM**s). When we used an interations, we explored how the feature-target relationship varies with another feature. When we fit a quantile regression earlier, we focused on our feature and its relationship to the target at different values of the target. When we use a GAM, we are going to focus on our feature, and see how the relationship changes at different values for it. How are we going to do this, you might ask? Conceptually, we will have a model that looks like this:
+Such models belong to a broad group of *generalized additive models* (**GAM**s). When we used an interations, we explored how the feature-target relationship varies with another feature. When we fit mixed models and interactions earlier, we focused on our feature and its relationship to the target at different values of other features. When we use a GAM, we are going to focus on our feature, and see how the relationship changes at different values for it. How are we going to do this, you might ask? Conceptually, we will have a model that looks like this:
 
 $$
 y = f(x) + \epsilon
@@ -1492,8 +1077,6 @@ gam_happiness_result.summary()
 
 :::
 
-TODO: add a tidy version of model output
-
 ```{r}
 #| echo: false
 #| label: tbl-gam_model_output
@@ -1542,7 +1125,7 @@ options(show.signif.stars = TRUE)
 # gtsummary::as_flex_table(gtsummary::tbl_regression(gam_model))
 ```
 
-When you look at the model output, what you get will depend a lot on the tool you use, and the details are mostly beyond the scope we want to present here ([check out this for more](https://m-clark.github.io/generalized-additive-models/application.html#gam)). But in general, the following information will be provided as part of the summary or as an attribute of the model object:
+When you look at the model output, what you get will depend a lot on the tool you use, and the details are mostly beyond the scope we want to present here ([check out this for more](https://m-clark.github.io/generalized-additive-models/application.html)). But in general, the following information will be provided as part of the summary or as an attribute of the model object:
 
 - **coefficients**: The coefficients for each of the features in the model. For a GAM, these are the coefficients for the basis expansion columns, as well as standard linear feature effects. Typically, the total effect for a smooth term is displayed in the summary rather than the coefficients for each basis expansion column. Above we have the intercept and the summarized smooth term.
 
@@ -1597,7 +1180,7 @@ Unfortunately the default package plots are not pretty, and sadly aren't provide
 #| echo: false
 #| label: fig-gam_plot
 #| fig-cap: Visualizing a GAM
-# TODO: GRAB DATA FROM SEE RESULT AND REPLOT TO CONTROL COLOR/ALPHA ETC.
+# TODO: GRAB DATA FROM SEE PACKAGE RESULT AND REPLOT TO CONTROL COLOR/ALPHA ETC.
 
 
 gam_model = mgcv::gam(
@@ -1614,6 +1197,7 @@ plot(
 
 ```
 <!-- 
+
 TODO: Move to estimation, but may need to nix for pdf brevity, and needs some work to fit well.
 
 ### Splines {#sec-gam-splines}
@@ -1957,8 +1541,8 @@ Xp = splX(xp, knots)
 
 ##### Python
 
-```{python, python_lambda_1}
-#| echo: true
+```{python}
+#| eval: false # change if used later
 #| label: python_lambda_1
 
 knots = np.arange(1, 5)/5
@@ -1979,7 +1563,7 @@ As shown in @fig-r_lambda_1_viz, there is some wiggle to that line, but it is no
 
 TODO: fix plot scale (doesn't match raw or scaled data)
 
-```{r, r_lambda_1_viz}
+```{r}
 #| echo: false
 #| label: fig-r_lambda_1_viz
 #| fig-cap: GAM model with lambda set to .1
@@ -2037,6 +1621,409 @@ To summarize, we can use a GAM to model nonlinear relationships between our feat
 
 
 
+## Quantile Regression {#sec-lm-extend-quantile}
+
+
+> Oh, you think the median is your ally. But you merely adopted the median; I was born in it, molded by it. I didn't see anything interesting until I was already a man. And by then, it was nothing to me but illuminating.
+> -- Bane (probably)
+
+
+People generally understand the concept of the arithmetic mean. You see it some time during elementary school, it gets tossed around in daily language (usually using the word "average"), and it is statistically important. After all, where would the normal distribution be without a mean? Why, though, do we feel so tied to it from a regression modeling perspective? Yes, it has handy features, but it is also a bit restrictive to the types of relationships that it can actually model well. 
+
+Here we'll show you what to do when the mean betrays you -- and trust us, the mean will betray you at some point!
+
+<!-- ### Why Should You Care? {#sec-quantile-why}
+
+Sometimes the mean doesn't make as much sense to focus on for summarizing our data, whether due to extreme scores that have too much influence, or you're interested at how your model is performing in different parts of your data, such as the top 10%, quantile regression can be helpful. Quantile regression will give you the ability to model the relationship between your features and target at different quantiles of your target, with the median being a starting point. Maybe people who are older are more likely to rate movies higher, but that relationship is stronger for people who rate movies higher than the median. Quantile regression will let you model that relationship. -->
+
+### When The Mean Breaks Down {#sec-quantile-break}
+
+In a perfect data world, we like to assume the mean is equal to the middle observation of the data: the *median*. But that is only when things are symmetric though, and usually our data comes loaded with challenges. Skewness and even just a few extreme scores in your data may cause a rift between the median and the mean. 
+
+Let's say we take the integers between 1 and 10, and find the mean. 
+
+$$\frac{1+2+3+4+5+6+7+8+9+10}{10} =  5.5$$
+
+The middle value in that vector of numbers would also be 5.5. 
+
+What happens we replace the 1 with a more extreme value, like -10?
+
+$$\frac{-10+2+3+4+5+6+7+8+9+10}{10} =  4.5$$
+
+With just one dramatic change, our mean went down by a whole point. The median observation, though, is still 5.5. In short, the median is invariant to wild swings out in the tails of your numbers.  
+
+You might be saying to yourself, "Why should I care about this central tendency chicanery?" Let us tell you why you should care -- the least squares approach to the standard linear model dictates that the regression line needs to be fit through the means of the variables. If you have extreme scores that influence the mean, then your regression line will also be influenced by those extreme scores.
+
+Consider the following regression line:
+  
+```{r}
+#| echo: false
+#| label: linear_line_no_extremes
+#| tbl-cap: Linear line without extreme scores
+
+library(ggplot2)
+
+set.seed(123)
+N = 1000 
+k = 2   
+X = matrix(rnorm(N * k), ncol = k)  
+y = -.5 + .2*X[, 1] + .1*X[, 2] + rnorm(N, sd = .5)  
+
+dfXy = data.frame(X, y)
+
+ggplot(dfXy, aes(x = X1, y = y)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  xlab("x") +
+  ylab("y") +
+  theme_clean()
+```
+
+Now, what would happen if we replaced a few of our observations with extreme scores?
+  
+```{r linear_line_extremes}
+#| echo: false
+#| label: linear_line_extremes
+#| fig-cap: Linear line with extreme scores
+new_df = dfXy
+
+new_df$y[dfXy$y > quantile(dfXy$y, .95) & 
+           dfXy$X1 > quantile(dfXy$X1, .95)] = rnorm(10, 2.5, .1)
+
+new_df$X1[dfXy$y > quantile(dfXy$y, .95) & 
+            dfXy$X1 > quantile(dfXy$X1, .95)] = rnorm(10, 2.5, .1)
+
+ggplot(new_df, aes(x = X1, y = y)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "x", y = "y") +
+  theme_clean()
+```
+
+With just a casual glance, it doesn't look like our two regression lines are that different. They both look like they have a similar positive slope, so all should be good. To offer a bit more clarity, though, let's put those lines in the same space:
+  
+```{r}
+#| echo: false
+#| label: both_linear_lines
+#| fig-cap: Line lines with and without extreme scores
+
+ggplot() +
+  geom_smooth(
+    aes(X1, y, color = "No extreme scores"), 
+    data = dfXy, 
+    method = 'lm',
+    se = FALSE
+  ) +
+  geom_smooth(
+    aes(X1, y, color = "Extreme scores"), 
+    data = new_df, 
+    method = 'lm',
+    se = FALSE
+  ) +
+  xlab("x") +
+  ylab("y") +
+  # theme_clean() +
+  scale_color_manual(
+    name='',
+    breaks=c('No extreme scores', 'Extreme scores'),
+    values=c('No extreme scores'=okabe_ito[5], 'Extreme scores'=okabe_ito[6])
+  ) +
+  theme(
+    panel.grid.major = element_line(color = alpha('black', .1)),
+    # panel.grid.minor = element_line(color = alpha('black', .1)),
+  )
+```
+
+With 1000 observations, we see that having just 10 relatively extreme scores is enough to change the regression line, even if just a little. But that little bit can mean a huge difference for predictions or just the conclusions we come to.
+
+There are a few approaches we could take here, with common approaches being dropping those observations or Windsorizing them. Throwing away data because you don't like the way it behaves is nearing on statistical abuse, and Windsorization is just replacing those extreme values with numbers that you like a little bit better. Let's not do that!
+
+A better answer to this challenge might be to not fit the regression line through the mean, but the median instead. This is where a model like **quantile regression** becomes handy. Formally, the objective function for the model can be expressed as:
+<!-- 
+$$
+Q_{Y\vert X}(\tau) = X\beta_\tau
+$$
+
+Where we can find the estimation of $\beta_\tau$ as:
+
+TODO: change a bit to other loss function depiction, add the explicit quantile function -->
+
+$$
+\text{Objective} =  \Sigma \left((\tau - 1)\sum_{y_{i}<q}(y_{i}-q)+\tau\sum_{y_{i}\geq q}(y_{i}-q) \right)
+$$
+
+With quantile regression, we are given an extra parameter for the model: $\tau$ or *tau*. The tau parameter let's us choose which quantile we want to use for our line fitting. Since the median splits the data in half, we can translate that to a quantile of .5. The objective function treats positive residuals differently than negative residuals. If the residual is positive, then we multiply it by the tau value. If the residual is negative, then we multiply it by -1 plus the tau value.
+
+
+We can again use our movie reviews data. Let's say that we are curious about the relationship between the `word_count` variable and the `rating` variable to keep things simple. To make it even more straightforward, we will use the standardized (scaled) version of the variable. In our default approach, we will start with a median regression, in other words, a quantile of .5.
+
+
+<!-- 
+### Data Import and Preparation {#sec-quantile-data}
+
+TODO: Rescale total_reviews or use the scaled version
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| eval: false
+#| label: r_data_prep
+df_reviews = read.csv("data/movie_reviews_processed.csv")
+
+df_reviews = na.omit(df_reviews)
+
+X = df_reviews$total_reviews
+X = cbind(1, X)
+y = df_reviews$rating
+```
+
+##### Python
+
+```{python}
+#| eval: false
+#| label: py_data_prep
+import pandas as pd
+import numpy as np
+
+df_reviews = pd.read_csv("data/movie_reviews_processed.csv")
+
+df_reviews = df_reviews.dropna()
+
+X = pd.DataFrame(
+  {'intercept': 1, 
+  'total_reviews': df_reviews['total_reviews']}
+)
+y = df_reviews['rating']
+```
+::: 
+ -->
+
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| echo: true
+#| label: r_quantreg
+#| results: hide
+library(quantreg)
+
+model_median = rq(
+  rating ~ word_count_sc, 
+  tau = .5,
+  data = df_reviews
+)
+
+summary(model_median)
+```
+
+##### Python
+
+```{python} 
+#| label: py_quantreg
+#| results: hide
+import pandas as pd
+import statsmodels.formula.api as smf
+
+df_reviews = pd.read_csv("data/movie_reviews_processed.csv")
+
+model_median = smf.quantreg('rating ~ word_count_sc',  data = df_reviews)
+model_median = model_median.fit(q = .5)
+                           
+model_median.summary()                           
+```
+
+:::
+
+
+```{r}
+#| echo: false
+#| label: tbl-quantile-model-output
+#| tbl-cap: Quantile regression model output
+
+broom::tidy(model_median) |> 
+  rename(
+    feature = term,
+    coef = estimate
+  ) |> 
+  select(-tau) |> 
+  gt()
+```
+
+Fortunately, our interpretation of this result isn't all that different from a standard linear model -- the rating should decrease by `r round(coef(model_median)['word_count_sc'],2)` for every bump in standard deviation for number of words, which in this case is about `r round(sd(df_reviews$word_count))` words. However, this is concerns the rating median, not the mean, like the standard linear model. 
+
+Quantile regression is not a one-trick-pony. Remember, it is called quantile regression -- not median regression. Being able to compute a median regression is just the default. What we can do also is to model different quantiles of the same data. It gives us the ability to answer brand new questions -- does the relationship between user age and their ratings change at different quantiles of rating? Very cool!
+
+Instead of a single model to capture the trend through the mean of the data, we can now examine the trends within 5 different quantiles of the data - .1, .3 .5, .7, and .9.  We aren't limited to just those quantiles though, and you can examine any of them that you might find interesting.  Here is a plot of the results of these models.
+
+```{r}
+#| echo: false
+#| label: fig-quantile-lines
+#| fig-cap: Quantile regression lines
+tau_values = c(.1, .3, .5, .7, .9)
+
+quant_values = purrr::map_df(tau_values, ~{
+  result = coef(rq(rating ~ word_count_sc, tau = .x, 
+                    data = df_reviews))
+  result$tau = .x
+  result
+})
+
+colnames(quant_values) = c("intercept", "word_count_sc", "tau")
+
+quant_values$tau = as.factor(quant_values$tau)
+
+ggplot() +
+  geom_point(
+    data = df_reviews, 
+    mapping = aes(word_count_sc, rating), 
+    alpha = .25
+  ) +
+  geom_abline(
+    aes(slope = word_count_sc, intercept = intercept, color = tau),
+    linewidth = 2,
+    data = quant_values
+  ) +
+  labs(x = "Word Count (Standardized)", y = "Rating") +
+  scale_color_manual(values = okabe_ito[c(-1,-4)])
+```
+
+
+If we had to put some words to our visualization, we could say that all of the quantiles show a negative relationship. The 10th and 90th quantiles show the weakest relationship, while those in the middle show a notably stronger relationship. We can also see that that the 90th percentile is better able to capture those values that would otherwise be deemed as outliers using other standard techniques.
+
+```{r}
+#| echo: false
+#| label: tbl-quantile-model-output-multi-quants
+#| tbl-cap: Quantile regression model output
+
+rq(
+  rating ~ word_count_sc, 
+  tau = tau_values, 
+  data = df_reviews
+) |> 
+  broom::tidy() |> 
+  rename(
+    feature = term,
+    coef = estimate,
+    quantile = tau
+  ) |>
+  gt()
+```
+
+
+
+TODO: MOVE TO ESTIMATION OR ONLINE ONLY
+
+### Quantile Loss Function {#sec-quantile-loss}
+
+Now that we know how to use standard functions for quantile regression, let's see one way that we can create a least squares loss function for fitting a linear regression model and compare it with a function for quantile loss.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| echo: true
+#| label: quantile_loss
+quantile_loss = function(par, X, y, tau) {
+  
+  linear_parameters = X %*% par
+  
+  residual = y - linear_parameters
+  
+  loss = ifelse(
+    residual < 0, 
+    (tau-1)*residual, 
+    tau*residual
+  )
+  
+  sum(loss)
+}
+```
+
+##### Python
+
+```{python}
+#| echo: true
+def quantile_loss(par, X, y, tau):
+  linear_parameters = X.dot(par)
+  
+  residual = y - linear_parameters
+  
+  loss = []
+  
+  loss = np.where(
+    residual < 0, 
+    (tau-1)*residual, 
+    tau*residual
+  )
+
+  # for i in residual:
+  #   if i < 0: loss.append((-1 + tau)*i)
+  #   else: loss.append(tau*i)
+  
+  return sum(loss)
+
+```
+
+:::
+
+You'll notice right away that we have a few differences. Our quantile loss function includes the **tau** argument, which will let us set our quantile of interest; naturally, it can be any value between 0 and 1. The residual is multiplied by the tau value, only if the residual is greater than 0. If the residual is negative, we need to add tau to -1. Since we need a positive value for our loss values, we will multiply our negative residuals by the negative value produced from -1 plus our tau value. After that, we just sum all of those positive loss values and do our best to minimize that summed value. 
+
+### Model Fitting {#sec-quantile-model}
+
+Now that we have our data and our loss function, we can fit the model almost exactly like our standard linear model. Again, note the difference here with our tau value, which we've set to .5 to represent the median.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| echo: true
+#| label: r_quantile_optim
+
+X = cbind(1, df_reviews$word_count_sc)
+y = df_reviews$rating
+
+optim(
+  par = c(intercept = 0, word_count_sc = 0),
+  fn  = quantile_loss,
+  X   = X,
+  y   = y,
+  tau = .5
+)$par
+```
+
+##### Python
+
+```{python}
+from scipy.optimize import minimize
+import numpy as np
+
+X = pd.DataFrame(
+  {'intercept': 1, 
+  'word_count_sc': df_reviews['word_count_sc']}
+)
+y = df_reviews['rating']
+
+minimize(
+  quantile_loss, 
+  x0 = np.array([0, 0]), 
+  args = (X, y, .5)
+  ).x
+```
+
+:::
+
+
+::: {.callout-tip title='Another Interaction' collapse="true"}
+One way to interpret this result is that we have a nonlinear relationship between the word count and the rating, in the same we we had an interaction previously. In this case, our effect of number of reviews interacts with the target! In other words, we have a different word count effect for different ratings. This is a bit of a mind bender, but it's a good example of how a linear approach can be used to model quirky relationships!
+:::
+
+
 
 ## Performance Comparisons
 
@@ -2078,7 +2065,7 @@ Let's check out the results in @fig-model_performance_comp. Unsurprisingly, the 
 
 The standard linear model is useful across many different data situations. It does, unfortunately, have some issues when data becomes a little bit more "real". When you have extreme scores or relationships that a standard model might miss, you don't need to abandon your linear model in favor of something more exotic. Instead, you might just need to think about how you are actually fitting the line through your data. 
 
-
+TODO: ADD Exercise
 
 ## Next Steps {#sec-lm-extend-next-steps}
 
