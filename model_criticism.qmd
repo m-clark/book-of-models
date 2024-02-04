@@ -66,8 +66,8 @@ performance_metrics = tribble(
   "Regression", "MAE", "Mean absolute error", '',
   "Regression", "MAPE", "Mean absolute percentage error",  '',
   "Regression", "RMSLE", "Root mean squared log error", '',
-  "Regression", "R-squared", "Amount of variance shared by predictions and observed target", 'Coefficient of determination',
-  "Regression", "Deviance/AIC", "Generalization of sum of squared error for non-continuous/gaussian settings", 'Also "deviance explained" for similar R-sq interpretation',
+  "Regression", "R-squared", "Amount of variance shared by predictions and target", 'Coefficient of determination',
+  "Regression", "Deviance/AIC", "Generalization of sum of squared error ", 'Also "deviance explained" for similar R-sq interpretation',
   "Classification", "Accuracy", "Percent correct", 'Error rate is 1 - Accuracy',
   "Classification", "Precision", "Percent of positive predictions that are correct", 'Positive Predictive Value',
   "Classification", "Recall", "Percent of positive samples that are predicted correctly", 'Sensitivity, True Positive Rate',
@@ -713,14 +713,11 @@ We will leave it to you to take that ideal cut-point value and update your metri
 Whether it is a meager, modest, or meaningful improvement is going to vary from situation to situation, as will how you determine if your model is "good" or "bad". If we look back to our original `Balanced Accuracy` value of 0.6490, we'd imagine that our model gets a True Positive or True Negative about 65% of the time, leaving us wrong 35% of the time. Is that good or bad?
 
 
-## IMPORTS FROM LM CHAPTER
------------
+TODO: Fix MIT section so that it makes sense in this chapter. May need to revisit data/model.
 
-TODO: MOVE TO KNOWING YOUR MODEL CHAPTER, but maybe mention a bit about added complexity in interpretation
+## More Interpretation Tools {#sec-knowing-more-interpretation}
 
-### More Interpretation Tools {#sec-lm-more-interpretation}
-
-#### SHAP Values {#sec-lm-shap-values}
+### SHAP Values {#sec-knowing-shap-values}
 
 Some models are more complicated than can be explained by a simple coefficient, e.g. nonlinear effects in generalized additive models, or may not even have feature-specific coefficients, like gradient boosting models, or may have many parameters associated with a feature, as in deep learning. Such models typically won't come with statistical output like standard errors and confidence intervals either. But we'll still have some tricks up our sleeve to help us figure things out!
 
@@ -768,7 +765,6 @@ car::vif(model_reviews_extra)
 
 import statsmodels.formula.api as smf
 from statsmodels.formula.api import ols
-
 
 df_reviews = pd.read_csv("data/movie_reviews.csv")
 
@@ -1102,8 +1098,9 @@ map2_df(
 ```
 
 
-### Feature Importance {#sec-lm-feature-importance}
+### Feature Importance {#sec-knowing-feature-importance}
 
+TODO: Add perturbation-based feature importance here or in ML. Make sure to recommend not using abs SHAP
 
 How important is a feature? It's a common question, and one that is often asked of models, but the answer ranges from 'it depends' and 'it doesn't matter'. Let's start with some hard facts:
 
@@ -1117,7 +1114,7 @@ How important is a feature? It's a common question, and one that is often asked 
 - It rarely makes sense to drop features based on importance alone, and doing so will typically drop performance as well.
 - In the end, what will you do with the information? 
 
-To show just how difficult measuring feature importance is, we only have to stick with our simple linear regression. Think again about R^2^: it tells us the proportion of the target explained by our features. An ideal measure of importance would be able to tell us how much each feature contributes to that proportion, or in other words, decomposes R^2^ into the relative contributions of each feature. One of the most common measures of importance in linear models is the standardized coefficient we demonstrated earlier. You know what it doesn't do? It doesn't decompose R^2^ into relative contributions. The easiest situation we could hope for with regard to feature importance is the basic linear model we've been using.  Everything is linear, with no interactions, or other things going on. And yet there are many logical ways to determine feature importance, and some even break down R^2^ into relative contributions, but they won't necessarily agree with each other in ranking or relative differences. If you can get a measure of statistical difference between whatever metric you choose, it's often the case that 'top' features will not be statistically different from other features.  So what do we do? We'll show a few methods here, but the main point is that there is no single answer, and it's important to understand what you're trying to do with the information.
+To show just how difficult measuring feature importance is, we only have to stick with our simple linear regression. Think again about R^2^: it tells us the proportion of the target explained by our features. An ideal measure of importance would be able to tell us how much each feature contributes to that proportion, or in other words, one that decomposes R^2^ into the relative contributions of each feature. One of the most common measures of importance in linear models is the standardized coefficient we demonstrated earlier. You know what it doesn't do? It doesn't decompose R^2^ into relative contributions. The easiest situation we could hope for with regard to feature importance is the basic linear model we've been using. Everything is linear, with no interactions or other things going on. And yet there are many logical ways to determine feature importance, and some even break down R^2^ into relative contributions, but they won't necessarily agree with each other in ranking or relative differences. If you can get a measure of statistical difference between whatever metric you choose, it's often the case that 'top' features will not be statistically different from other features. So what do we do? We'll show a few methods here, but the main point is that there is no single answer, and it's important to understand what you're trying to do with the information.
 
 Let's start things off by returning to our SHAP value. If we take the average absolute shap for each feature, we get a sense of the typical contribution size for the features. We can then rank order them as accordingly. Here we see that the most important features here are the number of reviews and the length of the movie. Note that we can't speak to direction here, only magnitude.  We can also see that word count is relatively less important. 
 
@@ -1127,15 +1124,16 @@ Let's start things off by returning to our SHAP value. If we take the average ab
 #| fig-cap: SHAP Importance
 #| fig-width: 6
 
-p_dat_shap = sv_importance(plot_dat_shap)$data
-
-p_dat_shap |> 
+p_dat_shap = shapviz::sv_importance(plot_dat_shap)$data |> 
     rename(contribution = value) |>
     mutate(
         feature = fct_reorder(feature, abs(contribution), .fun = mean),
         # feature = fct_rev(feature)
-    ) |>
+    ) 
+
+p_dat_shap |>
     ggplot(aes(contribution, feature)) +
+
     geom_col(
         aes(
             color = feature == 'word_count',
@@ -1143,6 +1141,14 @@ p_dat_shap |>
         ),
         width = .05,
         show.legend = FALSE
+    ) +
+    geom_col(
+        aes(),
+        fill = okabe_ito[1],
+        width = .15,
+        show.legend = FALSE,
+        data = p_dat_shap |>
+            filter(feature == 'word_count')
     ) +
     scale_color_manual(
         values = c(okabe_ito[2], okabe_ito[1]),
@@ -1154,8 +1160,18 @@ p_dat_shap |>
             color = feature == 'word_count'
         ),
         alpha = 1,
+        size = 10,
+        show.legend = FALSE,
+        data = p_dat_shap |>
+            filter(feature == 'word_count')
+    ) +
+    geom_point(
+        aes(
+            color = feature == 'word_count'
+        ),
+        alpha = 1,
         size = 5,
-        show.legend = FALSE
+        show.legend = FALSE,
     ) +
     scale_color_manual(
         values = c(okabe_ito[1], okabe_ito[2]),
@@ -1307,7 +1323,7 @@ aic = round(mr_metrics$AIC, 2)
 
 
 
-### Model Level Interpretation {#sec-lm-model-level}
+### Model Level Interpretation {#sec-knowing-model-level}
 
 As before we can move beyond feature level interpretation, but we are still going to be concerned with the same sorts of questions - how well does the model fit? Have we impoved the fit significantly? What do our predictions look like, and so on.
 
