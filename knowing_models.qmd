@@ -9,7 +9,8 @@ source("load_packages.R")
 source("setup.R")
 source("functions/utils.R")
 
-reticulate::use_condaenv("book-of-models")
+library(reticulate)
+use_condaenv("book-of-models")
 ```
 
 In addition to giving the world one of the greatest television show theme songs -- Quincy Jones' *The Streetbeater* --  *Sanford & Son* gave us an insightful quote for offering criticism: "You big dummy." While we don't advocate for swearing at or denigrating your model, how do you know if your model is performing up to your expectations? It is easy to look at your coefficients, *t*-values, and an adjusted $R^2$, and say, "Wow! Look at this great model!" Your friends will be envious of such terrific *p*-values, and all of the strangers that you see at social functions will be impressed. What happens if that model falls apart on new data, though? What if a stakeholder wants to know exactly how a prediction was made for a specific business decision? Sadly, all of the stars that you gleefully pointed towards in your console will not offer you any real answers. 
@@ -451,7 +452,7 @@ model_train_class = glm(
     + length_minutes_sc 
     + total_reviews_sc 
     + word_count_sc 
-     
+    + genre     
     , 
     training_data, 
     family = binomial
@@ -991,33 +992,436 @@ We saw in the linear model chapter (-@sec-lm-interpretation-feature) that we can
 We get a bit more relative comparison by using standardized coefficients, or some other scaling of the coefficients that allows for a bit of a more apples-to-apples comparison. But as we'll see, in the real world even if we have just apples, there are fuji, gala, granny smith, honeycrisp, and many other types of apples, and some may be good for snacks, others for baking pies, some are good for cider, etc. In other words, **there is no one size fits all approach to understanding how a feature contributes to understanding the target**, and the sooner you grasp that, the better.
 
 
-### Feature Contribution
+### Feature Importance
 
-We can also look at the contribution of a feature to the model's explanatory power, namely through its predictions. To start our discussion, we don't want to use the phrase 'feature importance', because trying to rank features by an importance metric is difficult at best, completely wrong at worst. We can however look at the contribution of a feature to the model's predictions, and we can come to a conclusion about whether we think a feature is practically important, but we need to be careful about how we do it.
+We can also look at the contribution of a feature to the model's explanatory power, namely through its predictions. To start our discussion, we don't want to lean very heavily on the phrase **feature importance**, because trying to rank features by an importance metric is difficult at best, and a misguided endeavor at worst. We can however look at the **feature contribution** to the model's predictions, and we can come to a conclusion about whether we think a feature is practically important, but just we need to be careful about how we do it.
 
-This is a bit more complicated than just looking at the coefficient, because there are many ways to go about it and it's not part of any default model output. We can't compare raw coefficients across features, because they are on different scales. We can't compare standardized coefficients across features, because even if we force them to be on the same scale, it may be very easy for some to move one standard deviation, and very hard for others. Binary variables can only be on or off, while numeric variables can move around more. We can't compare p-values, because they reflect sample size as much or more than effect size.
+This is a bit more complicated than just looking at the coefficient, because there are many ways to go about it and it's not part of any default model output. We can't compare raw coefficients across features, because they are on different scales. But even when we put them on the same scale, it may be very easy for some features to move, e.g., one standard deviation, and very hard for others. Binary variables can only be on or off, while numeric variables can move around more. We also can't use statistical significance based on p-values, because they reflect sample size as much or more than effect size.
 
-So what are we to do? What you need to know to ask questions about feature contribution includes the following:
+So what are we to do? What you need to know to get started looking at a feature's contribution includes the following:
+
 - feature scales
 - feature distributions
+- representative values of the feature
 - target scale
 - feature interactions and correlations
 
-If I want to know if a feature is important, I have to know how a feature moves, and I need to know what types of feature values are more likely vs. others, and what a typical movement in its value would be. If a feature is skewed, then the even the mean may not be the best value to use for prediction, and basing 'typical' movement on its standard deviation may be misguided. If a unit movement in a feature results in a movement in the target of 2 units, what does that mean? Is it a large movement? If I don't know the target very well I can't answer that.
+If I want to know if a feature is important, I have to know how a feature moves, and I need to know what types of feature values are more likely than others, and what a typical movement in its range of values would be. If a feature is skewed, then the even the mean may not be the best value to use for prediction, and basing 'typical' movement on its standard deviation may be misguided. If a unit movement in a feature results in a movement in the target of 2 units, what does that mean? Is it a large movement? If I don't know the target very well I can't answer that. As an example, if the target is in dollars, a $2 movement is nothing for salary, but might be large for a stock price. We have to know the target as well as we do the feature predicting it.
 
-On top of all this, we need to know how the feature interacts with other features. If a feature is highly correlated with another feature, then it may not be adding much to the model even if we'd otherwise have some metrics indicating a notable contribution. 
+On top of all this, we need to know how the feature interacts with other features. If a feature is highly correlated with another feature, then it may not be adding much to the model even if we'd otherwise have some metrics indicating a notable contribution. In addition, penalized approaches will either spread the contribution of correlated features across them, or just pick one of them to include in the model. It may be mostly arbitrary which one is included, or you might miss both. 
 
-If a feature interacts with another feature, then there really is no way to say how much it contributes to the model without knowing the value of the other feature. Full stop. Synergistic effects cannot be understood by pretending they don't exist. 
+*If a feature interacts with another feature, then there really is no way to say how much it contributes to the model without knowing the value of the other feature*. Full stop. Synergistic effects cannot be understood by pretending they don't exist. A number of metrics will still be provided for a single feature, either by trying to include its overall contribution or averaging over the values of the other feature, but this is a problematic approach.
+
+Consider the following two plots. On the left we show an interaction between two binary features. If we were to look at the contribution of each feature without the interaction, their respective coefficients would be estimated as essentially zero[^interexplain]. On the right we show a feature that has a strong relationship with the target, but only for a certain range of values. If we were to look at single 'effect' of the feature, we would likely underestimate how strong it is with smaller values and overestimate the relationship at the upper range. 
+
+
+[^interexplain]: To understand why, for the effect of X1, just take the mean of the two points on the left vs. the mean of the two points on the right. It would basically be a straight line of no effect as you move from group 0 to group 1. For the effect of X2, the two group means for A and B would be at the intersection of the two lines.
+
+```{r}
+#| echo: false
+#| fig.cap: Two plots showing the importance of understanding feature interactions and non-linear relationships
+#| label: fig-feature-importance
+
+set.seed(123)
+
+# interaction
+N = 500
+interaction = tibble(
+    x1 = sample(c(0, 1), N, replace = TRUE),
+    x2 = sample(c(0, 1), N, replace = TRUE),
+    y = rnorm(N, mean = 
+        case_when(
+            x1 == 0 & x2 == 0 ~ 1,
+            x1 == 0 & x2 == 1 ~ 2,
+            x1 == 1 & x2 == 0 ~ 2,
+            x1 == 1 & x2 == 1 ~ 1,
+        ),
+        )
+    ) |> 
+    mutate(x1 = factor(x1), x2 = factor(x2, labels = c('A', 'B')))
+
+interaction_plot = interaction |> 
+    summarize(
+        se = sd(y) / sqrt(N),
+        y = mean(y), 
+        .by = c(x1, x2)
+    ) |> 
+    ggplot(aes(x = x1, y = y)) +
+    # geom_borderline(aes(group = x2), linewidth = 2) +
+    geom_borderline(aes(color = x2, group = x2), linewidth = 1, alpha = 2) +
+    scale_color_manual(values = c(okabe_ito[3], okabe_ito[5])) +
+    guides(color = guide_legend(title = "Feature 2")) +
+    ggnewscale::new_scale_color() +
+    geom_pointrange(aes(ymin = y-2*se, ymax = y + 2*se, color = x1), fatten=10, show.legend = FALSE) +
+    scale_color_manual(values = c(okabe_ito[1], okabe_ito[2])) +
+    labs(
+        title = "Interaction between two binary features",
+        x = "Feature 1",
+        y = "Target"
+    ) +
+    theme(
+        legend.title = element_text(size = 10)
+        ) 
+
+# interaction_plot
+
+# summary(lm(y ~ x1 * x2, data = interaction))
+
+non_linear = tibble(
+    x = seq(0, 10, length.out = N),
+    y = 5 *( plogis(1 + .5*x + rnorm(N, sd =  .1)))
+)
+
+non_linear_plot = ggplot(non_linear, aes(x = x, y = y)) +
+    geom_point() +
+    # geom_smooth(method = "lm", se = FALSE) +
+    scale_x_continuous(breaks = seq(0, 10)) +
+    labs(
+        title = "Non-linear relationship between feature and target",
+        x = "Feature",
+        y = "Target"
+    )
+# non_linear_plot
+interaction_plot + 
+    non_linear_plot &
+    theme(
+        plot.title = element_text(size = 10, hjust = 0),
+        axis.title.y = element_text(size = 10, face='bold'),
+        axis.title.x = element_text(size = 10, face='bold'),
+    )
+    # plot_annotation()
+```
+
+All this is to say as we get into measures of feature importance, we need to be very careful about how we interpret and use them.
+
+
+
+### Marginal effects
+
+One way to understand the contribution of a feature to the model is to look at the **marginal effect** of the feature, which conceptually attempts to boil a feature effect to something simple. Unfortunately, not everyone means the same thing when they use this term and it can be a bit confusing. Marginal effects *typically* refer to a partial derivative of the target with respect to the feature. This becomes very simple for standard linear models with no interactions and all linear effects as in linear regression. The derivative of our coefficient with respect to the feature is just the coefficient itself! But for more complicated models, even just GLM's like our logistic regression, we need to do a bit more work to get the marginal effect, or other so called 'average' effects.  Let's think about a couple common versions:
+
+- Average slope, Average Marginal Effect
+- Marginal effect at the mean
+- Marginal Means
+- Counterfactuals and other predictions at key feature values
+
+#### Marginal Effects at the Mean
+
+First let's think about an average slope. This is the average of the slopes across it's own values or values of another feature it interacts with.  But let's just look at the effect of word count first. A good question is, how do we visualize that? Here are two plots, and both are useful, neither is inherently wrong, and yet they both tell us something different. The first plot shows the predicted probability of a good review as word count changes, with all other features at their mean (or mode for categorical). The second plot shows what is called a **partial dependence plot**, which shows the *average predicted probability* of a good review as word count changes. In both cases we make predictions with imputed values, the left plot imputes the other features to be their mean or mode, while the right plot leaves the other features at their actual values, and then, using a range for word count, gets a prediction as if every observation had that value for word count. We then average the predictions for each value in the range.
+
+```{r}
+#| echo: false
+#| label: fig-r-mem-vs-pdp
+p_mem = plot(ggeffects::ggpredict(model_train_class, terms = "word_count_sc")) +
+    geom_point(x = 0, y = .86, size = 4) +
+    labs(
+        # title = 'Predicted Probability of Good Review',
+        title = '',
+        subtitle = 'Prediction with other features at their mean/mode',
+        x = 'Word Count (standardized)',
+        y = ''
+    ) +
+    scale_y_continuous(
+        breaks = seq(0, 1, .1), 
+        limits = c(0, 1), 
+        labels = scales::percent
+    ) +
+    coord_cartesian(xlim = c(-2, 2)) +
+    theme_clean() 
+
+
+# autoplot(pdp::partial(model_train_class, pred.var='word_count_sc', type = 'classification', plot.engine='ggplot2'))
+df_pdp = plot(
+    DALEX::model_profile(
+        explainer = DALEX::explain(model_train_class, verbose=FALSE), 
+        N = NULL,
+        variables = 'word_count_sc')
+    )$data
+
+avg_pred_0 = predict(model_train_class, newdata=training_data |> 
+    mutate(word_count_sc=0), type = 'response') |> 
+    mean()
+
+p_pdp = df_pdp |> 
+    rename(
+        'word_count_sc' = `_x_`,
+        'prob' = `_yhat_`
+    ) |>    
+    ggplot(aes(x = word_count_sc, y = prob)) +
+    geom_line() +
+    geom_point(x = 0, y = avg_pred_0, size = 4) +
+    scale_y_continuous(
+        breaks = seq(0, 1, .1), 
+        limits = c(0, 1), 
+        labels = scales::percent
+    ) +
+    labs(
+        subtitle = 'Partial Dependence Plot',
+        # title = 'Predicted Probability of Good Review',
+        x = 'Word Count (standardized)',
+        y = ''
+    ) +
+    coord_cartesian(xlim = c(-2, 2))
+
+p_mem + 
+    theme_clean() +
+    p_pdp +
+    plot_layout(guides = 'collect', ) +
+    plot_annotation(title = 'Predicted Probability of Good Review') &
+    theme(
+        plot.title = element_text(size = 14, hjust = 0),
+        plot.subtitle = element_text(size = 12, hjust = 0),
+        axis.line.y = element_line(color = "gray90"),
+        axis.line.x = element_line(color = "gray90"),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+    )
+```
+
+When word count is zero, i.e. its mean and everything else is at its mean/mode, we'd predict a probability of a good review of about 85%. As such, we interpret this as 'when everything is typical', we have a pretty good chance of getting a good review. The average prediction we'd get if we predicted every observation as if it were the mean word count is more like 55%, which is notably less. Which is correct? Both, or neither!  If it's doubtful that the feature values are realistic (e.g. everything at its mean at the same time, or an average word count when length of a movie is at its minimum) then they may both be misleading. You have to know your features and your target to know what's realistic.
+
+
+#### Average Marginal Effects
+
+Let's say we want to boil our understanding of the effect to a single number. In this case, the coefficient is fine if we're dealing with an entirely linear model. In this classification case, this means that the raw coefficient tells us what we need to know, but on the log odds scale, which provides pretty much no intuition for most folks. We can understand the probability scale, but this means things get nonlinear. As an example, a .1 to .2 change in the probability is doubling, while a .8 to .9 change is a 12.5% increase. But is there anyway we can stick with probabilities and get a single value to understand the change in the probability of a good review as word count changes by 1 unit?
+
+Yes, we can look at the **average marginal effect** of word count. This is the average of the slope of the predicted probability of a good review as word count changes. This is a bit more complicated than just looking at the coefficient, but it's a bit more intuitive. How do we get it? By a neat little trick where we predict the target with the feature at two values, a very small amount, and then take the difference. This results in the the same thing as taking the derivative of the target with respect to the feature. 
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: fig-r-marginal-slope-word-count
+#| fig.cap: Average Slope of Word Count by Genre
+
+library(marginaleffects)
+
+model_word_ct_by_genre = update(model_train_reg, . ~ . + word_count_sc:genre)
+
+# average slope
+p1 = plot_slopes(model_train_reg, variables = "word_count_sc", by = 'genre') + 
+    labs(
+        title = 'Average Slope of Word Count (standardized) by Genre',
+        subtitle = 'No interaction'
+        ) 
+p2 = plot_slopes(model_word_ct_by_genre, variables = "word_count_sc", by = 'genre') + 
+    labs(
+        title = 'Average Slope of Word Count (standardized) by Genre',
+        subtitle = 'No interaction'
+        )
+
+#| 
+
+
+# our average
+model_word_ct_by_genre = update(model_train_reg, . ~ . + word_count_sc:genre)
+# slopes(model_word_ct_by_genre, variables = "word_count_sc") 
+
+```
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: calc-marginal-slope-word-count-r
+fudge_factor = 1e-3
+
+fudge_plus = predict(
+    model_train_class, 
+    newdata = training_data  |> mutate(word_count_sc = word_count_sc + fudge_factor/2),
+    type = "response"
+)
+fudge_minus = predict(
+    model_train_class, 
+    newdata = training_data  |> mutate(word_count_sc = word_count_sc - fudge_factor/2),
+    type = "response"
+)
+
+# compare
+# mean(fudge_plus - fudge_minus) / fudge_factor
+
+marginaleffects::avg_slopes(
+    model_train_class, 
+    variables = "word_count_sc", 
+    type = 'response'
+)
+```
+
+##### Python
+```{python}
+#| label: calc-marginal-slope-word-count-py
+
+fudge_factor = 1e-3
+
+fudge_plus = model_train_class.predict(
+    training_data.assign(word_count_sc = training_data.word_count_sc + fudge_factor/2)
+)
+
+fudge_minus = model_train_class.predict(
+    training_data.assign(word_count_sc = training_data.word_count_sc - fudge_factor/2)
+)
+
+# note that the marginaleffects is available in Python, but still very fresh!
+# we'll add a comparison in the future
+
+np.mean(fudge_plus - fudge_minus) / fudge_factor
+
+# import marginaleffects as me
+# me.avg_slopes(model_train_class, variables = "word_count_sc")
+```
+
+:::
+
+Our result above suggests we're getting about a .09 drop in the expected probability of a good review for a 1 unit increase in word count. This is a bit more intuitive than the coefficient or odds ratio based on it.
+
+
+### Counterfactual Predictions
+
+The nice thing about having a model is that we can make predictions for any set of feature values we want. This is a great way to understand the contribution of a feature to the model. We can make predictions for a range of feature values, and then compare the predictions to see how much the feature contributes to the model. **Countefactual predictions** allow us to ask what if? questions, and see how the model responds. As an example, we can get a prediction as if every review was being for a drama, and then see what we'd expect if every review pertained to a comedy. This is a very powerful approach, and often utilized in causal inference, but it's also a great way to understand the contribution of a feature to a model in general.
+
+PDP, SHAP values and counterfactual predictions all are ways to look at predictions for features held at key values.  In an experimental setting, ideally we'd be able to look at the same instances under when everything about them was identical, but in one case, the instance was part of the control group, and in another, part of the treatment group. Not only is it impossible to have everything be identical, but it's also impossible to have the same instance be in two groups at once. Counterfactual predictions are the next best thing though, because once we have a model, we can predict an observation as if it was in the treatment and then when it is a control. If we do this for all observations, we can get a sense of the **average treatment effect**, one of the main points of interest in causal inference. 
+
+But you don't need an experiment for this. Let's try a new data set to really drive the point home.  We'll use some data at the global stage- the world happiness data set. For our model we'll predict the happiness score, considering freedom to make life choices, GDP and other things.  We'll then switch the freedom to make life choices and GDP values for the US and Russia, and see how the predictions change!
+
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-counterfactual-happiness
+#| eval: true
+
+df_happiness_2018 = read_csv("data/world_happiness_2018.csv")
+
+model_happiness = lm(
+    happiness_score ~ 
+    log_gdp_per_capita 
+    + healthy_life_expectancy_at_birth
+    + generosity 
+    + freedom_to_make_life_choices
+    + confidence_in_national_government, 
+    data = df_happiness_2018
+)
+
+happiness_gdp_freedom_values = df_happiness_2018 |> 
+    filter(country %in% c("United States", "Russia"))  |> 
+    arrange(country) |> 
+    select(log_gdp_per_capita, freedom_to_make_life_choices)
+
+base_predictions = predict(
+    model_happiness, 
+    newdata = df_happiness_2018 |> 
+    arrange(country) |>
+    filter(country %in% c("United States", "Russia")) 
+)
+
+# switch up their GDP and freedom!
+
+df_switch = df_happiness_2018 |> 
+    filter(country %in% c("United States", "Russia")) |> 
+    arrange(country) |> # alpha so russia is first
+    mutate(
+        log_gdp_per_capita = rev(log_gdp_per_capita),
+        freedom_to_make_life_choices = rev(freedom_to_make_life_choices)
+    )
+
+switch_predictions = predict(
+    model_happiness, 
+    newdata = df_switch
+)
+
+# tibble(
+#     country = c("Russia", "USA"),
+#     base_predictions,
+#     switch_predictions
+# ) |> 
+#     mutate(
+#         diff_in_happiness = switch_predictions - base_predictions
+#     )
+```
+
+##### Python
+
+```{python}
+#| label: python-counterfactual-happiness
+#| eval: false
+
+df_happiness_2018 = pd.read_csv('data/world_happiness_2018.csv')
+
+model_happiness = smf.ols(
+    formula = 'happiness_score ~ \
+        log_gdp_per_capita \
+        + healthy_life_expectancy_at_birth \
+        + generosity \
+        + freedom_to_make_life_choices \
+        + confidence_in_national_government',
+    data = df_happiness_2018
+).fit()
+
+model_happiness.summary(slim = True)
+
+happiness_gdp_freedom_values = df_happiness_2018[
+    df_happiness_2018.country.isin(["United States", "Russia"])
+][['log_gdp_per_capita', 'freedom_to_make_life_choices']]
+
+base_predictions = model_happiness.predict(
+    df_happiness_2018[
+        df_happiness_2018.country.isin(["United States", "Russia"])
+    ]
+)
+
+# switch up their GDP and freedom!
+df_switch = df_happiness_2018[
+    df_happiness_2018.country.isin(["United States", "Russia"])
+].copy()
+
+df_switch[['log_gdp_per_capita', 'freedom_to_make_life_choices']] = (
+    df_switch[['log_gdp_per_capita', 'freedom_to_make_life_choices']].values[::-1]
+)    
+
+switch_predictions = model_happiness.predict(df_switch)
+
+pd.DataFrame({
+    "country": ["Russia", "USA"],
+    "base_predictions": base_predictions,
+    "switch_predictions": switch_predictions,
+    "diff_in_happiness": switch_predictions - base_predictions
+}).round(3)
+```
+
+:::
+
+```{r}
+#| echo: false
+#| label: tbl-counterfactual-happiness
+#| tbl-cap: Predictions for happiness score for Russia and the US with switched freedom and GDP
+tab_democracy = tibble(
+    country = c("Russia", "United States"),
+    base_predictions,
+    switch_predictions
+) |> 
+    mutate(
+        diff_in_happiness = switch_predictions - base_predictions
+    ) 
+
+tab_democracy |> 
+    gt(decimals = 1)
+```
+
+In this case, we see that the happiness score is expected to be very lopsided in favor of the US, which our base prediction would suggest the US to be almost a full standard deviation higher in happiness than Russia given their current values. But if the US was just a bit more like Russia, we'd see a significant drop even if it maintained its life expectancy, generosity, and faith in government. Likewise, if Russia was a bit more like the US, we'd expect to see a significant increase in their happiness score.
+
+It's very easy with base package functions to see some very interesting things about our data and model. Counterfactual predictions get us thinking more explicitly about what the situation would be if things were much different, but in the end, we're just playing around with prediction and thinking about possibilities!
 
 
 ### SHAP Values {#sec-knowing-shap-values}
 
-Some models are more complicated than can be explained by a simple coefficient, e.g. nonlinear effects in generalized additive models, or there may not even be feature-specific coefficients available, like gradient boosting models, or we may even have many parameters associated with a feature, as in deep learning. Such models typically won't come with statistical output like standard errors and confidence intervals either. But we'll still have some tricks up our sleeve to help us figure things out!
+Most models are more complicated than can be explained by a simple coefficient, e.g. nonlinear effects in generalized additive models, or there may not even be feature-specific coefficients available, like gradient boosting models, or we may even have many parameters associated with a feature, as in deep learning. Such models typically won't come with statistical output like standard errors and confidence intervals either. But we'll still have some tricks up our sleeve to help us figure things out!
 
-A very common interpretation tool is called a **SHAP value**. SHAP stands for **SHapley Additive exPlanations**, and it provides a means to understand how much each feature contributes to a specific prediction. It's based on a concept from game theory called the **Shapley value**, which is a way to understand how much each player contributes to the outcome of a game. The reason we bring it up here is that it is has a nice intuition in the linear model case, and seeing it in that context is a good way to get a sense of how it works. While the actual computations can be tedious, the basic idea is relatively straightforward- for a given prediction at a specific observation with set feature values, we can calculate the difference between the prediction at that observation and the average prediction. This is the **local effect** of the feature.  However, we must also consider doing this for all possible values of other features that might be in a model, as well as considering whether other features are present for the prediction or not. The initial Shapley approach is to average the local effects over all possible combinations of features, which is computationally intractable for all but the simplest model/data settings. The SHAP approach offers more computationally feasible methods for estimation which, while still computationally intensive, is doable for many models. The SHAP approach also has the benefit of being able to be applied to *any* model, and it's the approach we'll use here and return to with some of our other models.
+A very common interpretation tool is called a **SHAP value**. SHAP stands for **SHapley Additive exPlanations**, and it provides a means to understand how much each feature contributes to a specific prediction. It's based on a concept from game theory called the Shapley value, which is a way to understand how much each player contributes to the outcome of a game. The reason we bring it up here is that it is has a nice intuition in the linear model case, and seeing it in that context is a good way to get a sense of how it works. Furthermore, it builds on what we've been talking about with our various prediction approaches. 
 
+While the actual computations behind the scenes can be tedious, the basic idea is relatively straightforward- for a given prediction at a specific observation with set feature values, we can calculate the difference between the prediction *at that observation* versus *the average prediction*. We can break this down by feature, and see how much each feature contributes to the difference, and this provides us the **local effect** of the feature.  The SHAP approach also has the benefit of being able to be applied to *any* model, whether a simple linear or deep learning model. Very cool! To demonstrate we'll use a simple model with a couple features to predict the rating of a movie review.
 
-TODO: Switch to use scaled versions
 
 :::{.panel-tabset}
 
@@ -1026,28 +1430,25 @@ TODO: Switch to use scaled versions
 ```{r}
 #| label: lm-extra-features-r
 
-model_reviews_extra = lm(
+model_reviews_shap = lm(
     rating ~
-        word_count
-        + age
-        + review_year
-        + release_year
-        + length_minutes
-        + children_in_home
-        + total_reviews,
+     age
+    + release_year
+    + length_minutes,
     data = df_reviews
 )
 
-summary(model_reviews_extra)
+# inspect if desired
+# summary(model_reviews_shap)
 ```
 
 ```{r}
 #| echo: false
 #| eval: false
 #| label: python-condition-number
-ev = eigen(vcov(model_reviews_extra))
+ev = eigen(vcov(model_reviews_shap))
 sqrt(max(ev$values) / min(ev$values))
-car::vif(model_reviews_extra)
+car::vif(model_reviews_shap)
 ```
 
 ##### Python
@@ -1060,26 +1461,22 @@ from statsmodels.formula.api import ols
 
 df_reviews = pd.read_csv("data/movie_reviews_processed.csv")
 
-df_reviews.columns
-model_reviews_extra = smf.ols(
+model_reviews_shap = smf.ols(
     formula = 'rating ~ \
-        word_count_sc \
-        + age_sc \
-        + review_year_0 \
-        + release_year_0 \
-        + length_minutes_sc \
-        + children_in_home \
-        + total_reviews_sc',
+     age \
+    + release_year \
+    + length_minutes',
     data = df_reviews
 ).fit()
 
-model_reviews_extra.summary(slim = True)
+# inspect if desired
+# model_reviews_shap.summary(slim = True)
 ```
 
 :::
 
 
-Let's look at the SHAP values for our model.  We'll start with a single feature value/observation, using our multifeature model. Here we'll use the first observation where there are 12 words for word count, age of reviewer is 30, a movie length of 100 minutes etc. To aid our understanding, we calculate the shap value related to word count at that observation by hand, and using a package.
+With our model in place let's look at the SHAP values for our model.  We'll start with a single feature value/observation. Here we'll use the first observation where the release year is 2020, age of reviewer is 30, a movie length of 100 minutes. To aid our understanding, we calculate the shap value related to word count at that observation by hand, and using a package.
 
 :::{.panel-tabset}
 
@@ -1090,60 +1487,92 @@ Let's look at the SHAP values for our model.  We'll start with a single feature 
 #| label: shap-values-r
 
 # first we need to get the average prediction
-avg_pred = mean(predict(model_reviews_extra))
+avg_pred = mean(predict(model_reviews_shap))
 
 # then we need to get the prediction for the feature value of interest
 # for all observations, and average them
-pred_observation = predict(
-    model_reviews_extra,
-    newdata = df_reviews |> mutate(word_count = 12)
+pred_age_30 = predict(
+    model_reviews_shap,
+    newdata = df_reviews |> mutate(age = 30) 
 )
 
-# then we can calculate the shap value
-shap_value_ours = mean(pred_observation) - avg_pred
+pred_year_2020 = predict(
+    model_reviews_shap,
+    newdata = df_reviews |> mutate(release_year = 2020) 
+)
+
+pred_length_100 = predict(
+    model_reviews_shap,
+    newdata = df_reviews |> mutate(length_minutes = 100) 
+)
+
+
+# then we can calculate the shap values
+shap_value_ours = tibble(
+    shap_age    = mean(pred_age_30) - avg_pred,
+    shap_year   = mean(pred_year_2020) - avg_pred,
+    shap_length = mean(pred_length_100) - avg_pred
+)
 
 # we can also use the DALEX package to do this for us
-explainer = DALEX::explain(model_reviews_extra, verbose = FALSE)
+explainer = DALEX::explain(model_reviews_shap, verbose = FALSE)
 
 # observation of interest we want shap values for
 obs_of_interest = tibble(
-    word_count = 12,
     age = 30,
-    children_in_home = 1,
     length_minutes = 100,
-    total_reviews = 10000,
-    release_year = 2015,
-    review_year = 2020,
+    release_year = 2020
 )
 
-shap_value_package = DALEX::predict_parts_shap(
+shap_value_package = DALEX::predict_parts(
     explainer,
-    obs_of_interest
+    obs_of_interest,
+    type = 'shap'
 )
 
-# c(
-#     shap_value_ours, 
-#     shap_value_package['word_count', 'contribution']
+# rbind(
+#     shap_value_ours,
+#     shap_value_package[c('age', 'release_year', 'length_minutes'), 'contribution']
 # )
 ```
 
 
-##### Python
+##### Python with SHAP
 
 ```{python}
 #| eval: false
 #| label: shap-values-py
 
 # first we need to get the average prediction
-avg_pred = model_reviews_extra.predict(df_reviews).mean()
+avg_pred = model_reviews_shap.predict(df_reviews).mean()
 
 # then we need to get the prediction for the feature value of interest
-pred_observation = model_reviews_extra.predict(
-    df_reviews.assign(word_count = 12)
+# for all observations, and average them
+
+pred_age_30 = model_reviews_shap.predict(
+    df_reviews.assign(
+        age = 30
+    )
 )
 
-# then we can calculate the shap value
-shap_value_ours = pred_observation.mean() - avg_pred
+pred_year_2020 = model_reviews_shap.predict(
+    df_reviews.assign(
+        release_year = 2020
+    )
+)
+
+pred_length_100 = model_reviews_shap.predict(
+    df_reviews.assign(
+        length_minutes = 100
+    )
+)
+
+# then we can calculate the shap values
+shap_value_ours = pd.DataFrame({
+    'age': pred_age_30.mean() - avg_pred,
+    'release_year': pred_year_2020.mean() - avg_pred,
+    'length_minutes': pred_length_100.mean() - avg_pred
+}, index = ['new_observation'])
 
 
 # now use the shap package for this; it does not work with statsmodels though,
@@ -1154,13 +1583,9 @@ from sklearn.linear_model import LinearRegression
 
 # set data up for shap and sklearn
 fnames = [
-    'word_count', 
     'age', 
-    'review_year', 
     'release_year', 
-    'length_minutes', 
-    'children_in_home', 
-    'total_reviews'
+    'length_minutes'
 ]
 
 X = df_reviews[fnames]
@@ -1173,27 +1598,72 @@ model_reviews = LinearRegression().fit(X, y)
 X_sample = shap.maskers.Independent(data = X, max_samples = 1000)  
 
 # # compute the SHAP values for the linear model
-explainer_linear = shap.Explainer(
+explainer = shap.Explainer(
     model_reviews.predict, 
     X_sample   
 )
 
 # find an index where word_count is 12
 obs_of_interest = pd.DataFrame({
-    'word_count': 12,
     'age': 30,
-    'children_in_home': 1,
-    'review_year': 2020,
-    'release_year': 2015,
-    'length_minutes': 100,
-    'total_reviews': 10000
+    'release_year': 2020,
+    'length_minutes': 100
 }, index = ['new_observation'])
 
-shap_values_linear = explainer_linear(obs_of_interest)
+shap_values = explainer(obs_of_interest)
 
-shap_value_package = shap_values_linear.values[0, 0]
+shap_value_package = pd.DataFrame(
+    shap_values.values[0, :], 
+    index = fnames, 
+    columns = ['new_observation']
+).T
 
-# (shap_value_ours, shap_value_package)
+pd.concat([shap_value_ours, shap_value_package])
+```
+
+
+##### Python with Dalex
+
+For consistency with the R presentation and because it works with the [statsmodels]{.pack} object, we also use [Dalex]{.pack} here, but it is notably unweildy for doing much of anything besides the default plot, and [shap]{.pakc} is by far more popularly used in general.
+
+```{python}
+#| eval: false
+#| label: shap-values-dalex-py
+import dalex as dx
+
+fnames = [
+    'age', 
+    'release_year', 
+    'length_minutes'
+]
+
+explainer = dx.Explainer(
+    model_reviews_shap, 
+    data = df_reviews[fnames], 
+    y = df_reviews['rating'],
+    verbose = False
+)
+
+obs_of_interest = pd.DataFrame({
+    'age': 30,
+    'release_year': 2020,
+    'length_minutes': 100
+}, index = ['new_observation'])
+
+shap_values = explainer.predict_parts(
+    new_observation = obs_of_interest,
+    type = "shap"
+)
+
+shap_value_package = (
+    shap_values
+    .result.iloc[:3]
+    [['variable_name', 'contribution']]
+    .set_index('variable_name')
+    .T
+)
+
+pd.concat([shap_value_ours, shap_value_package])
 ```
 
 :::
@@ -1203,9 +1673,12 @@ shap_value_package = shap_values_linear.values[0, 0]
 #| echo: false
 #| label: tbl-shap-values-comparison
 #| tbl-cap: SHAP Value Comparison
+
+
+# paste(x$label, x$variable, sep = ": "), mean, na.rm = TRUE)
 tibble(
     ours  = shap_value_ours,
-    dalex = shap_value_package['word_count', 'contribution']
+    dalex = shap_value_package['age', 'contribution']
 ) |>
     gt(decimals = 3)
 ```
@@ -1282,6 +1755,18 @@ In addition, there are other plots that are similar to the PDP and ICE, such as 
 #| fig-height: 10
 #| fig-width: 8
 # elements of this come from initial shap calculation demo
+
+model_reviews_extra = lm(
+    rating ~
+        word_count
+        + age
+        + review_year
+        + release_year
+        + length_minutes
+        + children_in_home
+        + total_reviews,
+    data = df_reviews
+)
 
 library(ggplot2)
 library(iml)
@@ -1392,7 +1877,7 @@ map2_df(
 ```
 
 
-### Feature Importance {#sec-knowing-feature-importance}
+### Global Metrics of Feature Importance {#sec-knowing-feature-importance}
 
 TODO: Add perturbation-based feature importance here or in ML. Make sure to recommend not using abs SHAP
 
@@ -1984,3 +2469,5 @@ Even though we did not use the `mlr3` package in this chapter, the **Evaluation 
 For a more Pythonic look at model evaluation, we would highly recommend going through the sci-kit learn documentation on [Model Evaluation](https://scikit-learn.org/stable/modules/model_evaluation.html). It has you absolutely covered on code examples and concepts.
 
 To get the most out of `DaLEX` visualizations, we would recommend checking out Christoph Molnar's book, [Interpretable Machine Learning](https://christophm.github.io/interpretable-ml-book/). It is a great resource for learning more about model explainers and how to use them.
+
+marginal effects zoo, marginalia blog post
