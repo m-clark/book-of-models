@@ -992,7 +992,9 @@ We saw in the linear model chapter (-@sec-lm-interpretation-feature) that we can
 We get a bit more relative comparison by using standardized coefficients, or some other scaling of the coefficients that allows for a bit of a more apples-to-apples comparison. But as we'll see, in the real world even if we have just apples, there are fuji, gala, granny smith, honeycrisp, and many other types of apples, and some may be good for snacks, others for baking pies, some are good for cider, etc. In other words, **there is no one size fits all approach to understanding how a feature contributes to understanding the target**, and the sooner you grasp that, the better.
 
 
-### Feature Importance
+### Feature Contributions
+
+TODO: Simplify this initial section and move some of it to feature importance
 
 We can also look at the contribution of a feature to the model's explanatory power, namely through its predictions. To start our discussion, we don't want to lean very heavily on the phrase **feature importance**, because trying to rank features by an importance metric is difficult at best, and a misguided endeavor at worst. We can however look at the **feature contribution** to the model's predictions, and we can come to a conclusion about whether we think a feature is practically important, but just we need to be careful about how we do it.
 
@@ -1096,7 +1098,7 @@ All this is to say as we get into measures of feature importance, we need to be 
 
 
 
-### Marginal effects
+### Marginal Effects
 
 One way to understand the contribution of a feature to the model is to look at the **marginal effect** of the feature, which conceptually attempts to boil a feature effect to something simple. Unfortunately, not everyone means the same thing when they use this term and it can be a bit confusing. Marginal effects *typically* refer to a partial derivative of the target with respect to the feature. This becomes very simple for standard linear models with no interactions and all linear effects as in linear regression. The derivative of our coefficient with respect to the feature is just the coefficient itself! But for more complicated models, even just GLM's like our logistic regression, we need to do a bit more work to get the marginal effect, or other so called 'average' effects.  Let's think about a couple common versions:
 
@@ -1112,6 +1114,7 @@ First let's think about an average slope. This is the average of the slopes acro
 ```{r}
 #| echo: false
 #| label: fig-r-mem-vs-pdp
+#| fig.cap: Marginal Effect at the Mean vs. Partial Dependence Plot
 p_mem = plot(ggeffects::ggpredict(model_train_class, terms = "word_count_sc")) +
     geom_point(x = 0, y = .86, size = 4) +
     labs(
@@ -1430,7 +1433,7 @@ While the actual computations behind the scenes can be tedious, the basic idea i
 ```{r}
 #| label: lm-extra-features-r
 
-model_reviews_shap = lm(
+model_reviews_3feat = lm(
     rating ~
      age
     + release_year
@@ -1439,16 +1442,16 @@ model_reviews_shap = lm(
 )
 
 # inspect if desired
-# summary(model_reviews_shap)
+# summary(model_reviews_3feat)
 ```
 
 ```{r}
 #| echo: false
 #| eval: false
 #| label: python-condition-number
-ev = eigen(vcov(model_reviews_shap))
+ev = eigen(vcov(model_reviews_3feat))
 sqrt(max(ev$values) / min(ev$values))
-car::vif(model_reviews_shap)
+car::vif(model_reviews_3feat)
 ```
 
 ##### Python
@@ -1461,7 +1464,7 @@ from statsmodels.formula.api import ols
 
 df_reviews = pd.read_csv("data/movie_reviews_processed.csv")
 
-model_reviews_shap = smf.ols(
+model_reviews_3feat = smf.ols(
     formula = 'rating ~ \
      age \
     + release_year \
@@ -1470,13 +1473,18 @@ model_reviews_shap = smf.ols(
 ).fit()
 
 # inspect if desired
-# model_reviews_shap.summary(slim = True)
+# model_reviews_3feat.summary(slim = True)
 ```
 
 :::
 
 
-With our model in place let's look at the SHAP values for our model.  We'll start with a single feature value/observation. Here we'll use the first observation where the release year is 2020, age of reviewer is 30, a movie length of 100 minutes. To aid our understanding, we calculate the shap value related to word count at that observation by hand, and using a package.
+With our model in place let's look at the SHAP values for our model.  We'll start with a single feature value/observation. Here we'll use the first observation where the release year is 2020, age of reviewer is 30, a movie length of 110 minutes. To aid our understanding, we calculate the shap value related to word count at that observation by hand, and using a package. The by hand approach consists of the following steps:
+
+1. Get the average prediction for the model
+2. Get the prediction for the feature at the value of interest for all observations, and average the predictions
+3. Calculate the shap value as the difference between the average prediction and the average prediction for the feature value of interest
+
 
 :::{.panel-tabset}
 
@@ -1487,40 +1495,40 @@ With our model in place let's look at the SHAP values for our model.  We'll star
 #| label: shap-values-r
 
 # first we need to get the average prediction
-avg_pred = mean(predict(model_reviews_shap))
+avg_pred = mean(predict(model_reviews_3feat))
 
 # then we need to get the prediction for the feature value of interest
 # for all observations, and average them
 pred_age_30 = predict(
-    model_reviews_shap,
+    model_reviews_3feat,
     newdata = df_reviews |> mutate(age = 30) 
 )
 
-pred_year_2020 = predict(
-    model_reviews_shap,
+pred_year_2022 = predict(
+    model_reviews_3feat,
     newdata = df_reviews |> mutate(release_year = 2020) 
 )
 
-pred_length_100 = predict(
-    model_reviews_shap,
-    newdata = df_reviews |> mutate(length_minutes = 100) 
+pred_length_110 = predict(
+    model_reviews_3feat,
+    newdata = df_reviews |> mutate(length_minutes = 110) 
 )
 
 
 # then we can calculate the shap values
 shap_value_ours = tibble(
-    shap_age    = mean(pred_age_30) - avg_pred,
-    shap_year   = mean(pred_year_2020) - avg_pred,
-    shap_length = mean(pred_length_100) - avg_pred
+    age    = mean(pred_age_30) - avg_pred,
+    release_year   = mean(pred_year_2022) - avg_pred,
+    length_minutes = mean(pred_length_110) - avg_pred
 )
 
 # we can also use the DALEX package to do this for us
-explainer = DALEX::explain(model_reviews_shap, verbose = FALSE)
+explainer = DALEX::explain(model_reviews_3feat, verbose = FALSE)
 
 # observation of interest we want shap values for
 obs_of_interest = tibble(
     age = 30,
-    length_minutes = 100,
+    length_minutes = 110,
     release_year = 2020
 )
 
@@ -1544,34 +1552,34 @@ shap_value_package = DALEX::predict_parts(
 #| label: shap-values-py
 
 # first we need to get the average prediction
-avg_pred = model_reviews_shap.predict(df_reviews).mean()
+avg_pred = model_reviews_3feat.predict(df_reviews).mean()
 
 # then we need to get the prediction for the feature value of interest
 # for all observations, and average them
 
-pred_age_30 = model_reviews_shap.predict(
+pred_age_30 = model_reviews_3feat.predict(
     df_reviews.assign(
         age = 30
     )
 )
 
-pred_year_2020 = model_reviews_shap.predict(
+pred_year_2022 = model_reviews_3feat.predict(
     df_reviews.assign(
         release_year = 2020
     )
 )
 
-pred_length_100 = model_reviews_shap.predict(
+pred_length_110 = model_reviews_3feat.predict(
     df_reviews.assign(
-        length_minutes = 100
+        length_minutes = 110
     )
 )
 
 # then we can calculate the shap values
 shap_value_ours = pd.DataFrame({
     'age': pred_age_30.mean() - avg_pred,
-    'release_year': pred_year_2020.mean() - avg_pred,
-    'length_minutes': pred_length_100.mean() - avg_pred
+    'release_year': pred_year_2022.mean() - avg_pred,
+    'length_minutes': pred_length_110.mean() - avg_pred
 }, index = ['new_observation'])
 
 
@@ -1607,7 +1615,7 @@ explainer = shap.Explainer(
 obs_of_interest = pd.DataFrame({
     'age': 30,
     'release_year': 2020,
-    'length_minutes': 100
+    'length_minutes': 110
 }, index = ['new_observation'])
 
 shap_values = explainer(obs_of_interest)
@@ -1618,7 +1626,7 @@ shap_value_package = pd.DataFrame(
     columns = ['new_observation']
 ).T
 
-pd.concat([shap_value_ours, shap_value_package])
+# pd.concat([shap_value_ours, shap_value_package])
 ```
 
 
@@ -1638,7 +1646,7 @@ fnames = [
 ]
 
 explainer = dx.Explainer(
-    model_reviews_shap, 
+    model_reviews_3feat, 
     data = df_reviews[fnames], 
     y = df_reviews['rating'],
     verbose = False
@@ -1647,7 +1655,7 @@ explainer = dx.Explainer(
 obs_of_interest = pd.DataFrame({
     'age': 30,
     'release_year': 2020,
-    'length_minutes': 100
+    'length_minutes': 110
 }, index = ['new_observation'])
 
 shap_values = explainer.predict_parts(
@@ -1674,23 +1682,25 @@ pd.concat([shap_value_ours, shap_value_package])
 #| label: tbl-shap-values-comparison
 #| tbl-cap: SHAP Value Comparison
 
-
 # paste(x$label, x$variable, sep = ": "), mean, na.rm = TRUE)
-tibble(
+rbind(
     ours  = shap_value_ours,
-    dalex = shap_value_package['age', 'contribution']
+    dalex = shap_value_package[c('age', 'release_year', 'length_minutes'), 'contribution']
 ) |>
+    mutate(source = c('By Hand', 'Package')) |> 
+    select(source, everything()) |>
     gt(decimals = 3)
 ```
 
-So we see the contribution to a prediction for a single feature, but the shap-related packages provide them for all features, and so we get a sense of each feature's contribution to the prediction. The following shows this as a visualization, as a **force plot** and **waterfall plot**. Smaller contributions are aggregated to one effect to simplify the plot. The dotted line represents the average prediction from our model and the prediction we have for the observation. We see that total reviews and length in minutes contribute most to the prediction at this observation, followed by release year.  We can also see that the effect of movie length is negative.
+These values are useful because they tell us how much each feature contributes to the prediction for the observation under consideration. We can visualize these as well, via a **force plot** or **waterfall plot**, the latter of which is shown. The dotted line at *E[f(x)]* represents the average prediction from our model (~`r round(mean(fitted(model_reviews_3feat)), 2)`), and the prediction we have for the observation at *f(x)*, which is about `r round(mean(predict(model_reviews_3feat, obs_of_interest)), 2)`.
+
+With the average prediction as our starting point, we add the SHAP values for each feature to get the prediction for the observation. First we add the SHAP value for age, which bumps the value by `r round(shap_value_ours['age'], 3)`, then the SHAP value for movie length, which `r word_sign(shap_value_ours['length_minutes'], c('increases', 'decreases'))` the prediction `r round(shap_value_ours['length_minutes'], 3)`, and finally the SHAP value for release year, which brings us to the final predicted value by `r word_sign(shap_value_ours['release_year'], c('increasing', 'decreasing'))` the prediction `r round(shap_value_ours['release_year'], 3)`.
 
 ```{r}
 #| echo: false
 #| label: shap-viz-r
 #| fig-cap: SHAP Visualizations
-#| fig-height: 8
-#| fig-width: 6
+# change width and height if using both plots
 pp = DALEX::predict_parts(
     explainer,
     obs_of_interest,
@@ -1733,27 +1743,31 @@ wf = sv_waterfall(
         title = "SHAP Waterfall"
     )
 
-bd / wf +
-    plot_layout(nrow = 2, widths = c(.25, 1), design=layout ) 
+# bd / wf +
+#     plot_layout(nrow = 2, widths = c(.25, 1), design=layout ) 
 
+## just show waterfall for simplicity
+
+wf
 # sv_importance(plot_dat_shap) +
 #     xlab("Importance")
 ```
 
-Pretty neat huh? So for any observation we want to inspect, and more importantly, for any model we might use, we can get a sense of how features contribute to that prediction.  We also can get a sense of how much each feature contributes to the model as a whole by aggregating these values across all observations in our data, and this provides a measure of **feature importance**, but we'll come back to that in a bit.
+Pretty neat huh? So for any observation we want to inspect, and more importantly, for any model we might use, we can get a sense of how features contribute to that prediction.  We also can get a sense of how much each feature contributes to the model as a whole by aggregating these values across all observations in our data, and this potentially provides a measure of **feature importance**, but we'll come back to that in a bit.
 
-If we are concerned with a single feature's relationship with the target, we can also look at the **partial dependence plot** (PDP). The PDP shows the relationship between a feature and the target, but averaged over all other features. In other words, it shows the effect of a feature on the target, but averaged over all other features. For the linear case, it has a direct correspondence to the shap value. The SHAP value is the value the difference between the average prediction and the point on the PDP for a feature at a specific feature value. 
 
-We can also look at the **individual conditional expectation** (ICE) plot, which is a PDP plot for a single observation. By looking at several observations, we can get a sense of the variability in the feature's effect. This becomes more interesting when we have interactions or other nonlinearities in our model.
 
-In addition, there are other plots that are similar to the PDP and ICE, such as the **accumulated local effect** (ALE) plot, which is a bit more robust to correlated features than the PDP plot. Where the PDP and ICE plots show the average effect of a feature on the target, the ALE plot focuses on average *differences* in predictions for the feature at a specific value versus predictions at feature values nearby, and centers the result so that the average difference is zero. We show all three here.
+### Related Visualizations
+
+We've seen how we can get some plots for predictions in different ways previously with what's called a **partial dependence plot** (@fig-r-mem-vs-pdp). A PDP shows the average prediction of a feature on the target across the feature values, which is in fact what we were just doing to calculate our SHAP value, and for the linear case, the PDP has a direct correspondence to the SHAP. As we saw, the SHAP value is the value the difference between the average prediction and the point on the PDP for a feature at a specific feature value.  With regard to the PDP, this is the difference the point on the PDP and the average prediction for the model at that feature value, shown in the red line below.
+
 
 ```{r}
 #| echo: false
 #| label: fig-pdp-ice-r
 #| fig-cap: PDP, ICE, and ALE Plots
 #| fig-height: 10
-#| fig-width: 8
+#| fig-width: 10
 # elements of this come from initial shap calculation demo
 
 model_reviews_extra = lm(
@@ -1775,58 +1789,75 @@ layout = '
     AAAA
     AAAA
     AAAA
+    AAAA
+    BBCC
+    BBCC
     BBCC
     BBCC
 '
 
-p_init = Predictor$new(model_reviews_extra, df_reviews)
+p_init = Predictor$new(model_reviews_3feat, df_reviews)
 
-pdp = FeatureEffect$new(p_init, 'word_count', method = "pdp")$plot() + 
+
+# might need to extract $data to be able to manipulate the plots
+pdp = FeatureEffect$new(p_init, 'length_minutes', method = "pdp")$plot() + 
     geom_hline(yintercept = mean(df_reviews$rating), linetype = "dashed") +
-    geom_vline(xintercept = obs_of_interest$word_count, linetype = "dashed") +
+    geom_vline(xintercept = obs_of_interest$length_minutes, linetype = "dashed") +
     geom_segment(
         data = obs_of_interest, 
-        aes(x = word_count, xend = word_count, y = mean(pred_observation), yend= mean(df_reviews$rating)), 
+        aes(x = length_minutes, xend = length_minutes, y = mean(pred_length_110), yend= mean(df_reviews$rating)), 
         color = okabe_ito[6],
-        linewidth = 2
+        linewidth = 1.5
     ) +
     geom_point(
-        data = obs_of_interest, aes(x = word_count, y =  mean(pred_observation) ), 
+        data = obs_of_interest, 
+        aes(x = length_minutes, y =  mean(pred_length_110) ), 
         color =okabe_ito[6], 
         alpha = 1,
-        size = 4
+        size = 3
+    ) +
+    geom_point(
+        data = obs_of_interest, 
+        aes(x = length_minutes, y =  mean(predict(model_reviews_3feat)) ), 
+        color =okabe_ito[6], 
+        alpha = 1,
+        size = 3
     ) +
     annotate(
         "text", 
-        x = obs_of_interest$word_count + 4, 
-        y = mean(df_reviews$rating) + - .02, 
+        x = obs_of_interest$length_minutes - 4, 
+        y = mean(df_reviews$rating) - abs(shap_value_ours$length_minutes/2),
+        size = 3,
+        color = okabe_ito[6],
+        fontface = "bold",
         label = "SHAP Value"
     ) +
     annotate(
         "text", 
-        x = 3, 
+        x = min(df_reviews$length_minutes) + 3, 
         y = mean(df_reviews$rating), 
-        size = 3,
+        size = 2,
         vjust = -1,
-        label = 'Average Prediction'
+        label = 'Average Prediction E[f(x)]'
     ) +
-    annotate(
-        "text", 
-        x = 12, 
-        y = 2.8, 
-        size = 3,
-        vjust = -1,
-        angle = 90,
-        label = "Word Count = 12"
-    ) +
-    labs(subtitle = 'PDP') 
+    # annotate(
+    #     "text", 
+    #     x = 110 + .04, 
+    #     y = 3.25, 
+    #     size = 2,
+    #     vjust = -1,
+    #     angle = -90,
+    #     label = "Length in Minutes"
+    # ) +
+    labs(subtitle = 'PDP', x = 'Length in Minutes') 
 
-ice = FeatureEffect$new(p_init, 'word_count', method = "pdp+ice")$plot() +
+ice = FeatureEffect$new(p_init, 'length_minutes', method = "pdp+ice")$plot() +
     # scale_color_manual(values = okabe_ito[5]) + 
-    labs(subtitle = 'ICE')
-ale = FeatureEffect$new(p_init, 'word_count', grid.size=100)$plot() + labs(subtitle = 'ALE')
+    labs(subtitle = 'ICE', x = 'Length in Minutes')
+ale = FeatureEffect$new(p_init, 'length_minutes', grid.size=100)$plot() + 
+    labs(subtitle = 'ALE', x = 'Length in Minutes')
 
-pdp + ice + ale +
+(pdp + ice + ale) +
     plot_layout(design = layout) &
     theme(
         plot.subtitle = element_text(size = 14)
@@ -1835,9 +1866,14 @@ pdp + ice + ale +
 ```
 
 
-Kinda cool but maybe not so interesting in that they all kind of tell us the same thing about our negative relationship between word count and rating, which we already knew from our coefficient value. The real power will come in later when we use interactions, nonlinear effects, and other models. But it's good to note now that the PDP, ICE, and ALE plots are a nice way to get a sense of the relationship between a feature and the target, and we'll see them again with other models.
 
+We can also look at the **individual conditional expectation** (ICE) plot, which is a PDP plot for a single observation, but across all values of a select feature. By looking at several observations, as in the second plot above, we can get a sense of the variability in the feature's effect. As we can see, there is not much to tell beyond a PDP when we have a simple linear model, but it becomes more interesting when we have interactions or other nonlinearities in our model.
 
+In addition, there are other plots that are similar to the PDP and ICE, such as the **accumulated local effect** (ALE) plot, shown last, which is a bit more robust to correlated features than the PDP plot, while also showing the general feature-target relationship. Where the PDP and ICE plots show the average effect of a feature on the target, the ALE plot focuses on average *differences* in predictions for the feature at a specific value, versus predictions at feature values nearby, and then centers the result so that the average difference is zero. 
+
+:::{.callout-tip title='Visualization Tools'}
+The waterfall plot was created using [DALEX]{.pack}, but the [shap]{.pack} python package will also provide this. For PDP, ICE and ALE plots in R, you can look to the [iml]{.pack} package, and in Python, the [shap]{.pack} or [scikit-learn]{.pack} package. Many others are available though, so feel free to explore!
+:::
 
 ```{r}
 #| echo: false
@@ -1850,7 +1886,9 @@ map2_df(
     .y = colnames(obs_of_interest),
     \(x, y)
     mean(
-        predict(model_reviews_extra, newdata = insight::get_data(model_reviews_extra) |> mutate(!!y := x)) - mean(predict(model_reviews_extra))
+        predict(
+            model_reviews_extra, 
+            newdata = insight::get_data(model_reviews_extra) |> mutate(!!y := x)) - mean(predict(model_reviews_extra))
     )
 ) |>
     dplyr::select(sort(colnames(obs_of_interest)))
