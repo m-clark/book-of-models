@@ -9,6 +9,10 @@ source("load_packages.R")
 source("setup.R")
 source("functions/utils.R")
 
+library(purrr)
+library(patchwork)
+
+
 library(reticulate)
 use_condaenv("book-of-models")
 ```
@@ -307,8 +311,10 @@ r2_score(testing_data.rating, predictions)
 np.corrcoef(testing_data.rating, predictions)[0, 1]**2
 ```
 
+:::
+
 :::{.callout-tip title='R-squared variants'}
-There are different versions of R-squared. 'Adjusted' R-squared is a common one, penalizes the model for adding variables that don't help explain the variance. This is a nice sentiment, but would only matter for very small datasets. Some have also attempted to come up with R-squared values that are more appropriate for GLMs for count, binary and other models. Unfortunately, these 'pseudo-R-squared' values are not as interpretable as the original R-squared, and generally suffer several issues.
+There are different versions of R-squared. 'Adjusted' R-squared is a common one, and it penalizes the model for adding features that don't really explain the target variance. This is a nice sentiment, but its difference versus the standard R-squared would only be noticeable for very small datasets. Some have also attempted to come up with R-squared values that are more appropriate for GLMs for count, binary and other models. Unfortunately, these 'pseudo-R-squared' values are not as interpretable as the original R-squared, and generally suffer several issues.
 :::
 
 
@@ -551,9 +557,7 @@ from sklearn.metrics import confusion_matrix
 rating_cm = confusion_matrix(testing_data.rating_good, predictions)
 ```
 
-TODO: show how to obtain basic confusion matrix via sklearn and maybe tidymodels/yardstic, but we don't need to to show how to label the table
-
-Let's give some names to each element in that table, so that we have a little more clarity about what they signify:
+And here is our result:
 
 ```{r}
 #| echo: false
@@ -593,7 +597,7 @@ Accuracy is the first thing you see and the last thing that you trust! Of all th
 
 Accuracy's allure is in its simplicity. The accuracy is the proportion of correct predictions made by the model. It is calculated as follows:
 
-$$Accuracy = \frac{TP + TN}{TP + TN + FP + FN}$$
+$$\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}$$
 
 From our table above, we can calculate the accuracy as follows- it's just the sum of the values of the diagonal divided by the sum of all the values in the table.
 
@@ -603,8 +607,7 @@ From our table above, we can calculate the accuracy as follows- it's just the su
 
 ```{r}
 #| label: r-cm-accuracy
-#| 
-# for later
+
 TN = rating_cm[1]
 TP = rating_cm[4]
 FN = rating_cm[3]
@@ -636,7 +639,7 @@ Seriously, accuracy alone should not be your sole performance metric unless you 
 
 Sensitivity, also known as **recall** or the **true positive rate**, is the proportion of observed positives that are correctly predicted as such by the model. If you want to know how well your model predicts the positive class, sensitivity is the metric for you. It is calculated as follows:
 
-$$Sensitivity = \frac{TP}{TP + FN}$$
+$$\text{Sensitivity} = \frac{TP}{TP + FN}$$
 
 :::{.panel-tabset}
 
@@ -660,7 +663,7 @@ TP / (TP + FN)
 
 Specificity, also known as the true negative rate, is the proportion of **actual negatives** that are correctly identified as such. If you want to know how well your model will work with the negative class, specificity is a great metric. It is calculated as follows:
 
-$$Specificity = \frac{TN}{TN + FP}$$
+$$\text{Specificity} = \frac{TN}{TN + FP}$$
 
 :::{.panel-tabset}
 
@@ -684,7 +687,7 @@ TN / (TN + FP)
 
 The precision is the proportion of **positive predictions** that are correct. It is calculated as follows:
 
-$$Precision = \frac{TP}{TP + FP}$$
+$$\text{Precision} = \frac{TP}{TP + FP}$$
 
 :::{.panel-tabset}
 
@@ -709,7 +712,7 @@ TP / (TP + FP)
 
 The negative predictive value is the proportion of **negative predictions** that are correct. It is calculated as follows:
 
-$$NPV = \frac{TN}{TN + FN}$$
+$$\text{NPV} = \frac{TN}{TN + FN}$$
 
 :::{.panel-tabset}
 
@@ -729,11 +732,14 @@ TN / (TN + FN)
 
 :::
 
-TODO: remove text referring to specific R/Python code except within tabsets
+Let's get a confusion matrix and stats using packages that will give us a lot of these metrics at once.
 
-We can get almost all of that with the `conf_mat` function from the `yardstick` package in R:
+:::{.panel-tabset}
+
+##### R
 
 ```{r}
+#| eval: false
 #| label: r-cm-summary
 cm = yardstick::conf_mat(
     tibble(
@@ -743,31 +749,37 @@ cm = yardstick::conf_mat(
     truth = y,
     estimate = pred,
 )
+
 summary(cm)
 ```
 
+##### Python
 
-We also get:
+```{python}
+#| eval: false
+#| label: python-cm-summary
 
-- kappa: A measure of how much better the model is than random guessing. It is calculated as follows:
+from pycm import ConfusionMatrix
 
-$$\kappa = \frac{Accuracy - ExpectedAccuracy}{1 - ExpectedAccuracy}$$
+cm = ConfusionMatrix(testing_data.rating_good.to_numpy(), predictions.to_numpy(), digit = 3)
 
-where the expected accuracy is calculated as follows:
+pd.DataFrame(cm.overall_stat)
+```
 
-$$ExpectedAccuracy = \frac{(TP + FN)(TP + FP) + (FP + TN)(FN + TN)}{(TP + TN + FP + FN)^2}$$
+:::
 
-- Prevalence: The proportion of actual positives in the data. It is calculated as follows:
 
-$$Prevalence = \frac{TP + FN}{TP + TN + FP + FN}$$
+Some additional measures we might look at include the following. Those with an asterisk are also in table @tbl-performance-metrics.
 
-- Balanced Accuracy: The average of the sensitivity (TPR) and specificity (TNR). It is calculated as follows:
-
-$$Balanced Accuracy = \frac{Sensitivity + Specificity}{2}$$
+- kappa: A measure of how much better the model is than random guessing. 
+- Prevalence: The proportion of actual positives in the data. If you don't know this, accuracy is fairly meaningless.
+- Balanced Accuracy: The average of the sensitivity (TPR) and specificity (TNR). 
+- F1*: The harmonic mean of precision and recall. 
+- AUC*: The area under the ROC curve.
 
 #### Ideal Decision Points
 
-Earlier, we used a predicted probability value of 0.49 to establish our predicted class. That is a pretty bold assumption on our part and we should probably make sure that the cut-off value we choose is going to offer use the best performance.
+Earlier, when we just obtained the default predicted class, we used a predicted probability value of 0.5 to establish our predicted class. That is a pretty bold assumption on our part and we should probably make sure that the cut-off value we choose is going to offer use the best performance.
 
 To handle this task, we will start by creating a **Receiver Operating Characteristic** (ROC) curve. This curve plots the true positive rate (TPR) against the false positive rate (FPR) at various threshold settings. The **area under the curve** (AUC) is a measure of how well the model is able to distinguish between the two classes. The closer the AUC is to 1, the better the model is at distinguishing between the two classes.
 
@@ -775,15 +787,18 @@ To handle this task, we will start by creating a **Receiver Operating Characteri
 
 ##### R
 
-TODO: Make pretty ROC plot using output
-
 ```{r}
+#| results: hide
 #| label: r-roc-auc
+#| fig-show: 'hide'
+
 library(pROC)
 
-prediction_prob = predict(model_train_class, 
-                           testing_data, 
-                           type = "response")
+prediction_prob = predict(
+    model_train_class,
+    testing_data,
+    type = "response"
+)
 
 roc = roc(
   testing_data$rating_good, 
@@ -798,17 +813,45 @@ auc(roc)
 ##### Python
 
 ```{python}
+#| results: hide
 #| label: python-roc-auc
-from sklearn.metrics import roc_curve, auc
+#| fig-show: 'hide'
+from sklearn.metrics import roc_curve, auc, RocCurveDisplay
 
 fpr, tpr, thresholds = roc_curve(
     testing_data.rating_good, 
     model_train_class.predict(testing_data)
 )
 
+RocCurveDisplay(fpr=fpr, tpr=tpr).plot()
+
 auc(fpr, tpr)
 ```
 :::
+
+
+```{r}
+#| echo: false
+#| label: fig-pretty-roc-auc
+#| fig-cap: ROC curve and AUC value
+tibble(
+    Specificity = roc$specificities,
+    Sensitivity = roc$sensitivities,
+) |> 
+    ggplot(aes(Specificity, Sensitivity)) +
+    geom_path(linewidth = 1.25) +
+    geom_abline(intercept = 1, slope = 1, linetype = "dashed", color = 'gray75') +
+    annotate(
+        "text", 
+        x = 0.5, 
+        y = 0.75, 
+        label = paste("AUC:", round(auc(roc), 2)),
+        size = 5,
+        fontface = "bold",
+        color = 'gray33'
+    ) +
+    scale_x_reverse() 
+```
 
 With ROC curves and AUC values, we can get a sense of how well our model is able to distinguish between the two classes. Now we can find the ideal cut-point for balancing the TPR and FPR. 
 
@@ -842,22 +885,125 @@ cm = ConfusionMatrix(testing_data.rating_good.to_numpy(), pred_class.to_numpy(),
 pd.DataFrame(cm.overall_stat)
 
 np.array([cut, cm.TPR[1], cm.TNR[1]]).round(3)
-
 ```
 :::
 
-Those coordinates are going to give us the "best" decision cut-point. Instead of being naive about setting our probability to .5, this will give a cut-point that will lead to better classifications for our testing data.
+Those coordinates are going to give us the "best" decision cut-point, though know that there are different and equally valid ways of going about choosing the ideal cutpoint. Instead of being naive about setting our probability to .5, this will give a cut-point that will lead to better classifications for our testing data. We will leave it to you to take that ideal cut-point value and update your metrics to see how much of a difference it will make. 
 
-We will leave it to you to take that ideal cut-point value and update your metrics to see how much of a difference it will make. 
+Whether it is a meager, modest, or meaningful improvement is going to vary from situation to situation, as will how you determine if your model is "good" or "bad". Is this a good model? Are you more interested in correclty identifying the positive class, or the negative class? Are you more interested in true/false positives or true/false negatives? These are all questions that you will need to answer depending on the modeling context.
 
-Whether it is a meager, modest, or meaningful improvement is going to vary from situation to situation, as will how you determine if your model is "good" or "bad". If we look back to our original `Balanced Accuracy` value of 0.6490, we'd imagine that our model gets a True Positive or True Negative about 65% of the time, leaving us wrong 35% of the time. Is that good or bad?
 
 ### Model Comparison
 
-Another common way to understand our model is by looking at how it compares to other models. We can do this by comparing the metric values of our choice, for example, with RMSE or ROC.  Let's see this in action for our regression model.
+Another common way to understand our model is by looking at how it compares to other models. We can do this by comparing the metric values of our choice, for example, with RMSE or ROC.  Let's see this in action for our regression model. Here we will compare three models: one with three features, one with additional features, and the three feature model with interactions with genrea.  Our goal will be to see how these perform on the test set based on RMSE.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-regression-compare
+#| eval: true
+
+# create the models
+model_3 = lm(
+  rating ~ 
+    review_year_0 
+    + release_year_0 
+    + age_sc 
+    , 
+    training_data
+)
+
+model_7 = lm(
+  rating ~ 
+    review_year_0 
+    + release_year_0 
+    + age_sc 
+    + length_minutes_sc 
+    + total_reviews_sc 
+    + word_count_sc 
+    + genre 
+    , 
+    training_data
+)
+
+model_3_int = lm(
+  rating ~ 
+    review_year_0 * genre
+    + release_year_0  * genre
+    + age_sc * genre
+    , 
+    training_data
+)
+
+# get the predictions
+
+result = map(
+  list(model_3, model_7, model_3_int), 
+  ~ predict(.x, newdata = testing_data)
+) |> 
+  map_dbl(
+    ~ yardstick::rmse_vec(testing_data$rating, .)
+  )
+```
+
+##### Python
+
+```{python}
+#| label: python-regression-compare
+#| eval: false
+
+import statsmodels.formula.api as smf
+from sklearn.metrics import root_mean_squared_error
+
+# create the models
+model_3 = smf.ols(
+    formula='rating ~ review_year_0 + release_year_0 + age_sc',
+    data=training_data
+).fit()
+
+model_7 = smf.ols(
+    formula='rating ~ review_year_0 + release_year_0 + age_sc + length_minutes_sc + total_reviews_sc + word_count_sc + genre',
+    data=training_data
+).fit()
+
+model_3_int = smf.ols(
+    formula='rating ~ review_year_0 * genre + release_year_0 * genre + age_sc * genre',
+    data=training_data
+).fit()
+
+# get the predictions
+models = [model_3, model_7, model_3_int]
+
+result = [
+    root_mean_squared_error(
+        testing_data.rating, 
+        model.predict(testing_data[features])
+    )
+    for model in models
+]
+```
+
+:::
+
+```{r}
+#| label: tbl-regression-compare
+#| tbl-cap: RMSE for different models
+
+tibble(
+  model = c("3 features", "7 features", "3 interactions"),
+  rmse = result
+) |> 
+  gt()
+```
+
+In this case, we see that the model with 7 features has the lowest RMSE, indicating that it is the best model *under these circumstances*. This is a simple example, but it is a typical way to compare models that you would use frequently.  The same approach would work for classification models, just using an appropriate metric.
 
 
-### Model visualization
+
+
+### Model Visualization
 
 We can also visualize our model to get a better understanding of how it is performing.  We started out by look at the predicted values against the observed values to see if there was any correspondence, but another key way to understand our model is to look at the residuals. Here are a couple plots that can help us understand our model:
 
@@ -970,35 +1116,86 @@ p_res = plot(
 # see:::.plot_diag_homogeneity
 ```
 
-In this case we're looking pretty good, our predictions match the target distribution well and we don't see any patterns in the residuals vs. fitted plot.
+In this case we're looking pretty good, our predictions match the target distribution well and we don't see any patterns in the residuals vs. fitted plot on the right, which would indicate that the model is missing something important.
 
 :::{.callout-caution title='Tests of Assumptions'}
-For standard GLM models there are an abundance of statistical tests available for some of these checks, for example heterogeneity of variance, or whether your residuals are normally distributed. These are rarely helpful, and often misguided. For example, if you have a large sample size, you will almost always reject the null hypothesis that your residuals are normally distributed. It also starts the 'turtles all the way down' problem of whether you need to check the assumptions of your test of assumptions! We prefer the 'seeing is believing' approach.
+For standard GLM models there are an abundance of statistical tests available for some of these checks, for example heterogeneity of variance, or whether your residuals are normally distributed. These are not usually helpful, and often misguided. For example, if you have a large sample size, you will almost always reject the null hypothesis that your residuals are normally distributed. It also starts the [turtles all the way down](https://en.wikipedia.org/wiki/Turtles_all_the_way_down) problem of whether you need to check the assumptions of your test of assumptions! We prefer the 'seeing is believing' approach. It is often pretty clear when there are model and data issues.
 :::
 
-Across iterations/epochs e.g. deep learning, cross-validation, ??
+
+Another way we might visualize our model under certain circumstances is to look at how performance improves across iterations or epochs. This is a common approach for iterative models, like deep learning, but can also be used for standard models if the estimation approach is iterative. We can visualize performance across resamples, such as in cross-validation.
+
+```{python}
+#| echo: false
+#| label: py-mlp
+#| results: hide
+#| fig-show: 'hide'
+#| include: false
+
+from sklearn.neural_network import MLPRegressor
+
+X = training_data[[
+    'review_year_0', 'release_year_0', 'age_sc', 
+    'length_minutes_sc', 'total_reviews_sc', 'word_count_sc'
+    ]]
+y = training_data['rating'].to_numpy()
+
+# Create and train the MLP model
+import sys
+import contextlib
+
+with contextlib.redirect_stdout(sys.stderr):
+    mlp = MLPRegressor(hidden_layer_sizes=(100,), max_iter=25, random_state=42, verbose = 0)
+    mlp.fit(X, y)
+
+mlp_loss = mlp.loss_curve_
+
+# Plot the error across epochs
+# plt.plot(mlp.loss_curve_)
+# plt.xlabel('Epoch')
+# plt.ylabel('Error')
+# plt.title('Error across 25 epochs')
+# plt.show()
+
+```
+
+```{r}
+#| echo: false
+#| label: fig-r-mlp-loss
+#| fig-label: MSE Loss over 25 epochs in an MLP model
+#| 
+tibble(
+    epoch = 1:length(py$mlp_loss),
+    loss = unlist(py$mlp_loss)
+) |> 
+    ggplot(aes(epoch, loss)) +
+    geom_line() +
+    labs(
+        title = 'MSE Loss over 25 epochs in an MLP model',
+        x = 'Epoch',
+        y = 'Loss',
+        caption = 'Model for review rating'
+    ) 
+```
+
 
 
 
 ## Feature Metrics {#sec-feature-metrics}
 
 
-TODO: Fix MIT section so that it makes sense in this chapter. A lot of it was already here, and may need to revisit data/model. 
-
 ### Basic Model Parameters
 
-We saw in the linear model chapter (-@sec-lm-interpretation-feature) that we can get a lot out of the basic output from standard linear models. Our starting point should be the coefficients or weights, which can give us a sense of the direction and magnitude of the relationship between the feature and the target given their respective scales. We can also look at the standard errors and confidence intervals to get a sense of the uncertainty in our estimates.
+We saw in the linear model chapter ([-@sec-lm-interpretation-feature]) that we can get a lot out of the basic output from standard linear models. Our starting point should be the coefficients or weights, which can give us a sense of the direction and magnitude of the relationship between the feature and the target given their respective scales. We can also look at the standard errors and confidence intervals to get a sense of the uncertainty in those estimates.
 
 We get a bit more relative comparison by using standardized coefficients, or some other scaling of the coefficients that allows for a bit of a more apples-to-apples comparison. But as we'll see, in the real world even if we have just apples, there are fuji, gala, granny smith, honeycrisp, and many other types of apples, and some may be good for snacks, others for baking pies, some are good for cider, etc. In other words, **there is no one size fits all approach to understanding how a feature contributes to understanding the target**, and the sooner you grasp that, the better.
 
 
 ### Feature Contributions
 
-TODO: Simplify this initial section and move some of it to feature importance
+We can also look at the contribution of a feature to the model's explanatory power, namely through its predictions. To start our discussion, we don't want to lean very heavily on the phrase **feature importance** yet, because as we'll see later, trying to rank features by an importance metric is difficult at best, and a misguided endeavor at worst. We can however look at the **feature contribution** to the model's predictions, and we can come to a conclusion about whether we think a feature is practically important, but just we need to be careful about how we do it.
 
-We can also look at the contribution of a feature to the model's explanatory power, namely through its predictions. To start our discussion, we don't want to lean very heavily on the phrase **feature importance**, because trying to rank features by an importance metric is difficult at best, and a misguided endeavor at worst. We can however look at the **feature contribution** to the model's predictions, and we can come to a conclusion about whether we think a feature is practically important, but just we need to be careful about how we do it.
-
-This is a bit more complicated than just looking at the coefficient, because there are many ways to go about it and it's not part of any default model output. We can't compare raw coefficients across features, because they are on different scales. But even when we put them on the same scale, it may be very easy for some features to move, e.g., one standard deviation, and very hard for others. Binary variables can only be on or off, while numeric variables can move around more. We also can't use statistical significance based on p-values, because they reflect sample size as much or more than effect size.
+Truly understanding feature contribution is a bit more complicated than just looking at the coefficient if using any model that isn't a linear regression, and there are many ways to go about it. For example, we can't compare raw coefficients across features, because they are on different scales. But even when we put them on the same scale, it may be very easy for some features to move, e.g., one standard deviation, and very hard for others. Binary variables can only be on or off, while numeric variables can move around more, but numeric variables may also be highly skewed. We also can't use statistical significance based on p-values, because they reflect sample size as much or more than effect size.
 
 So what are we to do? What you need to know to get started looking at a feature's contribution includes the following:
 
@@ -1008,93 +1205,7 @@ So what are we to do? What you need to know to get started looking at a feature'
 - target scale
 - feature interactions and correlations
 
-If I want to know if a feature is important, I have to know how a feature moves, and I need to know what types of feature values are more likely than others, and what a typical movement in its range of values would be. If a feature is skewed, then the even the mean may not be the best value to use for prediction, and basing 'typical' movement on its standard deviation may be misguided. If a unit movement in a feature results in a movement in the target of 2 units, what does that mean? Is it a large movement? If I don't know the target very well I can't answer that. As an example, if the target is in dollars, a $2 movement is nothing for salary, but might be large for a stock price. We have to know the target as well as we do the feature predicting it.
-
-On top of all this, we need to know how the feature interacts with other features. If a feature is highly correlated with another feature, then it may not be adding much to the model even if we'd otherwise have some metrics indicating a notable contribution. In addition, penalized approaches will either spread the contribution of correlated features across them, or just pick one of them to include in the model. It may be mostly arbitrary which one is included, or you might miss both. 
-
-*If a feature interacts with another feature, then there really is no way to say how much it contributes to the model without knowing the value of the other feature*. Full stop. Synergistic effects cannot be understood by pretending they don't exist. A number of metrics will still be provided for a single feature, either by trying to include its overall contribution or averaging over the values of the other feature, but this is a problematic approach.
-
-Consider the following two plots. On the left we show an interaction between two binary features. If we were to look at the contribution of each feature without the interaction, their respective coefficients would be estimated as essentially zero[^interexplain]. On the right we show a feature that has a strong relationship with the target, but only for a certain range of values. If we were to look at single 'effect' of the feature, we would likely underestimate how strong it is with smaller values and overestimate the relationship at the upper range. 
-
-
-[^interexplain]: To understand why, for the effect of X1, just take the mean of the two points on the left vs. the mean of the two points on the right. It would basically be a straight line of no effect as you move from group 0 to group 1. For the effect of X2, the two group means for A and B would be at the intersection of the two lines.
-
-```{r}
-#| echo: false
-#| fig.cap: Two plots showing the importance of understanding feature interactions and non-linear relationships
-#| label: fig-feature-importance
-
-set.seed(123)
-
-# interaction
-N = 500
-interaction = tibble(
-    x1 = sample(c(0, 1), N, replace = TRUE),
-    x2 = sample(c(0, 1), N, replace = TRUE),
-    y = rnorm(N, mean = 
-        case_when(
-            x1 == 0 & x2 == 0 ~ 1,
-            x1 == 0 & x2 == 1 ~ 2,
-            x1 == 1 & x2 == 0 ~ 2,
-            x1 == 1 & x2 == 1 ~ 1,
-        ),
-        )
-    ) |> 
-    mutate(x1 = factor(x1), x2 = factor(x2, labels = c('A', 'B')))
-
-interaction_plot = interaction |> 
-    summarize(
-        se = sd(y) / sqrt(N),
-        y = mean(y), 
-        .by = c(x1, x2)
-    ) |> 
-    ggplot(aes(x = x1, y = y)) +
-    # geom_borderline(aes(group = x2), linewidth = 2) +
-    geom_borderline(aes(color = x2, group = x2), linewidth = 1, alpha = 2) +
-    scale_color_manual(values = c(okabe_ito[3], okabe_ito[5])) +
-    guides(color = guide_legend(title = "Feature 2")) +
-    ggnewscale::new_scale_color() +
-    geom_pointrange(aes(ymin = y-2*se, ymax = y + 2*se, color = x1), fatten=10, show.legend = FALSE) +
-    scale_color_manual(values = c(okabe_ito[1], okabe_ito[2])) +
-    labs(
-        title = "Interaction between two binary features",
-        x = "Feature 1",
-        y = "Target"
-    ) +
-    theme(
-        legend.title = element_text(size = 10)
-        ) 
-
-# interaction_plot
-
-# summary(lm(y ~ x1 * x2, data = interaction))
-
-non_linear = tibble(
-    x = seq(0, 10, length.out = N),
-    y = 5 *( plogis(1 + .5*x + rnorm(N, sd =  .1)))
-)
-
-non_linear_plot = ggplot(non_linear, aes(x = x, y = y)) +
-    geom_point() +
-    # geom_smooth(method = "lm", se = FALSE) +
-    scale_x_continuous(breaks = seq(0, 10)) +
-    labs(
-        title = "Non-linear relationship between feature and target",
-        x = "Feature",
-        y = "Target"
-    )
-# non_linear_plot
-interaction_plot + 
-    non_linear_plot &
-    theme(
-        plot.title = element_text(size = 10, hjust = 0),
-        axis.title.y = element_text(size = 10, face='bold'),
-        axis.title.x = element_text(size = 10, face='bold'),
-    )
-    # plot_annotation()
-```
-
-All this is to say as we get into measures of feature importance, we need to be very careful about how we interpret and use them.
+We can't necessarily do a whole lot about these aspects, but we can at least be aware of them, and just as importantly, we can be aware of the limitations of our understanding of these effects. In any case, let's try to get a sense of how we can understand the contribution of a feature to our model.
 
 
 
@@ -1104,12 +1215,12 @@ One way to understand the contribution of a feature to the model is to look at t
 
 - Average slope, Average Marginal Effect
 - Marginal effect at the mean
-- Marginal Means
+- Marginal Means (for categorical variables)
 - Counterfactuals and other predictions at key feature values
 
 #### Marginal Effects at the Mean
 
-First let's think about an average slope. This is the average of the slopes across it's own values or values of another feature it interacts with.  But let's just look at the effect of word count first. A good question is, how do we visualize that? Here are two plots, and both are useful, neither is inherently wrong, and yet they both tell us something different. The first plot shows the predicted probability of a good review as word count changes, with all other features at their mean (or mode for categorical). The second plot shows what is called a **partial dependence plot**, which shows the *average predicted probability* of a good review as word count changes. In both cases we make predictions with imputed values, the left plot imputes the other features to be their mean or mode, while the right plot leaves the other features at their actual values, and then, using a range for word count, gets a prediction as if every observation had that value for word count. We then average the predictions for each value in the range.
+First let's think about an average slope. This is the average of the slopes across it's own values or values of another feature it interacts with. But let's just look at the effect of word count first. A good question is, how do we visualize that? Here are two plots, and both are useful, neither is inherently wrong, and yet they both tell us something different. The first plot shows the predicted probability of a good review as word count changes, with all other features at their mean (or mode for categorical). The second plot shows what is called a **partial dependence plot**, which shows the *average predicted probability* of a good review as word count changes. In both cases we make predictions with imputed values, the left plot imputes the other features to be their mean or mode, while the right plot leaves the other features at their actual values, and then, using a range for word count, gets a prediction as if every observation had that value for word count. We then average the predictions for each value in the range.
 
 ```{r}
 #| echo: false
@@ -1277,6 +1388,9 @@ np.mean(fudge_plus - fudge_minus) / fudge_factor
 
 Our result above suggests we're getting about a .09 drop in the expected probability of a good review for a 1 unit increase in word count. This is a bit more intuitive than the coefficient or odds ratio based on it.
 
+#### Marginal Means
+
+Marginal means are just getting
 
 ### Counterfactual Predictions
 
@@ -1421,9 +1535,9 @@ It's very easy with base package functions to see some very interesting things a
 
 Most models are more complicated than can be explained by a simple coefficient, e.g. nonlinear effects in generalized additive models, or there may not even be feature-specific coefficients available, like gradient boosting models, or we may even have many parameters associated with a feature, as in deep learning. Such models typically won't come with statistical output like standard errors and confidence intervals either. But we'll still have some tricks up our sleeve to help us figure things out!
 
-A very common interpretation tool is called a **SHAP value**. SHAP stands for **SHapley Additive exPlanations**, and it provides a means to understand how much each feature contributes to a specific prediction. It's based on a concept from game theory called the Shapley value, which is a way to understand how much each player contributes to the outcome of a game. The reason we bring it up here is that it is has a nice intuition in the linear model case, and seeing it in that context is a good way to get a sense of how it works. Furthermore, it builds on what we've been talking about with our various prediction approaches. 
+A very common interpretation tool is called a **SHAP value**. SHAP stands for **SHapley Additive exPlanations**, and it provides a means to understand how much each feature contributes to a specific prediction. It's based on a concept from game theory called the Shapley value, which is a way to understand how much each player contributes to the outcome of a game.  For our modeling context, SHAP values break down a prediction to show the impact of each feature. The reason we bring it up here is that it is has a nice intuition in the linear model case, and seeing it in that context is a good way to get a sense of how it works. Furthermore, it builds on what we've been talking about with our various prediction approaches. 
 
-While the actual computations behind the scenes can be tedious, the basic idea is relatively straightforward- for a given prediction at a specific observation with set feature values, we can calculate the difference between the prediction *at that observation* versus *the average prediction*. We can break this down by feature, and see how much each feature contributes to the difference, and this provides us the **local effect** of the feature.  The SHAP approach also has the benefit of being able to be applied to *any* model, whether a simple linear or deep learning model. Very cool! To demonstrate we'll use a simple model with a couple features to predict the rating of a movie review.
+While the actual computations behind the scenes can be tedious, the basic idea is relatively straightforward- for a given prediction at a specific observation with set feature values, we can calculate the difference between the prediction *at that observation* versus *the average prediction* for the model as a whole. We can break this down by feature, and see how much each feature contributes to the difference, and this provides us the **local effect** of the feature. The SHAP approach also has the benefit of being able to be applied to *any* model, whether a simple linear or deep learning model. Very cool! To demonstrate we'll use a simple model with a couple features to predict the rating of a movie review.
 
 
 :::{.panel-tabset}
@@ -1445,14 +1559,6 @@ model_reviews_3feat = lm(
 # summary(model_reviews_3feat)
 ```
 
-```{r}
-#| echo: false
-#| eval: false
-#| label: python-condition-number
-ev = eigen(vcov(model_reviews_3feat))
-sqrt(max(ev$values) / min(ev$values))
-car::vif(model_reviews_3feat)
-```
 
 ##### Python
 
@@ -1479,12 +1585,13 @@ model_reviews_3feat = smf.ols(
 :::
 
 
-With our model in place let's look at the SHAP values for our model.  We'll start with a single feature value/observation. Here we'll use the first observation where the release year is 2020, age of reviewer is 30, a movie length of 110 minutes. To aid our understanding, we calculate the shap value related to word count at that observation by hand, and using a package. The by hand approach consists of the following steps:
+With our model in place let's look at the SHAP values for our model.  We'll start with a single feature value/observation. Here we'll use the first observation where the release year is 2020, age of reviewer is 30, a movie length of 110 minutes. To aid our understanding, we calculate the SHAP value related to word count at that observation by hand, and using a package. The by hand approach consists of the following steps. 
 
 1. Get the average prediction for the model
 2. Get the prediction for the feature at the value of interest for all observations, and average the predictions
-3. Calculate the shap value as the difference between the average prediction and the average prediction for the feature value of interest
+3. Calculate the SHAP value as the difference between the average prediction and the average prediction for the feature value of interest
 
+Note that this only works for our simple linear regression case, and we'd need to use a package incorporating an appropriate approach for more complicated settings. Also be aware that our focus is a *marginal contribution* at a *single observation*. Our coefficient already tells us the average contribution of a feature across all observations for this linear regression setting, i.e the AME discussed previously.
 
 :::{.panel-tabset}
 
@@ -1692,7 +1799,7 @@ rbind(
     gt(decimals = 3)
 ```
 
-These values are useful because they tell us how much each feature contributes to the prediction for the observation under consideration. We can visualize these as well, via a **force plot** or **waterfall plot**, the latter of which is shown. The dotted line at *E[f(x)]* represents the average prediction from our model (~`r round(mean(fitted(model_reviews_3feat)), 2)`), and the prediction we have for the observation at *f(x)*, which is about `r round(mean(predict(model_reviews_3feat, obs_of_interest)), 2)`.
+These values are useful because they tell us how much each feature contributes to the prediction for the observation under consideration. We can visualize these as well, via a **force plot** or **waterfall plot**, the latter of which is shown below. The dotted line at *E[f(x)]* represents the average prediction from our model (~`r round(mean(fitted(model_reviews_3feat)), 2)`), and the prediction we have for the observation at *f(x)*, which is about `r round(mean(predict(model_reviews_3feat, obs_of_interest)), 2)`.
 
 With the average prediction as our starting point, we add the SHAP values for each feature to get the prediction for the observation. First we add the SHAP value for age, which bumps the value by `r round(shap_value_ours['age'], 3)`, then the SHAP value for movie length, which `r word_sign(shap_value_ours['length_minutes'], c('increases', 'decreases'))` the prediction `r round(shap_value_ours['length_minutes'], 3)`, and finally the SHAP value for release year, which brings us to the final predicted value by `r word_sign(shap_value_ours['release_year'], c('increasing', 'decreasing'))` the prediction `r round(shap_value_ours['release_year'], 3)`.
 
@@ -1836,7 +1943,7 @@ pdp = FeatureEffect$new(p_init, 'length_minutes', method = "pdp")$plot() +
         "text", 
         x = min(df_reviews$length_minutes) + 3, 
         y = mean(df_reviews$rating), 
-        size = 2,
+        size = 3,
         vjust = -1,
         label = 'Average Prediction E[f(x)]'
     ) +
@@ -1869,7 +1976,7 @@ ale = FeatureEffect$new(p_init, 'length_minutes', grid.size=100)$plot() +
 
 We can also look at the **individual conditional expectation** (ICE) plot, which is a PDP plot for a single observation, but across all values of a select feature. By looking at several observations, as in the second plot above, we can get a sense of the variability in the feature's effect. As we can see, there is not much to tell beyond a PDP when we have a simple linear model, but it becomes more interesting when we have interactions or other nonlinearities in our model.
 
-In addition, there are other plots that are similar to the PDP and ICE, such as the **accumulated local effect** (ALE) plot, shown last, which is a bit more robust to correlated features than the PDP plot, while also showing the general feature-target relationship. Where the PDP and ICE plots show the average effect of a feature on the target, the ALE plot focuses on average *differences* in predictions for the feature at a specific value, versus predictions at feature values nearby, and then centers the result so that the average difference is zero. 
+In addition, there are other plots that are similar to the PDP and ICE, such as the **accumulated local effect** (ALE) plot, shown last, which is a bit more robust to correlated features than the PDP plot, while also showing the general feature-target relationship. Where the PDP and ICE plots show the average effect of a feature on the target, the ALE plot focuses on average *differences* in predictions for the feature at a specific value, versus predictions at feature values nearby, and then centers the result so that the average difference is zero. In general, all our plots reflect the positive linear relationship between movie length and rating.
 
 :::{.callout-tip title='Visualization Tools'}
 The waterfall plot was created using [DALEX]{.pack}, but the [shap]{.pack} python package will also provide this. For PDP, ICE and ALE plots in R, you can look to the [iml]{.pack} package, and in Python, the [shap]{.pack} or [scikit-learn]{.pack} package. Many others are available though, so feel free to explore!
@@ -1915,33 +2022,181 @@ map2_df(
 ```
 
 
-### Global Metrics of Feature Importance {#sec-knowing-feature-importance}
+### Global Assessment of Feature Importance {#sec-knowing-feature-importance}
 
-TODO: Add perturbation-based feature importance here or in ML. Make sure to recommend not using abs SHAP
 
 How important is a feature? It's a common question, and one that is often asked of models, but the answer ranges from 'it depends' and 'it doesn't matter'. Let's start with some hard facts:
 
-- There is no single definition of importance.
+- There is no single definition of importance for any given model.
 - There is no single metric for *any* model that will definitively tell you how important a feature is relative to others in all data/model contexts.
-- There are many metrics for a given model that are equally valid, but may come to different conclusions.
+- There are multiple metrics of importance for a given model that are equally valid, but which may come to different conclusions.
 - Any non-zero feature contribution is potentially 'important', however small.
 - Many metrics of importance fail to adequately capture interactions and/or deal with correlated features.
 - All measures of importance are measured with uncertainty, and the uncertainty can be large.
-- Relative to... what? A poor model will still have relatively 'important' features, but they still may not be useful.
+- A question for feature importance is *relative to... what?* A poor model will still have relatively 'important' features, but they still may not be useful since the model itself isn't.
 - It rarely makes sense to drop features based on importance alone, and doing so will typically drop performance as well.
 - In the end, what will you do with the information? 
 
-To show just how difficult measuring feature importance is, we only have to stick with our simple linear regression. Think again about R^2^: it tells us the proportion of the target explained by our features. An ideal measure of importance would be able to tell us how much each feature contributes to that proportion, or in other words, one that decomposes R^2^ into the relative contributions of each feature. One of the most common measures of importance in linear models is the standardized coefficient we demonstrated earlier. You know what it doesn't do? It doesn't decompose R^2^ into relative contributions. The easiest situation we could hope for with regard to feature importance is the basic linear model we've been using. Everything is linear, with no interactions or other things going on. And yet there are many logical ways to determine feature importance, and some even break down R^2^ into relative contributions, but they won't necessarily agree with each other in ranking or relative differences. If you can get a measure of statistical difference between whatever metric you choose, it's often the case that 'top' features will not be statistically different from other features. So what do we do? We'll show a few methods here, but the main point is that there is no single answer, and it's important to understand what you're trying to do with the information.
+As we noted previously, if I want to know how a feature relates to a target, I have to know how a feature moves, and I need to know what types of feature values are more likely than others, and what a typical movement in its range of values would be. If a feature is skewed, then the even the mean may not be the best value to use for prediction, and basing 'typical' movement on its standard deviation may be misguided. If a unit movement in a feature results in a movement in the target of 2 units, what does that mean? Is it a large movement? If I don't know the target very well I can't answer that. As an example, if the target is in dollars, a $2 movement is nothing for salary, but might be large for a stock price. We have to know the target as well as we do the feature predicting it.
 
-Let's start things off by returning to our SHAP value. If we take the average absolute shap for each feature, we get a sense of the typical contribution size for the features. We can then rank order them as accordingly. Here we see that the most important features here are the number of reviews and the length of the movie. Note that we can't speak to direction here, only magnitude.  We can also see that word count is relatively less important. 
+On top of all this, we need to know how the feature interacts with other features. If a feature is highly correlated with another feature, then it may not be adding much to the model even if we'd otherwise have some metrics indicating a notable contribution. In addition, penalized approaches will either spread the contribution of correlated features across them, or just pick one of them to include in the model. It may be mostly arbitrary which one is included, or you might miss both. 
+
+*If a feature interacts with another feature, then there really is no way to say how much it contributes to the model without knowing the value of the other feature*. Full stop. Synergistic effects cannot be understood by pretending they don't exist. A number of metrics will still be provided for a single feature, either by trying to include its overall contribution or averaging over the values of the other feature, but this is a problematic approach because it ignores the other feature. As an example, if a drug doesn't work for your age group or for someone with your health conditions, do you really care if it works 'in general' or 'on average'?
+
+To help us further understand this issue, consider the following two plots. On the left we show an interaction between two binary features. If we were to look at the contribution of each feature without the interaction, their respective coefficients would be estimated as essentially zero[^interexplain]. On the right we show a feature that has a strong relationship with the target, but only for a certain range of values. If we were to look at a single 'effect' of the feature, we would likely underestimate how strong it is with smaller values and overestimate the relationship at the upper range. 
+
+
+[^interexplain]: To understand why, for the effect of X1, just take the mean of the two points on the left vs. the mean of the two points on the right. It would basically be a straight line of no effect as you move from group 0 to group 1. For the effect of X2, the two group means for A and B would be at the intersection of the two lines.
+
+```{r}
+#| echo: false
+#| fig.cap: Two plots showing the importance of understanding feature interactions and non-linear relationships
+#| label: fig-feature-importance
+
+set.seed(123)
+
+# interaction
+N = 500
+interaction = tibble(
+    x1 = sample(c(0, 1), N, replace = TRUE),
+    x2 = sample(c(0, 1), N, replace = TRUE),
+    y = rnorm(N, mean = 
+        case_when(
+            x1 == 0 & x2 == 0 ~ 1,
+            x1 == 0 & x2 == 1 ~ 2,
+            x1 == 1 & x2 == 0 ~ 2,
+            x1 == 1 & x2 == 1 ~ 1,
+        ),
+        )
+    ) |> 
+    mutate(x1 = factor(x1), x2 = factor(x2, labels = c('A', 'B')))
+
+interaction_plot = interaction |> 
+    summarize(
+        se = sd(y) / sqrt(N),
+        y = mean(y), 
+        .by = c(x1, x2)
+    ) |> 
+    ggplot(aes(x = x1, y = y)) +
+    # geom_borderline(aes(group = x2), linewidth = 2) +
+    geom_borderline(aes(color = x2, group = x2), linewidth = 1, alpha = 2) +
+    scale_color_manual(values = c(okabe_ito[3], okabe_ito[5])) +
+    guides(color = guide_legend(title = "Feature 2")) +
+    ggnewscale::new_scale_color() +
+    geom_pointrange(aes(ymin = y-2*se, ymax = y + 2*se, color = x1), fatten=10, show.legend = FALSE) +
+    scale_color_manual(values = c(okabe_ito[1], okabe_ito[2])) +
+    labs(
+        title = "Interaction between two binary features",
+        x = "Feature 1",
+        y = "Target"
+    ) +
+    theme(
+        legend.title = element_text(size = 10)
+        ) 
+
+# interaction_plot
+
+# summary(lm(y ~ x1 * x2, data = interaction))
+
+non_linear = tibble(
+    x = seq(0, 10, length.out = N),
+    y = 5 *( plogis(1 + .5*x + rnorm(N, sd =  .1)))
+)
+
+non_linear_plot = ggplot(non_linear, aes(x = x, y = y)) +
+    geom_point() +
+    # geom_smooth(method = "lm", se = FALSE) +
+    scale_x_continuous(breaks = seq(0, 10)) +
+    labs(
+        title = "Non-linear relationship between feature and target",
+        x = "Feature",
+        y = "Target"
+    )
+# non_linear_plot
+interaction_plot + 
+    non_linear_plot &
+    theme(
+        plot.title = element_text(size = 10, hjust = 0),
+        axis.title.y = element_text(size = 10, face='bold'),
+        axis.title.x = element_text(size = 10, face='bold'),
+    )
+    # plot_annotation()
+```
+
+All this is to say as we get into measures of feature importance, we need to be very careful about how we interpret and use them!
+
+#### Example: Feature Importance in a Linear Model
+
+To show just how difficult measuring feature importance is, we only have to stick with our simple linear regression. Think again about R^2^: it tells us the proportion of the target explained by our features. An ideal measure of importance would be able to tell us how much each feature contributes to that proportion, or in other words, one that decomposes R^2^ into the relative contributions of each feature. One of the most common measures of importance in linear models is the **standardized coefficient** we have demonstrated previously. You know what it doesn't do? It doesn't decompose R^2^ into relative contributions. Even the more complicated SHAP approach will not do this.
+
+The easiest situation we could hope for with regard to feature importance is the basic linear regression model we've been using. Everything is linear, with no interactions or other things going on. And yet there are many logical ways to determine feature importance, and some even break down R^2^ into relative contributions, but they won't necessarily agree with each other in ranking or relative differences. If you can get a measure of statistical difference between whatever metric you choose, it's often the case that 'top' features will not be statistically different from other features. So what do we do? We'll show a few methods here, but the main point is that there is no single answer, and it's important to understand what you're trying to do with the information.
+
+Let's start things off by using one of our previous linear regression models with several features, but which has no interactions or other complexity (@sec-lm-multiple-features). It's just a model with simple linear relationships and nothing else.
+
+
+:::{.panel-tabset}
+
+##### R
+```{r}
+#| eval: true
+#| echo: true
+#| label: lm-varimp-r
+#| 
+model_reviews_extra = lm(
+    rating ~
+        word_count
+        + age
+        + review_year
+        + release_year
+        + length_minutes
+        + children_in_home
+        + total_reviews,
+    data = df_reviews
+)
+```
+
+##### Python
+```{python}
+#| eval: false
+#| label: lm-varimp-py
+
+model_reviews_extra = smf.ols(
+    formula = 'rating ~ \
+        word_count \
+        + age \
+        + review_year \
+        + release_year \
+        + length_minutes \
+        + children_in_home \
+        + total_reviews',
+    data = df_reviews
+).fit()
+```
+:::
+
+Our first metric available for us to use is just the raw coefficient value, but they aren't comparable because the features are on very different scales- moving a unit in length is not the same as moving a unit in age. We can standardize them which helps in this regard, and you might start there despite its limitations. Another we can usecomes from the SHAP value, which provides a measure of contribution of a feature to the prediction. These can be positive or negative and are specific to the observation. But If we take the **average absolute SHAP value** for each feature, we get a sense of the typical contribution size for the features. We can then rank order them as accordingly. Here we see that the most important features here are the number of reviews and the length of the movie. Note that we can't speak to direction here, only magnitude.  We can also see that word count is relatively less important. 
 
 ```{r}
 #| echo: false
 #| label: shap-importance-bar
 #| fig-cap: SHAP Importance
-#| fig-width: 6
+explainer_mre = DALEX::explain(model_reviews_extra, df_reviews, verbose = FALSE)
+# not exactly sure what this object is returning, as it doesn't correspond to dim(df_reviews) or dim(df_reviews)*B
+# and other functions only work on single obs
+# get_shap = DALEX::shap_aggregated(explainer_mre, df_reviews, B = 2) 
+# str(get_shap$raw)
 
-p_dat_shap = shapviz::sv_importance(plot_dat_shap)$data |> 
+
+# dim(shap_values)
+feats = attr(model_reviews_extra$terms, 'term.labels')
+
+shap_values = fastshap::explain(
+    model_reviews_extra, 
+    X = df_reviews[,feats], 
+    pred_wrapper = predict
+)
+
+p_dat_shap = shapviz::sv_importance(shapviz::shapviz(shap_values, X = df_reviews[,feats]))$data |> 
     rename(contribution = value) |>
     mutate(
         feature = fct_reorder(feature, abs(contribution), .fun = mean),
@@ -2003,33 +2258,64 @@ p_dat_shap |>
     )
 ```
 
-Now here are some additional methods[^relaimpo], some more reasonable than others, some which decompose R^2^ and those that do not. Aside from SHAP, the other values represent the proportion of the R^2^ value that is attributable to the feature, or at least attempt to. The ones that truly decompose R^2^ are in agreement for the most part and seem to think highly of word count. The others seem to be more varied, and only SHAP devalues word count, but possibly for good reason. Which is best? Which is correct? None. But by looking at a few of these, we can get a sense at least that total reviews and length in minutes are likely useful features to our model.
+Now here are some additional methods[^relaimpo], some which decompose R^2^ (car, lmg, and pratt), and those that do not (SHAP, permutation-based, standardized coefficient squared). On the left, values represent the proportion of the R^2^ value that is attributable to the feature- their sum is equal to the overall R^2^ = `r round(summary(model_reviews_extra)$r.sq, 2)`. These are in agreement for the most part and seem to think more highly of word count as a feature. The others on the right are a little more varied, and only SHAP devalues word count, but possibly for good reason. Which is best? Which is correct? None. But by looking at a few of these, we can get a sense at least that total reviews, word count, release year, and length in minutes are likely useful features to our model, while age, review year, and children in home are less so, *at least in the context of the model we have*.
 
 
-[^relaimpo]: The non-shap values were provided by the [relaimpo]{.pack} package in R.
 
-TODO: add perturbation-based feature importance as the last plot.
+
+[^relaimpo]: The car, lmg, pratt, and beta-squared values were provided by the [relaimpo]{.pack} package in R. See the documentation there for details. Permutation based importance was provided by the [iml]{.pack} package, though we supplied a custom function to base it on the drop in R-squared. SHAP values were calculated using the [fastshap]{.pack} package.
+
 
 ```{r}
 #| echo: false
 #| eval: true
 #| label: fig-importance
 #| fig-cap: Feature Importance by Various Methods
-#| fig-height: 12
+#| fig-height: 10
+
+
+library(iml)
+predictor = Predictor$new(model_reviews_extra, data = df_reviews[,feats], y = df_reviews$rating)
+
+r2_loss = function(t, e)
+    -yardstick::rsq_trad_vec(t, e)   
+
+imp_permute = FeatureImp$new(predictor, loss = r2_loss, compare = 'difference') # mse
+
+# check
+# c(-imp_permute$original.error, summary(model_reviews_extra)$r.squared)
+df_imp_permute = imp_permute$results
+ 
+# plot(imp_permute, type = "bar")
+
 
 # library(relaimpo) # do not call directly, imports MASS ffs
-metrics = c("lmg", "last", "first", "betasq", "pratt", "genizi", "car")
+# NOTE somehow is loading MASS anyway in interactive, so detach if playing with the code
+# metrics = c("lmg", "last", "first", "betasq", "pratt", "genizi", "car")
+metrics = c("lmg", "betasq", "pratt", "car")
+
 init_rela_false = relaimpo::calc.relimp(
     model_reviews_extra,
     type = metrics,
     rela = FALSE
 )
 
-init_rela_true = relaimpo::calc.relimp(
-    model_reviews_extra,
-    type = metrics,
-    rela = TRUE
-)
+# boot_test = relaimpo::boot.relimp(
+#     model_reviews_extra,
+#     type = metrics,
+#     rela = FALSE,
+#     b = 500
+#     )
+# plot(relaimpo::booteval.relimp(boot_test))
+
+# init_rela_true = relaimpo::calc.relimp(
+#     model_reviews_extra,
+#     type = metrics,
+#     rela = TRUE
+# )
+
+# detach(package:relaimpo)
+# detach(package:MASS)
 
 df_rela = map_df(metrics, \(x) slot(init_rela_false, x)) |>
     t()
@@ -2045,26 +2331,43 @@ pdat_rela = df_rela |>
         true_decompose = ifelse(metric %in% decomposer2, "Decomposes R-sq", "Does not")
     ) |> 
     bind_rows(
-        p_dat_shap |> mutate(metric = 'shap', true_decompose = 'Does not') |> rename(value = contribution)
+        p_dat_shap |> 
+        mutate(metric = 'shap', true_decompose = 'Does not')|>
+        select(feature, metric, value = contribution, true_decompose)
+    ) |> 
+    bind_rows(
+        df_imp_permute |>
+            mutate(
+                metric = 'permutation',
+                true_decompose = 'Does not'
+            ) |>
+        select(feature, metric, value = importance, true_decompose)
     )
 
-pdat_rela |>
+# this seems variable; works interactively, but not when the height of the plot is specified in yaml
+# https://stackoverflow.com/questions/62355197/is-it-possible-to-have-variable-width-of-bars-in-geom-col
+
+pdat_decompose = pdat_rela |>
     arrange(true_decompose, metric, value) |>
+    filter(true_decompose == "Decomposes R-sq")
+
+p_decompose = pdat_decompose |>
     ggplot(aes(value, fct_inorder(feature))) +
     geom_col(
         aes(
-            alpha = I(ifelse(true_decompose == "Decomposes R-sq", 1, .25)),
             color = feature == "word_count",
             fill  = feature == "word_count",
-            width = I(ifelse(feature == "word_count", .5, .1)) # says it ignores this, but doesn't
+            alpha = I(ifelse(pdat_decompose$feature == "word_count", .25, 1)),
         ),
+        width = I(ifelse(pdat_decompose$feature == "word_count", .25, .1)), # says it ignores this, but doesn't
+        # alpha = 1,
         show.legend = FALSE
     ) +
     scale_color_manual(
         values = c(okabe_ito[2], okabe_ito[1]),
         aesthetics = c("color", "fill")
     ) +
-    ggnewscale::new_scale_color() +
+    # ggnewscale::new_scale_color() +
     geom_point(
         aes(
             # alpha = I(ifelse(true_decompose == 'Decomposes R-squared', 1, .25)),
@@ -2073,25 +2376,114 @@ pdat_rela |>
         ),
         alpha = 1,
         show.legend = FALSE
-    ) +
-    scale_color_manual(
-        values = c(okabe_ito[1], okabe_ito[2]),
-        # aesthetics = c("color", "fill")
-    ) +
-    # guides(color = 'none', fill = 'none', alpha = 'none') +
+    ) +    
+    facet_wrap(vars(metric), scales = "free", ncol = 1, dir = "v") +
     labs(
         x = "Contribution to R-squared",
         y = "",
         title = "Relative Importance"
-    ) +
-    facet_wrap(vars(true_decompose, metric), scales = "free", ncol = 2, dir = "v") +
-    theme(
-        plot.caption = element_text(vjust = -2),
-        strip.text = element_text(size = 10)
     )
+
+pdat_no_decompose = pdat_rela |>
+    arrange(true_decompose, metric, value) |>
+    filter(true_decompose != "Decomposes R-sq")
+
+p_no_decompose = pdat_no_decompose |>
+    ggplot(aes(value, fct_inorder(feature))) +
+    geom_col(
+        aes(
+            color = feature == "word_count",
+            fill  = feature == "word_count",
+            alpha = I(ifelse(pdat_no_decompose$feature == "word_count", .25, 1)),
+        ),
+        width = I(ifelse(pdat_no_decompose$feature == "word_count", .25, .1)), # says it ignores this, but doesn't
+        # alpha = .25,
+        show.legend = FALSE
+    ) +
+    scale_color_manual(
+        values = c(okabe_ito[2], okabe_ito[1]),
+        aesthetics = c("color", "fill")
+    ) +
+    # ggnewscale::new_scale_color() +
+    geom_point(
+        aes(
+            # alpha = I(ifelse(true_decompose == 'Decomposes R-squared', 1, .25)),
+            color = feature == "word_count",
+            size = I(ifelse(feature == "word_count", 5, 4))
+        ),
+        alpha = 1,
+        show.legend = FALSE
+    ) +    
+    facet_wrap(vars(metric), scales = "free", ncol = 1, dir = "v") +
+    labs(
+        x = "Metric Value",
+        y = "",
+        title = ""
+    )
+
+p_decompose + 
+    p_no_decompose +
+    # plot_layout(guides = "collect") &
+    theme(
+        plot.caption = element_text(vjust = -2)
+    )
+
+# main plot we're going for
+# pdat_rela |>
+#     arrange(true_decompose, metric, value) |>
+#     ggplot(aes(value, fct_inorder(feature))) +
+#     geom_col(
+#         aes(
+#             alpha = I(ifelse(true_decompose == "Decomposes R-sq", 1, .25)),
+#             color = feature == "word_count",
+#             fill  = feature == "word_count",
+#             width = I(ifelse(feature == "word_count", .5, .1)) # says it ignores this, but doesn't
+#         ),
+#         show.legend = FALSE
+#     ) +
+#     scale_color_manual(
+#         values = c(okabe_ito[2], okabe_ito[1]),
+#         aesthetics = c("color", "fill")
+#     ) +
+#     ggnewscale::new_scale_color() +
+#     geom_point(
+#         aes(
+#             # alpha = I(ifelse(true_decompose == 'Decomposes R-squared', 1, .25)),
+#             color = feature == "word_count",
+#             size = I(ifelse(feature == "word_count", 5, 4))
+#         ),
+#         alpha = 1,
+#         show.legend = FALSE
+#     ) +
+#     scale_color_manual(
+#         values = c(okabe_ito[1], okabe_ito[2]),
+#         # aesthetics = c("color", "fill")
+#     ) +
+#     # guides(color = 'none', fill = 'none', alpha = 'none') +
+#     labs(
+#         # x = "Contribution to R-squared",
+#         y = "",
+#         title = "Relative Importance"
+#     ) +
+#     facet_wrap(vars(true_decompose, metric), scales = "free", ncol = 2, dir = "v") +
+#     theme(
+#         plot.caption = element_text(vjust = -2),
+#         strip.text = element_text(size = 10)
+#     )
 
 # ggsave("img/fig-rsq-decomp.png", width = 8, height = 6)
 ```
+
+
+
+All of the metrics shown have uncertainty in their estimate, and some packages make it easy to plot or extract. As an example one could bootstrap a metric, or use the permutations as a a means to get at the uncertainty. However, the behavior and distribution of these metrics is not always well understood, and in some cases, the computation would often be quite a bit (e.g. with SHAP). You could also look at the range of the ranks created by bootstrapping or permuting, and take the lower bound as worst case for a given feature. Although possibly conservative, the usual problem is that people are too optimistic about their feature importance, so this might be a good thing.
+
+The take home message is that in the best of circumstances, there is no automatic way of saying one feature is more important than another. It's nice that we can use approachs like SHAP and permuation methods for more complicated models like boosting and deep learning models, but they're not perfect, and they still suffer from most of the same issues as the linear model. In the end, understanding a feature's role within a model is ultimately a matter of context and highly dependent what you're trying to do with the information.
+
+:::{.callout-tip}
+SHAP values can be useful for observational level interpretation under the right circumstances, but they really shouldn't be used for importance. The mean of its absolute value is not a good measure of importance except in the unlikely case you have purely balanced/symmetric features of the exact same scale, and which do not correlate with each other (or have any interactions). 
+:::
+
 
 
 
@@ -2100,7 +2492,7 @@ pdat_rela |>
 #| label: get-mre-output-model-explore
 mre_table = broom::tidy(model_reviews_extra, conf.int = TRUE) |>
     janitor::clean_names() |>
-    rename(feature = term) |>
+    dplyr::rename(feature = term) |>
     mutate(feature = ifelse(feature == "(Intercept)", "intercept", feature)) |>
     mutate(
         estimate  = round(estimate, 4),
@@ -2139,17 +2531,13 @@ rmse = round(mr_metrics$RMSE, 2)
 mae = round(performance::performance_mae(model_reviews), 2)
 aic = round(mr_metrics$AIC, 2)
 ```
+### Feature Metrics for Classification
 
+All of what's been demonstrated for feature metrics applies to classification models. Counterfactual predictions, average marginal effects, SHAP, and permutation-based methods for feature importance would be done in the exact same way. The only real difference is of course the outcome- we'd be talking in terms of probabilities and using a different loss metric to determine importance.
 
-::: {.callout-info}
-SHAP values can be useful for observational level interpretation under the right circumstances, but they really shouldn't be used for importance. The mean of its absolute value is not a good measure of importance except in the unlikely stance you have purely balanced/symmetric features of the exact same scale, and which do not correlate with each other (or have any interactions). 
-:::
+TODO: maybe just show some code anyway?
 
-
-
-
-
-
+<!-- 
 
 ## Model Visualizations
 
@@ -2494,6 +2882,9 @@ The variable importance plots in @fig-r-var-imp-class and @fig-py-var-imp-class 
 
 Since we have already seen that there isn't much difference between models with regard to producing these plots, we will leave it up to you to produce localized plots for your classification models!
 
+ -->
+
+
 ## Wrapping Up
 
 It is easy to get caught up in the excitement of creating a model and then using it to make predictions. It is also easy to get caught up in the excitement of seeing a model perform well on a test set. It is much harder to take a step back and ask yourself, "Is this model really doing what I want it to do?" You should always be looking at which variables are pulling the most weight in your model and how predictions are being made. 
@@ -2506,6 +2897,11 @@ Even though we did not use the `mlr3` package in this chapter, the **Evaluation 
 
 For a more Pythonic look at model evaluation, we would highly recommend going through the sci-kit learn documentation on [Model Evaluation](https://scikit-learn.org/stable/modules/model_evaluation.html). It has you absolutely covered on code examples and concepts.
 
-To get the most out of `DaLEX` visualizations, we would recommend checking out Christoph Molnar's book, [Interpretable Machine Learning](https://christophm.github.io/interpretable-ml-book/). It is a great resource for learning more about model explainers and how to use them.
+To get the most out of `DaLEX` visualizations, check out the authors' book [Explanatory Model Analysis](https://pbiecek.github.io/ema/). 
 
-marginal effects zoo, marginalia blog post
+We also recommend checking out Christoph Molnar's book, [Interpretable Machine Learning](https://christophm.github.io/interpretable-ml-book/). It is a great resource for learning more about model explainers and how to use them, and provides a nice package that has a lot of the functionality we've shown here.
+
+The [marginal effects zoo](https://marginaleffects.com/), written by the [marginaleffects]{.pack} package author, is your goto for getting started with marginal effects, but we also recommend the [excellent blog post by Andrew Heiss](https://www.andrewheiss.com/blog/2022/05/20/marginalia/) as a very nifty overview and demonstration.
+
+## Exercise
+
