@@ -1,10 +1,18 @@
 # create a theme
+
+# nonsense required for latex to figure things out
+extrafont::loadfonts(quiet = TRUE)
+# # sysfonts::font_add_google(name = "Roboto Condensed", family = "roboto-condensed")
+showtext::showtext_auto()
+
 # check for narrow fonts, if not available, use default
 plot_fonts = c('roboto condensed', 'arial narrow')
 
 check_fonts = which(plot_fonts %in% tolower(unique(systemfonts::system_fonts()$family)))
 
-plot_ff = stringr::str_to_title(ifelse(length(x), '', plot_fonts[which.min(check_fonts)]))
+plot_ff = stringr::str_to_title(ifelse(length(check_fonts) == 0, '', plot_fonts[which.min(check_fonts)]))
+
+# plot_ff = 'Roboto Condensed'
 
 theme_clean = function(
     font_size = 12,
@@ -39,14 +47,14 @@ theme_clean = function(
     axis.title.x = ggplot2::element_text(
       hjust = haxis_just_x,
       angle = v_rotation_x,
-      size  = 0.8 * font_size,
+      size  = 1.2 * font_size,
       face = 'bold'
     ),
     axis.title.y = ggplot2::element_text(
       vjust = vaxis_just_y,
       hjust = 0,
       angle = v_rotation_y,
-      size  = 0.8 * font_size,
+      size  = 1.2 * font_size,
       family = plot_ff,
       face = 'bold',
     ),
@@ -60,14 +68,14 @@ theme_clean = function(
     ),
     plot.subtitle = ggplot2::element_text(
       color = 'gray30', 
-      size = font_size * .75, 
+      size = font_size * 1, 
       hjust = 0,
       family = plot_ff,
       face = 'bold',      
     ),
     plot.caption = ggplot2::element_text(
       color = 'gray30', 
-      size = font_size * .5, 
+      size = font_size * .75, 
       hjust = 0,
       family = plot_ff,
       face = 'bold',      
@@ -77,11 +85,12 @@ theme_clean = function(
     legend.background = ggplot2::element_rect(fill = 'transparent', color = NA),
     legend.title = ggplot2::element_blank(),
     panel.background = ggplot2::element_blank(),
-    panel.grid = ggplot2::element_blank(),
+    panel.grid.major = ggplot2::element_line(color = 'gray95'),
     strip.background = ggplot2::element_blank(),
     plot.background = ggplot2::element_rect(fill = 'transparent', color = NA),
   )
 }
+
 
 # theme_other  =  theme_clean = function (
 # ) {
