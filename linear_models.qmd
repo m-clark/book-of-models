@@ -11,12 +11,7 @@ source("setup.R")
 source("functions/utils.R")
 
 reticulate::use_condaenv("book-of-models")
-
-library(tidyverse)
-library(patchwork)
-library(gt)
 ```
-
 
 
 ```{r}
@@ -494,8 +489,6 @@ We previously saw a prediction for a single observation where the word count was
 
 ```{r}
 #| label: my-first-model-predictions-r
-
-
 all_predictions = predict(model_reviews)
 
 df_prediction = tibble(word_count = 5)
@@ -514,7 +507,6 @@ single_prediction = model_reviews.predict(df_prediction)
 ```
 
 :::
-
 
 
 Here is a plot of our predictions for the observed data versus the actual ratings[^jitter]. 
@@ -565,7 +557,7 @@ tibble(
 
 The values reflect the `r word_sign(wc_coef, c('positive', 'negative'))` coefficient from our model, showing `r word_sign(wc_coef, c('increasing', 'decreasing'))` ratings with increasing word counts. Furthermore, we see the power of the model's ability to make predictions for what we don't see in the data. Maybe we limited our data review size, but we know there are 50 word reviews out there, and we can still make a guess as to what the rating would be for such a review.  Maybe in another case, we know a group of people who have on average 12.3 word reviews, and we can make a guess as to what the average rating would be for that group. Our model doesn't know anything about the context of the data, but we can use our knowledge to make predictions about the world around us. This is a very powerful capability, and it's one of the main reasons we use models in the first place.  
 
-<!-- TODO: we still might want to move the prediction error'knowing your model' chapter -->
+<!-- TODO: we still might want to move the prediction error'knowing your model' chapter or at least merge with the model interpretation section below -->
 
 ### Prediction Error {#sec-lm-prediction-error}
 
@@ -645,34 +637,8 @@ worst_prediction |>
     fmt_number(word_count, decimals = 0)
 ```
 
-We can also get an overall assessment of the prediction error. In the case of the linear model we've been looking at, we can express this in a single metric as the sum or mean of our (squared) errors, the latter of which is a very commonly used modeling metric- **MSE** or **mean squared error**, or also, its square root - **RMSE** or **root mean squared error**. We'll talk more about this and similar metrics in @sec-knowing, but we can take a look at the RMSE for our model now.
 
-If we look back at our results, we can see this expressed as the part of the output or as an attribute of the model[^sigmanotrmse]. The RMSE is more interpretable, as it gives us a sense that our typical errors bounce around by about `r model_rmse`.  Given that the rating is on a 1-5 scale, this maybe isn't bad, but we could definitely hope to do better than get within roughly half a point on this scale. We'll talk about ways to improve this later.
-
-
-[^sigmanotrmse]: The actual divisor for linear regression output depends on the complexity of the model, and in this case the sum of the squared errors is divided by N-2 (due to estimating the intercept and coefficient) instead of N. This is a technical detail that would only matter for data too small to make much of in the first place, and not important for our purposes here.
-
-:::{.panel-tabset}
-
-##### R
-
-```{r}
-#| label: my-first-model-mse-r
-summary(model_reviews) # 'Residual standard error' is approx RMSE
-```
-
-##### Python
-
-
-```{python}
-#| label: my-first-model-mse-py
-np.sqrt(model_reviews.scale)   # RMSE
-```
-
-:::
-
-
-At this point you have the gist of prediction and prediction error, but there is a lot more to it. More detail can be found in the estimation chapter (@sec-estimation), since we often estimate the parameters of our model by picking those that will reduce the prediction error the most. Makes sense right?  For now though, let's move on to the other main use of models, which is to help us understand the relationships between the features and the target, or **explanation**.
+So at this point you have the gist of prediction and prediction error, but there is a lot more to it. We'll come back to this again in a moment, and more detail can be found in [Chapter -@sec-knowing] where we dive deeper into our models, and [Chapter -@sec-estimation], where we see how to estimate the parameters of our model by picking those that will reduce the prediction error the most. For now though, let's move on to the other main use of models, which is to help us understand the relationships between the features and the target, or **explanation**.
 
 
 ## How do we interpret the model? {#sec-lm-interpretation}
@@ -721,7 +687,8 @@ The calculation we just did results in what's often called a **standardized** or
 After assessing the coefficients, next up in our table is the **standard error**. The standard error is a measure of how much the coefficient varies from sample to sample. If we collected the data multiple times, even under practically identical circumstances, we wouldn't get the same value each time - it would bounce around a bit, and the standard error is an estimate of how much it would bounce around. In other words, the standard error is a measure of **uncertainty**, and along with the coefficients, it's used to calculate everything else in the table.  
 
 
-<!-- TODO: tab_style is ignored for pdf so put a conditional to only display for html -->
+<!-- tab_style is ignored for pdf so put a conditional to only display for html -->
+
 ::: {.content-hidden when-format="pdf"}
 ```{r}
 #| echo: false
@@ -765,7 +732,7 @@ broom::tidy(model_reviews, conf.int = TRUE) |>
 ```
 :::
 
-In this case, the default is a 95% confidence interval, and we can think of this particular confidence interval like [throwing horseshoes](https://en.wikipedia.org/wiki/Horseshoes_(game)). If we kept collecting data and running models, 95% of our CIs would capture the true value, and this is one of the many possibile CIs we could have gotten. That's the technical definition, which is a bit abstract[^whatisaci], but we can also think of it more simply as a range of values that are good guesses for the true value.  In this case, the CI is `r paste(rl_ci[1])` to `r paste(rl_ci[2])`, and we can be 95% confident that a good range for the coefficient is between those values. We can also see that the CI is relatively narrow, which is good, as it implies that we have a good idea of what the coefficient is.  If it was very wide, we would have a lot of uncertainty about the coefficient, and we would not likely not want to base important decisions regarding it.
+In this case, the default is a 95% confidence interval, and we can think of this particular confidence interval like [throwing horseshoes](https://en.wikipedia.org/wiki/Horseshoes_(game)). If we kept collecting data and running models, 95% of our CIs would capture the true value, and this is one of the many possibile CIs we could have gotten. That's the technical definition, which is a bit abstract[^whatisaci], but we can also think of it more simply as a range of values that are good guesses for the true value.  In this case, the CI is `r paste(rl_ci[2])` to `r paste(rl_ci[2])`, and we can be 95% confident that it is a good ranged estimate for the coefficient. We can also see that the CI is relatively narrow, which is good, as it implies that we have a good idea of what the coefficient is.  If it was very wide, we would have a lot of uncertainty about the coefficient, and we would not likely not want to base important decisions regarding it.
 
 [^whatisaci]: The interpretation regarding the CI is even more nuanced than this, but we'll leave that for another time. For now, we'll just say that the CI is a range of values that are good guesses for the true value. Your authors have used frequentist and Bayesian statistics for many years, and we are fine with both of them, because they both work well enough in the real world. Despite where this ranged estimate comes from, the vast majority use CIs in the same way, and they are a useful tool for understanding the uncertainty in our estimates.
 
@@ -779,10 +746,10 @@ In this case, the default is a 95% confidence interval, and we can think of this
 # knitr::include_graphics("img/horseshoes.jpeg")
 ```
 
-![](img/horseshoes.jpeg){width='50%'}
+![](img/horseshoes.jpeg){width='40%'}
 
 
-Keep in mind that your model has a lot to say about what you'll be able to say at the feature level. As an example, as we get into machine learning models, you won't have as easy a time with coefficients and their confidence intervals. For now we'll stop here, but there is a lot more to the story when it comes to feature level interpretation, and we'll continue to return to the topic. But first, let's take a look at interpreting things in another way.
+Keep in mind that your chosen model has a great influence on what you'll be able to say at the feature level. As an example, as we get into machine learning models, you won't have as easy a time with coefficients and their confidence intervals, but you still may be able to say something about how your features relate to the target, and we'll continue to return to the topic. But first, let's take a look at interpreting things in another way.
 
 
 ::: {.callout-tip title='Hypothesis Testing' collapse="true"}
@@ -806,7 +773,7 @@ aic = round(mr_metrics$AIC, 2)
 
 Thus far, we've focused on interpretation at the feature level. But knowing the interpretation of a feature doesn't do you much good if the model itself is poor! In that case, we also need to assess the model as a whole, and as with the feature level, we can go about this in a few ways. Before getting too carried away with asking whether your model is any good or not, you always need to ask your self *relative to what*?  Many models claim top performance under various circumstances, but which are statistically indistinguishable from many other models. So we need to be careful about how we assess our model, and what we compare it to.  
 
-First, we can start with the predictions of our model. As noted previously, how well the predictions and target line up is a measure of how well the model fits the data. Most model-level interpretation involves assessing and comparing model fit and variations on this theme. One of the better ways to assess model fit is visually, so let's look at our predictions vs. the target.
+When we took at the models previously @fig-my-first-model-predictions-plot, we examined how well the predictions and target line up, and that gives us an initial feel for how well the model fits the data. Most model-level interpretation involves assessing and comparing model fit and variations on this theme. Here we show how easy it is to obtain such a plot.
 
 ::: {.panel-tabset}
 
@@ -815,9 +782,16 @@ First, we can start with the predictions of our model. As noted previously, how 
 ```{r}
 #| echo: true
 #| eval: false
-#| label: prep-pp-plot-r
+#| label: pred-vs-obs-plot-r
 predictions = predict(model_reviews)
 y = df_reviews$rating
+
+ggplot(
+    data = data.frame(y = y, predictions = predictions), 
+    aes(x = y, y = predictions)
+) +
+  geom_point() +
+  labs(x = "Predicted", y = "Observed")
 ```
 
 ##### Python
@@ -825,10 +799,13 @@ y = df_reviews$rating
 ```{python}
 #| echo: true
 #| eval: false
-#| label: prep-pp-plot-py
+#| label: pred-vs-obs-plot-py
+import matplotlib.pyplot as plt
 
 predictions = model_reviews.predict()
 y = df_reviews.rating
+
+plt.scatter(y, predictions)
 ```
 
 :::
@@ -836,10 +813,10 @@ y = df_reviews.rating
 
 ```{r}
 #| echo: false
+#| eval: false
 #| label: fig-pp-scatter
 #| fig-cap: Predictions vs. Observed Ratings
-
-
+# This really isn't necessary. Delete at some point.
 p1 = df_reviews |>
     mutate(pred = predict(model_reviews)) |>
     ggplot(aes(pred, rating)) +
@@ -867,16 +844,40 @@ p1 + p2
 
 ```
 
-The one on the left is using the raw target and predictions, and they appear very grid-like. The reason is that our ratings are only at the single decimal place precision, and our word count is at the integer level precision, so we have a lot of ties. The right side jitters the data randomly a bit so we can see a better pattern, but is otherwise the same. In general, the closer to a line this plot becomes the better, so we can tell already there is still a lot of noise left to explain beyond our model.
-
 
 #### Model Metrics {#sec-lm-interpretation-model-metrics}
 
-We've already discussed mean-squared error[^msermse], but there are other metrics we can use to assess **model fit**. As we noted, (R)MSE is a very popular measure for continuous targets, telling us the standard deviation of errors, or how much they bounce around on average. In our case, the value was `r rmse`.  Another metric we can use in this particular situation is the mean absolute error, which is similar to the mean squared error, but instead of squaring the errors, we just take the absolute value. Conceptually it attempts to get at the same idea, how much our predictions miss on average, and here the value is `r mae`, which we actually showed in our initial residual plot (@fig-my-first-model-error-plot). With either metric, the closer to zero the better, since as we get closer, we are reducing error.
+We can also get an overall assessment of the prediction error from a single metric. In the case of the linear model we've been looking at, we can express this in a single metric as the sum or mean of our squared errors, the latter of which is a very commonly used modeling metric- **MSE** or **mean squared error**, or also, its square root - **RMSE** or **root mean squared error**[^msermse]. We'll talk more about this and similar metrics other chapters, but we can take a look at the RMSE for our model now.
+
+If we look back at our results, we can see this expressed as the part of the output or as an attribute of the model[^sigmanotrmse]. The RMSE is more interpretable, as it gives us a sense that our typical errors bounce around by about `r model_rmse`.  Given that the rating is on a 1-5 scale, this maybe isn't bad, but we could definitely hope to do better than get within roughly half a point on this scale. We'll talk about ways to improve this later.
 
 [^msermse]: Any time we're talking about MSE, we're also talking about RMSE as it's just the square root of MSE, so which you choose is mostly arbitrary. 
 
-We can also look at the **R-squared** (R^2^) value of the model. R^2^ is possibly the most popular measure of model performance with linear regression and linear models in general. Before squaring, it's just the correlation of the values that we saw in the previous plot (@fig-pp-scatter). When we square it,  we can interpret it as a measure of how much of the variance in the target is explained by the model. In this case, our model shows the R^2^ is `r rsq`, which is not bad for a single feature model in this type of setting. We interpret it that `r rsq_perc`% of the target is explained by our model. In addition, we can also interpret R^2^ as 1 - the prorportion of error varaince in the target, which we can calculate as $1 - \frac{\textrm{MSE}}{var(y)}$.  In other words the complement of R^2^ is the proportion of the variance in the target that is not explained by the model. Either way, since `r 1-rsq_perc`% is not explained by the model, our result suggests there is plenty of work left to do!
+[^sigmanotrmse]: The actual divisor for linear regression output depends on the complexity of the model, and in this case the sum of the squared errors is divided by N-2 (due to estimating the intercept and coefficient) instead of N. This is a technical detail that would only matter for data too small to make much of in the first place, and not important for our purposes here.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: my-first-model-mse-r
+summary(model_reviews) # 'Residual standard error' is approx RMSE
+```
+
+##### Python
+
+
+```{python}
+#| label: my-first-model-mse-py
+np.sqrt(model_reviews.scale)   # RMSE
+```
+
+:::
+
+
+Another metric we can use to assess **model fit**. in this particular situation is the mean absolute error, which is similar to the mean squared error, but instead of squaring the errors, we just take the absolute value. Conceptually it attempts to get at the same idea, how much our predictions miss on average, and here the value is `r mae`, which we actually showed in our residual plot (@fig-my-first-model-error-plot). With either metric, the closer to zero the better, since as we get closer, we are reducing error.
+
+We can also look at the **R-squared** (R^2^) value of the model. R^2^ is possibly the most popular measure of model performance with linear regression and linear models in general. Before squaring, it's just the correlation of the values that we saw in the previous plot (@fig-my-first-model-predictions-plot). When we square it,  we can interpret it as a measure of how much of the variance in the target is explained by the model. In this case, our model shows the R^2^ is `r rsq`, which is not bad for a single feature model in this type of setting. We interpret it that `r rsq_perc`% of the target is explained by our model, and more specifically by the features in the model. In addition, we can also interpret R^2^ as 1 - the prorportion of error variance in the target, which we can calculate as $1 - \frac{\textrm{MSE}}{var(y)}$.  In other words the complement of R^2^ is the proportion of the variance in the target that is not explained by the model. Either way, since `r 100-rsq_perc`% is not explained by the model, our result suggests there is plenty of work left to do!
 
 Note also, that with R^2^ we get a sense of the variance shared between *all* features in the model and the target, however complex the model gets. As long as we use it descriptively as a simple correspondence assessment of our predictions and target, it's a fine metric. For various reasons, it's not a great metric for comparing models to each other, but again, as long as you don't get carried away, it's okay to use.
 
@@ -884,7 +885,7 @@ Note also, that with R^2^ we get a sense of the variance shared between *all* fe
 
 ### Prediction vs. Explanation {#sec-lm-prediction-vs-explanation}
 
-In your humble authors' views, one can't stress enough the importance of a model's ability to predict the target. It can be a poor model, maybe because the data is not great, or perhaps we're exploring a new area of research, but we'll always be interested in how well a model **fits** the observed data, and predicts new data.
+In your humble authors' views, one can't stress enough the importance of a model's ability to predict the target. It can be a poor model, maybe because the data is not great, or perhaps we're exploring a new area of research, but we'll always be interested in how well a model **fits** the observed data, and in most situations, we're just as much or even more interested in how well it predicts *new* data.
 
 
 Even to this day, **statistical significance** is focused on a great deal, even to the point that a much hullabaloo is made about models that have no predictive power at all. As strange as it may sound, you can read whole journal articles, news features, and business reports in many fields with hardly any mention of prediction. The focus is almost entirely on the **explanation** of the model, and usually the statistical significance of the features. In those settings, statistical significance is often used as a proxy for importance, which it never should be. Unfortunately, statistical significance is affected by other things besides the size of the coefficient, and without an understanding of the context of the features, in this case, like how long typical reviews are, what their range is, what variability of ratings is, etc., the information it provides is extremely limited, and many would argue, not even useful at all. If we are very interested in the coefficient or weight value specifically, it is better to focus on the range of possible values, which is provided by the confidence interval. While a confidence interval is also a loaded description of a feature's relationship to the target, we can use it in a very practical way as a range of possible values for that weight, and more importantly, *think of possibilities rather than certainties*.
