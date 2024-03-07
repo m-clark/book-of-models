@@ -563,7 +563,6 @@ The values reflect the `r word_sign(wc_coef, c('positive', 'negative'))` coeffic
 
 As we have seen, predictions are not perfect, and an essential part of the modeling endeavor is to better understand these errors and why they occur. In addition, error assessment is the fundamental way in which we assess a model's performance, and, by extension, compare that performance to other models. In general, prediction error is the difference between the actual value and the predicted value or some function of it, and in statistical models, is also often called the **residual**.  We can look at these individually, or we can look at them in aggregate with a single metric.
 
-
 Let's start with looking at the residuals visually. Often the modeling package you use will have this as a default plotting method when doing a standard linear regression, so it's wise to take advantage of it. We plot both the distribution of raw error scores and the cumulative distribution of absolute prediction error. Here we see a couple things. First, the distribution is roughly normal, which is a good thing, since statistical linear regression assumes our error is normally distributed, and the prediction error serves as an estimate of that. Second, we see that the mean of the errors is zero, which is a consequence of linear regression, and the reason we look at other metrics when assessing model performance. We can also see that most of our predictions are within ±1 star rating. 
 
 ```{r}
@@ -623,7 +622,7 @@ worst_prediction = df_reviews |>
     select(rating, prediction, word_count)
 ```
 
-Of more practical concern is that we don't see extreme values or clustering, which might indicate a failure on the part of the model to pick up certain segm ents of the data. It can still be a good idea to look at the extremes just in case we can pick up on some aspect of the data that we could potentially incorporate into the model.  So looking at our worst prediction in absolute terms, we see the observation has a typical word count, and so our simple model will just predict a fairly typical rating. But the actual rating is `r worst_prediction$rating`, which is `r abs(round(worst_prediction$rating - worst_prediction$prediction, 1))` away from our prediction, a very noticeable difference. Further data inspection may be required to figure out why this came about.
+Of more practical concern is that we don't see extreme values or clustering, which might indicate a failure on the part of the model to pick up certain segments of the data. It can still be a good idea to look at the extremes just in case we can pick up on some aspect of the data that we could potentially incorporate into the model.  So looking at our worst prediction in absolute terms, we see the observation has a typical word count, and so our simple model will just predict a fairly typical rating. But the actual rating is `r worst_prediction$rating`, which is `r abs(round(worst_prediction$rating - worst_prediction$prediction, 1))` away from our prediction, a very noticeable difference. Further data inspection may be required to figure out why this came about.
 
 
 ```{r}
@@ -637,8 +636,80 @@ worst_prediction |>
     fmt_number(word_count, decimals = 0)
 ```
 
+### Prediction Uncertainty
 
-So at this point you have the gist of prediction and prediction error, but there is a lot more to it. We'll come back to this again in a moment, and more detail can be found in [Chapter -@sec-knowing] where we dive deeper into our models, and [Chapter -@sec-estimation], where we see how to estimate the parameters of our model by picking those that will reduce the prediction error the most. For now though, let's move on to the other main use of models, which is to help us understand the relationships between the features and the target, or **explanation**.
+We can also look at the uncertainty of our predictions, which is a measure of how much we expect our predictions to vary. This is often expressed as an interval range of values that we expect our prediction to fall within, with a certain level of confidence. But! There are actually two types of intervals we can get, one is really about the mean prediction, or *expected value* we would get from the model at that observation. This is usually called a **confidence interval**. The other type of interval is based on the model's ability to predict new data, and is often called a **prediction interval**. This interval is about the actual prediction we would get from the model for any value, whether it was data we had seen before or not. Because of this, the prediction interval is always wider than the confidence interval, and it's the one we usually want to use when we're making predictions about new data.
+
+Here is how we can obtain these from our model.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: my-first-model-prediction-intervals-r
+#| eval: true
+#| results: hide
+prediction_CI = predict(
+    model_reviews, 
+    newdata = df_prediction, 
+    se.fit = TRUE, 
+    interval = "confidence"
+)
+
+prediction_PI = predict(
+    model_reviews, 
+    newdata = df_prediction, 
+    se.fit = TRUE, 
+    interval = "prediction"
+)
+
+pred_intervals = bind_rows(
+    as_tibble(prediction_CI$fit),
+    as_tibble(prediction_PI$fit),
+) |> mutate(
+    interval = c('confidence', 'prediction'),
+    type = c('mean', 'observation')
+)
+
+pred_intervals
+```
+
+##### Python
+
+```{python}
+#| label: my-first-model-prediction-intervals-py
+#| eval: false
+#| out-width: 100%
+
+pred_intervals = (
+    model_reviews
+    .get_prediction(df_prediction)
+    .summary_frame(alpha = 0.05)
+)
+
+pd.DataFrame(pred_intervals)
+```
+
+:::
+
+```{r}
+#| echo: false
+#| label: tbl-prediction-intervals
+#| tbl-cap: Prediction Intervals for Specific Observations
+
+pred_intervals |>
+    select(interval, type, fit:upr) |>
+    gt() |>
+    fmt_number(c('fit', 'lwr', 'upr'), decimals = 2)
+```
+
+As expected our prediction interval is wider than our confidence interval, and we can see that the prediction interval is quite wide- from a rating of `r round(pred_intervals$lwr[2], 1)` to `r round(pred_intervals$upr[2], 1)`. This is a consequence of the fact that we have a lot of uncertainty in our predictions for new observations and we can't expect to get a very precise prediction from our model with only one feature. This is a common issue with many models, and one that having a better model can help remedy[^pyuncertainty].
+
+[^pyuncertainty]: Once you move past OLS in statsmodels, obtaining uncertainty estimates for predictions is difficult due to the paucity of tools, especially for machine learning models, and practically non-existent for deep learning approaches. In practice, you can use bootstrapping to get a sense of the uncertainty, but this is often not a good estimate in many data scenarios and can be computationally expensive. On the other hand, conformal prediction tools are more developed in Python, and can provide a more reliable estimate of prediction uncertainty for any type of model, but are not as widely used as they should be.
+
+
+So at this point you have the gist of prediction, prediction error, and uncertainty in a prediction, but there is still more to it!  We'll come back to global assessments of model error very shortly, and even more detail can be found in [Chapter -@sec-knowing] where we dive deeper into our models, and [Chapter -@sec-estimation], where we see how to estimate the parameters of our model by picking those that will reduce the prediction error the most. For now though, let's move on to the other main use of models, which is to help us understand the relationships between the features and the target, or **explanation**.
 
 
 ## How do we interpret the model? {#sec-lm-interpretation}
@@ -888,7 +959,7 @@ Note also, that with R^2^ we get a sense of the variance shared between *all* fe
 In your humble authors' views, one can't stress enough the importance of a model's ability to predict the target. It can be a poor model, maybe because the data is not great, or perhaps we're exploring a new area of research, but we'll always be interested in how well a model **fits** the observed data, and in most situations, we're just as much or even more interested in how well it predicts *new* data.
 
 
-Even to this day, **statistical significance** is focused on a great deal, even to the point that a much hullabaloo is made about models that have no predictive power at all. As strange as it may sound, you can read whole journal articles, news features, and business reports in many fields with hardly any mention of prediction. The focus is almost entirely on the **explanation** of the model, and usually the statistical significance of the features. In those settings, statistical significance is often used as a proxy for importance, which it never should be. Unfortunately, statistical significance is affected by other things besides the size of the coefficient, and without an understanding of the context of the features, in this case, like how long typical reviews are, what their range is, what variability of ratings is, etc., the information it provides is extremely limited, and many would argue, not even useful at all. If we are very interested in the coefficient or weight value specifically, it is better to focus on the range of possible values, which is provided by the confidence interval. While a confidence interval is also a loaded description of a feature's relationship to the target, we can use it in a very practical way as a range of possible values for that weight, and more importantly, *think of possibilities rather than certainties*.
+Even to this day, **statistical significance** is focused on a great deal, even to the point that a much hullabaloo is made about models that have no little predictive power at all. As strange as it may sound, you can read results in journal articles, news features, and business reports in many fields with hardly any mention of a model's predictive capability. The focus is almost entirely on the **explanation** of the model, and usually the statistical significance of the features. In those settings, statistical significance is often used as a proxy for importance, which is rarely ever justified. As we've noted elsewhere, statistical significance is affected by other things besides the size of the coefficient, and without an understanding of the context of the features, in this case, like how long typical reviews are, what their range is, what variability of ratings is, etc., the information it provides is extremely limited, and many would argue, not very useful. If we are very interested in the coefficient or weight value specifically, it is better to focus on the range of possible values, which is provided by the confidence interval, along with the predictions that come about based on that coefficient's value. While a confidence interval is also a loaded description of a feature's relationship to the target, we can use it in a very practical way as a range of possible values for that weight, and more importantly, *think of possibilities rather than certainties*. 
 
 Suffice it to say at this point that how much one focuses on prediction vs. explanation depends on the context and goals of the data endeavor. There are cases where predictive capability is of utmost importance, and we care less about about explanatory details, but not to the point of ignoring it. For example, even with deep learning models for image classification, where the inputs are just RGB values, we'd still like to know what the (notably complex) model is picking up on, otherwise we may be classifying images based on something like image backgrounds (e.g. outdoors vs. indoors) instead of the objects of actual interest (dogs vs. cats). In some business or other organizational settings, we are very or even mostly interested in the coefficients/weights, which might indicate how to allocate monetary resources in some fashion. But if those weights come from a model with no predictive power, placing much importance on them may be a fruitless endeavor.  
 
@@ -898,12 +969,11 @@ In the end we'll need to balance our efforts to suit the task at hand. Predictio
 
 ## Adding Complexity {#sec-lm-complexity}
 
-We've seen how to fit a model with a single feature and interpret the results, and that helps us to get oriented to the process. However, we'll always have more than one feature for a model except under some very specific circumstances, such as exploratory data analysis. So let's see how we can do that with a model that makes more sense. 
-
+We've seen how to fit a model with a single feature and interpret the results, and that helps us to get oriented to the general modeling process. However, we'll always have more than one feature for a model except under some very specific circumstances, such as exploratory data analysis. So let's see how we can implement a model with more features and that makes more practical sense. 
 
 ### Multiple Features {#sec-lm-multiple-features}
 
-We can add more features to our model very simply. Using the standard functions we've already demonstrated, we just add them to the formula (both R and statsmodels) as follows.
+We can add more features to our model very simply. Using the standard functions we've already demonstrated, we just add them to the formula (both R and [statsmodels]{.pack}) as follows.
 
 ```{python}
 #| eval: false
@@ -911,7 +981,7 @@ We can add more features to our model very simply. Using the standard functions 
 'y ~ feature_1 + feature_2 + feature_3'
 ```
 
-In other cases where we use matrix inputs, additional features will just be the additional input columns, and nothing about the model code actually changes. We might have a lot of features, and even for relatively simple linear models this could be dozens in some scenarios. A compact depiction of our model uses the matrix representation, which we'll show in the callout below, and you can find more detail in the matrix section @sec-matrix-operations overview. For our purposes, all you really need to know is that this:
+In other cases where we use matrix inputs, additional features will just be the additional input columns, and nothing about the model code actually changes. We might have a lot of features, and even for relatively simple linear models this could be dozens in some scenarios. A compact depiction of our model uses matrix representation, which we'll show in the callout below, and you can find more detail in the matrix section @sec-matrix-operations overview. For our purposes, all you really need to know is that this:
 
 $$
 y = X\beta\qquad  \textrm{or}\qquad y = \alpha + X\beta
@@ -923,7 +993,7 @@ $$
 y = \alpha + \beta_1 x_1 + \beta_2 x_2 + \beta_3 x_3 \dots
 $$
 
-where $X$ is a matrix of features[^interceptones], and $\beta$ is a vector of coefficients. Matrix multiplication provides us an efficient way to get our expected value/prediction. 
+where $y$ is the target, $X$ is a @d matrix of features[^interceptones], where the rows are observations/instances and columns features, and $\beta$ is a vector of coefficients the same length as the number of columns in $X$. Matrix multiplication provides us an efficient way to get our expected value/prediction. 
 
 [^interceptones]: In the first depiction without $\alpha$, there is an additional column at the beginning of the matrix that is all ones, which is a way to incorporate the intercept into the model. However, most models that use a matrix as input will not have the intercept column, as it's not part of the model estimation or is estimated separately.
 
@@ -979,7 +1049,7 @@ You will also see it depicted in a transposed fashion, such that $y = \beta X$, 
 
 [^arraytensor]: In deep learning, models arrays are referred to as the more abstract representation of **tensors**, but for practical purposes the distinction doesn't really matter for modeling, as the tensors are always represented as some n-dimensional array.
  
-With that in mind, let's get to our model! In what follows, we keep the word count, but now we add some aspects of the reviewer, such as age and the number of children in the household, and features related to the movie, like the release year, the length of the movie in minutes, and the total reviews received. We'll also add another review level feature- the year the review was written.  We'll use the same approach as before, and literally just add them as we depicted in our linear model formula (@eq-lm-basic).
+With that in mind, let's get to our model! In what follows, we keep the word count, but now we add some aspects of the reviewer, such as age and the number of children in the household, and features related to the movie, like the release year, the length of the movie in minutes, and the total reviews received.  We'll use the same approach as before, and literally just add them as we depicted in our linear model formula (@eq-lm-basic).
 
 :::{.panel-tabset}
 
