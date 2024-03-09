@@ -20,8 +20,6 @@ reticulate::use_condaenv("book-of-models")
 
 ```
 
-```{.python include="setup.py"}
-```
 ```{python}
 #| echo: false
 #| label: py-display-setup
@@ -481,7 +479,9 @@ What predictions we get depends on the type of model we are using.  For the line
 
 [^treepreds]: Some models such as the tree approaches outlined in @sec-ml-trees can directly predict categorical targets, but we still like and even prefer converting it to something like a probability.
 
-We previously saw a prediction for a single observation where the word count was 10 words, but we can also get predictions for multiple observations at once. In fact, we can get predictions for all observations in our dataset. Besides that, we can also get predictions for observations that we don't even have data for! Fun! The following shows how we can get predictions for all data, and for a single observation with a word count of 5.
+We previously saw a prediction for a single observation where the word count was 10 words, but we can also get predictions for multiple observations at once. In fact, we can get predictions for all observations in our dataset. Besides that, we can also get predictions for observations that we don't even have data for! Fun! The following shows how we can get predictions for all data, and for a single observation with a word count of [^tibble].
+
+[^tibble]: Some not as familiar with R should be aware that tibbles are a type of data frame. The name distinguishes them from the standard data frame, and they have some additional features that make them more user friendly.
 
 ::: {.panel-tabset}
 
@@ -993,7 +993,7 @@ $$
 y = \alpha + \beta_1 x_1 + \beta_2 x_2 + \beta_3 x_3 \dots
 $$
 
-where $y$ is the target, $X$ is a @d matrix of features[^interceptones], where the rows are observations/instances and columns features, and $\beta$ is a vector of coefficients the same length as the number of columns in $X$. Matrix multiplication provides us an efficient way to get our expected value/prediction. 
+where $y$ is the target, $X$ is a 2-d matrix of features[^interceptones], where the rows are observations/instances and columns features, and $\beta$ is a vector of coefficients corresponding to the number of columns in $X$. Matrix multiplication provides us an efficient way to get our expected value/prediction. 
 
 [^interceptones]: In the first depiction without $\alpha$, there is an additional column at the beginning of the matrix that is all ones, which is a way to incorporate the intercept into the model. However, most models that use a matrix as input will not have the intercept column, as it's not part of the model estimation or is estimated separately.
 
@@ -1049,7 +1049,7 @@ You will also see it depicted in a transposed fashion, such that $y = \beta X$, 
 
 [^arraytensor]: In deep learning, models arrays are referred to as the more abstract representation of **tensors**, but for practical purposes the distinction doesn't really matter for modeling, as the tensors are always represented as some n-dimensional array.
  
-With that in mind, let's get to our model! In what follows, we keep the word count, but now we add some aspects of the reviewer, such as age and the number of children in the household, and features related to the movie, like the release year, the length of the movie in minutes, and the total reviews received.  We'll use the same approach as before, and literally just add them as we depicted in our linear model formula (@eq-lm-basic).
+With that in mind, let's get to our model! In what follows, we keep the word count, but now we add some aspects of the reviewer, such as age and the number of children in the household, and features related to the movie, like the release year, the length of the movie in minutes, and the total reviews received.  We'll use the same approach as before, and literally just add them as we depicted in our linear model formula (@eq-lm-observed) .
 
 :::{.panel-tabset}
 
@@ -1132,9 +1132,26 @@ mre_metrics = round(performance::performance(model_reviews_extra), 2)
 mre_mae = round(performance::performance_mae(model_reviews_extra), 2)
 ```
 
-There is definitely more to unpack here, but it's important to note that it's just *more* stuff, not *different* stuff.  The model-level components are the same in that we still see R^2^ etc., although they are all 'better' (higher R^2^, lower error) because we have a more predictive model. Our coefficents look the same also, and we'd interpret the in the same way.  Starting with word count, we see that it's still statistically significant, but it has been reduced just slightly from our previous model where it was the only feature (`r wc_coef` vs. `r mre_coef['word_count']`).  Why? This suggests that word count has some non-zero correlation, sometimes called **collinearity**, with other features that are also explaining the target to some extent. Our linear model shows the effect of each feature *controlling for other features*, or, *holding other features constant*[^controllingfor]. Conceptually this means that the effect of word count is the effect of word count *after* we've accounted for the other features in the model. In this case, an increase of a single word results in a `r round(mre_coef['word_count'], 2)` `r word_sign(mre_coef['word_count'], c('bump', 'drop'))`, even after adjusting for the effect of other features. Looking at another feature, the addition of a child to the home is associated with `r mre_coef['children_in_home']` `r word_sign(mre_coef['children_in_home'], c('bump', 'drop'))` in rating, accounting for the other features.
+There is definitely more to unpack here than our simpler model, but it's important to note that it's just *more* stuff, not *different* stuff.  The model-level components are the same in that we still see R^2^ etc., although they are all 'better' (higher R^2^, lower error) because we have a more predictive model. Our coefficents look the same also, and we'd interpret the in the same way.  Starting with word count, we see that it's still statistically significant, but it has been reduced just slightly from our previous model where it was the only feature (`r wc_coef` vs. `r mre_coef['word_count']`).  Why? This suggests that word count has some non-zero correlation, sometimes called **collinearity**, with other features that are also explaining the target to some extent. Our linear model shows the effect of each feature *controlling for other features*, or, *holding other features constant*[^controllingfor]. Conceptually this means that the effect of word count is the effect of word count *after* we've accounted for the other features in the model. In this case, an increase of a single word results in a `r round(mre_coef['word_count'], 2)` `r word_sign(mre_coef['word_count'], c('increase', 'drop'))`, even after adjusting for the effect of other features. Looking at another feature, the addition of a child to the home is associated with `r mre_coef['children_in_home']` `r word_sign(mre_coef['children_in_home'], c('increase', 'drop'))` in rating, accounting for the other features.
 
-Thinking about prediction, how would we get a prediction for a movie rating with a review that is 12 words long, written in 2020, by a 30 year old with one child, for a movie that is 100 minutes long, released in 2015, with 10000 total reviews?  Exactly the same as we did before (@sec-lm-prediction-types)! We just create a data frame with the values we want, and predict accordingly.
+[^controllingfor]: A lot of statisticians and causal modeling folks get very hung up on the terminology here, but we'll leave that to them as we'd like to get on with things. For our purposes, we'll just say that we're interested in the effect of a feature *after* we've accounted for the other features in the model. 
+
+```{r}
+#| label: pred-text-values
+#| echo: false
+
+wc = 12
+rev_year = 2020
+age = 30
+children = 1
+children_txt = 'one'
+release_year = 2015
+length_minutes = 100
+total_reviews = 10000
+total_reviews_txt = '10000'
+```
+
+Thinking about prediction, how would we get a prediction for a movie rating with a review that is `r wc` words long, written in `r rev_year`, by a `r age` year old with `r children_txt` child, for a movie that is `r length_minutes` minutes long, released in `r release_year`, with `r total_reviews_txt` total reviews?  Exactly the same as we did before (@sec-lm-prediction-types)! We just create a data frame with the values we want, and predict accordingly.
 
 :::{.panel-tabset}
 
@@ -1180,17 +1197,18 @@ model_reviews_extra.predict(predict_observation)
 
 :::
 
-In our example we're just getting a single prediction, but don't let that hold you back! You can predict an entire data set if you want, and use any values for the features you want.  We'll do this explicitly later on, but for now, try getting a prediction for a different set of values.
+In our example we're just getting a single prediction, but don't let that hold you back! As we did before, you can predict an entire data set if you want, and use any values for the features you want. Feel free to try a different prediction of your choosing!
 
 
-[^controllingfor]: A lot of statisticians and causal modeling folks get very hung up on the terminology here, but we'll leave that to them as we'd like to get on with things. For our purposes, we'll just say that we're interested in the effect of a feature *after* we've accounted for the other features in the model. 
 
 
-TODO: Reconcile with Data chapter, possibly remove from this chapter entirely. If we do, maybe add this model example to that chapter.
+
 
 ### Categorical Features {#sec-lm-categorical-features}
 
-Categorical features can be added to a model just like any other feature.  The main issue is that they have to be represented numerically, because models only work on numerically coded features and targets. The simplest and most common encoding is called a **one-hot encoding** scheme, which creates a new feature for each category, and assigns a 1 if the observation is in that category, and a 0 otherwise. This is also called a **dummy coding** when used for statistical models. Here is an example of what the coding looks like for the season feature. This is really all there is to it.
+<!-- TODO: Reconcile with Data chapter, possibly remove from this chapter entirely. If we do, maybe add this model example to that chapter. -->
+
+Categorical features can be added to a model just like any other feature.  The main issue is that they have to be represented numerically, because models only work on numerically coded features and targets. The simplest and most common encoding is called a **one-hot encoding** scheme, which creates a new feature column for each category, and assigns a 1 if the observation has that category label, and a 0 otherwise. This is also called a **dummy coding** when used for statistical models. Here is an example of what the coding looks like for the season feature. This is really all there is to it.
 
 ```{r}
 #| label: one-hot-r
@@ -1253,9 +1271,9 @@ model_cat.summary(slim = True)
 
 :::
 
-We now see the usual output. There is word count again, with its slightly negative assocation with rating. And we have an effect for each season as well... except, wait a second, where is the fall effect? The coefficients are interepreted the same way - as we move one unit on x, we see a corresponding change in y. But moving from one category to another requires starting at some category in the first place! So one is chosen arbitrarily, but you would have control over this.  In our model, fall is chosen because its first alphabetically.  So if we look at say, the effect of summer, we see an increase in the rating of `r round(coef(model_cat)[['seasonSummer']], 2)` relative to fall. 
+We now see the usual output. There is word count again, with its slightly negative assocation with rating. And we have an effect for each season as well... except, wait a second, where is the fall effect? The coefficients are interepreted the same way - as we move one unit on x, we see a corresponding change in y. But moving from one category to another requires starting at some category in the first place - a reference point. So one category is chosen arbitrarily, but you would have control over this. In our model, 'fall' is chosen just because its first alphabetically.  So if we look at say, the effect of summer, we see an increase in the rating of `r round(coef(model_cat)[['seasonSummer']], 2)` relative to fall. The same goes for the other seasons, they all represent a change relative to fall.
 
-A better approach to understanding categorical features for standard linear models is through what are called **marginal effects**, which can provide a kind of average prediction for each category while accounting for the other features in the model. Better still is to visualize these, and we can use something like our PDP approach from before to do so[^mepy]. It's actually tricky to define 'average' when there are multiple features and interactions involved, so be careful, but we'd interpret the result similarly in those cases as best we can. In this case, we expect higher ratings for summer releases.
+A better approach to understanding categorical features for standard linear models is through what are called **marginal effects**, which can provide a kind of average prediction for each category while accounting for the other features in the model. Better still is to visualize these. It's actually tricky to define 'average' when there are multiple features and interactions involved, so be careful, but we'd interpret the result similarly in those cases as best we can. In this case, we expect higher ratings for summer releases. We'll return more to this concept in -@sec-marginal-effects.
 
 ```{r}
 #| echo: false
@@ -1287,13 +1305,9 @@ broom::tidy(init) |>
 ```
 
 
-[^mepy]: At the time of this writing, there seems to be very little for this sort of thing in Python. statsmodels provides limited functionality, but only for logistic regression models. In R you have various tools like `marginaleffects`, `emmeans`, `ggeffects` and more.
-
-
-
 ### Other Complexity {#sec-lm-other-complexity}
 
-
+There is a lot more fun things we can do will still keeping to a linear model. We can add **interactions** between features, which is a way to account for the fact that the effect of one feature may depend on the value of another. We can also account for non-linear relationships. In addition, we can take steps to enhance our prediction with an otherwise identical approach to the models shown in this chapter. We'll talk more about these throughout the rest of Parts I and II.
 
 
 ## Assumptions and More {#sec-lm-assumptions}
