@@ -1,18 +1,34 @@
+library(tidyverse)
+library(patchwork)
+library(gt)
+
+
 # create a theme
 
-# nonsense required for latex to figure things out
+# sysfonts::font_add_google(name = "Roboto Condensed", family = "roboto-condensed")
+
+# nonsense required for ggplot + latex to figure things out, still doesn't work;
+# NOTE: it seems the font will render correctly via a browser viewer, but not in acrobat reader or acrobat, which is 
+# ridiculous but at least we can save the browser pdf for correct rendering.
+# probably the only way to get plots to behave for latex/pdf will likely be to save them out and use conditional 
+# includegraphics; this is also partly ggplot as it will give warnings for pdf but not html
 extrafont::loadfonts(quiet = TRUE)
-# # sysfonts::font_add_google(name = "Roboto Condensed", family = "roboto-condensed")
-showtext::showtext_auto()
+# extrafont::font_import(pattern = "RobotoCondensed", prompt = FALSE)
+# extrafont::font_import(pattern = "Arial Narrow", prompt = FALSE)
+# showtext::showtext_auto()
+
 
 # check for narrow fonts, if not available, use default
-plot_fonts = c('roboto condensed', 'arial narrow')
+# plot_fonts = c('roboto condensed', 'arial narrow')
 
-check_fonts = which(plot_fonts %in% tolower(unique(systemfonts::system_fonts()$family)))
+# check_fonts = which(plot_fonts %in% tolower(unique(systemfonts::system_fonts()$family)))
 
-plot_ff = stringr::str_to_title(ifelse(length(check_fonts) == 0, '', plot_fonts[which.min(check_fonts)]))
+# plot_ff = stringr::str_to_title(ifelse(length(check_fonts) == 0, '', plot_fonts[which.min(check_fonts)]))
 
-# plot_ff = 'Roboto Condensed'
+plot_ff = 'Roboto Condensed'
+# plot_ff = 'Arial Narrow'
+# plot_ff = NULL
+
 
 theme_clean = function(
     font_size = 12,
@@ -55,7 +71,7 @@ theme_clean = function(
       hjust = 0,
       angle = v_rotation_y,
       size  = 1.2 * font_size,
-      family = plot_ff,
+      family = font_family,
       face = 'bold',
     ),
     axis.ticks = ggplot2::element_line(color = 'gray30'),
@@ -63,21 +79,21 @@ theme_clean = function(
       color = 'gray30', 
       size = font_size * 1.25,
       margin = margin(b = font_size * 0.3),
-      family = plot_ff,
+      family = font_family,
       face = 'bold',
     ),
     plot.subtitle = ggplot2::element_text(
       color = 'gray30', 
       size = font_size * 1, 
       hjust = 0,
-      family = plot_ff,
+      family = font_family,
       face = 'bold',      
     ),
     plot.caption = ggplot2::element_text(
       color = 'gray30', 
       size = font_size * .75, 
       hjust = 0,
-      family = plot_ff,
+      family = font_family,
       face = 'bold',      
     ),
     legend.position = 'bottom',
@@ -196,6 +212,8 @@ tbl_summary = function(..., title = '', butcher = TRUE) {
 }
 
 
-round_any = function(x, accuracy, f = round) {
-  f(x / accuracy) * accuracy
-}
+
+
+
+
+options(digits = 4) # number of digits of precision for floating point output
