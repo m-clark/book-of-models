@@ -1,5 +1,7 @@
 # Knowing Your Model {#sec-knowing}
 
+TODO: Probably need to clean up data used for more consistency of examples.
+
 TODO: totally okay with a screenshot of Redd here to go with the quote.
 
 ```{r}
@@ -1209,7 +1211,7 @@ We can't necessarily do a whole lot about these aspects, but we can at least be 
 
 
 
-### Marginal Effects
+### Marginal Effects {#sec-marginal-effects}
 
 One way to understand the contribution of a feature to the model is to look at the **marginal effect** of the feature, which conceptually attempts to boil a feature effect to something simple. Unfortunately, not everyone means the same thing when they use this term and it can be a bit confusing. Marginal effects *typically* refer to a partial derivative of the target with respect to the feature. This becomes very simple for standard linear models with no interactions and all linear effects as in linear regression. The derivative of our coefficient with respect to the feature is just the coefficient itself! But for more complicated models, even just GLM's like our logistic regression, we need to do a bit more work to get the marginal effect, or other so called 'average' effects.  Let's think about a couple common versions:
 
@@ -1386,15 +1388,83 @@ np.mean(fudge_plus - fudge_minus) / fudge_factor
 
 :::
 
-Our result above suggests we're getting about a .09 drop in the expected probability of a good review for a 1 unit increase in word count. This is a bit more intuitive than the coefficient or odds ratio based on it.
+Our result above suggests we're getting about a .09 drop in the expected probability of a good review for a 1 standard deviation increase in word count. This is a bit more intuitive than the coefficient or odds ratio based on it.
 
 #### Marginal Means
 
-Marginal means are just getting
+<!-- TODO: complete -->
+
+Marginal means are just about getting an average predictoin for the levels of categorical features. As an example, we can get the average predicted probability of a good review for each level of the genre feature, and then compare them. To do this we just have to make predictions as if every observation had a certain value for genre, and then average the predictions. 
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-marginal-means-genre
+#| eval: false
+#| results: hide
+
+mm = map_df(
+    unique(training_data$genre), 
+    ~ tibble(
+        genre = .x,
+        avg_pred = predict(
+            model_train_reg, 
+            newdata = training_data |> 
+                mutate(genre = .x), 
+            type = "response"
+        ) |> 
+            mean()
+    )
+)
+
+mm 
+marginaleffects::avg_predictions(model_train_reg, variables = "genre")
+```
+
+##### Python
+
+```{python}
+#| label: python-marginal-means-genre
+#| eval: false
+
+mm = pd.DataFrame({
+    "genre": training_data.genre.unique(),
+    "avg_pred": [
+        model_train_reg.predict(
+            training_data.assign(genre = g)
+        ).mean()
+        for g in training_data.genre.unique()
+    ]
+})
+
+mm
+```
+
+```{r}
+#| label: tbl-marginal-means-genre
+#| tbl-cap: Average Predicted Probability of a Good Review by Genre
+
+marginaleffects::avg_predictions(model_train_reg, variables = "genre") |> 
+    select(-(std.error:s.value)) |>
+    gt() |> 
+    tab_footnote(
+        "Select output from the R package marginaleffects."
+    ) |> 
+    tab_options(
+        footnotes.font.size = 8
+    )
+```
+
 
 ### Counterfactual Predictions
 
-The nice thing about having a model is that we can make predictions for any set of feature values we want. This is a great way to understand the contribution of a feature to the model. We can make predictions for a range of feature values, and then compare the predictions to see how much the feature contributes to the model. **Countefactual predictions** allow us to ask what if? questions, and see how the model responds. As an example, we can get a prediction as if every review was being for a drama, and then see what we'd expect if every review pertained to a comedy. This is a very powerful approach, and often utilized in causal inference, but it's also a great way to understand the contribution of a feature to a model in general.
+:::{.panel-tabset}
+
+##### R
+
+The nice thing about having a model is that we can make predictions for any set of feature values we want. This is a great way to understand the contribution of a feature to the model. We can make predictions for a range of feature values, and then compare the predictions to see how much the feature contributes to the model. **Counterfactual predictions** allow us to ask what if? questions, and see how the model responds. As an example, we can get a prediction as if every review was being for a drama, and then see what we'd expect if every review pertained to a comedy. This is a very powerful approach, and often utilized in causal inference, but it's also a great way to understand the contribution of a feature to a model in general.
 
 PDP, SHAP values and counterfactual predictions all are ways to look at predictions for features held at key values.  In an experimental setting, ideally we'd be able to look at the same instances under when everything about them was identical, but in one case, the instance was part of the control group, and in another, part of the treatment group. Not only is it impossible to have everything be identical, but it's also impossible to have the same instance be in two groups at once. Counterfactual predictions are the next best thing though, because once we have a model, we can predict an observation as if it was in the treatment and then when it is a control. If we do this for all observations, we can get a sense of the **average treatment effect**, one of the main points of interest in causal inference. 
 

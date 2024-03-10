@@ -9,3 +9,8 @@ sd <- function(x, na.rm = TRUE) {
 word_sign <- function(value, words) {
     ifelse(sign(value) == 1, words[1], words[2])
 }
+
+
+round_any = function(x, accuracy, f = round) {
+  f(x / accuracy) * accuracy
+}
