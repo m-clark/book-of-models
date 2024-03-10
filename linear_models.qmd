@@ -243,9 +243,7 @@ p_dat_corrs |>
 
 The linear model is perhaps the simplest *functional* model we can use to express a relationship between features and targets. And because of that, it's possibly still the most common model used in practice, and it is the basis for many types of other models. So why don't do one now?
 
-<!-- TODO: update data link -->
-
-The following dataset has individual [movie reviews](#app-data-review) containing the movie rating (1-5 stars scale), along with features pertaining to the review (e.g., word count), those that regard the reviewer (e.g., age) and features about the movie (e.g., genre, release year).  
+The following dataset has individual [movie reviews](#sec-dd-movie-reviews) containing the movie rating (1-5 stars scale), along with features pertaining to the review (e.g., word count), those that regard the reviewer (e.g., age) and features about the movie (e.g., genre, release year).  
 
 ```{r}
 #| echo: false
@@ -557,7 +555,6 @@ tibble(
 
 The values reflect the `r word_sign(wc_coef, c('positive', 'negative'))` coefficient from our model, showing `r word_sign(wc_coef, c('increasing', 'decreasing'))` ratings with increasing word counts. Furthermore, we see the power of the model's ability to make predictions for what we don't see in the data. Maybe we limited our data review size, but we know there are 50 word reviews out there, and we can still make a guess as to what the rating would be for such a review.  Maybe in another case, we know a group of people who have on average 12.3 word reviews, and we can make a guess as to what the average rating would be for that group. Our model doesn't know anything about the context of the data, but we can use our knowledge to make predictions about the world around us. This is a very powerful capability, and it's one of the main reasons we use models in the first place.  
 
-<!-- TODO: we still might want to move the prediction error'knowing your model' chapter or at least merge with the model interpretation section below -->
 
 ### Prediction Error {#sec-lm-prediction-error}
 
@@ -1206,7 +1203,9 @@ In our example we're just getting a single prediction, but don't let that hold y
 
 ### Categorical Features {#sec-lm-categorical-features}
 
-<!-- TODO: Reconcile with Data chapter, possibly remove from this chapter entirely. If we do, maybe add this model example to that chapter. -->
+<!-- TODO: Reconcile with Data chapter, possibly remove from this chapter entirely. If we do, maybe add this model example to that chapter. 
+MC Note: leave for now.
+-->
 
 Categorical features can be added to a model just like any other feature.  The main issue is that they have to be represented numerically, because models only work on numerically coded features and targets. The simplest and most common encoding is called a **one-hot encoding** scheme, which creates a new feature column for each category, and assigns a 1 if the observation has that category label, and a 0 otherwise. This is also called a **dummy coding** when used for statistical models. Here is an example of what the coding looks like for the season feature. This is really all there is to it.
 
@@ -1273,6 +1272,58 @@ model_cat.summary(slim = True)
 
 We now see the usual output. There is word count again, with its slightly negative assocation with rating. And we have an effect for each season as well... except, wait a second, where is the fall effect? The coefficients are interepreted the same way - as we move one unit on x, we see a corresponding change in y. But moving from one category to another requires starting at some category in the first place - a reference point. So one category is chosen arbitrarily, but you would have control over this. In our model, 'fall' is chosen just because its first alphabetically.  So if we look at say, the effect of summer, we see an increase in the rating of `r round(coef(model_cat)[['seasonSummer']], 2)` relative to fall. The same goes for the other seasons, they all represent a change relative to fall.
 
+#### Summarizing Categorical Features
+
+When we have a lot of categories, it's not practical to look at the coefficients for each one, and even when there aren't that many, we often prefer to get a sense of the total effect of the feature. For standard linear models, we can break down the target variance explained by the model into the variance explained by each feature, and this is called the **ANOVA**, or analysis of variance. It is not without its issues[^typess], but it's a good way to get a sense of the whether a categorical (or other) feature as a whole is statistically significant.  
+
+[^typess]: There are many types of ANOVA, and different ways to calculate the variance values. One will notice the Python ANOVA result is different, even though the season coefficients and initial model is identical. They R uses what is called Type II sums of squares, while Python uses Type I sums of squares. We won't bore you with additional details, and the astute modeler will not come to different conclusions because of this sort of thing, and you now have enough detail to look it up.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: anova-cat-feature-r
+#| eval: false
+
+anova(model_cat)
+```
+
+##### Python
+
+```{python}
+#| label: anova-cat-feature-py
+#| eval: false
+import statsmodels.api as sm
+
+sm.stats.anova_lm(model_cat)
+```
+
+:::
+
+```{r}
+#| echo: false
+#| label: tbl-anova-cat-feature
+#| tbl-cap: ANOVA Table for Categorical Feature
+
+broom::tidy(anova(model_cat)) |> 
+    rename(
+        Feature = term,
+        `F stat.` = statistic
+    ) |> 
+    mutate(
+        p.value = ifelse(!is.na(p.value), '< 0.001', '')
+    ) |> 
+    gt(decimals=1) |> 
+    sub_missing(missing_text ='')
+```
+
+The only reason to use this is for claims of statistical significance, which in this case, season is statistically significant. For practical purposes, the DF (degrees of freedom) represents the number of categories minus 1, and the F-statistic is a measure of the (mean sq) variance explained by the feature  (mean square value divided by DF) relative to the (mean sq) variance not explained by the feature. The p-value is the probability of observing an F-statistic as extreme as the one observed, given that the null hypothesis is true. In this case, the null hypothesis is that the feature has no effect on the target.  The p-value is less than 0.001, so we reject the null hypothesis and conclude that the feature has an effect on the target. Note that nothing here is different from what we saw in our previous regression models, and we can run an `anova` function on those too[^anova_vs_t]. 
+
+[^anova_vs_t]: For those interested, for those features with one degree of freedom, all else being equal the F statistic here would just be the square of the t-statistic for the coefficients, and the p-value would be the same.
+
+#### Group Predictions
+
 A better approach to understanding categorical features for standard linear models is through what are called **marginal effects**, which can provide a kind of average prediction for each category while accounting for the other features in the model. Better still is to visualize these. It's actually tricky to define 'average' when there are multiple features and interactions involved, so be careful, but we'd interpret the result similarly in those cases as best we can. In this case, we expect higher ratings for summer releases. We'll return more to this concept in -@sec-marginal-effects.
 
 ```{r}
@@ -1312,13 +1363,13 @@ There is a lot more fun things we can do will still keeping to a linear model. W
 
 ## Assumptions and More {#sec-lm-assumptions}
 
-TODO: MOVE BULK OF THIS TO MODEL CRITICISM?? ALSO NEEDS CLEANUP
+<!-- TODO: does this fit better here or in knowing chapter? -->
 
 Every model you use has underlying assumptions which, if not met, could potentially result in incorrect inferences about the effects, performance, or predictive capabilities of the model. The standard linear regression model we've shown is no different, and it has a number of assumptions that must be met for it to be *statistically* valid. Briefly they are:
 
 - That your model is not grossly misspecified (e.g., you've included the right features and not left out important ones)
 - The data that you're modeling reflects the population you want to make generalizations about
-- The model is linear in the parameters (i.e. no $\beta_1\cdot e^x$ type stuff)
+- The model is linear in the parameters (i.e. no $e^\beta_1$ type stuff)
 - The features are not correlated with the error (prediction errors, unobserved causes)
 - Your data observations are independent of each other
 - The prediction errors are homoscedastic (don't have large errors with certain predictions vs low with others)
@@ -1344,16 +1395,14 @@ If you do meet these assumptions, it doesn't mean:
 If you don't meet these assumptions, it doesn't mean:
 
 - That your model will have poor predictions 
-- That your conclusions will necessarily be incorrect
+- That your conclusions will necessarily be incorrect or even different
 
-So basically whether or not you meet the assumptions of your model doesn't actually say much about whether the model is great or terrible, it just means that you have to be careful about what you can say about it. For the linear regression model, if you do meet those assumptions, your coefficient estimates are unbiased[^unbiased], and in general, your statistical inferences are correct ones. If you don't meet them, there are alternative versions of the linear model you could use that would get around the problem. For example, data that runs over a sequence of time (**time series** data) violates the independence assumption since observations closer in time are more likely to be similar than those farther apart. But we would use a **time series** or similar model instead to account for this. If normality is difficult to meet, you could assume a different data generating distribution. We'll discuss some of these in @sec-lm-extend, but it's also important to note that not meeting the assumptions may only mean you'll prefer a different type of linear or other model to use for the data.  It's often the case taht not meeting the assumptions is often the result of a poor model, e.g., using poor features in an **underspecified** way, like not including interactions or other complexity.
+So basically, whether or not you meet the assumptions of your model doesn't actually say much about whether the model is great or terrible, it just means that you have to be careful about what you can say about it. For the linear regression model, if you do meet those assumptions, your coefficient estimates are unbiased[^unbiased], and in general, your statistical inferences are correct ones. If you don't meet them, there are alternative versions of the linear model you could use that would get around the problem. For example, data that runs over a sequence of time (**time series** data) violates the independence assumption, since observations closer in time are more likely to be similar than those farther apart. But we would use a **time series** or similar model instead to account for this. If normality is difficult to meet, you could assume a different data generating distribution. We'll discuss some of these approaches explicitly in later chapters, but it's also important to note that not meeting the assumptions for the baseline model may only mean you'll prefer a different type of linear or other model to use in order to meet them.  
 
-[^unbiased]: This means they are correct on average, not the true value. And if they were biased, this is statistical bias, and has nothing to do with the moral or ethical implications of the data, or whether the features themselves are biased in measurement. Culturally biased data is a different problem than statistical/prediction bias or measurement error, though they are not mutually exclusive. The latter can more readily be tested, while the former is usually more difficult to assess.  For example, if our movie reviews only came from a website with a paywall, they would be biased if we wanted to use them to refer to general public opinion. Even then, our model results are perfectly reasonable, as long as they are used to generalize only to that population of people who pay for the website. If we wanted to generalize to the general public, we would need to account for this bias in some way, or use a different data source.  MOVE THIS TO SOME OTHER CHAPTER (DATA?)
-
-On top of not meeting the assumptions, we may in fact intentionally introduce bias to get better prediction!  For example, we might use a **penalized regression** model to reduce the variance in our predictions, at the cost of introducing bias in the coefficients. We'll talk more of this in the @sec-ml-common-models, but suffice it to say for now, if you are more interested in prediction, you may be less interested in the statistical assumptions of the basic linear model.
+[^unbiased]: This means they are correct *on average*, not the true value. And if they were biased, this refers to **statistical bias**, and has nothing to do with the moral or ethical implications of the data, or whether the features themselves are biased in measurement. Culturally biased data is a different problem than statistical/prediction bias or measurement error, though they are not mutually exclusive. Statistical bias can more readily be tested, while other types of bias are more difficult to assess. Even statistical unbiasedness is not necessarily a goal, as we will see later @sec-estim-penalty.
 
 
-### More Complex Models {#sec-lm-more-complex}
+### Assumptions fo More Complex Models {#sec-lm-assumption-complex}
 
 Let's say your running some XGBoost or Deep Linear Model and getting outstanding predictions. Assumptions smumptions you say! And you might even be right! But if you want to talk confidently about feature contributions, or know something about the uncertainty in the predictions (which you're assessing right?), well, maybe you might want to know if you're meeting your assumptions. Some of them are:
 
@@ -1369,21 +1418,16 @@ And if you want to talk about specific feature contributions, you are assuming:
 - The features largely do not interact (but then why are you doing a complex model that is inherently interactive), or that your understanding of feature contribution deals with the interactions
 
 
-Yeah... so, sorry to say, using non-statistical models doesn't mean you don't have to worry about assumptions, you still have some of the old stuff and some new ones to boot.
+The take home message is that using models in more complex settings like machine learning doesn't mean you don't have to worry about theoretical and model assumptions, you still have much to consider!
 
-
-
-<!---
- performance::check_model(model_reviews_extra) 
---->
 
 ## Classification {#sec-lm-classification}
 
-We've been using a continuous target, but what about a categorical target? For example, what if we just had a binary target of whether a movie was good or bad? We will dive much more into classification models in our upcoming chapters, but it turns out that we can still formulate it as a linear model problem. The main difference is that we use a transformation of our linear combination of features, using what is  sometimes called a **link function**, and we'll need to use a different **objective function** rather than least squares, such as the binomial likelihood, to deal with the binary target. This also means we'll move away from R^2^ as a measure of model fit, and look at something something else, like accuracy. 
+Up to this point we've been using a continuous, numeric target. But what about a categorical target? For example, what if we just had a binary target of whether a movie was good or bad? We will dive much more into classification models in our upcoming chapters, but it turns out that we can still formulate it as a linear model problem. The main difference is that we use a transformation of our linear combination of features, using what is  sometimes called a **link function**, and we'll need to use a different **objective function** rather than least squares, such as the binomial likelihood, to deal with the binary target. This also means we'll move away from R^2^ as a measure of model fit, and look at something something else, like accuracy. 
 
-Graphically we can see it in the following way, which when compared with our linear model (@fig-graph-lm), doesn't look much different.  In what follows, we create our linear combination and put it through the sigmoid function, which is a common link function for binary targets[^revlogit]. The result is a probability, which we can then use to classify the observation as good or bad based on a chosen threshold. 
+Graphically we can see it in the following way, which when compared with our linear model (@fig-graph-lm), doesn't look much different.  In what follows, we create our linear combination of features and put it through the sigmoid function, which is a common link function for binary targets[^revlogit]. The result is a probability, which we can then use to classify the observation as good or bad based on a chosen threshold. For example, we might say that any instance associated with a probability greater than or equal to 0.5 is classified as 'good', and less than that is classified as 'bad'.
 
-[^revlogit]: The sigmoid function in this case is the inverse logistic function, and the resulting statistical model is called logistic regression. In other contexts the model would not be a logistic regression, but this is still a very commmonly used *activation function*. But many others could potentially be used e.g. using a normal instead of logistic distribution, resulting in the so-called probit model. 
+[^revlogit]: The sigmoid function in this case is the inverse logistic function, and the resulting statistical model is called logistic regression. In other contexts the model would not be a logistic regression, but this is still a very commmonly used **activation function**. But many others could potentially be used e.g. using a normal instead of logistic distribution, resulting in the so-called probit model. 
 
 ```{r}
 #| echo: false
@@ -1399,13 +1443,13 @@ g %>%
 
 ![A Linear Model with Transformation Can Be a Logistic Regression](img/graphical_logistic.svg){width=75%  #fig-graph-logistic}
 
-As soon as we move away from the standard linear model and use transformations of our linear predictor, simple coefficient interpretation becomes difficult, sometimes exceedingly so. We will explore more of these types of models in @sec-glm.
+As soon as we move away from the standard linear model and use transformations of our linear predictor, simple coefficient interpretation becomes difficult, sometimes exceedingly so. We will explore more of these types of models and how to interpret them in later chapters (e.g. @sec-glm).
 
 
 
 ## More linear models {#sec-lm-more}
 
-Before we leave our humble linear model, let's look at some others. Here is a brief overview of some of the more common linear models you might encounter. 
+Before we leave our humble linear model, let's look at some others. Here is a brief overview of some of the more common 'linear' models you might encounter. 
 
 Generalize Linear Models and related
 
@@ -1424,7 +1468,7 @@ Multivariate/multiclass/multipart
 Random Effects
 
 - Mixed effects models (random intercepts/coefficients)
-- Generalized additive models (GAMMs)
+- Generalized additive models (GAMs)
 - Spatial models (CAR)
 - Time series models (ARIMA)
 - Factor analysis
@@ -1435,22 +1479,24 @@ Latent Linear Models
 - Mixture models
 - Structural Equation Modeling, Graphical models generally
 
-All of these are explicitly linear models or can be framed as such, and most are either identical in description to what you've already seen or require only a tweak or two - e.g. a different distribution, a different link function, penalizing the coefficients, etc. In other cases, we can bounce from one to the another. For example we can reshape our multivariate outcome to be amenable to a mixed model approach and get the exact same results. We can potentially add a random effect to any model, and that random effect can be based on time, spatial or other considerations. The important thing to know is that the linear model is a very flexible tool that expands easily, and allows you to model most of the types of outcomes were interested in. As such, it's a very powerful approach to modeling.
+All of these are explicitly linear models or can be framed as such, and most require only a tweak or two from what you've already seen - e.g. a different distribution, a different link function, penalizing the coefficients, etc. In other cases, we can bounce from one to the another. For example we can reshape our multivariate outcome to be amenable to a mixed model approach and get the exact same results. We can potentially add a random effect to any model, and that random effect can be based on time, spatial or other considerations. The important thing to know is that the linear model is a very flexible tool that expands easily, and allows you to model most of the types of outcomes were interested in. As such, it's a very powerful approach to modeling.
 
 
 
 ## Wrapping Up {#sec-lm-wrap}
 
-Linear models such as the linear regression demonstrated in this chapter are a very popular tool for data analysis, and for good reason. They are relatively easy to understand, and they are very flexible.  They can be used for prediction, explanation, and inference, and they can be used for a wide variety of data types. They are also many tools at our disposal to help us implement and explore them. But they are not without their limitations, and you'll want to have more in your toolbox than just the approach we've seen so far.
+Linear models such as the linear regression demonstrated in this chapter are a very popular tool for data analysis, and for good reason. They are relatively easy to implement and they are very flexible.  They can be used for prediction, explanation, and inference, and they can be used for a wide variety of data types. There are also many tools at our disposal to help us use and explore them. But they are not without their limitations, and you'll want to have more in your toolbox than just the approach we've seen so far.
+
+<!-- TODO: ### Things to Watch Out For -->
 
 ### Choose your own adventure {#sec-lm-adventure}
 
 Now that you've got the basics, where do you want to go?
 
-- If you want a deeper dive into how we get the results from our model: head to @sec-estimation
 - If you want to know more about how to understand the model: @sec-knowing
+- If you want a deeper dive into how we get the results from our model:  @sec-estimation
 - If you want to do some more modeling: @sec-glm, @sec-lm-extend or @sec-ml-core-concepts
-- Got more data questions? Go to the @sec-data
+- Got more data questions? @sec-data
 
 If you are interested in a deeper dive into the theory and assumptions behind linear models, you can check out more statistical/econometric treatments such as:
 
@@ -1469,12 +1515,12 @@ But there are many, many books on statistical analysis, linear models, and linea
 
 ## Exercise {#sec-lm-exercise}
 
-- Import some data. Stick with the current data if you want and just try out other features, or maybe try the world happiness data 2018 data. You can find details about it in the appendix @sec-data-descript.
+Import some data. Stick with the movie reviews data if you want and just try out other features, or maybe try the world happiness data 2018 data. You can find details about it in the appendix @sec-dd-world-happiness-report, can download it [here](https://raw.githubusercontent.com/m-clark/book-of-models/main/data/world_happiness_2018.csv).
 
-TODO: ADD DATA LINK
+<!-- TODO: ADD/CHECK DATA LINK -->
 
-- Fit a linear model, try to keep it to no more than three features.
-- Get all the predictions for the data, and try at least
+- Fit a linear model, maybe keep it to three features or lesss
+- Get all the predictions for the data, and try a prediction of at least one new observation of interest
 - Interpret the coefficients
 - Assess the model fit
 
@@ -1490,6 +1536,3 @@ happy |>
     write_csv('data/world_happiness_2018.csv')
 ```
 
-## refs
-
-@molnar_interpretable_2023
