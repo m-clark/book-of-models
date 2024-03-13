@@ -507,7 +507,7 @@ Now that we have our model trained, we can use it to get the predicted probabili
 
 ```{r}
 #| label: r-classification-model-predict
-predictions = predict(
+predicted_prob = predict(
     model_train_class,
     newdata = testing_data,
     type = "response"
@@ -518,7 +518,7 @@ predictions = predict(
 
 ```{python}
 #| label: python-classification-model-predict
-predictions = model_train_class.predict(testing_data)
+predicted_prob = model_train_class.predict(testing_data)
 ```
 
 :::
@@ -531,7 +531,7 @@ We are going to take those probability values and make a decision to convert eve
 
 ```{r}
 #| label: r-classification-predictions
-predictions = ifelse(predictions >= .5 , 1, 0)
+predicted_class = ifelse(predicted_prob >= .5 , 1, 0)
 ```
 
 
@@ -539,16 +539,16 @@ predictions = ifelse(predictions >= .5 , 1, 0)
 
 ```{python}
 #| label: python-classification-predictions
-predictions = np.where(predictions >= .5, 1, 0)
+predicted_class = np.where(predicted_prob >= .5, 1, 0)
 
-predictions = pd.Series(predictions)
+predicted_class = pd.Series(predicted_class)
 ```
 
 :::
 
 #### Confusion Matrix {#sec-knowing-metrics-confusion}
 
-The confusion matrix is a table that shows the number of correct and incorrect predictions made by the model. It's easy enough to get one from scratch, but we recommend using a function that will give you a nice table and all of the metrics you need along with it. To get us started, here is a confusion matrix for our (R) model, but the Python table is similar.
+The confusion matrix is a table that shows the number of correct and incorrect predictions made by the model. As we'll see, it's easy enough to get one from scratch, but we recommend using a function that will give you a nice table and all of the metrics you need along with it. To get us started, here is a confusion matrix for our (R) model, but the Python table is similar.
 
 
 ```{r}
@@ -557,7 +557,7 @@ The confusion matrix is a table that shows the number of correct and incorrect p
 
 rating_cm = mlr3measures::confusion_matrix(
     factor(testing_data$rating_good),
-    factor(predictions),
+    factor(predicted_class),
     positive = "1"
 )
 ```
@@ -567,7 +567,7 @@ rating_cm = mlr3measures::confusion_matrix(
 #| label: python-classification-confusion-matrix
 from sklearn.metrics import confusion_matrix
 
-rating_cm = confusion_matrix(testing_data.rating_good, predictions)
+rating_cm = confusion_matrix(testing_data.rating_good, predicted_class)
 ```
 
 
@@ -581,6 +581,8 @@ new_cm['0','0'] = paste0("TN: ", new_cm['0','0'])
 new_cm['1','1'] = paste0("TP: ", new_cm['1','1'])
 new_cm['0', '1'] = paste0("FN: ", new_cm['0', '1'])
 new_cm['1', '0'] = paste0("FP: ", new_cm['1', '0'])
+
+new_cm = new_cm[2:1,2:1]
 
 class(new_cm) <- "matrix" # strip table class
 
@@ -600,7 +602,7 @@ new_cm  |>
 
 -   **TP**: A True Positive is an outcome where the model correctly predicts the positive class -- the model correctly predicted that the review was good.
 
-In an ideal world, we would have all of our observations fitting nicely in the diagonal of that table. Unfortunately, we don't live in the ideal world and we always have values in the off diagonal. The more values we have in the off diagonal (i.e., in the FN and FP spots), the worse our model is at classifying outcomes. 
+In an ideal world, we would have all of our observations fitting nicely in the diagonal of that table. Unfortunately, we don't live in that world and the more values we have in the off diagonal (i.e., in the FN and FP spots), the worse our model is at classifying outcomes. 
 
 Let's look at some metrics that will help to see if we've got a suitable model or not. We'll describe each, then show them all after.
 
@@ -616,20 +618,70 @@ Accuracy is the first thing you see and the last thing that you trust! Seriously
 
 #### Sensitivity/Recall/True Positive Rate {#sec-knowing-metrics-sensitivity}
 
-Sensitivity, also known as **recall** or the **true positive rate**, is the proportion of observed positives that are correctly predicted as such by the model. If you want to know how well your model predicts the positive class, sensitivity is the metric for you. 
+**Sensitivity**, also known as **recall** or the **true positive rate**, is the proportion of observed positives that are correctly predicted by the model. If your focus is on the positve class above all else, sensitivity is the metric for you. 
 
 
 #### Specificity/True Negative Rate {#sec-knowing-metrics-specificity}
 
-Specificity, also known as the true negative rate, is the proportion of **actual negatives** that are correctly identified as such. If you want to know how well your model will work with the negative class, specificity is a great metric. 
+**Specificity**, also known as the **true negative rate**, is the proportion of observed negatives that are correctly predicted as such. If you want to know how well your model will work with the negative class, specificity is a great metric. 
 
 #### Precision/Positive Predictive Value {#sec-knowing-metrics-precision}
 
-The precision is the proportion of **positive predictions** that are correct, and is often a key metric in many business use cases.
+The **precision** is the proportion of positive predictions that are correct, and is often a key metric in many business use cases. While similar to sensitivity, precision focuses on is positive predictions, while sensitivity focuses on observed positive cases.
 
 #### Negative Predictive Value {#sec-knowing-metrics-npv}
 
-The negative predictive value is the proportion of **negative predictions** that are correct. 
+The **negative predictive value** is the proportion of negative predictions that are correct, and is the complement to precision.
+
+Let's see how we'd do this ourselves. We'll create a basic confusion matrix then extract the values to create the metrics we need.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-cm-basic
+
+confusion_matrix = table(
+    predicted_class,
+    testing_data$rating_good
+)
+
+TN = confusion_matrix[1, 1]
+TP = confusion_matrix[2, 2]
+FN = confusion_matrix[1, 2]
+FP = confusion_matrix[2, 1]
+
+acc = (TP + TN) / sum(confusion_matrix)  # accuracy
+tpr = TP / (TP + FN)  # sensitivity, true positive rate, recall
+tnr = TN / (TN + FP)  # specificity, true negative rate
+ppv = TP / (TP + FP)  # precision, positive predictive value
+npv = TN / (TN + FN)  # negative predictive value
+```
+
+##### Python
+
+```{python}
+#| label: python-cm-basic
+
+confusion_matrix = pd.crosstab(
+    predicted_class,
+    testing_data.rating_good.reset_index(drop=True), 
+).to_numpy()
+
+TN = confusion_matrix[0, 0]
+TP = confusion_matrix[1, 1]
+FN = confusion_matrix[0, 1]
+FP = confusion_matrix[1, 0]
+
+acc = (TP + TN) / np.sum(confusion_matrix)  # accuracy
+tpr = TP / (TP + FN)  # sensitivity, true positive rate, recall
+tnr = TN / (TN + FP)  # specificity, true negative rate
+ppv = TP / (TP + FP)  # precision, positive predictive value
+npv = TN / (TN + FN)  # negative predictive value
+```
+
+:::
 
 
 Now that we have a sense of some metrics, let's get a confusion matrix and stats using packages that will give us a lot of these metrics at once. In both cases we have an 0/1 integer where 0 is a rating of "bad" and 1 is "good".
@@ -642,18 +694,23 @@ We use [mlr3verse]{.pack} in the ML chapters, so we'll use it here too. Though o
 
 ```{r}
 #| label: r-cm-summary
+# note the columns and rows are reversed from our previous confusion matrix
 cm = mlr3measures::confusion_matrix(
     factor(testing_data$rating_good),  # requires a factor
-    factor(predictions),
+    factor(predicted_class),
     positive = "1"  # class 1 is 'good'
 )
 
-cm$measures[c('acc', 'tpr', 'tnr', 'ppv', 'npv')]
+tibble(
+    metric = c('ACC', 'TPR', 'TNR', 'PPV', 'NPV'),
+    ours = c(acc, tpr, tnr, ppv, npv),
+    package = cm$measures[c('acc', 'tpr', 'tnr', 'ppv', 'npv')]
+)
 ```
 
 ##### Python
 
-We find [pycm]{.pack} to be a great package for this purpose, practically every metric you can think of is available.
+We find [pycm]{.pack} to be a great package for this purpose, practically every metric you can think of is available. You can also use [sklearn.metrics]{.pack} and its corresponding `classification_report` function.
 
 ```{python}
 #| label: python-cm-summary
@@ -662,19 +719,22 @@ from pycm import ConfusionMatrix
 
 cm = ConfusionMatrix(
     testing_data.rating_good.to_numpy(), 
-    predictions.to_numpy(), 
+    predicted_class.to_numpy(), 
     digit = 3
 )
 
-# cm.overal_stat # lots of stats!
-stats_we_want = ['ACC', 'TPR', 'TNR', 'PPV', 'NPV']
-stats_ = [
-    cm.class_stat[stat]
-    for stat in stats_we_want
+# print(cm) # lots of stats!
+
+package_result = [
+    cm.class_stat[stat][1] # get results specific to class 1
+    for stat in  ['ACC', 'TPR', 'TNR', 'PPV', 'NPV']
 ]
 
-# get results specific to class 1
-pd.DataFrame(cm.class_stat).loc[1, stats_we_want]
+pd.DataFrame({
+    'metric':['ACC', 'TPR', 'TNR', 'PPV', 'NPV'],
+    'ours': [acc, tpr, tnr, ppv, npv],
+    'package': package_result
+})
 ```
 
 :::
@@ -682,17 +742,28 @@ pd.DataFrame(cm.class_stat).loc[1, stats_we_want]
 
 Some additional measures we might look at include the following. Those with an asterisk are also in table @tbl-performance-metrics.
 
-- kappa: A measure of how much better the model is than random guessing. 
+- Kappa: A measure of how much better the model is than random guessing. 
 - Prevalence: The proportion of actual positives in the data. If you don't know this, accuracy is fairly meaningless.
-- Balanced Accuracy: The average of the sensitivity (TPR) and specificity (TNR). 
-- F1*: The harmonic mean of precision and recall. 
-- AUC*: The area under the ROC curve.
+- Balanced Accuracy: The average of the sensitivity (TPR) and specificity (TNR). Typically a better measure than accuracy when there is class imbalance.
+- F1*: The harmonic mean of precision and recall.
+- AUC*: The area under the ROC curve. We'll talk about this next.
 
-#### Ideal Decision Points
+#### Ideal Decision Points for Classification {#sec-knowing-ideal-cut-point}
 
-Earlier when we obtained the predicted class, we used a predicted probability value of 0.5 to establish our predicted class, and this is usually the default if we don't specify it. That is a pretty bold assumption on our part and we should probably make sure that the cut-off value we choose is going to offer use the best performance.
+Earlier when we obtained the predicted class, and then all the metrics based on it, we used a predicted probability value of 0.5 as a cutoff for a 'good' vs. a 'bad' rating, and this is usually the default if we don't specify it. Think that this is the best for a given situtation is actually a pretty bold assumption on our part, and we should probably make sure that the cut-off value we choose is going to offer use the best result given the modeling context.
 
-To handle this task, we will start by creating a **Receiver Operating Characteristic** (ROC) curve. This curve plots the true positive rate (TPR) against the false positive rate (FPR) at various threshold settings. The **area under the curve** (AUC) is a measure of how well the model is able to distinguish between the two classes. The closer the AUC is to 1, the better the model is at distinguishing between the two classes.
+But what is the 'best' result? That's going to depend on the situation. If we are predicting whether a patient has a disease, we might want to minimize false negatives, since if we miss the diagnosis, the patient could be in serious trouble. Meanwhile if we are predicting whether a transaction is fraudulent, we might want to minimize false positives, since if we flag a transaction as fraudulent when it isn't, we could be causing a lot of trouble for the customer. In other words, we might want to maximize sensitivity or specificity, respectively.
+
+Whatever we decide, we ultimately are just shifting the metrics around relative to one another. As an easy example, if we were to classify all of our observations as 'good', we would have a sensitivity of 1 because all good ratings would be classified correctly. However, our positive predictive value would not be 1, and we'd have a specificity of 0. No matter which cutpoint we choose, we are going to have to make a tradeoff between these metrics.
+
+Where this comes into play is with **model selection**, where we choose a model based on a particular metric, and something we will talk about very soon. If we are comparing models based on accuracy, we might choose a different model than if we are comparing based on sensitivity. And given a particular threshold, we might choose a different model based on the same metric, than we would have with a different threshold.
+
+To help us with the task of choosing a threshold, we will start by creating what's called a **Receiver Operating Characteristic** (ROC) curve. This curve plots the true positive rate (TPR) against the false positive rate (FPR) at various threshold settings. The **area under the curve** (AUC) is a measure of how well the model is able to distinguish between the two classes. The closer the AUC is to 1, the better the model is at distinguishing between the two classes. The AUC is a very popular metric because it is not sensitive to our threshold, and actually concerns two metrics we are often interested in[^prerecallcurve].
+
+
+[^prerecallcurve]: The **precision-recall curve** is very similar approach which visualizes the tradeoff between precision and recall. The area under the precision-recall curve is its corresponding metric.
+
+<!-- TODO: double check this cluster for R. it seems whatever package you pick will only give you half of what you want -->
 
 :::{.panel-tabset}
 
@@ -702,23 +773,11 @@ To handle this task, we will start by creating a **Receiver Operating Characteri
 #| results: hide
 #| label: r-roc-auc
 #| fig-show: 'hide'
+roc = performance::performance_roc(model_train_class, new_data = testing_data)
+roc
 
-library(pROC)
-
-prediction_prob = predict(
-    model_train_class,
-    testing_data,
-    type = "response"
-)
-
-roc = roc(
-  testing_data$rating_good, 
-  prediction_prob
-)
-
-plot(roc)
-
-auc(roc)
+# requires the 'see' package
+plot(roc) 
 ```
 
 ##### Python
@@ -731,7 +790,7 @@ from sklearn.metrics import roc_curve, auc, RocCurveDisplay
 
 fpr, tpr, thresholds = roc_curve(
     testing_data.rating_good, 
-    model_train_class.predict(testing_data)
+    predicted_prob
 )
 
 RocCurveDisplay(fpr=fpr, tpr=tpr).plot()
@@ -745,18 +804,22 @@ auc(fpr, tpr)
 #| echo: false
 #| label: fig-pretty-roc-auc
 #| fig-cap: ROC curve and AUC value
-tibble(
-    Specificity = roc$specificities,
-    Sensitivity = roc$sensitivities,
-) |> 
-    ggplot(aes(Specificity, Sensitivity)) +
+
+auc_value = bayestestR::area_under_curve(
+    roc$Specificity, 
+    roc$Sensitivity
+)
+
+roc |>
+    as_tibble() |> 
+    ggplot(aes(1-Specificity, Sensitivity)) +
     geom_path(linewidth = 1.25) +
     geom_abline(intercept = 1, slope = 1, linetype = "dashed", color = 'gray75') +
     annotate(
         "text", 
         x = 0.5, 
         y = 0.75, 
-        label = paste("AUC:", round(auc(roc), 2)),
+        label = paste("AUC:", round(auc_value, 2)),
         size = 5,
         fontface = "bold",
         color = 'gray33'
@@ -764,15 +827,36 @@ tibble(
     scale_x_reverse() 
 ```
 
-With ROC curves and AUC values in hand, now we can find the ideal cut-point for balancing the TPR and FPR. There are different ways to do this, but one common way is to use the Youden's J statistic, which both of hte following do.
+With ROC curves and AUC values in hand, now we can find the ideal cut-point for balancing the TPR and FPR. There are different ways to do this, but one common way is to use the Youden's J statistic, which both of the following do.
 
 :::{.panel-tabset}
 
 ##### R
 
+
 ```{r}
 #| label: r-ideal-cut-point
-coords(roc, "best")
+
+roc_ = pROC::roc(testing_data$rating_good, predicted_prob) # produces the same value as before
+threshold = pROC::coords(roc_, "best", ret = "threshold")
+
+predictions = ifelse(
+    predict(model_train_class, testing_data, type='response') >= threshold$threshold, 
+    1, 
+    0
+)
+
+cm_new = mlr3measures::confusion_matrix(
+    factor(testing_data$rating_good), 
+    factor(predictions), 
+    positive = "1"
+)
+
+tibble(
+    threshold = threshold,
+    TNR = cm_new$measures['tnr'],
+    TPR = cm_new$measures['tpr']
+)
 ```
 
 ##### Python
@@ -782,35 +866,23 @@ coords(roc, "best")
 cut = thresholds[np.argmax(tpr - fpr)]
 
 pd.DataFrame({
-    'cut': [cut],
-    'TPR': [tpr[np.argmax(tpr - fpr)]],
-    'TNR': [1 - fpr[np.argmax(tpr - fpr)]]
+    'threshold': [cut],
+    'TNR': [1 - fpr[np.argmax(tpr - fpr)]],
+    'TPR': [tpr[np.argmax(tpr - fpr)]]
 })
 ```   
 
 
-```{python}
-#| label: python-ideal-cut-point-metrics
-#| eval: false
-#| echo: false
-pred_class = (model_train_class.predict(testing_data) >= cut).astype(int)
-
-from pycm import ConfusionMatrix
-
-cm = ConfusionMatrix(testing_data.rating_good.to_numpy(), pred_class.to_numpy(), digit = 3)
-
-pd.DataFrame(cm.overall_stat)
-
-np.array([cut, cm.TPR[1], cm.TNR[1]]).round(3)
-```
 :::
 
 The result is a "best" decision cut-point for converting our predicted probabilities to classes, though again, there are different and equally valid ways of going about this. The take home point is that instead of being naive about setting our probability to .5, this will give a cut-point that will lead to more balanced approach that recognizes other metrics that are important beyond accuracy. We will leave it to you to take that ideal cut-point value and update your metrics to see how much of a difference it will make.  
 
-Note that this only changes the values relative to one another, not the overall performance of the model. For example, accuracy may go down while recall increases. You'll need to match these metrics to your use case to see if the change is worth it.  Whether it is a meager, modest, or meaningful improvement is going to vary from situation to situation, as will how you determine if your model is "good" or "bad". Is this a good model? Are you more interested in correclty identifying the positive class, or the negative class? Are you more interested in avoiding false positives/negatives? These are all questions that you will need to answer depending on the modeling context.
+Note that this only changes the values relative to one another, not the overall performance of the model - the actual predicted probabilities don't change after all. For example, accuracy may go down while recall increases. You'll need to match these metrics to your use case to see if the change is worth it.  Whether it is a meager, modest, or meaningful improvement is going to vary from situation to situation, as will how you determine if your model is "good" or "bad". Is this a good model? Are you more interested in correclty identifying the positive class, or the negative class? Are you more interested in avoiding false positives/negatives? These are all questions that you will need to answer depending on the modeling context.
 
 
-### Model Comparison {#sec-knowing-model-compare}
+### Model Selection and Comparison {#sec-knowing-model-compare}
+
+<!-- TODO: under the hood each iteration vs explictly pitting models against one another -->
 
 Another important way to understand our model is by looking at how it compares to other models. We can do this by comparing the metric values of our choice, for example, with RMSE or ROC. Let's see this in action for our regression model. Here we will compare three models: one with three features, our original model, and the three feature model with interactions with genre.  Our goal will be to see how these perform on the test set based on RMSE.
 
@@ -2541,7 +2613,7 @@ It is easy to get caught up in the excitement of creating a model and then using
 
 ### Where to go from here
 
-If you haven't already, feel free to take your linear models further in @sec-lm-extend and @sec-glm, where you'll see how to handle different distributions for your target, add interactions, nonlinear effects, and more.  Otherwise, you've got enough at this point to try your hand at the @sec-ml section, where you can dive into machine learning!
+If you haven't already, feel free to take your linear models further in @sec-lm-extend and @sec-glm, where you'll see how to handle different distributions for your target, add interactions, nonlinear effects, and more.  Otherwise, you've got enough at this point to try your hand at the @sec-ml-core-concepts section, where you can dive into machine learning!
 
 ## Exercises
 
@@ -2561,3 +2633,8 @@ The [marginal effects zoo](https://marginaleffects.com/), written by the [margin
 
 ## Exercise
 
+Use the world happiness data set to create a linear model that predicts happiness score. 
+
+## 
+
+@google_classification_2024
