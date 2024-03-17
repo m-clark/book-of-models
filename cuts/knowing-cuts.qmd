@@ -1,0 +1,480 @@
+---
+title: "Untitled"
+format: html
+---
+
+## Classification Metrix 
+
+### Confusion Matrix
+ It is calculated as follows:
+
+$$\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}$$
+
+From our table above, we can calculate the accuracy as follows- it's just the sum of the values of the diagonal divided by the sum of all the values in the table.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-cm-accuracy
+
+TN = rating_cm[1]
+TP = rating_cm[4]
+FN = rating_cm[3]
+FP = rating_cm[2]
+
+sum(diag(rating_cm)) / sum(rating_cm)
+```
+
+##### Python
+
+```{python}
+#| label: python-cm-accuracy
+TN = rating_cm[0][0]
+TP = rating_cm[1][1]
+FN = rating_cm[1][0]
+FP = rating_cm[0][1]
+
+(TN + TP) / (TN + TP + FN + FP)
+```
+:::
+
+
+It is calculated as follows:
+
+$$\text{Sensitivity} = \frac{TP}{TP + FN}$$
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-cm-sensitivity
+TP / (TP + FN)
+```
+
+##### Python
+
+```{python}
+#| label: python-cm-sensitivity
+TP / (TP + FN)
+```
+
+:::
+
+
+It is calculated as follows:
+
+$$\text{Specificity} = \frac{TN}{TN + FP}$$
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-cm-specificity
+TN / (TN + FP)
+```
+
+##### Python
+
+```{python}
+#| label: python-cm-specificity
+TN / (TN + FP)
+```
+
+:::
+
+
+It is calculated as follows:
+
+$$\text{Precision} = \frac{TP}{TP + FP}$$
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-cm-precision
+TP / (TP + FP)
+```
+
+##### Python
+
+```{python}
+#| label: python-cm-precision
+TP / (TP + FP)
+```
+
+:::
+
+
+It is calculated as follows:
+
+$$\text{NPV} = \frac{TN}{TN + FN}$$
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-cm-npv
+TN / (TN + FN)
+```
+
+##### Python
+
+```{python}
+#| label: python-cm-npv
+TN / (TN + FN)
+```
+
+:::
+
+
+
+<!-- 
+
+This was largely incorporated, but maybe revisit the DALEX code and other stuff.
+
+## Model Visualizations
+
+Using various fit metrics to assess your model's performance is critical for knowing how well it will do with new data. As good as it might be to know if it is useful, you might also want to know what is actually happening in the model. Which variables are important? How did a specific observation reach its predicted value? 
+
+For these tasks, and many others, we can turn to visualizations to gain a better understanding of our model. Afterall, we can't really criticize something we don't understand, can we? To help us along, we are going to use `DALEX` to create **model explainers**. 
+
+We will focus on two types of explainers: **variable importance** and **localized predictions**. We will look at them individually for regression and classification tasks.
+
+### Regression
+
+We are going to add some more features to our model to make it a little more interesting, check that model's performance, and then look at the **Partial Dependence Plots**, which will give us a good idea about the relationship between the features and the target. 
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: lm-explainer-r
+library(DALEX)
+features = attr(model_train_reg$terms, 'term.labels')
+
+train_explain = explain(
+  model_train_reg,
+  data = training_data |> select(all_of(features)), # can't have target, and will get notes about non-model features
+  y = training_data$rating,
+  verbose = FALSE
+)
+
+train_performance = model_performance(train_explain)
+
+# train_performance # not shown
+
+train_var_effect = model_profile(train_explain)
+```
+
+
+```{r}
+#| label: fig-r-perf-plot
+#| fig-cap: R Performance Plot
+
+# plot(train_var_effect)
+```
+
+##### Python
+
+```{python}
+#| label: lm-explainer-py
+import dalex as dx
+import matplotlib.pyplot as plt
+
+train_explain = dx.Explainer(
+    model_train_reg, 
+    data = training_data[features], 
+    y = training_data.rating,
+    verbose = False
+)
+
+train_performance = train_explain.model_performance()
+
+perf_plot = train_performance.plot()
+```
+
+
+```{python}
+#| label: fig-py-perf-plot
+#| fig-cap: "Python Performance Plot"
+perf_plot.show()
+```
+
+:::
+
+We can see what R and Python offer us for model performance plots in @fig-r-perf-plot and @fig-py-perf-plot. We can dig into more specific information about our model, beyond just the general performance.
+
+#### Variable Importance
+
+As with any model, knowing which variables are important is a critical piece of information. We can use the `model_parts` function to get a sense of which variables are most important to our model. Dalex creates feature importance by assessing how a model's RMSE changes when a feature is permuted. The more the loss changes, the more important the feature!
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: lm-var-imp-r
+model_var_imp = model_parts(
+  train_explain, type = "variable_importance"
+)
+```
+
+
+```{r}
+#| label: fig-r-var-imp
+#| fig-cap: R Variable Importance Plot
+
+plot(model_var_imp)
+```
+
+##### Python
+
+```{python}
+#| label: lm-var-imp-py
+#| 
+model_var_imp = train_explain.model_parts(
+  type = "variable_importance"
+)
+```
+
+
+```{python}
+#| label: fig-py-var-imp
+#| fig-cap: "Python Variable Importance Plot"
+#| eval: false
+model_var_imp.plot()
+```
+
+:::
+
+
+In @fig-r-var-imp and @fig-py-var-imp, we see that `total_reviews_sc`, `length_minutes_sc`, `word_count_sc`, and `release_year_0` are the most important features in our model. Now that we know the variables that are pulling the most weight, we can turn to exploring predictions.
+
+
+#### Localized Predictions
+
+If you are every curious to see how a particular observation reached its predicted value, you can use the `predict_parts` function to get a sense of how each feature contributed to the final prediction. We will look at the second observation in our testing_data to see how it was predicted.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: break-down-r
+break_down_plot = predict_parts(
+  train_explain, 
+  new_observation = testing_data[2, ], 
+  type = "break_down"
+)
+```
+
+
+```{r}
+#| label: fig-r-break-down
+#| fig-cap: "R Break Down Plot"
+plot(break_down_plot)
+```
+
+##### Python
+
+TODO: DALEX in python apparently needs a lot of hand-holding to work, and there is little evidence it works with statsmodels (no issues or examples.)
+
+```{python}
+#| label: break-down-py
+#| eval: false
+
+
+# current bug in predict_parts causes it to fail if 
+# categorical/object features are used. You can either dummy code
+# genre or just go without
+break_down_plot = train_explain.predict_parts(
+    new_observation = training_data.loc[1,features],
+    type = "break_down"
+)
+```
+
+
+```{python}
+#| label: fig-py-break-down
+#| fig-cap: "Python Break Down Plot"
+#| eval: false
+break_down_plot.plot()
+```
+
+:::
+
+The Break down plots in @fig-r-break-down and @fig-py-break-down show us how each feature contributed to the final prediction for an observation. If a prediction from a model has ever surprised you, this is a great way to see how that prediction actually happened! 
+
+#### Shap Values {#sec-model-explore-shap-values}
+
+**Shapley values** are a way to explain the predictions made by machine learning models. They break down a prediction to show the impact of each feature. The Shapley value was originally developed in game theory to determine how much each player in a cooperative game has contributed to the total payoff of the game. You'll commonly see them used in conjunction with tree-based models, like xgboost, but they can be used with any model.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: shap-r
+shap_plot = predict_parts(
+  train_explain, 
+  new_observation = testing_data, 
+  type = "shap"
+)
+```
+
+
+```{r}
+#| label: fig-r-shap
+#| fig-cap: "R Shap Plot"
+plot(shap_plot)
+```
+
+##### Python
+
+TODO: since DALEX isn't working well we might as well just use shap for most fo this stuff
+
+```{python}
+#| label: shap-py
+#| eval: false
+shap_plot = train_explain.predict_parts(
+    new_observation = training_data.iloc[:1,:], 
+    type = "shap"
+)
+```
+
+
+```{python}
+#| label: fig-py-shap
+#| fig-cap: "Python Shap Plot"
+#| eval: false
+shap_plot.plot()
+```
+
+:::
+
+The Shap plots in @fig-r-shap and @fig-py-shap show us how each feature contributed to the final prediction for an observation. 
+
+### Classification
+
+TODO: since this doesn't present any code changes and basically the model is the same, maybe just show a plot or two  and not the code, or just one unevaluated code block example
+
+The set-up and functions are exactly the same for classification models, so we want to show you how we can also incorporate information from categorical variables into our explainers.
+
+We'll create our explainer and then look at the **Partial Dependence Plots** for our model, but broken down by `genre`.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: lm-explainer-r-class
+#| eval: false
+train_explain = explain(
+  model_train_class, 
+  data = training_data[, features], 
+  y = training_data$rating_good,
+  verbose = FALSE
+)
+
+train_performance = model_performance(train_explain)
+
+# train_performance # not shown
+
+partial_model_profile = model_profile(
+    train_explain, 
+    features, 
+    groups = "genre",
+    type = "partial"
+)
+```
+
+
+```{r}
+#| label: fig-r-partial-plot
+#| fig-cap: "R Partial Dependence Plot by Genre"
+#| eval: false
+plot(partial_model_profile)
+```
+
+##### Python
+
+```{python}
+#| label: partial-plot-py
+#| eval: false
+train_explain = dx.Explainer(
+    model_train_class, 
+    data = training_data[features], 
+    y = training_data.rating_good, 
+    verbose = False
+)
+
+train_performance = train_explain.model_performance()
+
+partial_model_profile = train_explain.model_profile(
+    type = "partial"
+)
+```
+
+
+```{python}
+#| label: fig-py-partial-plot
+#| fig-cap: "Python Partial Dependence Plot"
+#| eval: false
+partial_model_profile.plot()
+```
+:::
+
+We can see what R and Python offer us for partial dependence plots in @fig-r-partial-plot and @fig-py-partial-plot. In @fig-r-partial-plot, we see those are broken down by the different genres, allowing us to see the differences between genres.
+
+#### Variable Importance
+
+We can also look at the variable importance for our classification model. While it operates on the same principle of the regression model, variable importance for classification models is calculated by assessing how a model's AUC changes when a feature is permuted, as opposed to RMSE.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: class-var-imp
+#| eval: false
+model_var_imp = model_parts(train_explain, type = "variable_importance")
+```
+
+
+```{r}
+#| label: fig-r-var-imp-class
+#| fig-cap: "R Variable Importance Plot for Classification"
+#| eval: false
+plot(model_var_imp)
+```
+
+##### Python
+
+```{python}
+#| label: lm-var-imp-py-class
+#| eval: false
+model_var_imp = train_explain.model_parts(
+  type = "variable_importance"
+  )
+```
+
+
+```{python}
+#| label: fig-py-var-imp-class
+#| fig-cap: "Python Variable Importance Plot for Classification"
+#| eval: false
+model_var_imp.plot()
+```
+
+:::
+
+The variable importance plots in @fig-r-var-imp-class and @fig-py-var-imp-class show us the variables that are the most globally important for making our classifications. How do those variables differ from what we saw in our linear regression model?
+
+Since we have already seen that there isn't much difference between models with regard to producing these plots, we will leave it up to you to produce localized plots for your classification models! -->
