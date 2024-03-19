@@ -7,7 +7,13 @@
 source("load_packages.R")
 source("setup.R")
 source("functions/utils.R")
-reticulate::use_condaenv("book-of-models")
+
+library(purrr)
+library(patchwork)
+
+
+library(reticulate)
+use_condaenv("book-of-models")
 ```
 
 ```{python}
@@ -69,46 +75,50 @@ model_reviews = smf.ols('rating ~ word_count_sc', data = df_reviews_pr).fit()
 ```
 
 
-In our initial linear model, the key **parameters** are the coefficients for each feature. But how do we know what the coefficients are and come to those values? When we run a linear model using some program function, they appear magically, but it's worth knowing a little bit about how they come to be, so let's try and dive a little deeper!
+In our initial linear model, the coefficients for each feature are the key **parameters** are. But how do we know what the coefficients are and come to those values? When we run a linear model using some program function, they appear magically, but it's worth knowing a little bit about how they come to be, so let's try and dive a little deeper!
 
 **Model estimation** is the process of finding the parameters associated with a model that allow us to reach a particular modeling goal. Different types of models will have different parameters to estimate, and there are different ways to estimate them.  In general though, the goal is the same, find the set of parameters that will lead to the best predictions under the current data modeling context.
 
 With model estimation, we can break things down into the following steps:
 
 1. Start with an **initial guess** for the parameters
-2. Calculate the **prediction error**, or some function of it, or some other value that represents our model's **objective**
+2. Calculate the **prediction error** based on those parameters, or some function of it, or some other value that represents our model's **objective**
 3. **Update** the guess
 4. Repeat steps 2 & 3 until we find a 'best' guess
 
-Pretty straightforward, right?  Well, it's not always so simple, but this is the general idea in most applications. In this chapter, we'll show how to do this ourselves to take away the mystery a bit from when you run standard model functions in typical contexts.  Hopefully then you'll gain more confidence when you do use them!
+Pretty straightforward, right? Well, it's not always so simple, but this is the general idea in most applications, so keep it in mind! In this chapter, we'll show how to do this ourselves to take away the mystery a bit from when you run standard model functions in typical contexts. Hopefully then you'll gain more confidence when you do use them!
 
-:::{.callout type="info" title="Estimation vs. Optimization"}
-We can use **estimation** as general term for finding parameters, while **optimization** can be seen as a term for finding parameters that maximize or minimize some **objective function**, or even a combination of objectives.  In some cases we can estimate parameters without optimization, because there is a known way of solving the problem, but in most modeling situations we are going to use some optimization approach to find a 'best' set of parameters.
-:::
 
 
 ## Key Ideas {#sec-estim-key-ideas}
 
-A few concepts we'll keep using here are fundamental to understanding estimation and optimization.  We'll return to these throughout the book, so it's good to get some basic familiarity.
+A few concepts we'll keep using here are fundamental to understanding estimation and optimization.  Most of them we've seen before, but we'll be getting a bit more cozy with them now.
 
-- **Parameters** are the values associated with a model, that we have to estimate.
+- **Parameters** are the values associated with a model that we have to estimate.
 - **Estimation** is the process of finding the parameters associated with a model.
-- The **objective function** produces a value that we want to, for example, maximize or minimize.
-- **Prediction error** is the difference between the actual value of the target and the predicted value of the target, and is often used to calculate the objective function.
-- **Optimization** is the process of finding the parameters that maximize or minimize some objective function.
+- The **objective (loss) function** takes input and produces a value that we want to maximize or minimize.
+- **Prediction error** is the difference between the observed value of the target and the predicted value, and is often used to calculate the objective function.
+- **Optimization** is the specific process of finding the parameters that maximize or minimize some objective function.
 - **Model Selection** is the process of choosing the best model from a set of models.
+
+:::{.callout type="info" title="Estimation vs. Optimization" collapse="true"}
+We can use **estimation** as general term for finding parameters, while **optimization** can be seen as a term for finding parameters that maximize or minimize some **objective function**, or even a combination of objectives.  In some cases we can estimate parameters without optimization, because there is a known way of solving the problem, but in most modeling situations we are going to use some optimization approach to find a 'best' set of parameters.
+:::
+
 
 ### Why this matters {#sec-estim-why}
 
-When it comes to modeling, even knowing just a little bit about what goes on beyond the scenes is a great demystifier. And if models are less of a mystery, you'll feel more confident in using them. Parts of what you see here are used in almost every common model used for statistics and machine learning, providing you even more of a foundation for understanding what's going on. 
+When it comes to modeling, even knowing just a little bit about what goes on behind the scenes is a great demystifier. And if models are less of a mystery, you'll feel more confident using them. Parts of what you see here are a part of almost every common model used for statistics and machine learning, providing you even more of a foundation for understanding what's going on. 
 
 ### Good to know {#sec-estim-good-to-know}
 
-This chapter is more involved than most of the others, and is really for those who like to get their hands dirty. It's all about 'rolling your own', and so we'll be doing a lot of the work ourselves. If you're not one of those types of people that gets much out of that, that's ok, you can skip this chapter and still get a lot out of the rest of the book.  But if you're curious about how things work, or you want to be able to do more than just run a function, then we think you'll find the following useful. You'd want to at least have your linear model basics down.
+<!-- TODO: rethink title of 'Good to know': 'recommended/suggested background', 'helpful to know', -->
+
+This chapter is more involved than most of the others, and is really for those who like to get their hands dirty. It's all about 'rolling your own', and so we'll be doing a lot of the work ourselves. If you're not one of those types of people that gets much out of that, that's ok, you can skip this chapter and still get a lot out of the rest of the book.  But if you're curious about how things work, or you want to be able to do more than just run a function, then we think you'll find the following useful. You'd want to at least have your linear model basics down (@sec-foundation).
 
 ## Data Setup {#sec-estim-data-setup}
 
-For the examples here, we'll use the world happiness dataset for the year 2018. We'll use the happiness score as our target, and we'll use the GDP per capita as our primary feature, though we may throw in some others. Let's take a look at the data here, but for more information see the [appendix](#appendix). 
+For the examples here, we'll use the world happiness dataset for the year 2018. We'll use the happiness score as our target. Let's take an initial look at the data here, but for more information see the appendix @sec-dd-world-happiness-report. 
 
 <!-- TODO: Link data description -->
 
@@ -133,7 +143,7 @@ Happiness = df_happiness |>
 
 Our happiness score has values from around 3-7, life expectancy and gdp appear to have some notable variability, and corruption perception is skewed toward lower values.  We can also see that the features and target are correlated with each other, which is not surprising.
 
-TODO: check the width of this table in pdf
+<!-- TODO: check the width of this table in pdf -->
 
 \small
 
@@ -156,7 +166,7 @@ htmltools::br()
 
 \normalsize
 
-We'll do some minor cleaning and renaming of columns, and we'll drop any rows with missing values.  We'll also scale the features so that they are on the same scale, which as noted in the data chapter, can help make estimation easier.  
+We'll do some minor cleaning and renaming of columns, and we'll drop any rows with missing values.  We'll also scale the features so that they have the same variance, which as noted in the [data chapter](./dataset_descriptions.html#sec-data-transfromations), can help make estimation easier.  
 
 :::{.panel-tabset}
 
@@ -227,17 +237,17 @@ df_happiness[['life_exp', 'gdp_pc', 'corrupt']] = scaler.fit_transform(
 
 ## Starting Out by Guessing {#sec-estim-guessing}
 
-So we'll start with a model in which we predict a country's level of happiness by their life expectancy, where if you can expect to live longer, maybe you're probably in a country with better health care, higher incomes, and other important stuff. We'll stick with our simple linear model as well.
+So we'll start with a model in which we predict a country's level of happiness by their life expectancy, where if you can expect to live longer, maybe you're probably in a country with better health care, higher incomes, and other important stuff. We'll stick with our simple linear regression model as well.
 
 As a starting point we can just guess what the parameter should be, but how would we know what to guess? How would we know which guesses are better than others?  Let's try a few and see how they do. Let's say that we don't think life expectancy matters, and that most countries are at a happiness value of 4. We can plug this into the model and see what we get: 
 
 $$
-\textrm{prediction} = 4 + 0\cdot\textrm{life\_exp}
+\text{prediction} = 4 + 0\cdot\text{life\_exp}
 $$
 
 Alternatively we could use the data to inform our guess. We start with a mean of happiness score, but moving up a standard deviation of life expectancy (roughly ~`r round(sd(df_happiness$life_exp), 1)` years) would move us up a whole point of happiness.
 $$
-\textrm{prediction} = \overline{\textrm{happiness}} + 1\cdot\textrm{life\_exp}
+\text{prediction} = \overline{\text{happiness}} + 1\cdot\text{life\_exp}
 $$
 
 In this case, our offset (or intercept) is the mean of the target, and our coefficient for the scaled life expectancy is 1. This is probably a better guess, since it is at least data driven, but it's still not great. But how do we know it's better?  
@@ -251,7 +261,7 @@ $$
 \epsilon = y - \hat{y}
 $$
 $$ 
-\textrm{error} = \textrm{target} - \textrm{(model based) guess}
+\text{error} = \text{target} - \text{(model based) guess}
 $$
 
 Not only does this tell us how far off our model prediction is, it gives us a way to compare models.  With out measure of prediction error, we can calculate a **metric** for total error for all observations/predictions, or similarlym the average error. If one model or parameter set has less total or average error, we can say it's a better model than one that has more. Ideally we'd like to choose a model with the least error, but we'll see that this is not always possible[^neverbest]. For now, let's calculate the error for our two guesses. One thing though, if we miss the mark above or below our target, we still want it to count the same in terms of prediction error. In other words, if the true happiness score is 5 and our model predicts 5.5 or 4.5, we want those to count as the same kind of error when we total up our error[^absloss]. 
@@ -343,7 +353,7 @@ For a simple linear model, we can estimate the parameters in several ways, but t
 [^notamodel]: Some disciplines seem confuse models with estimation methods and link functions. It doesn't really make sense, nor is informative, to call something an OLS model or a logit model. Many models are estimated using a least squares approach, and different types of models use a logit link.
 
 $$
-\textrm{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2
+\text{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2
 $$ {#eq-ols}
 
 Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model.  The sum of the squared errors is also called the **residual sum of squares** (RSS), as opposed to the total sums of squares (i.e. the variance of the target), and the part explained by the model (model or explained sums of squares). The OLS method finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values. It's called *ordinary* least squares because there are other least squares methods - generalized least squares, weighted least squares, and others, but we don't need to worry about that for now. What matters is that we have a way to estimate the coefficients that minimizes the sum of the squared errors. 
@@ -723,7 +733,7 @@ The objective function is often called the **loss function**, and sometimes the 
 In our example thus far, we have been minimizing the specific objective (or loss) function, which basically takes our parameter estimates, produces a prediction, and returns the sum or mean of the squared errors. But this is just one approach we could take. Now we'd like you to think about the **data generating process**.  We have a model that says happiness is a function of life expectancy, but more specifically, let's think about how the observed value of the happiness score is generated in a statistical sense. In particular, what kind of probability distribution might be involved?  Ignoring the model, we might think that each happiness value is generated by some random process, and that the process is the same for each observation. Let's assume that random process is a normal distribution. So something like this would describe it mathematically:
 
 $$
-\textrm{happiness} \sim N(\mu, \sigma)
+\text{happiness} \sim N(\mu, \sigma)
 $$
 
 where $\mu$ is the mean of the happiness and $\sigma$ is the standard deviation, or in other words, we can think of happiness as a random variable that is drawn from a normal distribution with $\mu$ and $\sigma$ as the parameters of that distribution.  
@@ -731,26 +741,26 @@ where $\mu$ is the mean of the happiness and $\sigma$ is the standard deviation,
 Let's apply this idea to our linear model setting. In this case, the mean is a function of life expectancy, and we're not sure what the standard deviation is, but we can go ahead and write our model as follows.
 
 $$
-\mu = \beta_0 + \beta_1 * \textrm{life\_exp}
+\mu = \beta_0 + \beta_1 * \text{life\_exp}
 $$
 $$
-\textrm{happiness} \sim N(\mu, \sigma)
+\text{happiness} \sim N(\mu, \sigma)
 $$
 
 
 Now, we can think of the model as a way to estimate the parameters of the normal distribution, but we have an additional parameter to estimate. We still have our previous coefficients, but now we need to estimate $\sigma$, which is basically our RMSE, as well. But we still have to think of things a little differently. When we compare our prediction to the observed value, we don't look at the simple difference, but we are still interested in the discrepancy between the two. So now we think about the **likelihood** of observing the happiness score given our prediction, which is based on the estimated parameters, i.e. given the $\mu$ and $\sigma$, and $\mu$ is a function of the coefficients and life expectancy.  We can write this as:
 
 $$
-\textrm{Pr}(\textrm{happiness} \mid \textrm{life\_exp}, \beta_0, \beta_1, \sigma)
+\text{Pr}(\text{happiness} \mid \text{life\_exp}, \beta_0, \beta_1, \sigma)
 $$
 
 $$
-\textrm{Pr}(\textrm{happiness} \mid \mu, \sigma)
+\text{Pr}(\text{happiness} \mid \mu, \sigma)
 $$
 
 Even more generally, the likelihood gives us a sense of the probability of the observed data given the parameter estimates $\theta$.
 $$
-\textrm{Pr}(\textrm{Data} \mid \theta)
+\text{Pr}(\text{Data} \mid \theta)
 $$
 
 Here is a simple code demo to get a likelihood in the context of our model. The values you see are referred to statistically as probability density values, and they are technically not probabilities, but rather the probability density, or **relative likelihood**, at that observation[^probzero]. For your conceptual understanding, if it makes it easier, you can think of them in the same was as you do probabilities, but just know that technically they are not.
@@ -1276,7 +1286,7 @@ One thing we may want to take into account of with our models is their complexit
 As a starting point, in our basic linear model we can add a penalty that is applied to the size of  coefficients.  This is called **ridge regression**, or, more mathily, as **L2 regularization**. The penalty is just the sum of the squared coefficients multiplied by a some value, which we call $\lambda$.  We can write this formally as:
 
 $$
-\textrm{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} \beta_j^2
+\text{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} \beta_j^2
 $$ {#eq-ols-ridge}
 
 The first part is the same as before (@eq-ols), but the second part is the penalty for $p$ features. The penalty is the sum of the squared coefficients multiplied by some value, which we call $\lambda$. This is an additional model parameter that we typically want to estimate in some fashion, e.g. through cross-validation.  This kind of parameter is often called a hyperparameter, mostly just to distinguish it from those that may be of actual interest. For example, we could probably care less what the actual value for $\lambda$ is, but we would still be interested in the coefficients.  
@@ -1286,7 +1296,7 @@ Interestingly, as you'll notice that this is just OLS+, you might be wondering h
 Another common penalty that is the sum of the absolute value of the coefficients, which is called **lasso regression** or **L1 regularization**.  An interersting property of the lasso is that in typical implementations, it will potentially zero out coefficients, which is the same as dropping the feature from the model altogether. This is a form of **feature selection** or **variable selection**.  The true values are never zero, but if we want to use a 'best subset' of features, this is one way we could do so. We can write the lasso objective as:
 
 $$
-\textrm{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} |\beta_j|
+\text{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} |\beta_j|
 $$ {#eq-estim-lasso}
 
 But let's get to a code example to make sure we understand this better! Here is an example of a function that calculates the ridge objective. To make things interesting, let's add the other features we talked about regarding GDP per capita and perceptions of corruption. 
@@ -1417,7 +1427,7 @@ So far we've been assuming a continuous target, but what if we have a categorica
 A straightforward correspondence to MSE is a function that minimizes classification error (or maximizes accuracy). In other words, we can think of the objective function as the proportion of incorrect classifications.  This is called the **misclassification rate**.  We can write this as:
 
 $$
-\textrm{Loss} = \frac{1}{n} \sum_{i=1}^{n} \mathbb{1}(y_i \neq \hat{y_i})
+\text{Loss} = \frac{1}{n} \sum_{i=1}^{n} \mathbb{1}(y_i \neq \hat{y_i})
 $$
 
 Where $y_i$ is the actual value of the target for observation $i$, arbitrarily coded as 1 or 0, and $\hat{y_i}$ is the predicted class from the model. The $\mathbb{1}$ is an indicator function that returns 1 if the condition is true, and 0 otherwise.  In other words, we are counting the number of times the predicted value is not equal to the actual value, and dividing by the number of observations. Very straightforward, so let's do this ourselves!
@@ -1491,7 +1501,7 @@ We'll leave it as an exercise to the reader to play around with this, as the nex
 Another approach is to use the **log loss**, sometimes called logistic loss or cross-entropy. If we have just the binary case it is:
 
 $$
-\textrm{Loss} = -\sum_{i=1}^{n} y_i \log(\hat{y_i}) + (1 - y_i) \log(1 - \hat{y_i})
+\text{Loss} = -\sum_{i=1}^{n} y_i \log(\hat{y_i}) + (1 - y_i) \log(1 - \hat{y_i})
 $$
 
 Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model (essentially a probability). It turns out that *this is the same as log-likelihood used in a maximum likelihood approach for logistic regression*, made negative for minimization. We typically prefer this objective function to classification error because it results in a *smooth* optimization surface, like in the visualization we showed before for maximum likelihood (@fig-show-r-likelihood-surface), which means it is *differentiable* in mathemetical sense. This is important because it allows us to use optimization algorithms that rely on derivatives in updating the parameter estimates. You don't really need to get into that too much, but just know that it is a good thing. Here's some code to try out.
