@@ -8,10 +8,6 @@ source("load_packages.R")
 source("setup.R")
 source("functions/utils.R")
 
-library(purrr)
-library(patchwork)
-
-
 library(reticulate)
 use_condaenv("book-of-models")
 ```
@@ -36,15 +32,12 @@ library(tidyverse)
 # load("linear_models/data/model_reviews.RData")
 df_reviews = read_csv("data/movie_reviews.csv") |>
     drop_na()
-df_reviews_pr = read_csv("data/movie_reviews_processed.csv") |>
-    drop_na()
-
 df_happiness = read_csv("data/world_happiness_2018.csv") |>
     drop_na()
 
 # df_happiness |> skimr::skim()
 
-model_reviews = lm(rating ~ word_count_sc, data = df_reviews_pr)
+model_reviews = lm(rating ~ word_count_sc, data = df_reviews)
 
 intercept = round(coef(model_reviews)[1], 2)
 wc_coef   = round(coef(model_reviews)[2], 2)
@@ -69,9 +62,8 @@ pd.set_option('display.float_format', lambda x: '%.3f' % x)
 
 
 df_reviews = pd.read_csv('data/movie_reviews.csv').dropna()
-df_reviews_pr = pd.read_csv('data/movie_reviews_processed.csv').dropna()
 model_reviews = sm.load('linear_models/data/model_reviews.pickle') # pkl later
-model_reviews = smf.ols('rating ~ word_count_sc', data = df_reviews_pr).fit()
+model_reviews = smf.ols('rating ~ word_count_sc', data = df_reviews).fit()
 ```
 
 
@@ -569,7 +561,7 @@ p_ols = guesses |>
 ![Results of parameter search](img/ols_guesses.svg){width=50%}
 
 
-If we inspect our results from the built-in functions, we had estimates of `r int_happy` and `r coef_happy` for our coefficients versus the best guess from our approach of `r min_loss$b0` and `r min_loss$b1`. These are very similar but not exactly the same, but this is mostly due to the granularity of our guesses.  Even so, in the end we can see that we get pretty dang close to what our basic `lm` or `statsmodels` functions would get us. Pretty neat!
+If we inspect our results from the standard functions, we had estimates of `r int_happy` and `r coef_happy` for our coefficients versus the best guess from our approach of `r min_loss$b0` and `r min_loss$b1`. These are very similar but not exactly the same, but this is mostly due to the granularity of our guesses.  Even so, in the end we can see that we get pretty dang close to what our basic `lm` or `statsmodels` functions would get us. Pretty neat!
 
 ```{r}
 #| echo: false
@@ -636,7 +628,7 @@ So let's try it out! We start out with several inputs:
 - other related inputs to the objective function
 - options for the optimization process, e.g. algorithm, maximum number of iterations, etc.
 
- With these inputs, we'll let the optimization functions do the rest of the work. We'll also compare our results to the built-in functions to make sure we're on the right track.
+ With these inputs, we'll let the optimization functions do the rest of the work. We'll also compare our results to the standard functions to make sure we're on the right track.
 
 :::{.panel-tabset}
 
@@ -978,13 +970,13 @@ With that in mind, we can compare our result to a built-in function that has cap
 ```{r}
 #| echo: false
 #| label: tbl-r-likelihood
-#| tbl-cap: Comparison of our results to built-in function
+#| tbl-cap: Comparison of our results to the built-in function
 
 glm_happy_life = glm(happiness ~ life_exp_sc, data = df_happiness)
 
 our_result_tbl = tibble(
     "Parameter"  = c("Intercept", "Life Exp. Coef.", "Sigma", "LogLik (neg)"),
-    `Built-in`   = c(coef(glm_happy_life), sqrt(summary(glm_happy_life)$dispersion), -logLik(model_happy_life)),
+    `Standard`   = c(coef(glm_happy_life), sqrt(summary(glm_happy_life)$dispersion), -logLik(model_happy_life)),
     `Our Result` = c(our_result$par[-1], exp(our_result$par[1]), our_result$value)
 ) |>
     gt(decimals = 3) |>
@@ -1038,7 +1030,7 @@ ggplot(data.frame(mus, L)) +
 
 Now let's add a parameter. If we have more than one parameter, we now have a surface to deal with. Given a starting point, an optimization procedure then travels along the surface looking for a minimum/maximum point. For simpler settings such as this, we can visualize the likelihood surface and its minimum point. However, even our simple model has three parameters plus the likelihood, so it would be difficult to visualize without additional complexity. Instead we show the results for an alternate model where happiness is standardized also, which means the intercept is zero[^zerointorigin], and so not shown. 
 
-[^zerointorigin]: Linear regression will settle on a line that cuts through the means, and when standardizing the mean of the features and target are both zero, so the line goes through the origin.  
+[^zerointorigin]: Linear regression will settle on a line that cuts through the means, and when standardizing all variables, the mean of the features and target are both zero, so the line goes through the origin.  
 
 
 
@@ -1291,27 +1283,24 @@ For linear regression assuming a normal distribution, the maximum likelihood est
 
 ## Penalized Objectives {#sec-estim-penalty}
 
-TODO: MOVE TO AFTER CLASSIFICATION?
+<!-- TODO: MOVE TO AFTER CLASSIFICATION? -->
 
-One thing we may want to take into account of with our models is their complexity, especially in the context of **overfitting**. We talk about this with machine learning also, but the basic idea is that we can get too close to the data we have, such that when we try to predict on new data, our performance suffers or even gets worse than a simpler model. In other words, we are not generalizing well. One way to deal with this is to penalize the objective function value for complexity, or at least favor simpler models that might do as well. In some contexts this is called **regularization**, and in other contexts **shrinkage**, since the parameter estimates are typically shrunk toward some specific value (e.g., zero).
+One thing we may want to take into account of with our models is their complexity, especially in the context of **overfitting**. We talk about this with machine learning also @sec-ml-core-concepts, but the basic idea is that we can get too familiar with the data we have, and when we try to predict on new data the model hasn't seen before, our performance suffers or even gets worse than a simpler model. In other words, we are not generalizing well @sec-ml-generalization. 
 
-As a starting point, in our basic linear model we can add a penalty that is applied to the size of  coefficients.  This is called **ridge regression**, or, more mathily, as **L2 regularization**. The penalty is just the sum of the squared coefficients multiplied by a some value, which we call $\lambda$.  We can write this formally as:
+One way to deal with this is to penalize the objective function value for complexity, or at least favor simpler models that might do as well. In some contexts this is called **regularization**, and in other contexts **shrinkage**, since the parameter estimates are typically shrunk toward some specific value (e.g., zero).
+
+As a starting point, in our basic linear model we can add a penalty that is applied to the size of  coefficients.  This is called **ridge regression**, or, more mathily, as **L2 regularization**. We can write this formally as:
 
 $$
 \text{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} \beta_j^2
 $$ {#eq-ols-ridge}
 
-The first part is the same as before (@eq-ols), but the second part is the penalty for $p$ features. The penalty is the sum of the squared coefficients multiplied by some value, which we call $\lambda$. This is an additional model parameter that we typically want to estimate in some fashion, e.g. through cross-validation.  This kind of parameter is often called a hyperparameter, mostly just to distinguish it from those that may be of actual interest. For example, we could probably care less what the actual value for $\lambda$ is, but we would still be interested in the coefficients.  
+The first part is the same as basic OLS (@eq-ols), but the second part is the penalty for $p$ features. The penalty is the sum of the squared coefficients multiplied by some value, which we call $\lambda$. This is an additional model parameter that we typically want to estimate, e.g. through [cross-validation](../ml-common-models#sec-ml-cv). This kind of parameter is often called a **hyperparameter**, mostly just to distinguish it from those that may be of actual interest. For example, we could probably care less what the actual value for $\lambda$ is, but we would still be interested in the coefficients.  
 
-Interestingly, as you'll notice that this is just OLS+, you might be wondering how our results or interpretation might change. Well for starters, L2 regularization is not limited to linear regression, so just keep that in mind.  But also, if we know that OLS produces **unbiased** estimates if assumptions of linear regression are met, that means, if these aren't the same estimates, they must be biased, right? Your are correct! As we talk about with machine learning (@sec-ml-generalization), the bias-variance tradeoff is a key concept in machine learning, and this is a good example of that. We are introducing some bias in order to reduce the variance. In other words, we are willing to accept some bias in order to get a model that generalizes better.
+In the end this is just a small change to ordinary least squares (OLS) regression (@eq-ols), but it can make a big difference. It introduces some bias in the coefficients - recall that OLS is unbiased if assumptions are met - but it can help to reduce variance, which can help the model perform better on new data (@sec-ml-generalization-understanding). In other words, we are willing to accept some bias in order to get a model that generalizes better.
 
-Another common penalty that is the sum of the absolute value of the coefficients, which is called **lasso regression** or **L1 regularization**.  An interersting property of the lasso is that in typical implementations, it will potentially zero out coefficients, which is the same as dropping the feature from the model altogether. This is a form of **feature selection** or **variable selection**.  The true values are never zero, but if we want to use a 'best subset' of features, this is one way we could do so. We can write the lasso objective as:
 
-$$
-\text{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} |\beta_j|
-$$ {#eq-estim-lasso}
-
-But let's get to a code example to make sure we understand this better! Here is an example of a function that calculates the ridge objective. To make things interesting, let's add the other features we talked about regarding GDP per capita and perceptions of corruption. 
+But let's get to a code example to demystify this a bit! Here is an example of a function that calculates the ridge objective. To make things interesting, let's add the other features we talked about regarding GDP per capita and perceptions of corruption. 
 
 :::{.panel-tabset}
 
@@ -1396,20 +1385,17 @@ glmnet_happy = glmnet(
     alpha = 0,
     thresh = 1e-12
 )
-# aside: glmnet resu
-# our result
-# coef(glmnet_happy)
 
 our_result_tbl = tibble(
-    "Parameter"  = c("Intercept", "Life Exp. Coef.", "corrupt_sc", "gdp_pc_sc"),
-    `Built-in`   = coef(glmnet_happy)[, 1],
+    Parameter    = c("Intercept", "Life Exp. Coef.", "corrupt_sc", "gdp_pc_sc"),
+    Standard     = coef(glmnet_happy)[, 1],
     `Our Result` = our_result$par
 ) |>
     gt(decimals = 2) |>
     gt::tab_footnote(
         footnote = "Showing results from R glmnet package with alpha = 0, lambda = .1",
         locations = cells_column_labels(
-            columns = vars(`Built-in`)
+            columns = vars(Standard)
         ),
         placement = "right"
     ) |>
@@ -1424,25 +1410,30 @@ our_result_tbl
 
 :::{.callout-tip}
 
-It turns out that, given a set $\lambda$ penalty, ridge regression estimates need not be estimated, as there is an analytical result. See a [demo](https://m-clark.github.io/models-by-example/penalized-maximum-likelihood.htm) for more.
+It turns out that given a fixed $\lambda$ penalty ridge regression estimates can be esitmated analytically. Here is a [demo](https://m-clark.github.io/models-by-example/penalized-maximum-likelihood.htm).
 
 :::
 
+Another very common penalized approach is to use the sum of the absolute value of the coefficients, which is called **lasso regression** or **L1 regularization**. An interersting property of the lasso is that in typical implementations, it will potentially zero out coefficients, which is the same as dropping the feature from the model altogether. This is a form of **feature selection** or **variable selection**. The true values are never zero, but if we want to use a 'best subset' of features, this is one way we could do so. We can write the lasso objective as follows. The chapter exercise asks you to implement this yourself.
+
+$$
+\text{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} |\beta_j|
+$$ {#eq-estim-lasso}
 
 
 ## Classification {#sec-estim-classification}
 
-So far we've been assuming a continuous target, but what if we have a categorical target? Now we have to learn a bunch of new stuff for that situation, right? Actually, no! *When we want to model categorical targets, conceptually nothing changes* - we can still have an objective function that maximizes or minimizes some goal, use the same algorithms to estimate parameters, etc. However, we need to think about how we can do this in a way that makes sense for the target.
+So far we've been assuming a continuous target, but what if we have a categorical target? Now we have to learn a bunch of new stuff for that situation, right? Actually, no! *When we want to model categorical targets, conceptually, nothing changes*! We still have an objective function that maximizes or minimizes some goal, and use the same algorithms to estimate parameters, etc. However, we need to think about how we can do this in a way that makes sense for the target. 
 
 ### Misclassification {#sec-estim-misclass}
 
-A straightforward correspondence to MSE is a function that minimizes classification error (or maximizes accuracy). In other words, we can think of the objective function as the proportion of incorrect classifications.  This is called the **misclassification rate**.  We can write this as:
+A straightforward correspondence to MSE is a function that minimizes classification error, or by the same token, maximizes accuracy. In other words, we can think of the objective function as the proportion of incorrect classifications. This is called the **misclassification rate**.  
 
 $$
 \text{Loss} = \frac{1}{n} \sum_{i=1}^{n} \mathbb{1}(y_i \neq \hat{y_i})
 $$
 
-Where $y_i$ is the actual value of the target for observation $i$, arbitrarily coded as 1 or 0, and $\hat{y_i}$ is the predicted class from the model. The $\mathbb{1}$ is an indicator function that returns 1 if the condition is true, and 0 otherwise.  In other words, we are counting the number of times the predicted value is not equal to the actual value, and dividing by the number of observations. Very straightforward, so let's do this ourselves!
+In the equation,e $y_i$ is the actual value of the target for observation $i$, arbitrarily coded as 1 or 0, and $\hat{y_i}$ is the predicted class from the model. The $\mathbb{1}$ is an indicator function that returns 1 if the condition is true, and 0 otherwise.  In other words, we are counting the number of times the predicted value is not equal to the actual value, and dividing by the number of observations. Very straightforward, so let's do this ourselves!
 
 
 
@@ -1505,18 +1496,20 @@ def misclassification_rate(par, X, y, class_threshold = .5):
 
 :::
 
-We'll leave it as an exercise to the reader to play around with this, as the next objective function is more commonly used. But at least you can see how easy it can be to switch to the classification case. 
+Note that our function first adds a step to conver the linear predictor (called `mu`) to a probability. Once we have a probability, we use some threshold to convert it to a 'class'. In this case, we use 0.5 as the threshold, but this could be different depending on the context, something we talk more about elsewhere (@sec-knowing-ideal-cut-point). We'll leave it as an exercise for you to play around with this, as the next objective function is more commonly used. But at least you can see how easy it can be to switch to the classification case. 
 
 
 ### Log loss {#sec-estim-logloss}
 
-Another approach is to use the **log loss**, sometimes called logistic loss or cross-entropy. If we have just the binary case it is:
+Another approach is to use the **log loss**, sometimes called logistic loss or **cross-entropy**. If we have just the binary case it is:
 
 $$
 \text{Loss} = -\sum_{i=1}^{n} y_i \log(\hat{y_i}) + (1 - y_i) \log(1 - \hat{y_i})
 $$
 
-Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model (essentially a probability). It turns out that *this is the same as log-likelihood used in a maximum likelihood approach for logistic regression*, made negative for minimization. We typically prefer this objective function to classification error because it results in a *smooth* optimization surface, like in the visualization we showed before for maximum likelihood (@fig-show-r-likelihood-surface), which means it is *differentiable* in mathemetical sense. This is important because it allows us to use optimization algorithms that rely on derivatives in updating the parameter estimates. You don't really need to get into that too much, but just know that it is a good thing. Here's some code to try out.
+Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model (essentially a probability). It turns out that *this is the same as the log-likelihood used in a maximum likelihood approach for logistic regression*, made negative so we can minimize it. 
+
+We typically prefer this objective function to classification error because it results in a *smooth* optimization surface, like in the visualization we showed before for maximum likelihood, which means it is *differentiable* in mathemetical sense. This is important because it allows us to use optimization algorithms that rely on derivatives in updating the parameter estimates. You don't really need to get into that too much, but just know that a smoother objective function is something we prefer. Here's some code to try out.
 
 :::{.panel-tabset}
 
@@ -1534,8 +1527,11 @@ objective = function(par, X, y) {
     # Convert to a probability ('sigmoid' function)
     y_hat = 1 / (1 + exp(-y_hat))
 
-    # likelihood (or dbinom(y, size = 1, prob = y_hat, log = TRUE))
+    # likelihood
     ll = y * log(y_hat) + (1 - y) * log(1 - y_hat)
+
+    # alternative
+    # dbinom(y, size = 1, prob = y_hat, log = TRUE)
 
     return(sum(-ll))
 }
@@ -1559,12 +1555,11 @@ def objective(par, X, y):
     ll = y * np.log(y_hat) + (1 - y) * np.log(1 - y_hat)
     
     return(-np.sum(ll))
-
 ```
 :::
 
 
-Let's go ahead and demonstrate this. Let's go back to our movie review data, but we'll use a version of our rating where a movie is 'good' if the rating is 3 or greater, and 'bad' otherwise, which we have in our processed version of the data. Our features will be the review year (starting at zero), reviewer age, and word count. Let's use our previous optimization functions, and compare our results to the built-in complements. 
+Let's go ahead and demonstrate this. Let's go back to our movie review data, but we'll use a version of our rating where a movie is 'good' if the rating is 3 or greater, and 'bad' otherwise, which we have in our processed version of the data. Our features will be the review year (starting at zero), reviewer age, and word count. Let's use our previous optimization functions, and compare our results to the standar functions. 
 
 :::{.panel-tabset}
 
@@ -1572,20 +1567,19 @@ Let's go ahead and demonstrate this. Let's go back to our movie review data, but
 
 ```{r}
 #| label: r-logloss-apply
-df_reviews_pr = read_csv("data/movie_reviews_processed.csv")
 
 mod_logloss = optim(
     par = c(0, 0, 0, 0),
     fn = objective,
-    X = df_reviews_pr |>
+    X = df_reviews |>
         select(review_year_0, age_sc, word_count_sc) |>
         as.matrix(),
-    y = df_reviews_pr$rating_good
+    y = df_reviews$rating_good
 )
 
 mod_glm = glm(
     rating_good ~ review_year_0 + age_sc + word_count_sc,
-    data   = df_reviews_pr,
+    data   = df_reviews,
     family = binomial
 )
 ```
@@ -1600,14 +1594,14 @@ mod_logloss = minimize(
     objective,
     x0 = np.array([0, 0, 0, 0]),
     args = (
-        df_reviews_pr[['review_year_0', 'age_sc', 'word_count_sc']], 
-        df_reviews_pr['rating_good']
+        df_reviews[['review_year_0', 'age_sc', 'word_count_sc']], 
+        df_reviews['rating_good']
     )
 )
 
 mod_glm = smf.glm(
     'rating_good ~ review_year_0 + age_sc + word_count_sc',
-    data   = df_reviews_pr,
+    data   = df_reviews,
     family = sm.families.Binomial()
 ).fit(method = 'lbfgs')
 ```
@@ -1633,7 +1627,7 @@ tibble(
     gt(decimals = 4)
 ```
 
-So when it comes to classification, you should feel confident in what's going on under the hood, just like you did with a numeric target. Conceptually it really is the same approach.
+So when it comes to classification, you should feel confident in what's going on under the hood, just like you did with a numeric target. Too much is made of the distinction between 'regression' and 'classification' and it can be confusing to those starting out. In reality, classification just requires a slightly different way of thinking about the target. Conceptually it really is the same approach.
 
 
 ## Optimization Algorithms {#sec-estim-opt-algos}
@@ -1740,7 +1734,6 @@ batch_result = our_result
 ```{python}
 #| eval: true
 #| label: py-gradient-descent
-
 def gradient_descent(
     par, 
     X, 
@@ -1809,7 +1802,7 @@ Comparing our results, we have the following table.  In what has become the norm
 model_compare = lm(happiness ~ life_exp_sc + gdp_pc_sc + corrupt_sc, data = df_happiness)
 tibble(
     Value = c("Intercept", "Life Exp. Coef.", "gdp_pc_sc", "corrupt_sc", "MSE"),
-    `Built-in` = c(coef(model_compare), performance::mse(model_compare)),
+    Standard = c(coef(model_compare), performance::mse(model_compare)),
     `Our Result` = c(our_result$par, our_result$MSE)
 ) |>
     gt(decimals = 3)
@@ -2032,7 +2025,7 @@ model_compare = lm(happiness ~ life_exp_sc + gdp_pc_sc + corrupt_sc, data = df_h
 
 tibble(
     Value = c("Intercept", "Life Exp. Coef.", "gdp_pc_sc", "corrupt_sc", "MSE"),
-    `Built-in` = c(coef(model_compare), performance::mse(model_compare)),
+    Standard = c(coef(model_compare), performance::mse(model_compare)),
     `Our Result` = c(our_result$par, our_result$MSE),
     `Batch SGD` = c(batch_result$par, batch_result$MSE)
 ) |>
@@ -2155,7 +2148,7 @@ map2_df(
 ) |>
     pivot_wider(names_from = method, values_from = Value) |>
     mutate(
-        `Built-in` = c(coef(model_compare), performance::mse(model_compare)),
+        Standard = c(coef(model_compare), performance::mse(model_compare)),
     ) |>
     gt(decimals = 3) |>
     tab_footnote(
@@ -2176,7 +2169,7 @@ map2_df(
     ) |>
     tab_footnote(
         footnote = "Built-In = Standard OLS function",
-        locations = cells_column_labels(columns = `Built-in`)
+        locations = cells_column_labels(columns = Standard)
     ) |>
     tab_options(
         footnotes.font.size = 10
@@ -2825,5 +2818,5 @@ The simple AdaGrad algorithm used above:
 
 ## Exercise
 
-Try creating an objective function for a continuous target that uses the mean absolute error, and compare your estimated parameters to the previous results for ordinary least squares.
+Try creating an objective function for a continuous target that uses the mean absolute error, and compare your estimated parameters to the previous results for ordinary least squares. Alternatively, use the ridge regression demonstration and change it to use the lasso approach (this would require altering just one line).
 
