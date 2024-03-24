@@ -3,10 +3,11 @@
 ```{r}
 #| label: setup-estimation
 #| include: false
-
 source("load_packages.R")
-source("setup.R")
 source("functions/utils.R")
+
+# not sure what's going on
+filter = dplyr::filter
 
 library(reticulate)
 use_condaenv("book-of-models")
@@ -117,6 +118,8 @@ For the examples here, we'll use the world happiness dataset for the year 2018. 
 ```{r}
 #| label: r-happiness-data
 #| echo: false
+#| eval: False
+# use this for the img
 Happiness = read_csv("data/world_happiness_2018.csv") |>
     drop_na() |> 
     select(
@@ -457,7 +460,7 @@ After that, we'll calculate the loss for each guess and find which one gives us 
 #| label: r-ols-get-best-guess
 #| results: 'hide'
 # Calculate the function value for each guess
-guesses = guesses %>%
+guesses = guesses |>
     mutate(objective = map2_dbl(
         guesses$b0, guesses$b1,
         \(b0, b1) ols(
@@ -467,7 +470,7 @@ guesses = guesses %>%
         )
     ))
 
-min_loss = guesses %>% filter(objective == min(objective))
+min_loss = guesses |> filter(objective == min(objective))
 
 min_loss
 ```
@@ -1288,10 +1291,14 @@ ridge = function(par, X, y, lambda = 0) {
     return(value)
 }
 
+X = df_happiness |>
+    select(-happiness, -country) |> 
+    as.matrix()
+
 our_result = optim(
     par = c(0, 0, 0, 0),
     fn = ridge,
-    X = df_happiness |> select(-happiness, -country) |> as.matrix(),
+    X = X,
     y = df_happiness$happiness,
     lambda = 0.1,
     method = "BFGS"
@@ -1338,10 +1345,14 @@ We can compare this to built-in functions as we have before, and can see that th
 #| echo: false
 #| label: tbl-r-ridge
 #| tbl-cap: Comparison of ridge regression results
-
 library(glmnet)
+
+X = df_happiness |>
+    select(-happiness, -country) |> 
+    as.matrix()
+
 glmnet_happy = glmnet(
-    x = df_happiness |> select(-happiness, -country) |> as.matrix(), # requires two features
+    x = X,
     y = df_happiness$happiness,
     standardize = FALSE,
     intercept = TRUE,
@@ -1351,7 +1362,7 @@ glmnet_happy = glmnet(
 )
 
 our_result_tbl = tibble(
-    Parameter    = c("Intercept", "Life Exp. Coef.", "corrupt_sc", "gdp_pc_sc"),
+    Parameter    = c("Intercept", "life_exp_sc", "corrupt_sc", "gdp_pc_sc"),
     Standard     = coef(glmnet_happy)[, 1],
     `Our Result` = our_result$par
 ) |>
@@ -1691,9 +1702,13 @@ gradient_descent = function(
     )
 }
 
+X = df_happiness |>
+    select(life_exp_sc:gdp_pc_sc) |>
+    as.matrix()
+
 our_result = gradient_descent(
     par = c(0, 0, 0, 0),
-    X = df_happiness |> select(life_exp_sc, gdp_pc_sc, corrupt_sc) |> as.matrix(),
+    X = X,
     y = df_happiness$happiness,
     learning_rate = 1e-3
 )
@@ -1746,7 +1761,7 @@ def gradient_descent(
 
 our_result = gradient_descent(
     par = np.array([0, 0, 0, 0]),
-    X = df_happiness[['life_exp_sc', 'gdp_pc_sc', 'corrupt_sc']].to_numpy(),
+    X = df_happiness[['life_exp_sc', 'corrupt_sc', 'gdp_pc_sc']].to_numpy(),
     y = df_happiness['happiness'].to_numpy(),
     learning_rate = 1e-3
 )
@@ -1762,9 +1777,9 @@ Comparing our results, we have the following table. As usual, we see that the re
 #| label: tbl-gradient-descent
 #| tbl-cap: Comparison of gradient descent results
 
-model_compare = lm(happiness ~ life_exp_sc + gdp_pc_sc + corrupt_sc, data = df_happiness)
+model_compare = lm(happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc, data = df_happiness)
 tibble(
-    Value = c("Intercept", "Life Exp. Coef.", "gdp_pc_sc", "corrupt_sc", "MSE"),
+    Value = c("Intercept", "life_exp_sc", "corrupt_sc", "gdp_pc_sc", "MSE"),
     Standard = c(coef(model_compare), performance::mse(model_compare)),
     `Our Result` = c(our_result$par, our_result$MSE)
 ) |>
@@ -1872,7 +1887,7 @@ stochastic_gradient_descent = function(
 }
 
 X_train = df_happiness |>
-    select(life_exp_sc, gdp_pc_sc, corrupt_sc) |>
+    select(life_exp_sc, corrupt_sc, gdp_pc_sc) |>
     as.matrix()
 
 y_train = df_happiness$happiness
@@ -1959,7 +1974,7 @@ def stochastic_gradient_descent(
         "MSE": lastloss / X.shape[0],
         "fitted": LP
     })
-X_train = df_happiness[['life_exp_sc', 'gdp_pc_sc', 'corrupt_sc']]
+X_train = df_happiness[['life_exp_sc', 'corrupt_sc', 'gdp_pc_sc']]
 y_train = df_happiness['happiness']
 
 our_result = stochastic_gradient_descent(
@@ -1984,10 +1999,10 @@ Next we'll compare it to OLS estimates and  ur previous 'batch' gradient descent
 #| label: tbl-stochastic-gradient-descent
 #| tbl-cap: Comparison of stochastic gradient descent results
 
-model_compare = lm(happiness ~ life_exp_sc + gdp_pc_sc + corrupt_sc, data = df_happiness)
+model_compare = lm(happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc, data = df_happiness)
 
 tibble(
-    Value = c("Intercept", "Life Exp. Coef.", "gdp_pc_sc", "corrupt_sc", "MSE"),
+    Value = c("Intercept", "life_exp_sc", "corrupt_sc", "gdp_pc_sc", "MSE"),
     Standard = c(coef(model_compare), performance::mse(model_compare)),
     `Our Result` = c(our_result$par, our_result$MSE),
     `Batch SGD` = c(batch_result$par, batch_result$MSE)
@@ -2007,8 +2022,8 @@ p_dat = our_result$par_chain |>
     select(-V1) |>
     rename(
         life_exp_sc = V2,
-        gdp_pc_sc = V3,
-        corrupt_sc = V4
+        corrupt_sc = V3,
+        gdp_pc_sc = V4
     ) |>
     mutate(iter = row_number()) |>
     pivot_longer(-iter)
@@ -2065,7 +2080,8 @@ The main reason to choose one method over another usually is based on factors li
 #| label: tbl-optim-compare
 #| tbl-cap: Comparison of optimization results
 
-model_compare = lm(happiness ~ life_exp_sc + gdp_pc_sc + corrupt_sc, data = df_happiness)
+model_compare = lm(happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc, data = df_happiness)
+
 objective = function(X, y, par, sum_sq = FALSE) {
     X = cbind(1, X)
 
@@ -2077,7 +2093,7 @@ objective = function(X, y, par, sum_sq = FALSE) {
 }
 
 X = df_happiness |>
-    select(life_exp_sc, gdp_pc_sc, corrupt_sc) |>
+    select(life_exp_sc:gdp_pc_sc) |>
     as.matrix()
 y = df_happiness$happiness
 
@@ -2109,7 +2125,7 @@ map2_df(
     \(.x, .y)
     tibble(
         method = .y,
-        parameter = c("Intercept", "Life Exp. Coef.", "gdp_pc_sc", "corrupt_sc", "MSE"),
+        parameter = c("Intercept", "life_exp_sc", "gdp_pc_sc", "corrupt_sc", "MSE"),
         Value = c(.x$par, .x$value)
     )
 ) |>
@@ -2205,8 +2221,11 @@ bootstrap = function(X, y, nboot = 100, seed = 123) {
     )
 }
 
+X = df_happiness |>
+    select(life_exp_sc:gdp_pc_sc)
+
 our_result = bootstrap(
-    X = df_happiness |> select(life_exp_sc, gdp_pc_sc, corrupt_sc),
+    X = X,
     y = df_happiness$happiness,
     nboot = 250
 )
@@ -2255,7 +2274,7 @@ def bootstrap(X, y, nboot=100, seed=123):
     return dict(beta = beta, mse = mse, final_mse = final_mse)
 
 our_result = bootstrap(
-    X = df_happiness[['life_exp_sc', 'gdp_pc_sc', 'corrupt_sc']],
+    X = df_happiness[['life_exp_sc', 'corrupt_sc', 'gdp_pc_sc']],
     y = df_happiness['happiness'],
     nboot = 250
 )
