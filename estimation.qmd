@@ -3,11 +3,14 @@
 ```{r}
 #| label: setup-estimation
 #| include: false
-
 source("load_packages.R")
-source("setup.R")
 source("functions/utils.R")
-reticulate::use_condaenv("book-of-models")
+
+# not sure what's going on
+filter = dplyr::filter
+
+library(reticulate)
+use_condaenv("book-of-models")
 ```
 
 ```{python}
@@ -30,15 +33,12 @@ library(tidyverse)
 # load("linear_models/data/model_reviews.RData")
 df_reviews = read_csv("data/movie_reviews.csv") |>
     drop_na()
-df_reviews_pr = read_csv("data/movie_reviews_processed.csv") |>
-    drop_na()
-
 df_happiness = read_csv("data/world_happiness_2018.csv") |>
     drop_na()
 
 # df_happiness |> skimr::skim()
 
-model_reviews = lm(rating ~ word_count_sc, data = df_reviews_pr)
+model_reviews = lm(rating ~ word_count_sc, data = df_reviews)
 
 intercept = round(coef(model_reviews)[1], 2)
 wc_coef   = round(coef(model_reviews)[2], 2)
@@ -63,77 +63,82 @@ pd.set_option('display.float_format', lambda x: '%.3f' % x)
 
 
 df_reviews = pd.read_csv('data/movie_reviews.csv').dropna()
-df_reviews_pr = pd.read_csv('data/movie_reviews_processed.csv').dropna()
 model_reviews = sm.load('linear_models/data/model_reviews.pickle') # pkl later
-model_reviews = smf.ols('rating ~ word_count_sc', data = df_reviews_pr).fit()
+model_reviews = smf.ols('rating ~ word_count_sc', data = df_reviews).fit()
 ```
 
 
-In our initial linear model, the key **parameters** are the coefficients for each feature. But how do we know what the coefficients are and come to those values? When we run a linear model using some program function, they appear magically, but it's worth knowing a little bit about how they come to be, so let's try and dive a little deeper!
+In our initial linear model, the coefficients for each feature are the key **parameters** are. But how do we know what the coefficients are and come to those values? When we run a linear model using some program function, they appear magically, but it's worth knowing a little bit about how they come to be, so let's try and dive a little deeper. Here is where we go really far into 'demystifying' the modeling process.
 
 **Model estimation** is the process of finding the parameters associated with a model that allow us to reach a particular modeling goal. Different types of models will have different parameters to estimate, and there are different ways to estimate them.  In general though, the goal is the same, find the set of parameters that will lead to the best predictions under the current data modeling context.
 
 With model estimation, we can break things down into the following steps:
 
 1. Start with an **initial guess** for the parameters
-2. Calculate the **prediction error**, or some function of it, or some other value that represents our model's **objective**
+2. Calculate the **prediction error** based on those parameters, or some function of it, or some other value that represents our model's **objective**
 3. **Update** the guess
 4. Repeat steps 2 & 3 until we find a 'best' guess
 
-Pretty straightforward, right?  Well, it's not always so simple, but this is the general idea in most applications. In this chapter, we'll show how to do this ourselves to take away the mystery a bit from when you run standard model functions in typical contexts.  Hopefully then you'll gain more confidence when you do use them!
+Pretty straightforward, right? Well, it's not always so simple, but this is the general idea in most applications, so keep it in mind! In this chapter, we'll show how to do this ourselves to take away the mystery a bit from when you run standard model functions in typical contexts. Hopefully then you'll gain more confidence when you do use them!
 
-:::{.callout type="info" title="Estimation vs. Optimization"}
-We can use **estimation** as general term for finding parameters, while **optimization** can be seen as a term for finding parameters that maximize or minimize some **objective function**, or even a combination of objectives.  In some cases we can estimate parameters without optimization, because there is a known way of solving the problem, but in most modeling situations we are going to use some optimization approach to find a 'best' set of parameters.
-:::
 
 
 ## Key Ideas {#sec-estim-key-ideas}
 
-A few concepts we'll keep using here are fundamental to understanding estimation and optimization.  We'll return to these throughout the book, so it's good to get some basic familiarity.
+A few concepts we'll keep using here are fundamental to understanding estimation and optimization.  Most of them we've seen before, but we'll be getting a bit more cozy with them now.
 
-- **Parameters** are the values associated with a model, that we have to estimate.
+- **Parameters** are the values associated with a model that we have to estimate.
 - **Estimation** is the process of finding the parameters associated with a model.
-- The **objective function** produces a value that we want to, for example, maximize or minimize.
-- **Prediction error** is the difference between the actual value of the target and the predicted value of the target, and is often used to calculate the objective function.
-- **Optimization** is the process of finding the parameters that maximize or minimize some objective function.
+- The **objective (loss) function** takes input and produces a value that we want to maximize or minimize.
+- **Prediction error** is the difference between the observed value of the target and the predicted value, and is often used to calculate the objective function.
+- **Optimization** is the specific process of finding the parameters that maximize or minimize some objective function.
 - **Model Selection** is the process of choosing the best model from a set of models.
+
+:::{.callout type="info" title="Estimation vs. Optimization" collapse="true"}
+We can use **estimation** as general term for finding parameters, while **optimization** can be seen as a term for finding parameters that maximize or minimize some **objective function**, or even a combination of objectives.  In some cases we can estimate parameters without optimization, because there is a known way of solving the problem, but in most modeling situations we are going to use some optimization approach to find a 'best' set of parameters.
+:::
+
 
 ### Why this matters {#sec-estim-why}
 
-When it comes to modeling, even knowing just a little bit about what goes on beyond the scenes is a great demystifier. And if models are less of a mystery, you'll feel more confident in using them. Parts of what you see here are used in almost every common model used for statistics and machine learning, providing you even more of a foundation for understanding what's going on. 
+When it comes to modeling, even knowing just a little bit about what goes on behind the scenes is a great demystifier. And if models are less of a mystery, you'll feel more confident using them. Parts of what you see here are a part of almost every common model used for statistics and machine learning, providing you even more of a foundation for understanding what's going on. 
 
 ### Good to know {#sec-estim-good-to-know}
 
-This chapter is more involved than most of the others, and is really for those who like to get their hands dirty. It's all about 'rolling your own', and so we'll be doing a lot of the work ourselves. If you're not one of those types of people that gets much out of that, that's ok, you can skip this chapter and still get a lot out of the rest of the book.  But if you're curious about how things work, or you want to be able to do more than just run a function, then we think you'll find the following useful. You'd want to at least have your linear model basics down.
+<!-- TODO: rethink title of 'Good to know': 'recommended/suggested background', 'helpful to know', -->
+
+This chapter is more involved and technical than most of the others, so might be more suited for those who like to get their hands dirty. It's all about 'rolling your own', and so we'll be doing a lot of the work ourselves. If you're not one of those types of people that gets much out of that, that's ok, you can skip this chapter and still get a lot out of the rest of the book.  But if you're curious about how things work, or you want to be able to do more than just run a function, then we think you'll find the following useful. You'd want to at least have your linear model basics down (@sec-foundation).
 
 ## Data Setup {#sec-estim-data-setup}
 
-For the examples here, we'll use the world happiness dataset for the year 2018. We'll use the happiness score as our target, and we'll use the GDP per capita as our primary feature, though we may throw in some others. Let's take a look at the data here, but for more information see the [appendix](#appendix). 
+For the examples here, we'll use the world happiness dataset for the year 2018. We'll use the happiness score as our target. Let's take an initial look at the data here, but for more information see the appendix @sec-dd-world-happiness-report. 
 
-<!-- TODO: Link data description -->
+<!-- TODO: Link data -->
 
 ```{r}
 #| label: r-happiness-data
 #| echo: false
-
-Happiness = df_happiness |>
+#| eval: False
+# use this for the img
+Happiness = read_csv("data/world_happiness_2018.csv") |>
+    drop_na() |> 
     select(
         country,
-        happiness_score,
-        healthy_life_expectancy_at_birth,
-        log_gdp_per_capita,
-        perceptions_of_corruption
+        happiness = happiness_score,
+        `life expectancy` = healthy_life_expectancy_at_birth,
+        `GDP per cap (log)` = log_gdp_per_capita,
+        `perc. of corruption` = perceptions_of_corruption
     )
 
-# Happiness |>
-#     gtExtras::gt_plt_summary()
+tbl_happy = Happiness |>
+    gtExtras::gt_plt_summary()
+gtsave_extra(tbl_happy, 'img/happiness_data_summary.png')
 ```
 
 ![World happiness data summary](img/happiness_data_summary.png){width=100%}
 
 Our happiness score has values from around 3-7, life expectancy and gdp appear to have some notable variability, and corruption perception is skewed toward lower values.  We can also see that the features and target are correlated with each other, which is not surprising.
 
-TODO: check the width of this table in pdf
 
 \small
 
@@ -141,13 +146,15 @@ TODO: check the width of this table in pdf
 #| echo: false
 #| label: r-happiness-data-correlation
 #| tbl-cap: Correlation matrix for world happiness data
-Happiness |>
-    rename(
-        happiness  = happiness_score,
-        life_exp   = healthy_life_expectancy_at_birth,
+read_csv("data/world_happiness_2018.csv") |>
+    drop_na() |> 
+    select(
+        country,
+        happiness = happiness_score,
+        life_exp = healthy_life_expectancy_at_birth,
         log_gdp_pc = log_gdp_per_capita,
-        corrupt    = perceptions_of_corruption
-    ) |>
+        corrupt = perceptions_of_corruption
+    )  |> 
     corrr::correlate() |>
     gt()
 
@@ -156,7 +163,7 @@ htmltools::br()
 
 \normalsize
 
-We'll do some minor cleaning and renaming of columns, and we'll drop any rows with missing values.  We'll also scale the features so that they are on the same scale, which as noted in the data chapter, can help make estimation easier.  
+We'll do some minor cleaning and renaming of columns, and we'll drop any rows with missing values.  We'll also scale the features so that they have the same variance, which as noted in the [data chapter](./dataset_descriptions.html#sec-data-transfromations), can help make estimation easier.  
 
 :::{.panel-tabset}
 
@@ -185,7 +192,8 @@ df_happiness = read_csv("data/world_happiness_2018.csv") |>
         gdp_pc = exp(log_gdp_pc), 
         across(life_exp:gdp_pc, \(x) scale(x)[,1])
     ) |>
-    select(-log_gdp_pc) # drop the log version
+    select(-log_gdp_pc) |>  # drop the log version
+    rename_with(\(x) glue('{x}_sc'), -c(happiness, country))
 ```
 
 ##### Python
@@ -214,10 +222,10 @@ from sklearn.preprocessing import StandardScaler
 
 scaler = StandardScaler()
 
-df_happiness[['life_exp', 'gdp_pc', 'corrupt']] = scaler.fit_transform(
+df_happiness[['life_exp_sc', 'gdp_pc_sc', 'corrupt_sc']] = scaler.fit_transform(
     df_happiness[['life_exp', 'gdp_pc', 'corrupt']]
 )
-
+df_happiness = df_happiness.drop(columns = ['life_exp', 'gdp_pc', 'corrupt'])
 ```
 
 :::
@@ -227,36 +235,38 @@ df_happiness[['life_exp', 'gdp_pc', 'corrupt']] = scaler.fit_transform(
 
 ## Starting Out by Guessing {#sec-estim-guessing}
 
-So we'll start with a model in which we predict a country's level of happiness by their life expectancy, where if you can expect to live longer, maybe you're probably in a country with better health care, higher incomes, and other important stuff. We'll stick with our simple linear model as well.
+So we'll start with a model in which we predict a country's level of happiness by their life expectancy, where if you can expect to live longer, maybe you're probably in a country with better health care, higher incomes, and other important stuff. We'll stick with our simple linear regression model as well.
 
-As a starting point we can just guess what the parameter should be, but how would we know what to guess? How would we know which guesses are better than others?  Let's try a few and see how they do. Let's say that we don't think life expectancy matters, and that most countries are at a happiness value of 4. We can plug this into the model and see what we get: 
+As a starting point we can just guess what the parameter should be, but how would we know what to guess? How would we know which guesses are better than others? Let's try a couple and see what happens. Let's say that we think all countries start at the bottom on the happiness scale (around 3), but life expectancy makes a big impact- for every standard deviation of life expectancy we go up a whole point on happiness[^lifexpcoef]. We can plug this into the model and see what we get: 
+
+[^lifexpcoef]: Since life exectancy is scaled, a standard deviation is 1, in this case about 7 years.
 
 $$
-\textrm{prediction} = 4 + 0\cdot\textrm{life\_exp}
+\text{prediction} = 3.3 + 1\cdot\text{life\_exp}
 $$
 
-Alternatively we could use the data to inform our guess. We start with a mean of happiness score, but moving up a standard deviation of life expectancy (roughly ~`r round(sd(df_happiness$life_exp), 1)` years) would move us up a whole point of happiness.
+For a different model, we'll say countries start with a mean of happiness score, and moving up a standard deviation of life expectancy would move us up a half point of happiness.
 $$
-\textrm{prediction} = \overline{\textrm{happiness}} + 1\cdot\textrm{life\_exp}
+\text{prediction} = \overline{\text{happiness}} + .5\cdot\text{life\_exp}
 $$
 
-In this case, our offset (or intercept) is the mean of the target, and our coefficient for the scaled life expectancy is 1. This is probably a better guess, since it is at least data driven, but it's still not great. But how do we know it's better?  
+How do we know which is better? Let's find out!
 
 
 ## Prediction Error {#sec-estim-prediction-error}
 
-We can compare the predictions from each guess to the actual values of the target, and observe how far off our predictions are from the observed target. This difference is the **prediction error**, or in the context of a linear model, they are also called **residuals**. We can express this as:
+We've seen that a key component to model assessment involves comparing the predictions from the model to the actual values of the target. This difference is known as the **prediction error**, or **residuals** in more statistical contexts. We can express this as:
 
 $$
 \epsilon = y - \hat{y}
 $$
 $$ 
-\textrm{error} = \textrm{target} - \textrm{(model based) guess}
+\text{error} = \text{target} - \text{(model-based) guess}
 $$
 
-Not only does this tell us how far off our model prediction is, it gives us a way to compare models.  With out measure of prediction error, we can calculate a **metric** for total error for all observations/predictions, or similarlym the average error. If one model or parameter set has less total or average error, we can say it's a better model than one that has more. Ideally we'd like to choose a model with the least error, but we'll see that this is not always possible[^neverbest]. For now, let's calculate the error for our two guesses. One thing though, if we miss the mark above or below our target, we still want it to count the same in terms of prediction error. In other words, if the true happiness score is 5 and our model predicts 5.5 or 4.5, we want those to count as the same kind of error when we total up our error[^absloss]. 
+This prediction error tells us how far off our model prediction is from the observed target values, and it gives us a way to compare models.   With our measure of prediction error, we can calculate a total error for all observations/predictions (@sec-knowing-model-metrics), or similarly, the average error. If one model or parameter set has less total or average error, we can say it's a better model than one that has more (@sec-knowing-model-compare). Ideally we'd like to choose a model with the least error, but we'll see that this is not always possible[^neverbest]. 
 
-However, if we just take the average, you'll see that it is roughly zero! This is by design for many common models, were we even will explicitly write the formula for the error as coming from a normal distribution with mean of zero. So we need to do something else to get a meaningful error metric. One way we can get around this is to use the squared error value, or maybe the absolute value. We'll use squared error here, and we'll calculate the mean of the squared errors for all our predictions.  We'll do this for our two models above.
+However, if we just take the average of our errors from a linear regression model, you'll see that it is roughly zero! This is by design for many common models, were we even will explicitly write the formula for the error as coming from a normal distribution with mean of zero. So, to get a meaningful error metric, we need to use the squared error value or the absolute value. These also allow errors of similar value above and below the observed value to cost the same[^absloss]. We'll use squared error here, and we'll calculate the mean of the squared errors for all our predictions.
 
 [^zeroerror]: Think of it this way, if we only guesed the mean target value, *on average*, we'd be correct, since on average, the values are the mean value.
 
@@ -273,12 +283,12 @@ However, if we just take the average, you'll see that it is roughly zero! This i
 y = df_happiness$happiness
 
 # Calculate the error for the guess of 4
-prediction = 4
-mse_four   = mean((y - prediction)^2)
+prediction = min(df_happiness$happiness) + 1*df_happiness$life_exp_sc
+mse_model_A = mean((y - prediction)^2)
 
 # Calculate the error for our other guess
-prediction = mean(y) + 1 * df_happiness$life_exp
-mse_other  = mean((y - prediction)^2)
+prediction = mean(y) + .5 * df_happiness$life_exp_sc
+mse_model_B = mean((y - prediction)^2)
 ```
 
 
@@ -289,17 +299,17 @@ mse_other  = mean((y - prediction)^2)
 y = df_happiness['happiness']
 
 # Calculate the error for the guess of four
-prediction = 4
-mse_four   = np.mean((y - prediction)**2)
+prediction = np.min(df_happiness['happiness']) + 1 * df_happiness['life_exp_sc']
+mse_model_A   = np.mean((y - prediction)**2)
 
 # Calculate the error for our other guess
-prediction = y.mean() + 1 * df_happiness['life_exp']
-mse_other  = np.mean((y - prediction)**2)
+prediction = y.mean() + .5 * df_happiness['life_exp_sc']
+mse_model_B  = np.mean((y - prediction)**2)
 ```
 
 :::
 
-Now let's look at our **Mean Squared Error** (MSE), and we'll also inspect the square root of it, or the **Root Mean Squared Error**, as that puts things back on the original target scale, and tells us the standard deviation of our prediction errors. We also add the **Mean Absolute Error** (MAE) as another metric with straightforward interpretation. Inspecting the metrics, we can see that we are off on average by over a point for our '#4' model, but notably less when guessing the mean. 
+Now let's look at our **Mean Squared Error** (MSE), and we'll also inspect the square root of it, or the **Root Mean Squared Error**, as that puts things back on the original target scale, and tells us the standard deviation of our prediction errors. We also add the **Mean Absolute Error** (MAE) as another metric with straightforward interpretation. 
 
 ```{r}
 #| echo: false
@@ -307,15 +317,15 @@ Now let's look at our **Mean Squared Error** (MSE), and we'll also inspect the s
 #| tbl-cap: Comparison of error metrics for two models
 
 mse_tab = tibble(
-    Model = c("#4", "Other"),
-    MSE = c(mse_four, mse_other),
+    Model = c("A", "B"),
+    MSE = c(mse_model_A, mse_model_B),
     RMSE = sqrt(MSE),
     MAE = c(
         mean(abs(y - 4)),
-        mean(abs(y - (mean(y) + 1 * df_happiness$life_exp)))
+        mean(abs(y - (mean(y) + 1 * df_happiness$life_exp_sc)))
     ),
     `RMSE % drop` = c(NA, round((RMSE[2] - RMSE[1]) / RMSE[1] * 100, 1)),
-    `MAE % drop` = c(NA, round((MAE[2] - MAE[1]) / MAE[1] * 100, 1))
+    `MAE % drop`  = c(NA, round((MAE[2] - MAE[1]) / MAE[1] * 100, 1))
 ) |>
     mutate(,
         `RMSE % drop` = c("", scales::percent(`RMSE % drop`[2] / -100)),
@@ -327,40 +337,38 @@ mse_tab |>
     cols_align("center")
 ```
 
-We can see that the 'other' model is not only better, but results in a `r mse_tab[['RMSE % drop']][2]` drop in RMSE, and similar for MAE. We'd definitely prefer that model over the '#4' model. Furthermore, we can see how we can compare models in a general fashion.
+Inspecting the metrics, we can see that we are off on average by over a point (MAE) for model A, and a little over half a point on average for model B. So we can see that model B is not only better, but results in a `r mse_tab[['RMSE % drop']][2]` drop in RMSE, and similar for MAE. We'd definitely prefer it over model A, and we can see how to compare models in a general fashion.
 
 Now all of this is useful, and at least we can say one model is better than another. But you're probably hoping there is an easier way to do get a good guess for our model parameters, especially when we have possibly dozens of features and/or parameters to keep track of, and there is!
 
 
-[^sklearnnomax]: You may find that some packages will only minimize (or maximize) a function, possibly one that you come up with yourself. It'd be nice if they did this internally, or allowed the user to specify the direction like most packages, but you'll need to take care when implementing your own metrics.
+
 
 
 
 ## Ordinary Least Squares {#sec-estim-ols}
 
-For a simple linear model, we can estimate the parameters in several ways, but the most common is to use the **Ordinary Least Squares (OLS)** method. OLS is a method of estimating the coefficients that minimizes the sum of the squared errors, which we've just been doing in the previous section[^notamodel]. In other words, it finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values.  We can express this as:
+In a simple linear model, we often use the **Ordinary Least Squares (OLS)** method to estimate parameters. This method finds the coefficients that minimize the sum of the squared differences between the predicted and actual values[^notamodel]. In other words, it finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values, which is what we just did in or previous example. The sum of the squared errors is also called the **residual sum of squares** (RSS), as opposed to the 'total' sums of squares (i.e. the variance of the target), and the part explained by the model ('model' or 'explained' sums of squares). We can express this as follows, where $y_i$ is the observed value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model.
 
-[^notamodel]: Some disciplines seem confuse models with estimation methods and link functions. It doesn't really make sense, nor is informative, to call something an OLS model or a logit model. Many models are estimated using a least squares approach, and different types of models use a logit link.
+[^notamodel]: Some disciplines seem confuse models with estimation methods and link functions. It doesn't really make sense, nor is it informative, to call something an OLS model or a logit model. Many models are estimated using a least squares objective function, even deep learning, and different types of models use a logit link, from logistic regression, to beta regression to activation functions in deep learning.
 
 $$
-\textrm{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2
+\text{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2
 $$ {#eq-ols}
 
-Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model.  The sum of the squared errors is also called the **residual sum of squares** (RSS), as opposed to the total sums of squares (i.e. the variance of the target), and the part explained by the model (model or explained sums of squares). The OLS method finds the coefficients that minimize the sum of the squared differences between the predicted values and the actual values. It's called *ordinary* least squares because there are other least squares methods - generalized least squares, weighted least squares, and others, but we don't need to worry about that for now. What matters is that we have a way to estimate the coefficients that minimizes the sum of the squared errors. 
+  
 
-The resulting value - the sum or mean of the squared errors - can be referred to as our **objective value**, while the **objective function** is just the process of taking the predictions and observed target values as inputs and totaling up their squared differences to be returned as an output. We can use this value to find the best parameters for a specific model, as well as compare models with different parameters, such as a model with additional features versus one with fewer. We can also use this value to compare different types of models that are using the same objective function, such as a linear model and a decision tree model.
+It's called *ordinary* least squares because there are other least squares methods - generalized least squares, weighted least squares, and others, but we don't need to worry about that for now. The sum or mean of the squared errors is our **objective value**. The process taking the predictions and observed target values as inputs and returning this value as an output is our **objective function**. We can use this value to find the best parameters for a model or to compare different models. We can use this value to find the best parameters for a specific model, as well as compare models with different parameters, such as a model with additional features versus one with fewer. We can also use this value to compare different types of models that are using the same objective function, such as a linear model and a decision tree model.
 
-Let's calculate the OLS estimate for our model. From our steps above, we need guesses and a way to update them. For now, we can just provide a bunch of guesses, and just move along from one set to the next, and ultimately just choose whichever has the lowest value.
-
+Now let's calculate the OLS estimate for our model.  We'll start by making a bunch of guesses for the parameters, then choose the guess that gives us the lowest objective value.
 
 :::{.panel-tabset}
 
 ##### R
 ```{r}
 #| label: r-ols
-
 # for later comparison
-model_happy = lm(happiness ~ life_exp, data = df_happiness)
+model_happy = lm(happiness ~ life_exp_sc, data = df_happiness)
 
 ols = function(X, y, par, sum_sq = FALSE) {
     # add a column of 1s for the intercept
@@ -391,7 +399,7 @@ guesses = crossing(
 
 # Example for one guess
 ols(
-    X = df_happiness$life_exp,
+    X = df_happiness$life_exp_sc,
     y = df_happiness$happiness,
     par = unlist(guesses[1, ])
 )
@@ -402,7 +410,7 @@ ols(
 #| label: py-ols
 
 # for later comparison
-model_happy = smf.ols('happiness ~ life_exp', data = df_happiness)
+model_happy = smf.ols('happiness ~ life_exp_sc', data = df_happiness)
 model_happy = model_happy.fit()
 
 def ols(par, X, y, sum = False):
@@ -436,20 +444,66 @@ guesses = pd.DataFrame(
 # Example for one guess
 ols(
     par = guesses.iloc[0,:],
-    X = df_happiness['life_exp'],
+    X = df_happiness['life_exp_sc'],
     y = df_happiness['happiness']
 )
 ```
 
 :::
 
-Now we want to calculate the loss for each guess and find which one gives us the minimum function value.  Note that above, we could get the total or mean squared error by setting the `sum` parameter to `TRUE` or `FALSE`.  Either is fine, but it's more common to use the mean, which is a little more understandable - how far do our guess deviate from the true value on average?  In the following darker suggests a better mean squared error result from our approach. 
+After that, we'll calculate the loss for each guess and find which one gives us the smalles function value.  Note that in our custom functions, we could get the total or mean squared error by setting the `sum` parameter to `TRUE` or `FALSE`.  Either is fine, but the mean is more commonly used. 
+
+:::{.panel-tabset}
+
+##### R
+```{r}
+#| label: r-ols-get-best-guess
+#| results: 'hide'
+# Calculate the function value for each guess
+guesses = guesses |>
+    mutate(objective = map2_dbl(
+        guesses$b0, guesses$b1,
+        \(b0, b1) ols(
+            par = c(b0, b1), 
+            X = df_happiness$life_exp_sc, 
+            y = df_happiness$happiness
+        )
+    ))
+
+min_loss = guesses |> filter(objective == min(objective))
+
+min_loss
+```
+
+##### Python
+```{python}
+#| label: py-ols-get-best-guess
+#| results: 'hide'
+
+# Calculate the function value for each guess
+guesses['objective'] = guesses.apply(
+    lambda x: ols(
+        par = x, 
+        X = df_happiness['life_exp_sc'], 
+        y = df_happiness['happiness']
+    ),
+    axis = 1
+)
+
+min_loss = guesses[guesses['objective'] == guesses['objective'].min()]
+
+min_loss
+```
+
+:::
+
+The following plot shows the objective value for each guess, where darker values indicate we're getting closer to our smallest objective value.
 
 ```{r}
 #| echo: false
 #| label: r-ols-get-mse
 
-model_happy_life = lm(happiness ~ life_exp, data = df_happiness)
+model_happy_life = lm(happiness ~ life_exp_sc, data = df_happiness)
 int_happy = round(coef(model_happy_life)[1], 2)
 coef_happy = round(coef(model_happy_life)[2], 2)
 
@@ -459,60 +513,52 @@ mse_happy_life = round(performance::performance_rmse(model_happy_life)^2, 4)
 ```{r}
 #| label: r-ols-apply
 #| echo: false
-
-# Calculate the ols function value for each guess
-guesses = guesses %>%
-    mutate(objective = map2_dbl(
-        guesses$b0, guesses$b1,
-        \(b0, b1) ols(par = c(b0, b1), X = df_happiness$life_exp, y = df_happiness$happiness)
-    ))
-
-min_loss = guesses %>% filter(objective == min(objective))
-
-predictions = min_loss$b0 + min_loss$b1 * df_happiness$life_exp
+#| eval: false
+predictions = min_loss$b0 + min_loss$b1 * df_happiness$life_exp_sc
 
 p_ols = guesses |>
     ggplot(aes(x = b0, y = b1)) +
-    geom_tile(aes(fill = objective), show.legend = FALSE) +
+    geom_raster(aes(fill = objective), show.legend = FALSE) +
+    geom_contour(aes(z = objective), color = 'white', show.legend = FALSE) +
     geom_point(
         x = model_happy_life$coefficients[1],
         y = model_happy_life$coefficients[2],
-        size = 3,
+        size = 5,
+        pch = 8,
         color = "white",
         alpha = 1
     ) +
-    annotate(
-        geom = 'text',
-        # aes(
-        x = min_loss$b0-1, 
-        y = min_loss$b1,
-        label = glue("Best guess at ({round(min_loss$b0, 2)}, {round(min_loss$b1, 3)})
-        Objective value:   {round(min_loss$objective, 4)}"),
-        size = 3,
-        hjust = 0,
-        color = "#ffffff"
-    ) +
-    annotate(
-        geom = "text",
-        x = int_happy + .66,
-        y = coef_happy,
-        label = glue("OLS estimate at ({int_happy}, {coef_happy})
-        Objective value: {mse_happy_life}"),
-        size = 3,
-        # hjust = c(-0.1, -0.1),
-        color = "#ffffff"
-    ) +
+    # annotate(
+    #     geom = 'text',
+    #     # aes(
+    #     x = min_loss$b0-1, 
+    #     y = min_loss$b1,
+    #     label = glue("Best guess at ({round(min_loss$b0, 2)}, {round(min_loss$b1, 3)})
+    #     Objective value:   {round(min_loss$objective, 4)}"),
+    #     size = 3,
+    #     hjust = 0,
+    #     color = "#ffffff"
+    # ) +
+    # annotate(
+    #     geom = "text",
+    #     x = int_happy + .66,
+    #     y = coef_happy,
+    #     label = glue("OLS estimate at ({int_happy}, {coef_happy})
+    #     Objective value: {mse_happy_life}"),
+    #     size = 3,
+    #     # hjust = c(-0.1, -0.1),
+    #     color = "#ffffff"
+    # ) +
     # coord_cartesian(
     #     # xlim = c(-1, 1),
     #     ylim = c(-1, 1)
     # ) +
-    scico::scale_fill_scico(begin = .1, end = 1, direction = 1) +
+    scico::scale_fill_scico(begin = 0, end = 1, direction = 1) +
     labs(
         x = "b0",
         y = "b1",
         title = "Objective value (loss) for different guesses of b0 and b1"
     )
-
 # p_ols
 # ggsave(p_ols, filename = "img/ols_guesses.svg", width = 8, height = 6)
 ```
@@ -520,93 +566,13 @@ p_ols = guesses |>
 ![Results of parameter search](img/ols_guesses.svg){width=50%}
 
 
-```{r}
-#| echo: false
-#| label: r-ols-apply-altenative
-#  guesses |>
-#     ggplot(aes(x = b0, y = b1)) +
-#     geom_point(aes(size = -objective), show.legend = FALSE) +
-#     geom_point(
-#         x = model_happy_life$coefficients[1],
-#         y = model_happy_life$coefficients[2],
-#         size = 6,
-#         color = "black",
-#         alpha = 1
-#     ) +
-#     annotate(
-#         geom = 'text',
-#         # aes(
-#         x = min_loss$b0-1, 
-#         y = min_loss$b1,
-#         label = glue("Best guess at ({round(min_loss$b0, 2)}, {round(min_loss$b1, 3)})
-#         Objective value:   {round(min_loss$objective, 4)}"),
-#         size = 3,
-#         hjust = 0,
-#         color = "#ffffff"
-#     ) +
-#     annotate(
-#         geom = "text",
-#         x = int_happy + .66,
-#         y = coef_happy,
-#         label = glue("OLS estimate at ({int_happy}, {coef_happy})
-#         Objective value: {mse_happy_life}"),
-#         size = 6,
-#         vjust = 1.5,
-#         # hjust = c(-0.1, -0.1),
-#         # color = "#ffffff"
-#     ) +
-#     # coord_cartesian(
-#     #     # xlim = c(-1, 1),
-#     #     ylim = c(-1, 1)
-#     # ) +
-#     scale_size_continuous(range = c(.01, 5)) +
-#     scico::scale_fill_scico(begin = .1, end = 1, direction = 1) +
-#     labs(
-#         x = "b0",
-#         y = "b1",
-#         title = "Objective value (loss) for different guesses of b0 and b1"
-#     )
-```
-
-If we inspect our results from the built-in functions, we had estimates of `r int_happy` and `r coef_happy` for our coefficients versus the best guess from our approach of `r min_loss$b0` and `r min_loss$b1`. These are very similar but not exactly the same, but this is mostly due to the granularity of our guesses.  Even so, in the end we can see that we get pretty dang close to what our basic `lm` or `statsmodels` functions would get us. Pretty neat!
-
-```{r}
-#| echo: false
-#| eval: false
-#| label: ols-compare-prediction-vs-observed
-
-# TODO: MOVE THIS PLOT TO MODEL CRITICISM, DOESN'T REALLY ADD TO OPTIMIZATION
-
-p1 = df_happiness |>
-    mutate(prediction = predictions) |>
-    ggplot(aes(x = prediction, y = happiness)) +
-    geom_point(alpha = 0.1, size = 4, position = position_jitter(width = .1)) +
-    geom_abline(
-        intercept = 0,
-        slope = 1,
-        color = okabe_ito[2],
-        linewidth = 2
-    )
-
-# compare densities
-p2 = df_happiness |>
-    mutate(prediction = predictions) |>
-    select(happiness, prediction) |>
-    pivot_longer(everything()) |>
-    ggplot(aes(x = value)) +
-    # geom_density(aes(color = name, fill = name), alpha = 0.15) +
-    stat_ecdf(geom = "smooth", aes(color = name, fill = name), alpha = 0.15) +
-    scale_fill_manual(values = c(okabe_ito[1], okabe_ito[2]), aesthetics = c("fill", "color"))
-
-
-p1 + p2
-```
+If we inspect our results from the standard functions, we had estimates of `r int_happy` and `r coef_happy` for our coefficients versus the best guess from our approach of `r min_loss$b0` and `r min_loss$b1`. These are very similar but not exactly the same, but this is mostly due to the granularity of our guesses.  Even so, in the end we can see that we get pretty dang close to what our basic `lm` or `statsmodels` functions would get us. Pretty neat!
 
 
 
 
-::: {.callout type="info" title="Estimation as 'Learning'"}
-Estimation, and/or optimization, can be seen as the process of a model learning which parameters will best allow the predictions to match the observed data, and hopefully, predict as-yet-unseen future data. This is a very common way to think about estimation in machine learning, and it is a useful way to think about our simple linear model also.  
+::: {.callout type="info" title="Estimation as 'Learning'" collapse="true"}
+Estimation and/or optimization can be seen as the process of a model *learning* which parameters will best allow the predictions to match the observed data, and hopefully, predict as-yet-unseen future data. This is a very common way to think about estimation in machine learning, and it is a useful way to think about our simple linear model also.  
 
 One thing to keep in mind is that it is not a magical process. It takes good data, a good idea (model), and an appropriate estimation method to get good results.
 :::
@@ -614,28 +580,28 @@ One thing to keep in mind is that it is not a magical process. It takes good dat
 
 ## Optimization {#sec-estim-opt}
 
-Before we get into other objective functions, let's think about a better way to find the best parameters for our model. Rather than just guessing, we can use a more systematic approach, and thankfully, there are tools out there to help us. We just use a function like our OLS function, give it a starting point, and let the algorithms do the rest! Thanks to some nifty approaches to making better guesses, these tools eventually arrive at a pretty good set of parameters.  Well, they usually do, but not always- nothing's perfect!  But they are pretty good, and they are a lot better than guessing. Let's see how we can use one of these tools to find the best parameters for our model.
+Before we get into other objective functions, let's think about a better way to find good parameters for our model. Rather than just guessing, we can use a more systematic approach, and thankfully, there are tools out there to help us. We just use a function like our OLS function, give it a starting point, and let the algorithms do the rest! These tools eventually arrive at a pretty good set of parameters, and are optimized for speed.  
 
-Previously we created a set of guesses to search over to see which set of parameters resulted in prediction that matched the data best. What we did is called a **grid search**, and it is a bit of a brute force approach to finding the best fitting model. You can imagine a couple of unfortunate or problematic scenarios, such as having a very large number of parameters, or that our specified range doesn't allow us to get to the right sets of parameters, or we specify a very large range, but the best fitting model is within a very narrow part of that range. In any of these cases we waste a lot of time, and may not find an optimal solution.
+Previously we created a set of guesses, and tried each one in a manner called a **grid search**, and it is a bit of a brute force approach to finding the best fitting model. You can maybe imagine a couple of unfortunate scenarios for this approach, such as having a very large number of parameters to search. Or it may be that our range of guesses doesn't allow us to find the right set of parameters, or we specify a very large range, but the best fitting model is within a very narrow part of that, so it takes a long time to find. In any of these cases we waste a lot of time or may not find an optimal solution.
 
-In general, we can think of **optimization** as a way to find the best parameters for our model. We start with an initial guess, see how well it does in terms of our objective function, and then try to improve it with a new guess. We continue to do so until a stopping point is reached.  Here is an example.
+In general, we can think of **optimization** as employing a smarter, more efficient way to find what you're looking for. Here's how it works:
 
-- **Start with an initial guess** for the parameters
-- Calculate the objective function given the parameters
+- **Start with an initial guess** for the parameters, then...
+
+- **Calculate the objective function** given the parameters
 - **Update the parameters** to a new guess (that hopefully improves the objective function)
-- Calculate the objective function given the new parameters
-- **Repeat** until the improvement is small enough, or we reach the desired number of iterations we want to attempt
+- **Repeat**,  until the improvement is small enough, or a maximum number of iterations is reached.
 
-This is what we described before with estimation in general. The key idea now is how we *update* the old parameters with a new guess at each iteration. Different **optimization algorithms** use different approaches to find the updated parameters. At some point, either the improvement is no longer practical, often refered to as our **tolerance**, or we reach a maximum number of iterations we want to attempt, and either of these is something we can set ourselves. If we meet the terms of our objective, we say that our model has **converged**. Sometimes, the number of iterations is not enough for us to reach convergence in terms of tolerance, and we have to try again with a different set of parameters, a different algorithm, maybe use some data transformations, or something else.
+The key idea now is how we *update* the old parameters with a new guess at each iteration. Different **optimization algorithms** use different approaches to find those new guesses.  The process stops when the improvement is within a set **tolerance** or the maximum number of iterations is reached. If the objective is met, we say that our model has **converged**. Sometimes, the number of iterations is not enough for us to reach convergence in terms of tolerance, and we have to try again with a different set of parameters, a different algorithm, maybe use some data transformations, or something else.
 
-So let's try it out! Both R and Python offer a function where we can specify the objective function, and it will try to find the best parameters for us. It needs several inputs:
+So let's try it out! We start out with several inputs:
 
 - the objective function
 - the initial guess for the parameters to get things going
-- inputs to the objective function
+- other related inputs to the objective function
 - options for the optimization process, e.g. algorithm, maximum number of iterations, etc.
 
- With these inputs, we'll let the optimization functions do the rest of the work. We'll also compare our results to the built-in functions to make sure we're on the right track.
+ With these inputs, we'll let the optimization functions do the rest of the work. We'll also compare our results to the standard functions to make sure we're on the right track.
 
 :::{.panel-tabset}
 
@@ -644,12 +610,11 @@ So let's try it out! Both R and Python offer a function where we can specify the
 We'll use the `optim` function in R. 
 ```{r}
 #| label: r-optim-ols
-#| cache: false
-
+#| results: 'hide'
 our_result = optim(
     par     = c(1, 0),
     fn      = ols,
-    X       = df_happiness$life_exp,
+    X       = df_happiness$life_exp_sc,
     y       = df_happiness$happiness,
     method  = "BFGS", # optimization algorithm
     control = list(   # specify tolerance, max iter, etc. here
@@ -658,7 +623,7 @@ our_result = optim(
     )  
 )
 
-# our_result
+our_result
 ```
 
 ##### Python
@@ -667,24 +632,24 @@ We'll use the  `minimize` function in Python.
 
 ```{python}
 #| label: py-optim-ols
-
+#| results: 'hide'
 from scipy.optimize import minimize
 
 our_result = minimize(
     fun    = ols,
     x0     = np.array([1., 0.]),
     args   = (
-        np.array(df_happiness['life_exp']), 
+        np.array(df_happiness['life_exp_sc']), 
         np.array(df_happiness['happiness'])
     ),
-    method = 'BFGS', # optimization algorithm
-    tol    = 1e-6,   # tolerance
+    method  = 'BFGS', # optimization algorithm
+    tol     = 1e-6,   # tolerance
     options = {
         'maxiter': 500
     }
 )
 
-# our_result
+our_result
 ```
 
 :::
@@ -692,72 +657,79 @@ our_result = minimize(
 ```{r}
 #| echo: false
 #| label: tbl-r-optim-ols
-#| tbl-cap: Comparison of our results to built-in function
+#| tbl-cap: Comparison of our results to standard function
 
 our_result_tbl = tibble(
     "Parameter"  = c("Intercept", "Life Exp. Coef.", "Objective/MSE"),
-    `Built-in`   = c(coef(model_happy_life), performance::performance_mse(model_happy_life)),
+    `Standard`   = c(coef(model_happy_life), performance::performance_mse(model_happy_life)),
     `Our Result` = c(our_result$par, our_result$value)
 ) |>
     mutate(
-        `Built-in`   = round(`Built-in`, 3),
+        `Standard`   = round(`Standard`, 3),
         `Our Result` = round(`Our Result`, 3)
     )
 our_result_tbl |>
     gt(decimals = 4)
 ```
 
-So our little function and the right tool allows us to come up with the same thing as base R and `statsmodels`! I hope you're feeling pretty good at this point because you should! You just proved you could do what seemed before to be like magic, but really all it took is just a little knowledge about some key concepts.  Let's try some more!
+So our little function and the right tool allows us to come up with the same thing as base R and `statsmodels`! I hope you're feeling pretty good at this point because you should! You just proved you could do what seemed before to be like magic, but really all it took is just a little knowledge about some key concepts to demystify the process. So let's keep going!
 
 
 
 
 
-:::{.callout type="info" title="A Note on Terminology"}
-The objective function is often called the **loss function**, and sometimes the **cost function**. However, these both imply that we are trying to minimize the function, which is not always the case[^sklearnnomax], and it's arbitrary whether you want to minimize or maximize the function. In fact, some people will minimize the *negative* likelihood when using *maximum* likelihood! As such we'll try to stick to the more neutral term 'objective function', but you may see the other terms used interchangeably in this text. In addition, some packages will use the term **metric** to refer a value that you might want to examine as well, or even use to compare models. For example, the MSE is a metric, but it may also be the objective function we are trying to minimize. Other metrics we could calculate without being the objective might be Adjusted R-squared and mean absolute error. We could also use MSE as the objective, but use percentage drop in error from baseline when selecting among several models that minimized MSE. This can be very confusing when starting out! We'll try to stick to the term *metric* for additional values that we might want to examine separate from the *objective function value*.
+:::{.callout type="info" title="A Note on Terminology" collapse="true"}
+The objective function is often called the **loss function**, and sometimes the **cost function**. However, these both imply that we are trying to minimize the function, which is not always the case[^sklearnnomax], and it's arbitrary whether you want to minimize or maximize the function. 
+
+The term **metric**, such as the MSE or AUC we've seen elsewhere, is a value that you might also want to use to evaluate the model. Some metrics are uesd be an objective function. For instance, we might minimize MSE as our objective, but also calculate other metrics like Adjusted R-squared or Mean Absolute Error to evaluate the model.
+
+This can be very confusing when starting out! We'll try to stick to the term *metric* for additional values that we might want to examine, apart from the *objective function value*.
 :::
 
+[^sklearnnomax]: You may find that some packages will *only* minimize (or maximize) a function, even to the point of reporting nonsensical things like negative squared values, so you'll need to take care when implementing your own metrics.
 
 ## Maximum Likelihood {#sec-estim-maxlike}
 
-In our example thus far, we have been minimizing the specific objective (or loss) function, which basically takes our parameter estimates, produces a prediction, and returns the sum or mean of the squared errors. But this is just one approach we could take. Now we'd like you to think about the **data generating process**.  We have a model that says happiness is a function of life expectancy, but more specifically, let's think about how the observed value of the happiness score is generated in a statistical sense. In particular, what kind of probability distribution might be involved?  Ignoring the model, we might think that each happiness value is generated by some random process, and that the process is the same for each observation. Let's assume that random process is a normal distribution. So something like this would describe it mathematically:
+In our example, we've been minimizing the mean of the squared errors to find the best parameters for our model. But let's think about this differently. Now we'd like you to think about the **data generating process**. Ignoring the model, imagine that each happiness value is generated by some random process, like drawing from a normal distribution. So something like this would describe it mathematically:
 
 $$
-\textrm{happiness} \sim N(\mu, \sigma)
+\text{happiness} \sim N(\text{mean}, \text{sd})
 $$
 
-where $\mu$ is the mean of the happiness and $\sigma$ is the standard deviation, or in other words, we can think of happiness as a random variable that is drawn from a normal distribution with $\mu$ and $\sigma$ as the parameters of that distribution.  
+where the `mean` is just the mean of happiness, and `sd` is its standard deviation. In other words, we can think of happiness as a random variable that is drawn from a normal distribution with mean and standard deviation as the parameters of that distribution.
 
 Let's apply this idea to our linear model setting. In this case, the mean is a function of life expectancy, and we're not sure what the standard deviation is, but we can go ahead and write our model as follows.
 
 $$
-\mu = \beta_0 + \beta_1 * \textrm{life\_exp}
+\text{mean} = \beta_0 + \beta_1 * \text{life\_exp}
 $$
 $$
-\textrm{happiness} \sim N(\mu, \sigma)
-$$
-
-
-Now, we can think of the model as a way to estimate the parameters of the normal distribution, but we have an additional parameter to estimate. We still have our previous coefficients, but now we need to estimate $\sigma$, which is basically our RMSE, as well. But we still have to think of things a little differently. When we compare our prediction to the observed value, we don't look at the simple difference, but we are still interested in the discrepancy between the two. So now we think about the **likelihood** of observing the happiness score given our prediction, which is based on the estimated parameters, i.e. given the $\mu$ and $\sigma$, and $\mu$ is a function of the coefficients and life expectancy.  We can write this as:
-
-$$
-\textrm{Pr}(\textrm{happiness} \mid \textrm{life\_exp}, \beta_0, \beta_1, \sigma)
+\text{happiness} \sim N(\text{mean}, \text{sd})
 $$
 
+
+Now, our model is estimating the parameters of the normal distribution. We have an extra parameter to estimate - the standard deviation, which is similar to our RMSE, but it's just another parameter, just like our coefficients. 
+
+Now when we compare our prediction to the observed value, we don't just look at the simple difference, but we are still interested in the discrepancy between the two. So now we're thinking about the **likelihood** of observing the happiness score given our prediction. The likelihood is based on the estimated parameter one of which is a function of the coefficients and life expectancy.  We can write this as:
+
 $$
-\textrm{Pr}(\textrm{happiness} \mid \mu, \sigma)
+\text{Pr}(\text{happiness} \mid \text{life\_exp}, \beta_0, \beta_1, \text{sd})
 $$
 
-Even more generally, the likelihood gives us a sense of the probability of the observed data given the parameter estimates $\theta$.
 $$
-\textrm{Pr}(\textrm{Data} \mid \theta)
+\text{Pr}(\text{happiness} \mid \text{mean}, \text{sd})
 $$
 
-Here is a simple code demo to get a likelihood in the context of our model. The values you see are referred to statistically as probability density values, and they are technically not probabilities, but rather the probability density, or **relative likelihood**, at that observation[^probzero]. For your conceptual understanding, if it makes it easier, you can think of them in the same was as you do probabilities, but just know that technically they are not.
+Thining more generally, the likelihood gives us the probability of the observed data given the parameter estimates.
 
-[^probzero]:The actual probability of a *specific value* is 0, but the probability of a range of values is not 0. You can find out more about likelihoods and probabilities at the discussion [here](https://stats.stackexchange.com/questions/2641/what-is-the-difference-between-likelihood-and-probability), but in general many traditional statistical texts will cover this also.
+$$
+\text{Pr}(\text{Data} \mid \text{Parameters})
+$$
 
-TODO: UPDATE VALUES WHEN DEMO IS SETTLED
+This demo shows how to calculate a likelihood for our model. The values you see are called probability density values. They're not exactly probabilities, but they show the **relative likelihood** of each observation[^probzero]. You can think of them like you do for probabilities, but remember that likelihoods are slightly different.
+
+[^probzero]:The actual probability of a *specific value* in this setting is 0, but the probability of a range of values is greater than 0. You can find out more about likelihoods and probabilities at the discussion [here](https://stats.stackexchange.com/questions/2641/what-is-the-difference-between-likelihood-and-probability), but in general many traditional statistical texts will cover this also.
+
 
 :::{.panel-tabset}
 
@@ -766,7 +738,7 @@ TODO: UPDATE VALUES WHEN DEMO IS SETTLED
 ```{r}
 #| label: r-demo-Likelihood
 
-# two example life expectancy scores, mean and 1 sd above
+# two example life expectancy scores, at the mean (0) and 1 sd above
 life_expectancy = c(0, 1)
 
 # observed happiness scores
@@ -790,7 +762,7 @@ L
 
 from scipy.stats import norm
 
-# two example life expectancy scores, mean and 1 sd above
+# two example life expectancy scores, at the mean (0) and 1 sd above
 life_expectancy = np.array([0, 1])
 
 # observed happiness scores
@@ -810,9 +782,11 @@ L
 :::
 
 
-So, given a guess at the parameters, and an assumption about the distribution of the data, we can calculate the likelihood of observing each data point, and sum those up, just like we did with our squared errors. In theory, we'd deal with the product of each likelihood, but in practice we sum the log of the likelihood, otherwise values would get too small for our computers to handle. Here is a corresponding function we can use to calculate the likelihood of the data given our parameters. Note that the actual likelihood value returned isn't really interpretable, just that higher is better from a maximization standpoint. But we can use it to compare models with different sets of parameter guesses. Even if our total likelihoods under comparison are negative, we prefer the model with the relatively higher likelihood.  As we just demonstrated, we'll use `optim` to help us get good guesses[^lowerbound].
+With a guess for the parameters and an assumption about the data's distribution, we can calculate the likelihood of each data point. We get a total likelihood for all observations, similar to how we added squared errors previously. But unlike errors, we want *more* likelihood, not less. In theory we'd multiply each likelihood, but in practice we sum the *log of the likelihood*, otherwise values would get too small for our computers to handle. We can also turn our problem into a minimization problem by multiplying the log likelihood by -1, and then minimizing that value, which many optimization algorithms are designed to do.
 
-[^lowerbound]: Those who have experience here will notice we aren't putting a lower bound on sigma. You typically want to do this otherwise you may get nonsensical results. You can do this by using the `lower` parameter in `optim` with an algorithm that uses boundaries, or even more simply by exponentiating the parameter, i.e. `exp(par[1])`.  Just remember that the returned value will be on the log scale, so you'll have to exponentiate it to get to the correct scale. We leave this detail out of the code for now to keep things simple.
+The following shows a function we can use to calculate the likelihood of the data given our parameters. The actual likelihood value isn't easily interpretable, but higher values are better. We can use it to compare models with different parameter guesses. Even if our total (log) likelihoods are negative, we prefer the model with the relatively higher likelihood[^lowerbound].
+
+[^lowerbound]: Those who have experience here will notice we aren't putting a lower bound on sigma. You typically want to do this otherwise you may get nonsensical results by not keeping sigma positive. You can do this by setting a specific argument for an algorithm that uses boundaries, or more simply by exponentiating the parameter. In the latter case, you'll have to exponentiate the estimate to get back to the correct scale. We leave this detail out of the code for now to keep things simple.
 
 
 :::{.panel-tabset}
@@ -821,6 +795,7 @@ So, given a guess at the parameters, and an assumption about the distribution of
 
 ```{r}
 #| label: r-likelihood
+#| results: 'hide'
 likelihood = function(par, X, y) {
     X = cbind(1, X)
     # setup
@@ -837,22 +812,21 @@ likelihood = function(par, X, y) {
     -sum(ll) # for minimization
 }
 
-
 our_result = optim(
     par = c(1, 0, 0),
     fn  = likelihood,
-    X   = df_happiness$life_exp,
+    X   = df_happiness$life_exp_sc,
     y   = df_happiness$happiness
 )
 
-# our_result
+our_result
 ```
 
 ##### Python
 
 ```{python}
 #| label: py-likelihood
-
+#| results: 'hide'
 def likelihood(par, X, y):
     # add a column of 1s for the intercept
     X = np.c_[np.ones(X.shape[0]), X]
@@ -874,19 +848,20 @@ our_result = minimize(
     fun  = likelihood,
     x0   = np.array([1, 0, 0]),
     args = (
-        np.array(df_happiness['life_exp']), 
+        np.array(df_happiness['life_exp_sc']), 
         np.array(df_happiness['happiness'])
     )
 )
+
+our_result
 ```
 
 :::
 
-How would we switch to a maximum likelihood approach using readily available functions?  In both R and Python you can switch to using `glm` and `GLM` respectively as a start.  We can use different likelihoods corresponding to the binomial, poisson and other distributions. Still other packages would allow even more distributions for consideration. In general, we choose a distribution that we feel best reflects the data generating process. For binary targets for example, we typically would feel a bernoulli or binomial distribution is appropriate. For count data, we might choose a poisson or negative binomial distribution.  For targets that fall between 0 and 1, we might go for a beta distribution. There are many distributions, and even when some might feel more appropriate, we might choose another for convenience. Some distributions tend toward a normal (a.k.a. gaussian) distribution depending on various factors, while others are special cases of more general distributions. For example, the exponential distribution is a special case of the gamma distribution, and a cauchy is equivalent to a t distribution with 1 degree of freedom, and the t tends toward a normal with increasing degrees of freedom. Here is a visualization of the relationships among some of the more common distributions @wikipedia_relationships_2023.
+To use a maximum likelihood approach for linear models, you can use functions like `glm` in R or `GLM` in Python. We can also use different likelihoods corresponding to the binomial, poisson and other distributions. Still other packages would allow even more distributions for consideration. In general, we choose a distribution that we feel best reflects the data generating process. For binary targets for example, we typically would feel a bernoulli or binomial distribution is appropriate. For count data, we might choose a poisson or negative binomial distribution. For targets that fall between 0 and 1, we might go for a beta distribution. You can see some of these demonstrated in [-@sec-glm].
 
+There are many distributions to choose from, and the best one depends on your data. Sometimes, even if one distribution seems like a better fit, we might choose another one because it's easier to use. Some distributions are special cases of others, or they might become more like a normal distribution under certain conditions. For example, the exponential distribution is a special case of the gamma distribution, and a t distribution with many degrees of freedom looks like a normal distribution. Here is a visualization of the relationships among some of the more common distributions (@wikipedia_relationships_2023). 
 
-
-TODO: fig needs work for pdf
 
 \newpage
 
@@ -896,7 +871,7 @@ TODO: fig needs work for pdf
 #| echo: false
 #| label: fig-distribution-relationships
 #| fig-width: 6
-#| fig-cap: Relationships among some of univariate probability distributions.
+#| fig-cap: Relationships among some of univariate probability distributions. Source Wikipedia.
 
 
 # knitr::include_graphics("img/distribution_relationships.jpg")
@@ -909,8 +884,10 @@ TODO: fig needs work for pdf
 \newpage
 
 
+When you realize that many of distributions are closely related, it's easier to understand why we might choose one over another, but also why we might use a simpler option even if it's not the best fit - you likely won't come to a different conclusion about your model. Ultiamtely you'll get a better feel for this as you work with different types of data and models.
 
-Here are examples of standard GLM functions in R and Python
+
+Here are examples of standard GLM functions, which just require an extra argument for the family of the distribution.
 
 :::{.panel-tabset}
 
@@ -920,7 +897,7 @@ Here are examples of standard GLM functions in R and Python
 #| eval: false
 #| label: r-glm
 
-glm(happiness ~ life_exp, data = df_happiness, family = gaussian)
+glm(happiness ~ life_exp_sc, data = df_happiness, family = gaussian)
 glm(binary_target ~ x1 + x2, data = some_data, family = binomial)
 glm(count ~ x1 + x2, data = some_data, family = poisson)
 ```
@@ -934,7 +911,7 @@ glm(count ~ x1 + x2, data = some_data, family = poisson)
 import statsmodels.formula.api as smf
 
 smf.glm(
-    'happiness ~ life_exp', 
+    'happiness ~ life_exp_sc', 
     data = df_happiness, 
     family = sm.families.Gaussian()
 )
@@ -960,16 +937,16 @@ With that in mind, we can compare our result to a built-in function that has cap
 ```{r}
 #| echo: false
 #| label: tbl-r-likelihood
-#| tbl-cap: Comparison of our results to built-in function
+#| tbl-cap: Comparison of our results to the built-in function
 
-glm_happy_life = glm(happiness ~ life_exp, data = df_happiness)
+glm_happy_life = glm(happiness ~ life_exp_sc, data = df_happiness)
 
 our_result_tbl = tibble(
     "Parameter"  = c("Intercept", "Life Exp. Coef.", "Sigma", "LogLik (neg)"),
-    `Built-in`   = c(coef(glm_happy_life), sqrt(summary(glm_happy_life)$dispersion), -logLik(model_happy_life)),
+    `Standard`   = c(coef(glm_happy_life), sqrt(summary(glm_happy_life)$dispersion), -logLik(model_happy_life)),
     `Our Result` = c(our_result$par[-1], exp(our_result$par[1]), our_result$value)
 ) |>
-    gt(decimals = 2) |>
+    gt(decimals = 3) |>
     gt::tab_footnote(
         footnote = "Parameter estimate is exponentiated",
         locations = cells_body(
@@ -985,7 +962,9 @@ our_result_tbl = tibble(
 our_result_tbl
 ```
 
-Let's think more about what's going on here. It turns out that our objective function defines a space or surface. We can think of it as a landscape, and we are trying to find the lowest point on that landscape. We can then think of our guesses as points on that landscape, and we are trying to find the lowest point. Let's start get a sense of this with the following visualization, based on a single parameter. The data is drawn from Poisson distributed variable with true mean $\theta=5$. We note the calculated likelihood increases as we estimate values for $\theta$ closer to $5$, or more precisely, whatever the mean observed value is for the data. However, with more and more data, the final ML estimate will converge on the true value. Model estimation finds that maximum on the curve, and optimization algorithms are the means to find it.
+#### Diving deeper
+
+Let's think more about what's going on here. It turns out that our objective function defines a 'space' or 'surface'. You can imagine the process as searching for the lowest point on a landscape, with each guess a point on this landscape. Let's start to get a sense of this with the following visualization, based on a single parameter. The following visualization shows this for a single parameter. The data comes from a variable with a true average of 5. As our guesses get closer to 5, the likelihood increases. However, with more and more data, the final guess converge on the true value. Model estimation finds that maximum on the curve, and optimization algorithms are the means to find it.
 
 
 ```{r}
@@ -1003,40 +982,34 @@ ggplot(data.frame(mus, L)) +
     geom_vline(aes(xintercept = 5), alpha = .5, lty = 2) +
     geom_hline(aes(yintercept = max(L)), alpha = .5, lty = 2) +
     geom_path(aes(x = mus, y = L), lwd = 2) +
+    # lims(y = c(max(L)*1.01)) +
     annotate(
         geom = "text",
         x = 5, 
         y = max(L), 
         label = lab, 
         color = 'gray10', 
-        hjust = 1.5, 
-        vjust = -1
+        hjust = 1.75, 
+        vjust = 2,
     ) +
-    labs(x = expression(theta), y = "Likelihood") +
-    visibly::theme_clean(center_axis_labels = TRUE) +
-    theme(
-        axis.ticks.y = element_blank(),
-        axis.text.y  = element_blank(),
-        axis.text.x  = element_text(color = "gray10", size = 14),
-        axis.title.x = element_text(color = "gray10", size = 24)
-    )
-
+    labs(x = '', y = "Likelihood")
 ```
 
-Now let's add a parameter. If we have more than one parameter, we now have a surfaace to deal with. Given some starting point, an optimization procedure then travels along the surface looking for a minimum/maximum point. For simpler settings such as this, we can visualize the likelihood surface and its minimum point. However, even our simple demo model has three parameters plus the likelihood, so would be difficult to visualize without additional complexity. To get around this, we show the results for an alternate model where happiness is standardized also, which means the intercept is zero[^zerointorigin], and we don't have to show that. 
+Now let's add a parameter. If we have more than one parameter, we now have a surface to deal with. Given a starting point, an optimization procedure then travels along the surface looking for a minimum/maximum point. For simpler settings such as this, we can visualize the likelihood surface and its minimum point. However, even our simple model has three parameters plus the likelihood, so it would be difficult to visualize without additional complexity. Instead we show the results for an alternate model where happiness is standardized also, which means the intercept is zero[^zerointorigin], and so not shown. 
 
-[^zerointorigin]: Linear regression will settle on a line that cuts through the means, and when standardizing the mean of the features and target are both zero, so the line goes through the origin.  
+[^zerointorigin]: Linear regression will settle on a line that cuts through the means, and when standardizing all variables, the mean of the features and target are both zero, so the line goes through the origin.  
 
 
-TODO: CANT DO INTERACTIVE WITH PDF/LATEX. NEED WORKAROUND.
 
+::: {.content-hidden when-format="pdf"}
 ```{r}
 #| echo: false
 #| eval: true
 #| label: fig-r-likelihood-plot-3d
+#| fig-cap: Likelihood surface for happiness and life expectancy (interactive)
 
 # evaluate for estimates used in subsequent plot
-mod_ = glm(scale(happiness) ~ life_exp, data = df_happiness)
+mod_ = glm(scale(happiness) ~ life_exp_sc, data = df_happiness)
 sig = sqrt(summary(mod_)$dispersion)
 
 # b1 = sort(c(coef(mod_)[2], seq(0, 1, length = 99)))
@@ -1053,7 +1026,7 @@ for (i in 1:length(b1)) {
         llsurf[i, j] = -sum(
             dnorm(
                 scale(df_happiness$happiness)[, 1],
-                mean = scale(df_happiness$life_exp)[, 1] * b1[i],
+                mean = scale(df_happiness$life_exp_sc)[, 1] * b1[i],
                 sd = sigma[j],
                 log = TRUE
             )
@@ -1072,11 +1045,11 @@ ll2 = function(b1, sigma, X, y) {
 library(bbmle)
 
 mle_est = capture.output(
-    mlnorm = bbmle::mle2(
+    mlnorm <- bbmle::mle2(
         ll2,
         start = list(sigma = 1, b1 = 0),
         data = list(
-            X = scale(df_happiness$life_exp)[, 1],
+            X = scale(df_happiness$life_exp_sc)[, 1],
             y = scale(df_happiness$happiness)[, 1]
         ),
         # method = "Nelder-Mead",
@@ -1097,73 +1070,75 @@ estimates = mle_est |>
     rename(b1 = V2, sigma = V3, ll = V4) |>
     mutate(across(everything(), as.numeric))
 # scico::scico_palette_show()
-# p = plot_ly(
-#     z = ~llsurf,
-#     x = ~b1,
-#     y = ~sigma,
-#     type = "surface",
-#     # colors = viridis::plasma(500)
-#     colors = scico::scico(500, palette = "lipari", direction = -1),
-#     showscale = FALSE
-#     # showlegend = FALSE
-#     ) |>
-#     # plotly may invert the axes for the marker, so we have to switch them
-#     add_trace(
-#         y = bbmle::coef(mlnorm)["b1"],
-#         x = bbmle::coef(mlnorm)["sigma"],
-#         # x = b1[minll[,1]],
-#         # y = sigma[minll[,2]],
-#         z = min(c(llsurf)),
-#         # marker = list(color = palettes$orange$complementary, size = 10),
-#         type = "scatter3d",
-#         mode = "markers",
-#         showlegend = FALSE
-#     ) |>
-#     # add_trace(
-#     #     y = estimates$b1,
-#     #     x = estimates$sigma,
-#     #     # x = minll[,1],
-#     #     # y = minll[,2],
-#     #     z = estimates$ll,
-#     #     # marker = list(color = palettes$orange$complementary, size = 10),
-#     #     type = "scatter3d",
-#     #     mode = "line",
-#     #     line = list(shape = "spline"),
-#     #     showlegend = FALSE
-#     # ) |>
-#     add_surface(
-#         contours = list(
-#             z = list(
-#                 show = TRUE,
-#                 usecolormap = TRUE,
-#                 highlightcolor = "#ff0000",
-#                 start = min(llsurf),
-#                 end = max(llsurf),
-#                 size = 1,
-#                 project = list(z = TRUE)
-#             )
-#         )
-#     ) |>
-#     visibly::theme_plotly() |>
-#     plotly::layout(
-#         # title = 'Likelihood Surface',
-#         scene = list(
-#             xaxis = list(title = "sigma", range = b1_range),
-#             yaxis = list(title = "b1", range = sigma_range),
-#             zaxis = list(title = "-LL", angle = -90, range = c(100, 135)),
-#             camera = list(eye = list(x = 1.25, y = 2, z = 1)),
-#             # camera = list(eye = list(x = 0, y = 2, z = .66)),
-#             paper_bgcolor = "rgba(0,0,0,0)",
-#             plot_bgcolor = "rgba(0,0,0,0)"
-#         )
-#     )
-# 
+p = plot_ly(
+    z = ~llsurf,
+    x = ~b1,
+    y = ~sigma,
+    type = "surface",
+    # colors = viridis::plasma(500)
+    colors = scico::scico(500, palette = "lipari", direction = -1),
+    showscale = FALSE
+    # showlegend = FALSE
+    ) |>
+    # plotly may invert the axes for the marker, so we have to switch them
+    add_trace(
+        y = bbmle::coef(mlnorm)["b1"],
+        x = bbmle::coef(mlnorm)["sigma"],
+        # x = b1[minll[,1]],
+        # y = sigma[minll[,2]],
+        z = min(c(llsurf)),
+        # marker = list(color = palettes$orange$complementary, size = 10),
+        type = "scatter3d",
+        mode = "markers",
+        showlegend = FALSE
+    ) |>
+    # add_trace(
+    #     y = estimates$b1,
+    #     x = estimates$sigma,
+    #     # x = minll[,1],
+    #     # y = minll[,2],
+    #     z = estimates$ll,
+    #     # marker = list(color = palettes$orange$complementary, size = 10),
+    #     type = "scatter3d",
+    #     mode = "line",
+    #     line = list(shape = "spline"),
+    #     showlegend = FALSE
+    # ) |>
+    add_surface(
+        contours = list(
+            z = list(
+                show = TRUE,
+                usecolormap = TRUE,
+                highlightcolor = "#ff0000",
+                start = min(llsurf),
+                end = max(llsurf),
+                size = 1,
+                project = list(z = TRUE)
+            )
+        )
+    ) |>
+    visibly::theme_plotly() |>
+    plotly::layout(
+        # title = 'Likelihood Surface',
+        scene = list(
+            xaxis = list(title = "sigma", range = b1_range),
+            yaxis = list(title = "b1", range = sigma_range),
+            zaxis = list(title = "-LL", angle = -90, range = c(100, 135)),
+            camera = list(eye = list(x = 1.25, y = 2, z = 1)),
+            # camera = list(eye = list(x = 0, y = 2, z = .66)),
+            paper_bgcolor = "rgba(0,0,0,0)",
+            plot_bgcolor = "rgba(0,0,0,0)"
+        )
+    )
+p 
 # save_image(p, file = 'img/likelihood_surface.svg', width = 1600, height = 1200)
 
 detach(package:plotly)
 detach(package:bbmle)
 ```
+:::
 
+::: {.content-hidden when-format="html"}
 ```{r}
 #| echo: false
 #| label: fig-show-r-likelihood-surface
@@ -1172,27 +1147,31 @@ detach(package:bbmle)
 knitr::include_graphics("img/likelihood_surface.svg")
 ```
 
-<!-- ![Likelihood Surface](img/likelihood_surface.svg) -->
+:::
 
-We can also see the path our estimates take, starting at a rather poor point, but quickly updating to estimates that result in a better likelihood value. We also see little exploratory jumps creating a star like pattern, before things ultimately settle to the best values. In general, these updates and paths are dependent on the optimization algorithm one uses.
+
+We can also see the path our estimates take. Starting at a fairly bad estimate, the optimization algorithm quickly updates to estimates that result in a better likelihood value. We also see little exploratory jumps creating a star like pattern, before things ultimately settle to the best values. In general, these updates and paths are dependent on the optimization algorithm one uses.
 
 ```{r}
 #| echo: false
 #| label: fig-r-likelihood-path
 #| fig-cap: Optimization path for two parameters
-
 estimates |>
     filter(b1 < 1, sigma > .5, sigma < 1) |>
     # dplyr::slice(-1) |>
     # mutate(b1 = fct_inorder(factor(b1)), sigma = fct_inorder(factor(sigma))) |>
     ggplot(aes(b1, sigma)) +
-    ggforce::geom_link2(aes(color = ll), linewidth = 1) +
+    ggforce::geom_link2(
+        aes(color = ll), 
+        alpha = 1,
+        linewidth = 1
+    ) +
     geom_point(
         # aes(size = -ll),
-        size = 1,
-        # position = position_jitter(width = .05)
+        size = 2,
+        # position = position_jitter(width = .01)
     ) +
-    scico::scale_color_scico(begin = .25, palette = "lipari", direction = -1) +
+    scico::scale_color_scico(begin = 0, palette = "lipari", direction = -1) +
     guides(color = guide_legend(title = "LL")) + # neat how this and several alternatives do nothing
     scale_size_continuous(range = c(.5, 3)) 
 ```
@@ -1203,7 +1182,7 @@ estimates |>
 #| label: r-likelihood-apply
 #| cache: false
 
-glm_happy = glm(happiness ~ life_exp, data = df_happiness, family = gaussian)
+glm_happy = glm(happiness ~ life_exp_sc, data = df_happiness, family = gaussian)
 sqrt(summary(glm_happy)$dispersion)
 summary(model_happy_life)$sigma
 
@@ -1214,7 +1193,7 @@ init = guesses |>
 init = init |>
     mutate(ll = pmap_dbl(
         list(b0 = init$b0, b1 = init$b1, sigma = init$sigma),
-        \(b0, b1, sigma) likelihood(c(b0, b1, sigma), df_happiness$life_exp, df_happiness$happiness)
+        \(b0, b1, sigma) likelihood(c(b0, b1, sigma), df_happiness$life_exp_sc, df_happiness$happiness)
     ))
 
 # check
@@ -1242,54 +1221,53 @@ init |>
     labs(x = expression(beta[0]), y = expression(beta[1]), fill = "Likelihood")
 ``` 
 
-:::{.callout-info}
-It turns out that in the case of a normal distribution, the maximum likelihood estimate of the standard deviation is the estimate as the standard deviation of the residuals. Furthermore, the maximum likelihood estimates and OLS estimates converge to the same estimates as the sample size increases. For any data of significance, these estimates are indistinguishable, and the OLS estimate is the maximum likelihood estimate for linear regression.
+:::{.callout type='info' title='MLE vs OLS' collapse='true'}
+For linear regression assuming a normal distribution, the maximum likelihood estimate of the standard deviation is the estimate as the standard deviation of the residuals. Furthermore, the maximum likelihood coefficient estimates and OLS estimates converge to the same estimates as the sample size increases. For most data sizes in practice these estimates are indistinguishable, and the OLS estimate is the maximum likelihood estimate for linear regression.
 :::
 
-#### Additional Thoughts on Maximum Likelihood  {#sec-estim-maxlike-add}
+<!-- 
+#### Parting Thoughts on Maximum Likelihood  {#sec-estim-maxlike-add}
+ -->
+<!-- TODO: Remove? -->
 
-TODO: Remove?
-
-One of the key things to note is that maximum likelihood is an estimation technique that relies on specifying the probability distribution that serves as the data generating process. Maximum likelihood allows us to be explicit about why we think those target values are the way they are. The likelihood also serves as a fundamental part of Bayesian analysis, which we'll discuss more later. 
-In general, maximum likelihood is a powerful technique that can be used in many contexts, and likelihoods can be used as the objective for many machine learning algorithms as well.
+<!-- One of the key things to note is that maximum likelihood is an estimation technique that relies on specifying the probability distribution that serves as the data generating process. Maximum likelihood allows us to be explicit about why we think those target values are the way they are. The likelihood also serves as a fundamental part of Bayesian analysis, which we'll discuss more later. In general, maximum likelihood is a powerful technique that can be used in many contexts, and likelihoods can be used as the objective for many machine learning algorithms as well. -->
 
 
+
+<!-- 
 ## Estimation: Quick Review {#sec-estim-review}
+ -->
+<!-- TODO: MOVE WHERE? NEEDED? if anywhere just put at the end -->
 
-TODO: MOVE WHERE? NEEDED?
-
-At this point we understand a few things:
+<!-- At this point we understand a few things:
 
 - Parameters are the values associated with a model
 - Objective functions specify a modeling goal with which to estimate the parameters.
 - Estimation is a way of finding the best model, i.e. parameters that help us achieve a goal.
 - Optimization is the process of finding the parameters that maximize or minimize some objective function
 - The likelihood is an alternate way to assess the match of data and model, and allows us to compare the relative fits of models
-
+ -->
 
 ## Penalized Objectives {#sec-estim-penalty}
 
-TODO: MOVE TO AFTER CLASSIFICATION?
+<!-- TODO: MOVE TO AFTER CLASSIFICATION? -->
 
-One thing we may want to take into account of with our models is their complexity, especially in the context of **overfitting**. We talk about this with machine learning also, but the basic idea is that we can get too close to the data we have, such that when we try to predict on new data, our performance suffers or even gets worse than a simpler model. In other words, we are not generalizing well. One way to deal with this is to penalize the objective function value for complexity, or at least favor simpler models that might do as well. In some contexts this is called **regularization**, and in other contexts **shrinkage**, since the parameter estimates are typically shrunk toward some specific value (e.g., zero).
+One thing we may want to take into account of with our models is their complexity, especially in the context of **overfitting**. We talk about this with machine learning also @sec-ml-core-concepts, but the basic idea is that we can get too familiar with the data we have, and when we try to predict on new data the model hasn't seen before, our performance suffers or even gets worse than a simpler model. In other words, we are not generalizing well @sec-ml-generalization. 
 
-As a starting point, in our basic linear model we can add a penalty that is applied to the size of  coefficients.  This is called **ridge regression**, or, more mathily, as **L2 regularization**. The penalty is just the sum of the squared coefficients multiplied by a some value, which we call $\lambda$.  We can write this formally as:
+One way to deal with this is to penalize the objective function value for complexity, or at least favor simpler models that might do as well. In some contexts this is called **regularization**, and in other contexts **shrinkage**, since the parameter estimates are typically shrunk toward some specific value (e.g., zero).
+
+As a starting point, in our basic linear model we can add a penalty that is applied to the size of  coefficients.  This is called **ridge regression**, or, more mathily, as **L2 regularization**. We can write this formally as:
 
 $$
-\textrm{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} \beta_j^2
+\text{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} \beta_j^2
 $$ {#eq-ols-ridge}
 
-The first part is the same as before (@eq-ols), but the second part is the penalty for $p$ features. The penalty is the sum of the squared coefficients multiplied by some value, which we call $\lambda$. This is an additional model parameter that we typically want to estimate in some fashion, e.g. through cross-validation.  This kind of parameter is often called a hyperparameter, mostly just to distinguish it from those that may be of actual interest. For example, we could probably care less what the actual value for $\lambda$ is, but we would still be interested in the coefficients.  
+The first part is the same as basic OLS (@eq-ols), but the second part is the penalty for $p$ features. The penalty is the sum of the squared coefficients multiplied by some value, which we call $\lambda$. This is an additional model parameter that we typically want to estimate, e.g. through [cross-validation](../ml-common-models#sec-ml-cv). This kind of parameter is often called a **hyperparameter**, mostly just to distinguish it from those that may be of actual interest. For example, we could probably care less what the actual value for $\lambda$ is, but we would still be interested in the coefficients.  
 
-Interestingly, as you'll notice that this is just OLS+, you might be wondering how our results or interpretation might change. Well for starters, L2 regularization is not limited to linear regression, so just keep that in mind.  But also, if we know that OLS produces **unbiased** estimates if assumptions of linear regression are met, that means, if these aren't the same estimates, they must be biased, right? Your are correct! As we talk about with machine learning (@sec-ml-generalization), the bias-variance tradeoff is a key concept in machine learning, and this is a good example of that. We are introducing some bias in order to reduce the variance. In other words, we are willing to accept some bias in order to get a model that generalizes better.
+In the end this is just a small change to ordinary least squares (OLS) regression (@eq-ols), but it can make a big difference. It introduces some bias in the coefficients - recall that OLS is unbiased if assumptions are met - but it can help to reduce variance, which can help the model perform better on new data (@sec-ml-generalization-understanding). In other words, we are willing to accept some bias in order to get a model that generalizes better.
 
-Another common penalty that is the sum of the absolute value of the coefficients, which is called **lasso regression** or **L1 regularization**.  An interersting property of the lasso is that in typical implementations, it will potentially zero out coefficients, which is the same as dropping the feature from the model altogether. This is a form of **feature selection** or **variable selection**.  The true values are never zero, but if we want to use a 'best subset' of features, this is one way we could do so. We can write the lasso objective as:
 
-$$
-\textrm{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} |\beta_j|
-$$ {#eq-estim-lasso}
-
-But let's get to a code example to make sure we understand this better! Here is an example of a function that calculates the ridge objective. To make things interesting, let's add the other features we talked about regarding GDP per capita and perceptions of corruption. 
+But let's get to a code example to demystify this a bit! Here is an example of a function that calculates the ridge objective. To make things interesting, let's add the other features we talked about regarding GDP per capita and perceptions of corruption. 
 
 :::{.panel-tabset}
 
@@ -1313,10 +1291,14 @@ ridge = function(par, X, y, lambda = 0) {
     return(value)
 }
 
+X = df_happiness |>
+    select(-happiness, -country) |> 
+    as.matrix()
+
 our_result = optim(
     par = c(0, 0, 0, 0),
     fn = ridge,
-    X = df_happiness |> select(-happiness, -country) |> as.matrix(),
+    X = X,
     y = df_happiness$happiness,
     lambda = 0.1,
     method = "BFGS"
@@ -1363,10 +1345,14 @@ We can compare this to built-in functions as we have before, and can see that th
 #| echo: false
 #| label: tbl-r-ridge
 #| tbl-cap: Comparison of ridge regression results
-
 library(glmnet)
+
+X = df_happiness |>
+    select(-happiness, -country) |> 
+    as.matrix()
+
 glmnet_happy = glmnet(
-    x = df_happiness |> select(-happiness, -country) |> as.matrix(), # requires two features
+    x = X,
     y = df_happiness$happiness,
     standardize = FALSE,
     intercept = TRUE,
@@ -1374,20 +1360,17 @@ glmnet_happy = glmnet(
     alpha = 0,
     thresh = 1e-12
 )
-# aside: glmnet resu
-# our result
-# coef(glmnet_happy)
 
 our_result_tbl = tibble(
-    "Parameter"  = c("Intercept", "Life Exp. Coef.", "Corrupt", "GDP_PC"),
-    `Built-in`   = coef(glmnet_happy)[, 1],
+    Parameter    = c("Intercept", "life_exp_sc", "corrupt_sc", "gdp_pc_sc"),
+    Standard     = coef(glmnet_happy)[, 1],
     `Our Result` = our_result$par
 ) |>
     gt(decimals = 2) |>
     gt::tab_footnote(
         footnote = "Showing results from R glmnet package with alpha = 0, lambda = .1",
         locations = cells_column_labels(
-            columns = vars(`Built-in`)
+            columns = vars(Standard)
         ),
         placement = "right"
     ) |>
@@ -1402,25 +1385,30 @@ our_result_tbl
 
 :::{.callout-tip}
 
-It turns out that, given a set $\lambda$ penalty, ridge regression estimates need not be estimated, as there is an analytical result. See a [demo](https://m-clark.github.io/models-by-example/penalized-maximum-likelihood.htm) for more.
+It turns out that given a fixed $\lambda$ penalty ridge regression estimates can be esitmated analytically. Here is a [demo](https://m-clark.github.io/models-by-example/penalized-maximum-likelihood.htm).
 
 :::
 
+Another very common penalized approach is to use the sum of the absolute value of the coefficients, which is called **lasso regression** or **L1 regularization**. An interersting property of the lasso is that in typical implementations, it will potentially zero out coefficients, which is the same as dropping the feature from the model altogether. This is a form of **feature selection** or **variable selection**. The true values are never zero, but if we want to use a 'best subset' of features, this is one way we could do so. We can write the lasso objective as follows. The chapter exercise asks you to implement this yourself.
+
+$$
+\text{Value} = \sum_{i=1}^{n} (y_i - \hat{y_i})^2 + \lambda \sum_{j=1}^{p} |\beta_j|
+$$ {#eq-estim-lasso}
 
 
 ## Classification {#sec-estim-classification}
 
-So far we've been assuming a continuous target, but what if we have a categorical target? Now we have to learn a bunch of new stuff for that situation, right? Actually, no! *When we want to model categorical targets, conceptually nothing changes* - we can still have an objective function that maximizes or minimizes some goal, use the same algorithms to estimate parameters, etc. However, we need to think about how we can do this in a way that makes sense for the target.
+So far we've been assuming a continuous target, but what if we have a categorical target? Now we have to learn a bunch of new stuff for that situation, right? Actually, no! *When we want to model categorical targets, conceptually, nothing changes*! We still have an objective function that maximizes or minimizes some goal, and use the same algorithms to estimate parameters, etc. However, we need to think about how we can do this in a way that makes sense for the target. 
 
 ### Misclassification {#sec-estim-misclass}
 
-A straightforward correspondence to MSE is a function that minimizes classification error (or maximizes accuracy). In other words, we can think of the objective function as the proportion of incorrect classifications.  This is called the **misclassification rate**.  We can write this as:
+A straightforward correspondence to MSE is a function that minimizes classification error, or by the same token, maximizes accuracy. In other words, we can think of the objective function as the proportion of incorrect classifications. This is called the **misclassification rate**.  
 
 $$
-\textrm{Loss} = \frac{1}{n} \sum_{i=1}^{n} \mathbb{1}(y_i \neq \hat{y_i})
+\text{Loss} = \frac{1}{n} \sum_{i=1}^{n} \mathbb{1}(y_i \neq \hat{y_i})
 $$
 
-Where $y_i$ is the actual value of the target for observation $i$, arbitrarily coded as 1 or 0, and $\hat{y_i}$ is the predicted class from the model. The $\mathbb{1}$ is an indicator function that returns 1 if the condition is true, and 0 otherwise.  In other words, we are counting the number of times the predicted value is not equal to the actual value, and dividing by the number of observations. Very straightforward, so let's do this ourselves!
+In the equation,e $y_i$ is the actual value of the target for observation $i$, arbitrarily coded as 1 or 0, and $\hat{y_i}$ is the predicted class from the model. The $\mathbb{1}$ is an indicator function that returns 1 if the condition is true, and 0 otherwise.  In other words, we are counting the number of times the predicted value is not equal to the actual value, and dividing by the number of observations. Very straightforward, so let's do this ourselves!
 
 
 
@@ -1483,18 +1471,20 @@ def misclassification_rate(par, X, y, class_threshold = .5):
 
 :::
 
-We'll leave it as an exercise to the reader to play around with this, as the next objective function is more commonly used. But at least you can see how easy it can be to switch to the classification case. 
+Note that our function first adds a step to conver the linear predictor (called `mu`) to a probability. Once we have a probability, we use some threshold to convert it to a 'class'. In this case, we use 0.5 as the threshold, but this could be different depending on the context, something we talk more about elsewhere (@sec-knowing-ideal-cut-point). We'll leave it as an exercise for you to play around with this, as the next objective function is more commonly used. But at least you can see how easy it can be to switch to the classification case. 
 
 
 ### Log loss {#sec-estim-logloss}
 
-Another approach is to use the **log loss**, sometimes called logistic loss or cross-entropy. If we have just the binary case it is:
+Another approach is to use the **log loss**, sometimes called logistic loss or **cross-entropy**. If we have just the binary case it is:
 
 $$
-\textrm{Loss} = -\sum_{i=1}^{n} y_i \log(\hat{y_i}) + (1 - y_i) \log(1 - \hat{y_i})
+\text{Loss} = -\sum_{i=1}^{n} y_i \log(\hat{y_i}) + (1 - y_i) \log(1 - \hat{y_i})
 $$
 
-Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model (essentially a probability). It turns out that *this is the same as log-likelihood used in a maximum likelihood approach for logistic regression*, made negative for minimization. We typically prefer this objective function to classification error because it results in a *smooth* optimization surface, like in the visualization we showed before for maximum likelihood (@fig-show-r-likelihood-surface), which means it is *differentiable* in mathemetical sense. This is important because it allows us to use optimization algorithms that rely on derivatives in updating the parameter estimates. You don't really need to get into that too much, but just know that it is a good thing. Here's some code to try out.
+Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model (essentially a probability). It turns out that *this is the same as the log-likelihood used in a maximum likelihood approach for logistic regression*, made negative so we can minimize it. 
+
+We typically prefer this objective function to classification error because it results in a *smooth* optimization surface, like in the visualization we showed before for maximum likelihood, which means it is *differentiable* in mathemetical sense. This is important because it allows us to use optimization algorithms that rely on derivatives in updating the parameter estimates. You don't really need to get into that too much, but just know that a smoother objective function is something we prefer. Here's some code to try out.
 
 :::{.panel-tabset}
 
@@ -1512,8 +1502,11 @@ objective = function(par, X, y) {
     # Convert to a probability ('sigmoid' function)
     y_hat = 1 / (1 + exp(-y_hat))
 
-    # likelihood (or dbinom(y, size = 1, prob = y_hat, log = TRUE))
+    # likelihood
     ll = y * log(y_hat) + (1 - y) * log(1 - y_hat)
+
+    # alternative
+    # dbinom(y, size = 1, prob = y_hat, log = TRUE)
 
     return(sum(-ll))
 }
@@ -1537,12 +1530,15 @@ def objective(par, X, y):
     ll = y * np.log(y_hat) + (1 - y) * np.log(1 - y_hat)
     
     return(-np.sum(ll))
-
 ```
 :::
 
 
-Let's go ahead and demonstrate this. Let's go back to our movie review data, but we'll use a version of our rating where a movie is 'good' if the rating is 3 or greater, and 'bad' otherwise, which we have in our processed version of the data. Our features will be the review year (starting at zero), reviewer age, and word count. Let's use our previous optimization functions, and compare our results to the built-in complements. 
+Let's go ahead and demonstrate this. To create a classification problem, we'll say that the a country is 'happy' if the happiness score is greater than 5.5, and 'unhappy' otherwise. We'll use the same features as before. 
+
+
+<!-- Let's go back to our movie review data, but we'll use a version of our rating where a movie is 'good' if the rating is 3 or greater, and 'bad' otherwise, which we have in our processed version of the data. Our features will be the review year (starting at zero), reviewer age, and word count. Let's use our previous optimization functions, and compare our results to the standar functions.  -->
+
 
 :::{.panel-tabset}
 
@@ -1550,49 +1546,59 @@ Let's go ahead and demonstrate this. Let's go back to our movie review data, but
 
 ```{r}
 #| label: r-logloss-apply
-df_reviews_pr = read_csv("data/movie_reviews_processed.csv")
+#| results: 'hide'
+df_happiness_bin = df_happiness |>
+    mutate(happiness = ifelse(happiness > 5.5, 1, 0))
 
 mod_logloss = optim(
     par = c(0, 0, 0, 0),
     fn = objective,
-    X = df_reviews_pr |>
-        select(review_year_0, age_sc, word_count_sc) |>
+    X = df_happiness_bin |>
+        select(life_exp_sc:gdp_pc_sc) |>
         as.matrix(),
-    y = df_reviews_pr$rating_good
+    y = df_happiness_bin$happiness
 )
 
 mod_glm = glm(
-    rating_good ~ review_year_0 + age_sc + word_count_sc,
-    data   = df_reviews_pr,
+    happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc,
+    data   = df_happiness_bin,
     family = binomial
 )
+
+mod_logloss$par
 ```
 
 ##### Python
 
 ```{python}
 #| label: py-logloss-apply
+#| results:  'hide'
 from scipy.optimize import minimize
+
+df_happiness_bin = df_happiness.copy()
+df_happiness_bin['happiness'] = np.where(df_happiness['happiness'] > 5.5, 1, 0)
 
 mod_logloss = minimize(
     objective,
     x0 = np.array([0, 0, 0, 0]),
     args = (
-        df_reviews_pr[['review_year_0', 'age_sc', 'word_count_sc']], 
-        df_reviews_pr['rating_good']
+        df_happiness_bin[['life_exp_sc', 'corrupt_sc', 'gdp_pc_sc']],
+        df_happiness_bin['happiness']
     )
 )
 
 mod_glm = smf.glm(
-    'rating_good ~ review_year_0 + age_sc + word_count_sc',
-    data   = df_reviews_pr,
+    'happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc',
+    data   = df_happiness_bin,
     family = sm.families.Binomial()
-).fit(method = 'lbfgs')
+).fit()
+
+mod_logloss['x']
 ```
 
 :::
 
-Once again we can see that the results are very similar, but not exactly the same, though actually have to go out several decimal places before we start seeing differences between our result and the built-in function.  
+Once again we can see that the results are very similar between our classification result and the built-in function.  
 
 ```{r}
 #| echo: false
@@ -1601,26 +1607,26 @@ Once again we can see that the results are very similar, but not exactly the sam
 tibble(
     Source = c("Ours", "GLM"),
     LogLike = c(mod_logloss$value, -logLik(mod_glm)),
-    int = c(mod_logloss$par[1], coef(mod_glm)[1]),
-    review_year_0 = c(mod_logloss$par[2], coef(mod_glm)[2]),
-    age_sc = c(mod_logloss$par[3], coef(mod_glm)[3]),
-    word_count_sc = c(mod_logloss$par[4], coef(mod_glm)[4])
+    intercept = c(mod_logloss$par[1], coef(mod_glm)[1]),
+    life_exp_sc = c(mod_logloss$par[2], coef(mod_glm)[2]),
+    corrupt_sc  = c(mod_logloss$par[3], coef(mod_glm)[3]),
+    gdp_pc_sc   = c(mod_logloss$par[4], coef(mod_glm)[4])
 ) |>
     pivot_longer(-Source) |>
     pivot_wider(names_from = Source, values_from = value) |>
     gt(decimals = 4)
 ```
 
-So when it comes to classification, you should feel confident in what's going on under the hood, just like you did with a numeric target. Conceptually it really is the same approach.
+So when it comes to classification, you should feel confident in what's going on under the hood, just like you did with a numeric target. Too much is made of the distinction between 'regression' and 'classification' and it can be confusing to those starting out. In reality, classification just requires a slightly different way of thinking about the target. Conceptually it really is the same approach.
 
 
 ## Optimization Algorithms {#sec-estim-opt-algos}
 
-When it comes to optimization, there are a number of algorithms that have been developed over time.  We'll demonstate one of the most popular ones used in machine learning, but there many variants of this one even! The main thing to keep in mind is that these are all just ways to find the best fitting parameters for a model.  The algorithms differ in how they do this, and some may be better suited for certain data tasks, or provide computatational advantages.  
+When it comes to optimization, there are a number of algorithms that have been developed over time. We'll demonstate one of the most popular ones used in machine learning, but there many variants of this one even! The main thing to keep in mind is that these are all just ways to find the best fitting parameters for a model. Some may be better suited for certain data tasks, or provide computatational advantages, but often the choice of algorithm is not as important as many other modeling choices.
 
 ### Gradient Descent {#sec-estim-opt-algos-gd}
 
-One of the most common approaches in optimization is called **gradient descent**. The idea behind it is that we can use the gradient of the objective function to guide us to the best fitting parameters. We still use estimation approaches like maximum likelihood - gradient descent is just a way to find that path along the objective surface. More formally, the gradient is the vector of partial derivatives of the objective function with respect to each parameter. That may not mean much to you, but the basic idea is that the gradient is a vector that points in the direction of steepest ascent in terms of the objective function. So if we want to maximize the objective function, we can take a step in the direction of the gradient, and if we want to minimize it, we can take a step in the opposite direction of the gradient. The size of the step is called the **learning rate**, and, like our penalty parameter we saw with penalized regression, it is a hyperparameter that we can tune. If the learning rate is too small, it will take a longer time to converge. If the learning rate is too large, we might overshoot the objective and never converge. There are a number of variations on gradient descent that have been developed over time.  Here is a function to illustrate the process. Let's see this in action with the happiness data model we used previously.
+One of the most popular approaches in optimization is called **gradient descent**.  It uses the [gradient](https://en.wikipedia.org/wiki/Gradient) of the function we're trying to optimize to find the best parameters. We still use objective functions as before - gradient descent is just a way to find that path along the objective surface. More formally, the gradient is the vector of partial derivatives of the objective function with respect to each parameter. That may not mean much to you, but the basic idea is that the gradient provides a direction that points in the direction of steepest increase in the function. So if we want to maximize the objective function, we can take a step in the direction of the gradient, and if we want to minimize it, we can take a step in the opposite direction of the gradient (use the negative gradient). The size of the step is called the **learning rate**, and, like our penalty parameter we saw with penalized regression, it is a *hyperparameter* that we can tune through cross-validation (@sec-ml-tuning). If the learning rate is too small, it will take a longer time to converge. If it's too large, we might overshoot the objective and miss the best parameters. There are a number of variations on gradient descent that have been developed over time. Let's see this in action with the world happiness model.
 
 :::{.panel-tabset}
 
@@ -1630,6 +1636,18 @@ One of the most common approaches in optimization is called **gradient descent**
 #| echo: False
 #| eval: False
 #| label: r-gradient-descent-plot
+
+# NOTE: we also took out the adapt and verbose options from models by estimation code since not used here nor necessary.
+
+        # if (adapt):
+        #     stepsize = np.where(
+        #         loss[iter] < loss[iter - 1], 
+        #         stepsize * 1.2, 
+        #         stepsize * .8
+        #     )
+
+        # if (verbose and iter % 10 == 0):
+        #     print("Iteration:", iter)
 
 # removed from function but left if we want to plot afterward
     # if (plotLoss) {
@@ -1652,9 +1670,7 @@ gradient_descent = function(
     y,
     tolerance = 1e-3,
     maxit = 1000,
-    learning_rate = 1e-3,
-    adapt = FALSE,
-    verbose = TRUE
+    learning_rate = 1e-3
 ) {
     # add a column of 1s for the intercept
     X = cbind(1, X)
@@ -1675,18 +1691,6 @@ gradient_descent = function(
         beta = betaCurrent
         mse = append(mse, crossprod(LP - y) / N)
         iter = iter + 1
-
-        if (adapt) {
-            stepsize = ifelse(
-                mse[iter] < mse[iter - 1],
-                stepsize * 1.2,
-                stepsize * .8
-            )
-        }
-
-        if (verbose && iter %% 10 == 0) {
-            message(paste("Iteration:", iter))
-        }
     }
 
     list(
@@ -1698,19 +1702,21 @@ gradient_descent = function(
     )
 }
 
+X = df_happiness |>
+    select(life_exp_sc:gdp_pc_sc) |>
+    as.matrix()
+
 our_result = gradient_descent(
     par = c(0, 0, 0, 0),
-    X = df_happiness |> select(life_exp, gdp_pc, corrupt) |> as.matrix(),
+    X = X,
     y = df_happiness$happiness,
-    learning_rate = 1e-3,
-    verbose = FALSE
+    learning_rate = 1e-3
 )
 ```
 
 ```{r}
 #| echo: false
 #| label: save-r-gradient-descent
-
 batch_result = our_result
 ```
 
@@ -1719,16 +1725,13 @@ batch_result = our_result
 ```{python}
 #| eval: true
 #| label: py-gradient-descent
-
 def gradient_descent(
     par, 
     X, 
     y, 
     tolerance = 1e-3, 
     maxit = 1000, 
-    learning_rate = 1e-3, 
-    adapt = False, 
-    verbose = True
+    learning_rate = 1e-3
 ):
     # add a column of 1s for the intercept
     X = np.c_[np.ones(X.shape[0]), X]
@@ -1748,16 +1751,6 @@ def gradient_descent(
         loss = np.append(loss, np.sum((LP - y)**2))
         iter = iter + 1
 
-        if (adapt):
-            stepsize = np.where(
-                loss[iter] < loss[iter - 1], 
-                stepsize * 1.2, 
-                stepsize * .8
-            )
-
-        if (verbose and iter % 10 == 0):
-            print("Iteration:", iter)
-
     return({
         "par": beta,
         "loss": loss,
@@ -1768,38 +1761,37 @@ def gradient_descent(
 
 our_result = gradient_descent(
     par = np.array([0, 0, 0, 0]),
-    X = df_happiness[['life_exp', 'gdp_pc', 'corrupt']].to_numpy(),
+    X = df_happiness[['life_exp_sc', 'corrupt_sc', 'gdp_pc_sc']].to_numpy(),
     y = df_happiness['happiness'].to_numpy(),
-    learning_rate = 1e-3,
-    verbose  = False
+    learning_rate = 1e-3
 )
 ```
 
 :::
 
 
-Comparing our results, we have the following table.  In what has become the norm, we see that the results are very similar. 
+Comparing our results, we have the following table. As usual, we see that the results are very similar. Once again we have demystified a step in the modeling process!
 
 ```{r}
 #| echo: false
 #| label: tbl-gradient-descent
 #| tbl-cap: Comparison of gradient descent results
 
-model_compare = lm(happiness ~ life_exp + gdp_pc + corrupt, data = df_happiness)
+model_compare = lm(happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc, data = df_happiness)
 tibble(
-    Value = c("Intercept", "Life Exp. Coef.", "GDP_PC", "Corrupt", "MSE"),
-    `Built-in` = c(coef(model_compare), performance::mse(model_compare)),
+    Value = c("Intercept", "life_exp_sc", "corrupt_sc", "gdp_pc_sc", "MSE"),
+    Standard = c(coef(model_compare), performance::mse(model_compare)),
     `Our Result` = c(our_result$par, our_result$MSE)
 ) |>
     gt(decimals = 3)
 ```
 
-In addition, when we visualize the loss function across iterations, we see smooth decline in the MSE value as we go along each iteration.  This is a good sign that we are converging to a good solution.
+In addition, when we visualize the loss function across iterations, we see smooth decline in the MSE value as we go along each iteration. This is a good sign that we are converging to an optimal solution.
 
 ```{r}
 #| echo: false
 #| label: fig-r-gradient-descent
-#| fig-cap: Gradient descent path
+#| fig-cap: Loss with gradient descent
 
 tibble(loss = our_result$loss) |>
     mutate(iter = 1:n()) |>
@@ -1813,14 +1805,13 @@ tibble(loss = our_result$loss) |>
 
 ### Stochastic Gradient Descent {#sec-estim-opt-algos-sgd}
 
-**Stochastic gradient descent** (SGD) is a variation on gradient descent that uses a random sample of the data to estimate the gradient, while the 'true' gradient is the gradient of the objective function with respect to all of the data. As such, it's less accurate than the 'batch' gradient descent in some sense, but the advantage of SGD is that it is faster. In practice, SGD is often used in machine learning applications where the data is large, and the tradeoff between accuracy and speed is worth it.  
+**Stochastic gradient descent** (SGD) is a version of gradient descent that uses a random sample of data to guess the gradient, instead of using all the data. This makes it less accurate in some ways, but it's faster and can be parallelized. This speed is useful in machine learning when there's a lot of data, which often makes the discrepancy between standard GD and SGD small. 
 
-Let's see this in action with the happiness data model we used previously.  The following is a conceptual version of the AdaGrad approach[^sgdcite], which is a variation of stochastic gradient descent that adjusts the learning rate for each parameter.  We will also add a variation that averages the parameter estimates across iterations, which is a common approach to improve the performance of stochastic gradient descent, but by default it is not used, just something you can play with. We are going to use a 'batch size' of one, which is similar to a 'streaming' or 'online' version where we update the model with each observation.  Since our data are alphabetically ordered, we'll shuffle the data first.  We'll also use a stepsize_tau parameter, which is a way to adjust the learning rate at early iterations.  We'll set it to zero for now, but you can play with it to see how it affects the results. The values for the learning rate and stepsize_tau are arbitrary, selected after some initial playing around, but you can play with them to see how they affect the results. 
+Let's see this in action with the happiness model. The following is a conceptual version of the *AdaGrad* approach[^sgdcite], which is a variation of SGD that adjusts the learning rate for each parameter. We will also add a variation that averages the parameter estimates across iterations, which is a common approach to improve the performance of SGD, but by default it is not used, just something you can play with. We are going to use a 'batch size' of one, which is similar to a 'streaming' or 'online' version where we update the model with each observation.  Since our data are alphabetically ordered, we'll shuffle the data first. We'll also use a stepsize_tau parameter, which is a way to adjust the learning rate at early iterations. We'll set it to zero for now, but you can play with it to see how it affects the results. The values for the learning rate and stepsize_tau are arbitrary, selected after some initial playing around, but you can play with them to see how they affect the results. 
 
 
-[^sgdcite]: MC does not recall exactly where this origin of his function came from except that Murphy's PML book was a key reference (@murphy_machine_2012).
+[^sgdcite]: MC does not recall exactly where this origin of his function came from except that Murphy's PML book was a key reference when he came up with it (@murphy_machine_2012).
 
-TODO: SHOULD MAYBE CLEAN UP/ALTER TO LESS VERBOSE VERSION
 
 :::{.panel-tabset}
 
@@ -1828,16 +1819,23 @@ TODO: SHOULD MAYBE CLEAN UP/ALTER TO LESS VERBOSE VERSION
 
 ```{r}
 #| label: r-stochastic-gradient-descent
+#| results: 'hide'
 
 stochastic_gradient_descent = function(
     par, # parameter estimates
-    X, # model matrix
-    y, # target variable
+    X,   # model matrix
+    y,   # target variable
     learning_rate = 1, # the learning rate
-    stepsize_tau = 0, # if > 0, a check on the LR at early iterations
-    average = FALSE # a variation of the approach
+    stepsize_tau = 0   # if > 0, a check on the LR at early iterations
     ) {
     # initialize
+    set.seed(123)
+
+    # shuffle the data
+    idx = sample(1:nrow(X), nrow(X))
+    X = X[idx, ]
+    y = y[idx]
+
     X = cbind(1, X)
     beta = par
 
@@ -1861,47 +1859,38 @@ stochastic_gradient_descent = function(
         yi = y[i]
 
         # matrix operations not necessary here,
-        # but makes consistent with standard gd func
+        # but makes consistent with previous gd func
         LP = Xi %*% beta
         grad = t(Xi) %*% (LP - yi)
         s = s + grad^2 # adagrad approach
 
         # update
-        beta = beta - learning_rate / (stepsize_tau + sqrt(s + eps)) * grad
-
-        # a variation
-        if (average & i > 1) {
-            beta = beta - 1 / i * (betamat[i - 1, ] - beta)
-        }
-
+        beta = beta - learning_rate / 
+            (stepsize_tau + sqrt(s + eps)) * grad
         betamat[i, ] = beta
+
         fits[i] = LP
+        
         loss[i] = crossprod(LP - yi)
+        
     }
 
     LP = X %*% beta
     lastloss = crossprod(LP - y)
 
     list(
-        par = beta, # final estimates
+        par = beta,          # final estimates
         par_chain = betamat, # estimates at each iteration
         MSE = sum(lastloss) / nrow(X),
         fitted = LP
     )
 }
 
-# setting a seed ensures replicability
-set.seed(123)
-
-# generate random sample indices (could also have done within the function)
-idx = sample(1:nrow(df_happiness), nrow(df_happiness))
-
 X_train = df_happiness |>
-    select(life_exp, gdp_pc, corrupt) |>
-    dplyr::slice(idx) |>
+    select(life_exp_sc, corrupt_sc, gdp_pc_sc) |>
     as.matrix()
 
-y_train = df_happiness$happiness[idx]
+y_train = df_happiness$happiness
 
 our_result = stochastic_gradient_descent(
     par = c(mean(df_happiness$happiness), 0, 0, 0),
@@ -1910,22 +1899,35 @@ our_result = stochastic_gradient_descent(
     learning_rate = .15,
     stepsize_tau = .1
 )
+
+our_result$par
 ```
 
 ##### Python
 
 ```{python}
 #| label: py-stochastic-gradient-descent
-
+#| results: 'hide'
 def stochastic_gradient_descent(
     par, # parameter estimates
-    X, # model matrix
-    y, # target variable
+    X,   # model matrix
+    y,   # target variable
     learning_rate = 1, # the learning rate
-    stepsize_tau = 0, # if > 0, a check on the LR at early iterations
-    average = False # a variation of the approach
+    stepsize_tau = 0,  # if > 0, a check on the LR at early iterations
+    average = False    # a variation of the approach
 ):
     # initialize
+    np.random.seed(1234)
+
+    # shuffle the data
+    idx = np.random.choice(
+        df_happiness.shape[0], 
+        df_happiness.shape[0], 
+        replace = False
+    )
+    X = X[idx, :]
+    y = y[idx]
+    
     X = np.c_[np.ones(X.shape[0]), X]
     beta = par
 
@@ -1949,7 +1951,7 @@ def stochastic_gradient_descent(
         yi = y[i]
 
         # matrix operations not necessary here,
-        # but makes consistent with standard gd func
+        # but makes consistent with previous gd func
         LP = Xi @ beta
         grad = Xi.T @ (LP - yi)
         s = s + grad**2 # adagrad approach
@@ -1958,11 +1960,8 @@ def stochastic_gradient_descent(
         beta = beta - learning_rate / \
             (stepsize_tau + np.sqrt(s + eps)) * grad
 
-        # a variation
-        if (average & i > 1):
-            beta = beta - 1 / i * (betamat[i - 1, :] - beta)
-
         betamat[i, :] = beta
+
         fits[i] = LP
         loss[i] = np.sum((LP - yi)**2)
 
@@ -1975,50 +1974,43 @@ def stochastic_gradient_descent(
         "MSE": lastloss / X.shape[0],
         "fitted": LP
     })
-
-# setting a seed ensures replicability
-np.random.seed(1234)
-
-# generate random sample indices (could also have done within the function)
-idx = np.random.choice(
-    df_happiness.shape[0], 
-    df_happiness.shape[0], 
-    replace = False
-)
-
-X_train = df_happiness[['life_exp', 'gdp_pc', 'corrupt']].to_numpy()[idx, :]
-y_train = df_happiness['happiness'].to_numpy()[idx]
+X_train = df_happiness[['life_exp_sc', 'corrupt_sc', 'gdp_pc_sc']]
+y_train = df_happiness['happiness']
 
 our_result = stochastic_gradient_descent(
     par = np.array([np.mean(df_happiness['happiness']), 0, 0, 0]),
-    X = X_train,
-    y = y_train,
+    X = X_train.to_numpy(),
+    y = y_train.to_numpy(),
     learning_rate = .15,
     stepsize_tau = .1
 )
+
+our_result['par']
 ```
 
 :::
 
-Next we'll compare it to OLS estimates.  Very similar even though SGD normally would not be used for such a small dataset. We also show our previous 'batch' gradient descent results for comparison.
+Next we'll compare it to OLS estimates and  ur previous 'batch' gradient descent results.  Even though SGD normally would not be used for such a small dataset, we at least get close[^closebutnosgd]!
+
+[^closebutnosgd]: You'd get better results by also standardizing the target. The initial shuffling that we did can help as well in case the data are ordered, or more typically when we're dealing with larger data and repeated runs/epochs, it allows the samples/batches to be more representative of the entire data set. Also we had to 'hand-tune' our learning rate and stepsize_tau, which is not ideal, and normally we would use cross-validation to find the best values.
 
 ```{r}
 #| echo: false
 #| label: tbl-stochastic-gradient-descent
 #| tbl-cap: Comparison of stochastic gradient descent results
 
-model_compare = lm(happiness ~ life_exp + gdp_pc + corrupt, data = df_happiness)
+model_compare = lm(happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc, data = df_happiness)
 
 tibble(
-    Value = c("Intercept", "Life Exp. Coef.", "GDP_PC", "Corrupt", "MSE"),
-    `Built-in` = c(coef(model_compare), performance::mse(model_compare)),
+    Value = c("Intercept", "life_exp_sc", "corrupt_sc", "gdp_pc_sc", "MSE"),
+    Standard = c(coef(model_compare), performance::mse(model_compare)),
     `Our Result` = c(our_result$par, our_result$MSE),
     `Batch SGD` = c(batch_result$par, batch_result$MSE)
 ) |>
     gt(decimals = 3)
 ```
 
-And here's a plot of the estimates as they moved along the data. For this plot we don't include the intercept as it's on a notably different scale. We can see that the estimates are moving around a bit, but they appear to be converging to a solution. 
+Here's a plot of the estimates as they moved along the data. For this plot we don't include the intercept as it's on a notably different scale. We can see that the estimates are moving around a bit, but they appear to be converging to a solution. 
 
 ```{r}
 #| echo: false
@@ -2029,9 +2021,9 @@ p_dat = our_result$par_chain |>
     as_tibble() |>
     select(-V1) |>
     rename(
-        life_exp = V2,
-        gdp_pc = V3,
-        corrupt = V4
+        life_exp_sc = V2,
+        corrupt_sc = V3,
+        gdp_pc_sc = V4
     ) |>
     mutate(iter = row_number()) |>
     pivot_longer(-iter)
@@ -2075,15 +2067,21 @@ There are lots of other approaches to optimization. For example, here are some o
 - Simulated annealing
 - Newton's method
 - Genetic algorithms
+- Other Popular Gradient Descent
+    - RMSProp
+    - Adam/momentum
+    - Adagrad
 
-The main reason to choose one method over another usually is some sort of computational gain, e.g. memory or speed, or it may just work better for some types of models in practice. For statistical problems, many GLM-type functions appear to use Newton's as a default, but more complicated models may implement a different default for better convergence. In general, we can always try a few different methods to see which works best, and often there would be little differences in the results. For example, here are the results for the happiness model using different algorithms, with a comparison to the standard linear regression model function. We can see that the results are very similar, and for simpler modeling endeavors they should converge on the same result.
+
+The main reason to choose one method over another usually is based on factors like speed, memory use, or how well they work for certain models. For statistical contexts, many functions for GLM use Newton's method by default, but more complicated models may implement a different default for better convergence. In general, we can always try a few different methods to see which works best,but usually, the results are similar. For example, here are the results for the happiness model using different algorithms, with a comparison to the standard linear regression model function. We can see that the results are very similar, and for simpler modeling endeavors they should converge on the same result.
 
 ```{r}
 #| echo: false
 #| label: tbl-optim-compare
 #| tbl-cap: Comparison of optimization results
 
-model_compare = lm(happiness ~ life_exp + gdp_pc + corrupt, data = df_happiness)
+model_compare = lm(happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc, data = df_happiness)
+
 objective = function(X, y, par, sum_sq = FALSE) {
     X = cbind(1, X)
 
@@ -2095,7 +2093,7 @@ objective = function(X, y, par, sum_sq = FALSE) {
 }
 
 X = df_happiness |>
-    select(life_exp, gdp_pc, corrupt) |>
+    select(life_exp_sc:gdp_pc_sc) |>
     as.matrix()
 y = df_happiness$happiness
 
@@ -2115,8 +2113,7 @@ gd = gradient_descent(
     par = c(0, 0, 0, 0),
     X = X,
     y = y,
-    learning_rate = 1e-3,
-    verbose = FALSE
+    learning_rate = 1e-3
 )
 
 gd$value = gd$MSE
@@ -2128,13 +2125,13 @@ map2_df(
     \(.x, .y)
     tibble(
         method = .y,
-        parameter = c("Intercept", "Life Exp. Coef.", "GDP_PC", "Corrupt", "MSE"),
+        parameter = c("Intercept", "life_exp_sc", "gdp_pc_sc", "corrupt_sc", "MSE"),
         Value = c(.x$par, .x$value)
     )
 ) |>
     pivot_wider(names_from = method, values_from = Value) |>
     mutate(
-        `Built-in` = c(coef(model_compare), performance::mse(model_compare)),
+        Standard = c(coef(model_compare), performance::mse(model_compare)),
     ) |>
     gt(decimals = 3) |>
     tab_footnote(
@@ -2154,8 +2151,8 @@ map2_df(
         locations = cells_column_labels(columns = GD)
     ) |>
     tab_footnote(
-        footnote = "Built-In = Standard OLS function",
-        locations = cells_column_labels(columns = `Built-in`)
+        footnote = "Standard = Standard package function",
+        locations = cells_column_labels(columns = Standard)
     ) |>
     tab_options(
         footnotes.font.size = 10
@@ -2167,16 +2164,16 @@ map2_df(
 
 ## Other Estimation Approaches {#sec-estim-other}
 
-Before leaving our estimation discussion, we should mention that there are other approaches to estimation that are out there, some quite common. These include variaions on least squares, **method of moments**, **generalized estimating equations**, **robust** estimation, and more. The above that we've focused on will generally be sufficient for most applications, but it's good to be aware of others. But there are two we want to discuss in a little bit detail before we leave model estimation formally given their widespread usage, and that is the **bootstrap** and  **Bayesian estimation**.
+Before leaving our estimation discussion, we should mention there are other approaches one could use, including variations on least squares, **method of moments**, **generalized estimating equations**, **robust** estimation, and more. We've focused on the most common ones, but it's good to be aware of others that might be more common in some domains. But there are two we want to discuss in a little bit detail given their widespread usage, and that is the **bootstrap** and  **Bayesian estimation**.
 
 
 ### Bootstrap {#sec-estim-bootstrap}
 
-The **bootstrap** is a resampling approach to estimation. We **sample with replacement** from the data observations, generating an entirely new data set of the same size, and then estimate the model. We repeat this process many times, collecting parameter estimates, predictions, or any thing we want to calculate along the way. Ultimately we end up with a distribution of possible parameter estimates, metrics, and whatever else we calculated.
+The **bootstrap** is method where we create new data sets by randomly sampling the data from our original set, allowing the same data to be picked more than once. We then use these new data sets to estimate our model. We do this many times, collecting parameter estimates, predictions, or anything we want to calculate along the way. Ultimately we end up with a *distribution* of all the the things we calculated.
 
-This distribution is useful for **inference**[^infdef], as we can use the distribution to calculate confidence intervals, prediction intervals or intervals for anything we happen to calculate.  The average estimate will typically be the same as whatever the underlying model used would produced, but the bootstrap provides a way to get at a measure of **uncertainty** with fewer assumptions about how that distribution should take shape. The bootstrap is very flexible, and it can be used with any estimation approach, let's see this in action with the happiness data model we used previously.
+These results give us a range of possible outcomes, which is useful for **inference**[^infdef], as we can use the distribution to calculate confidence intervals, prediction intervals or intervals for any value we calculate.  The average estimate is often the same as whatever the underlying model used would produced, but the bootstrap provides a way to get at a measure of **uncertainty** with fewer assumptions about how that distribution should take shape. The approach very flexible, and it can be used with any model. Let's see this in action with the happiness model.
 
-[^infdef]: We're using inference here in the statistical/philosophical sense, not as a synonym for prediction or generalization, which is how it is often used in machine learning. We're not exactly sure how that terminological muddling arose in ML, but be on the lookout for it.
+[^infdef]: We're using inference here in the standard statistical/philosophical sense, not as a synonym for prediction or generalization, which is how it is often used in machine learning. We're not exactly sure how that terminological muddling arose in ML, but be on the lookout for it.
 
 :::{.panel-tabset}
 
@@ -2185,12 +2182,14 @@ This distribution is useful for **inference**[^infdef], as we can use the distri
 ```{r}
 #| label: r-bootstrap
 #| eval: true
+#| result: 'hide'
 bootstrap = function(X, y, nboot = 100, seed = 123) {
-    # add a column of 1s for the intercept
+    
     N = nrow(X)
+    p = ncol(X) + 1 # add one for intercept
 
     # initialize
-    beta = matrix(NA, (1+ncol(X))*nboot, nrow = nboot, ncol = 1+ncol(X))
+    beta = matrix(NA, p*nboot, nrow = nboot, ncol = p)
     colnames(beta) = c('Intercept', colnames(X))
     mse = rep(NA, nboot)
 
@@ -2222,11 +2221,16 @@ bootstrap = function(X, y, nboot = 100, seed = 123) {
     )
 }
 
+X = df_happiness |>
+    select(life_exp_sc:gdp_pc_sc)
+
 our_result = bootstrap(
-    X = df_happiness |> select(life_exp, gdp_pc, corrupt),
+    X = X,
     y = df_happiness$happiness,
     nboot = 250
 )
+
+colMeans(our_result$beta)
 ```
 
 ##### Python
@@ -2236,7 +2240,6 @@ our_result = bootstrap(
 #| eval: false
 
 def bootstrap(X, y, nboot=100, seed=123):
-    cn = X.columns
     # add a column of 1s for the intercept
     X = np.c_[np.ones(X.shape[0]), X]
     N = X.shape[0]
@@ -2271,16 +2274,17 @@ def bootstrap(X, y, nboot=100, seed=123):
     return dict(beta = beta, mse = mse, final_mse = final_mse)
 
 our_result = bootstrap(
-    X = df_happiness[['life_exp', 'gdp_pc', 'corrupt']],
+    X = df_happiness[['life_exp_sc', 'corrupt_sc', 'gdp_pc_sc']],
     y = df_happiness['happiness'],
     nboot = 250
 )
 
+np.mean(our_result['beta'], axis=0)
 ```
 :::
 
 
-Here are the results of the interval estimates for the coefficients. For each parameter, we have the mean estimate, the lower and upper bounds of the 95% confidence interval, and the width of the interval.  We can see that the bootstrap intervals are wider than the OLS intervals, possibly better capturing the uncertainty in this model based on not too many observations.
+Here are the results of the interval estimates for the coefficients. Each parameter has the mean estimate, the lower and upper bounds of the 95% confidence interval, and the width of the interval. The bootstrap intervals are a bit wider than the OLS intervals, possibly better capturing the uncertainty in this model based on not too many observations.
 
 
 ```{r}
@@ -2300,13 +2304,8 @@ tab_boot_summary = our_result$beta |>
     mutate(
         `Lower OLS` = confint(model_compare)[, 1],
         `Upper OLS` = confint(model_compare)[, 2],
-        # `Diff Lower` = `Lower BS` - `Lower OLS`,
-        # `Diff Upper` = `Upper BS` - `Upper OLS`,
         `Diff Width` = (`Upper BS` - `Lower BS`) - (`Upper OLS` - `Lower OLS`)
     )
-    #  |> 
-    # select(-`Diff Lower`, -`Diff Upper`)
-
 
 tab_boot_summary |> 
     gt(decimals = 2) |> 
@@ -2319,7 +2318,7 @@ tab_boot_summary |>
     )
 ```
 
-Let's look more closely at the bootstrap distributions for each coefficient. With standard statistical estimates, we are assuming a distribution like the normal, which is a very specific shape. With the bootstrap, we can be more flexible, though often it may tend toward the distribution that would otherwise be assumed anyway. These aren't perfectly symmetrical, but they suit our needs in that we can extract the lower and upper quantiles to create an interval estimate.
+Let's look more closely at the distributions for each coefficient. Standard statistical estimates assume a specific shape like the normal distribution. But with the bootstrap method, we have more flexibility, even though it often leans towards the assumed distribution. These distributions aren't perfectly symmetrical like a normal distribution, but they suit our needs in that we can extract the lower and upper quantiles to create an interval estimate.
 
 ```{r}
 #| echo: false
@@ -2356,27 +2355,29 @@ our_result$beta |>
             group = Parameter
         ),
         color = okabe_ito[1],
-        size = 1,
+        linewidth = 1,
         data = tab_boot_summary
     ) +
     facet_wrap(~Parameter, scales = 'free') +
     labs(x = "Parameter Value", y = "Density")
 ```
 
-The bootstrap is a commonly used for predictions and other metrics, but it is computationally inefficient, and can become prohibitive with large data sizes. Also, the simple bootstrap will likely not estimate the appropriate uncertainty for some types of statistics (e.g. extreme values) or [in some data contexts](https://stats.stackexchange.com/questions/9664/what-are-examples-where-a-naive-bootstrap-fails) (e.g. correlated observations). Overcoming the limitations may typically require an even more computationally intensive approach, further limiting its utility. But it is a useful tool to have in your toolbox, and it can be used in conjunction with other approaches to get at uncertainty in a model.
+The bootstrap is often used for predictions and other metrics. However it is computationally inefficient, and might not be suitable with large data sizes. It also may not estimate the appropriate uncertainty for some types of statistics (e.g. extreme values) or [in some data contexts](https://stats.stackexchange.com/questions/9664/what-are-examples-where-a-naive-bootstrap-fails) (e.g. correlated observations). Despite these limitations, the bootstrap method is a useful tool and can be used together with other methods to understand uncertainty in a model.
 
 
 ### Bayesian Estimation {#sec-estim-bayes}
 
-The **Bayesian** approach to modeling is a philosophical viewpoint, an entirely different way to think about probability, a different way to measure uncertainty, and on a practical level, just another way to get model parameter estimates.  It can be as frustrating as it is fun to use, and one of the really nice things about using Bayesian estimation is that it can handle model complexities that other approaches don't do well.
+The **Bayesian** approach to modeling is many things - a philosophical viewpoint, an entirely different way to think about probability, a different way to measure uncertainty, and on a practical level, just another way to get model parameter estimates. It can be as frustrating as it is fun to use, and one of the really nice things about using Bayesian estimation is that it can handle model complexities that other approaches can't do well.
 
-The basis of Bayesian estimation is the **likelihood**, the same as used with maximum likelihood, and everything we did there follows to here. However, here we can incorporate domain knowledge about the parameters, in the form of **prior distributions**, which we specify in addition to the likelihood. For example, we may say that the coefficients for a linear model come from a normal distribution centered on zero with some variance. The combination prior distributions with the likelihood ultimately results in the **posterior distribution**. And this is the key difference when comparing Bayesian estimation to the others we've talked about, and something it shares in common with the bootstrap- the end result is not a point estimate of the parameters, but rather a *distribution* of possible parameter values.  
+The basis of Bayesian estimation is the **likelihood**, the same as with maximum likelihood, and everything we did there applies here. However, the Bayesian approach is unique because it also lets us use our knowledge about the parameters, through **prior distributions**. For example, we may think that the coefficients for a linear model come from a normal distribution centered on zero with some variance. That would serve as our prior. The combination of a prior distribution with the likelihood results in the **posterior distribution**, which is a *distribution* of possible parameter values. 
 
 ![](img/prior2post_clean.png)
 
-Dealing with distributions instead of single estimates is a different way to think about modeling, but it can be very useful. For example, as we did with the bootstrap, the Bayesian posterior distribution is useful for inference. With these distributions, we can look at any range in between for our **credible interval**, which is the Bayesian equivalent of a confidence interval[^confintinterp]. Here is an example of the posterior distribution for the parameters of our happiness model, along with 95% intervals.
+Just like with the bootstrap which also provided distributions for the parameters, we can use the Bayesian approach to understand how certain we are about our estimates. We can look at any range of values in the posterior distribution to get what is often referred to as a **credible interval**, which is the Bayesian equivalent of a confidence interval[^confintinterp]. Here is an example of the posterior distribution for the parameters of our happiness model, along with 95% intervals[^brms].
 
-[^confintinterp]: Your default interpretation of a standard confidence interval is almost certaintly, and incorrectly, the actual interpretation of a Bayesian confidence interval, because the Bayesian interpretation of confidence intervals and p-values is how we tend to naturally think about them. But that's okay, everyone else is in the same boat.  We also don't care if you want to call the Bayesian version a credible interval or a confidence interval.
+[^brms]: We used the R package for [brms]{.pack} for these results.
+
+[^confintinterp]: Your default interpretation of a standard confidence interval is almost certaintly, and incorrectly, the actual interpretation of a Bayesian confidence interval, because the Bayesian interpretation of confidence intervals and p-values is how we tend to naturally think about those statistics. But that's okay, everyone else is in the same boat. We also don't care if you want to call the Bayesian version a confidence interval.
 
 ```{r}
 #| echo: false
@@ -2384,7 +2385,7 @@ Dealing with distributions instead of single estimates is a different way to thi
 #| fig-cap: Posterior distribution of parameters
 
 # bayes_mod = brms::brm(
-#     happiness ~ life_exp + gdp_pc + corrupt, 
+#     happiness ~ life_exp_sc + gdp_pc_sc + corrupt_sc, 
 #     data = df_happiness,
 #     prior = c(
 #         brms::prior(normal(0, 1), class = 'b')
@@ -2399,7 +2400,7 @@ Dealing with distributions instead of single estimates is a different way to thi
 
 load("estimation/data/brms_happiness.RData")
 p_dat = bayes_mod |>
-    tidybayes::spread_draws(b_Intercept, b_life_exp, b_gdp_pc, b_corrupt) |>
+    tidybayes::spread_draws(b_Intercept, b_life_exp_sc, b_gdp_pc_sc, b_corrupt_sc) |>
     select(-.chain, -.draw) |>
     pivot_longer(-.iteration, names_to = 'Parameter')  |> 
     mutate(Parameter = str_remove(Parameter, "b_")) 
@@ -2422,9 +2423,9 @@ p_dat |>
         aes(x = lower, group = Parameter),
         y = 0,
         color = okabe_ito[1],
-        size = 3,
+        size  = 3,
         alpha = 1,
-        data = p_intervals        
+        data  = p_intervals        
     ) +
     geom_point(
         aes(x = upper, group = Parameter),
@@ -2477,7 +2478,9 @@ tab_boot_summary |>
     gt(decimals = 2)
 ```
 
-With Bayesian modeling, we use the algorithm of our choosing, give it starting values and proceed much in the same way as other optimization procedures. However, in this approach, we always specify a number of iterations as the **stopping rule**, i.e. when the model should terminate. These iterations are single draws from the posterior distribution for each parameter. So if we specified 1000 iterations, we would have 1000 draws from the posterior distribution for each parameter.  Typically we don't use the first few hundred draws, as these are considered **burn-in** or **warmup** draws, and we use the remaining draws for inference.  The number of burn-in draws is a bit of an art, but it's not too important as long as it's not too small.  The more iterations we set, the longer it will take to run.  We also specify multiple **chains**, which are each doing the exact same thing, but do to the random nature of the Bayesian approach, would take different estimation paths. We can then compare the chains to see if they are converging to the same result, which is a check on the model.  If they are not converging, we may need to run the model longer, or we may need to change something else.  Here is an example of the chains for our happiness model for the life expectancy coefficient.  We can see that they are converging to the same result, so we are good to go. Nowadays we have simple metrics that allow us to check whether the chains are converging, making it easier to assess many parameters quickly.
+With Bayesian estimation we also provide starting values for the algorithm to get things going. We also typically specify a number of iterations, or times the model will run, as the **stopping rule**. Each iteration gives us a new guess for each parameter, which amounts to a random draw from the posterior distribution. With more iterations the model takes longer to run, but the length often reflects the complexity of the model.
+
+We also specify multiple **chains**, which do the same estimation procedure, but do to the random nature of the Bayesian approach, take different estimation paths. We can then compare the chains to see if they are converging to the same result, which is a check on the model. If they are not converging, we may need to run the model longer, or it may indicate a problem with how we set up the model. Here's an example of the four chains for our happiness model for the life expectancy coefficient. They're giving similar results, so we know the model is working well. Nowadays, we have model statistics in the output that also provide this information, which makes it easier to quickly check many parameters.
 
 ```{r}
 #| echo: false
@@ -2485,7 +2488,7 @@ With Bayesian modeling, we use the algorithm of our choosing, give it starting v
 #| fig-cap: Bayesian chains for life expectancy coefficient
 
 p_dat = bayes_mod |>
-    tidybayes::spread_draws(b_life_exp) |>
+    tidybayes::spread_draws(b_life_exp_sc) |>
     select(-.draw) |>
     pivot_longer(-c(.chain, .iteration), names_to = 'Parameter')  |> 
     mutate(
@@ -2496,12 +2499,12 @@ p_dat = bayes_mod |>
 p_dat |>
     ggplot(aes(.iteration, value)) +
     geom_hline(aes(yintercept = mean(value)), color = "gray75") +
-    geom_line(aes(color = .chain), alpha = .25) +
+    geom_line(aes(color = .chain), alpha = .5, linewidth = 1) +
     scale_color_manual(values = okabe_ito) +
     labs(x = "Iteration", y = "Coefficient")
 ```
 
-When we are interested in making predictions, we can use the results to generate a distribution of possible predictions *for each observation*, which can be very useful when we want to quantify uncertainty in for complex models. This is referred to as **posterior predictive distribution**. Here is a plot of several draws of predicted values against the true happiness scores.
+When we are interested in making predictions, we can use the results to generate a distribution of possible predictions *for each observation*, which can be very useful when we want to quantify uncertainty in for complex models. This is referred to as **posterior predictive distribution**, which is explored in (@sec-knowing-model-vis). Here is a plot of several draws of predicted values against the true happiness scores.
 
 
 ```{r}
@@ -2524,7 +2527,8 @@ p_dat |>
 ```
 
 
-Note that *any* metric we can calculate from a model will also have a distribution. For example, you have a classification model and you want to know the accuracy or true positive rate of the model.  Instead of a single number, you now have access to a whole distribution of values for that metric. Why? For every sample of the distribution of parameters, you generate a prediction, convert it a class and compare it to the true class. So now you have a posterior predictive distribution for the predicted probabilities and class, and you can then calculate the accuracy, area under a receiver operating curve, true positive rate, etc., for each sample, and you have a distribution of possible values. As an example, we did this for our happiness model and show the interval estimate for R-squared. Pretty neat!  
+With the Bayesian approach, every metric we calculate has a range of possible values, not just one. For example, if you have a classification model and want to know the accuracy or true positive rate of the model, instead of a single number, you now have access to a whole distribution of values for that metric. How? For each possible set of model parameters from the posterior distribution, we apply those values and model to data to make a prediction. We can then assign it to a class, and compare it to the actual class. This gives us a range of possible predictions and classes. We can then calculate metrics like accuracy or true positive rate for each possible prediction set.  As an example, we did this for our happiness model with a numeric target, and show the interval estimate for R-squared.  Pretty neat!  
+
 
 ```{r}
 #| echo: false
@@ -2553,8 +2557,10 @@ tibble(r2 = bayes_r2$R2_Bayes, as_tibble(attr(bayes_r2, "CI")$R2_Bayes)) |>
 
 
 
-:::{.callout-tip}
-There is nothing keeping you from doing posterior predictive checks with other estimation approaches, and it's a good idea to do so. For example, in a GLM you have the beta estimates and the covariance matrix for them, and can simulate from a normal distribution with those estimates. But it's a bit more straightforward with the Bayesian approach, and some packages will allow you to do this automatically even.
+:::{.callout-tip title='Frequentist PP check' collapse='true'}
+
+As we saw in @sec-knowing-model-vis, nothing is keeping you from doing 'posterior predictive checks' with other estimation approaches, and it's a very good idea to do so. For example, in a GLM you have the beta estimates and the covariance matrix for them, and can simulate from a normal distribution with those estimates. It's just more straightforward with the Bayesian approach, where packages will do it for you with little effort.
+
 :::
 
 
@@ -2566,202 +2572,16 @@ There is nothing keeping you from doing posterior predictive checks with other e
 It turns out that any standard (frequentist) statistical model can be seen as a Bayesian one from a particular point of view.  Here are a couple:
 
 - GLM and related estimated via maximum likelihood: Bayesian estimation with a flat/uniform prior on the parameters.
-- Ridge Regression: Bayesian estimation with a normal prior on the coefficients, penalty parameter is related to the variance of the prior
-- Lasso Regression: Bayesian estimation with a Laplace prior on the coefficients, penalty parameter is related to the variance of the prior
+- Ridge Regression: Bayesian estimation with a normal prior on the coefficients, penalty parameter is related to the variance of the prior.
+- Lasso Regression: Bayesian estimation with a Laplace prior on the coefficients, penalty parameter is related to the variance of the prior.
 
-So in many modeling contexts, you're actually doing a restrictive form of Bayesian estimation already. Hopefully this helps to demystify the Bayesian approach a bit, and you feel more comfortable switching to it. R has excellent tools here for modeling and post-processing, like brms and tidybayes, and Python has pymc3, numpyro, and arviz, which are also useful[^r4bayes].  
+So in many modeling contexts, you're actually doing a restrictive form of Bayesian estimation already. 
 
-[^r4bayes]: Honestly R has way more going on here, with many packages devoted to Bayesian estimation of specific models even, but if you want to stick with Python for it you at least have some options. Stan, a probabilistic language underlying many of the packages in R, has tools there as well, but they are not nearly as well developed or test in Python.
+ We can see that the Bayesian approach is very flexible, and can be used for many different types of models, and can be used to get at uncertainty in a model in ways that other approaches can't. It's not a panacea, and it's not always the best approach, but it's a good one to have in your toolbox[^rpybayes]. Hopefully we've helped to demystify the Bayesian approach a bit, and you feel more comfortable switching to it.
 
-We can see that the Bayesian approach is very flexible, and can be used for many different types of models, and can be used to get at uncertainty in a model in ways that other approaches can't. It's not a panacea, and it's not always the best approach, but it's a good one to have in your toolbox.
-
-
-TODO: WHERE TO PUT THIS PRIOR STUFF? DELETE!?
-
-The tough part about the Bayesian approach is specifying priors, but even when you don't have a great idea, many have offered solutions, and there are ways to check whether what you've chosen makes sense for your data before trying the model itself. 
-
-:::{.callout-tip}
-Specification of priors can be done in different ways, and nowadays, there is a lot of information on how to do so, and with some tools, it's also pretty straightforward to check whether the priors are sensible without even running a model.  When you do have actual prior knowledge, either domain knowledge (e.g. a prior study found the beta values to be positive), statistical knowledge, (e.g. only the largest standard coefficients go near or beyond 1), data from time periods, there's typically at least something to help you specify your priors with sensible values. This takes away most of the luster of the primary argument against the Bayesian approach, which is the subjective nature of priors. But there is likewise so much subjective decision making in other approaches, that it's not really a useful argument to begin with. The Bayesian approach just makes it more explicit.  And if you don't have any prior knowledge, you can use non- or weakly- informative priors, which will likely have little influence and let the data do the talking, producing a result that is not that different from maximum likelihood estimation.
-:::
+[^rpybayes]: R has excellent tools here for modeling and post-processing, like [brms]{.pack} and [tidybayes]{.pack}, and Python has [pymc3]{.pack}, [numpyro]{.pack}, and [arviz]{.pack}, which are also useful. Honestly R has way more going on here, with many packages devoted to Bayesian estimation of specific models even, but if you want to stick with Python it's gotten a lot better recently. 
 
 
-```{r}
-#| echo: false
-#| eval: false
-#| label: r-metropolis-hastings
-# Define the log-likelihood function for linear regression
-
-# TODO: MOVE MH EXAMPLE TO APPENDIX for online only
-
-log_likelihood = function(beta, X, y, sigma_sq) {
-    y_hat = X %*% beta
-    residuals = y - y_hat
-    log_likelihood = -0.5 * length(y) * log(2 * pi * sigma_sq) - 0.5 * sum(residuals^2) / sigma_sq
-    return(log_likelihood)
-}
-
-# Define the prior distribution for beta
-prior_beta = function(beta) {
-    prior_mean = rep(0, length(beta))
-    prior_sd = rep(10, length(beta))
-    log_prior = sum(dnorm(beta, mean = prior_mean, sd = prior_sd, log = TRUE))
-    return(log_prior)
-}
-
-# Define the prior distribution for sigma
-prior_sigma = function(sigma_sq) {
-    alpha = 2
-    beta = 2
-    # log_prior = dgamma(1/sigma_sq, shape = alpha, rate = beta, log = TRUE)
-    log_prior = extraDistr::dinvgamma(sigma_sq, alpha = alpha, beta = beta, log = TRUE) 
-
-    return(log_prior)
-}
-
-# Define the proposal distribution for beta
-proposal_beta = function(beta, scale) {
-    beta_proposal = rnorm(length(beta), mean = beta, sd = scale)
-    return(beta_proposal)
-}
-
-# Define the proposal distribution for sigma
-proposal_sigma = function(sigma_sq, scale) {
-    # sigma_proposal = rgamma(1, shape = sigma_sq / scale, rate = scale)
-    sigma_proposal = extraDistr::rinvgamma(1, alpha = sigma_sq / scale, beta = scale)
-    return(sigma_proposal)
-}
-
-# Set up the data
-# set.seed(123)
-# n = 100
-# X = cbind(1, rnorm(n), rnorm(n), rnorm(n))
-# beta_true = c(1, 2, 3, 4)/4
-# sigma_true = 1
-# y = X %*% beta_true + rnorm(n, sd = sigma_true)
-
-# Set up the Metropolis-Hastings algorithm
-# n_iter = 10000
-
-
-# Run the Metropolis-Hastings algorithm
-mh = function(
-    X,
-    y,
-    beta = rep(0, ncol(X)), 
-    sigma_sq = .5, 
-    scale_beta = 0.1, 
-    scale_sigma = 1,
-    chains = 2,
-    warmup = 1000,
-    n_iter = 2000,
-    seed = 123
-) {
-    set.seed(seed)
-
-    result = list()
-    beta_start = beta
-    sigma_sq_start = sigma_sq
-
-    for (c in 1:chains){
-        acceptance_beta = 0
-        acceptance_sigma = 0
-        beta_samples = matrix(0, n_iter, ncol(X))
-        sigma_sq_samples = rep(0, n_iter)
-
-        if (c > 1) {
-            beta = beta_start
-            sigma_sq = sigma_sq_start
-        }       
-
-        for (i in 1:n_iter) {
-            # Update beta
-            beta_proposal = proposal_beta(beta, scale_beta)
-            log_ratio_beta = log_likelihood(beta_proposal, X, y, sigma_sq) + prior_beta(beta_proposal) -
-                log_likelihood(beta, X, y, sigma_sq) - prior_beta(beta)
-            if (log(runif(1)) < log_ratio_beta) {
-                beta = beta_proposal
-                acceptance_beta = acceptance_beta + 1
-            }
-            beta_samples[i, ] = beta
-
-            # Update sigma_sq
-            sigma_sq_proposal = proposal_sigma(sigma_sq, scale_sigma)
-            log_ratio_sigma = log_likelihood(beta, X, y, sigma_sq_proposal) + prior_sigma(sigma_sq_proposal) -
-                log_likelihood(beta, X, y, sigma_sq) - prior_sigma(sigma_sq)
-            if (log(runif(1)) < log_ratio_sigma) {
-                sigma_sq = sigma_sq_proposal
-                acceptance_sigma = acceptance_sigma + 1
-            }
-            sigma_sq_samples[i] = sigma_sq
-        }
-    
-        message("Acceptance rate for beta:", acceptance_beta / n_iter, "\n")
-        message("Acceptance rate for sigma:", acceptance_sigma / n_iter, "\n")
-
-
-        result[[c]] = list(
-            beta = beta_samples[-(1:warmup), ], 
-            sigma_sq = sigma_sq_samples[-(1:warmup)],
-            # y_rep = X %*% t(beta_samples[-(1:warmup), ])
-            # +rnorm(n_iter - warmup, sd = sqrt(sigma_sq_samples[-(1:warmup)]))
-            y_rep = t(X %*% t(beta_samples[-(1:warmup), ]) + rnorm(n_iter - warmup, sd = sqrt(sigma_sq_samples[-(1:warmup)])))
-        )
-    } 
-    result
-}
-
-X_train = df_happiness |>
-    select(life_exp, gdp_pc, corrupt) |>
-    as.matrix()
-
-our_result = mh(
-    X = cbind(1, X_train),
-    y = df_happiness$happiness, 
-    beta = c(mean(df_happiness$happiness), rep(0, ncol(X_train))),
-    sigma_sq = var(df_happiness$happiness),
-    scale_sigma = .5,
-    warmup = 1000,
-    n_iter = 2000
-)
-
-str(our_result)
-```
-
-```{r}
-#| echo: false
-#| label: fig-r-bayesian-estimation
-#| fig-cap: Bayesian estimation results
-
-# Plot the posterior distributions with ggplot, using the bayesplot package
-# par_chains = map(our_result, \(x) {
-#     x = cbind(x$beta, x$sigma_sq)
-#     colnames(x) = c("Intercept", "Life Exp.", "GDP_PC", "Corrupt", "Sigma")
-#     x
-# }) 
-# y_rep_chains = map(our_result, \(x) x$y_rep)
-
-# # show trace plots for all betas and sigma
-# # performance::performance_mse(model_compare)
-
-# bayesplot::mcmc_intervals_data(par_chains, point_est = 'mean') |> 
-#     select(parameter, mean=m, q.05 =l, q.95=h) |> 
-#     gt()
-# bayesplot::mcmc_combo(par_chains)
-# bayesplot::pp_check(
-#     df_happiness$happiness, 
-#     rbind(
-#         y_rep_chains[[1]][1:10,],
-#         y_rep_chains[[2]][1:10,]
-#     ), 
-#     fun =  bayesplot::ppc_dens_overlay
-# )
-
-# save(
-#     par_chains,
-#     y_rep_chains,
-#     file = "estimation/data/bayes_estimation.RData"
-# )
-```
 
 ## Wrapping Up {#sec-estim-wrap}
 
@@ -2770,37 +2590,43 @@ Wow, we covered a lot here! But this is the sort of stuff that can take you from
 
 ## Where to Go From Here {#sec-estim-where-to-go}
 
-Really, after this chapter, you should feel fine with any of the others, so dive in! Here are some additional resources to consider.
-
-## Exercise
-
-Try creating an objective function for a continuous target that uses the mean absolute error, and compare your estimated parameters to the previous results.
+Really, after this chapter, you should feel fine with any of the others in this text, so dive in! Here are some additional resources to consider.
 
 
-TODO: refs need work!
 
 **OLS and Maximum Likelihood Estimation**:
 
 For OLS and maximum likelihood estimation, there are so many resources out there, we recommend just taking a look and seeing which one suits you best. Practically any more technical statistical book will cover these topics in detail.
 
 - [A list of classical references](https://stats.stackexchange.com/questions/33197/advanced-statistics-books-recommendation)
-- TODO: recent?
 
 **Gradient Descent**:
 
 - [Gradient Descent, Step-by-Step](https://www.youtube.com/watch?v=sDv4f4s2SB8) @statquest_with_josh_starmer_gradient_2019
 - [Stochastic Gradient Descent, Clearly Explained](https://www.youtube.com/watch?v=vMh0zPT0tLI) @statquest_with_josh_starmer_stochastic_2019
 
-The simple AdaGrad algorithm used above:
+More demonstration of the simple AdaGrad algorithm used above:
 
 - @brownlee_gradient_2021
 - @databricks_what_2019
 
 **Bootstrap**:
-?
+
+Classical treatments:
+
+- @efron_introduction_1994
+- @davison_bootstrap_1997
+
+- [Bootstrapping Main Ideas](https://www.youtube.com/watch?v=sDv4f4s2SB8) @statquest_with_josh_starmer_bootstrapping_2021 
 
 **Bayesian**:
 
 - BDA @gelman_bayesian_2013
 - Statistical Rethinking @mcelreath_statistical_2020
 - [Choosing priors](https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations)
+
+
+## Exercise
+
+Try creating an objective function for a continuous target that uses the mean absolute error, and compare your estimated parameters to the previous results for ordinary least squares. Alternatively, use the ridge regression demonstration and change it to use the lasso approach (this would require altering just one line).
+
