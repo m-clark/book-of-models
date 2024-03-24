@@ -3,7 +3,7 @@
 
 
 <!-- 
-TODO: Probably need to clean up data used for more consistency of examples.
+TODO: Consider more consistency of examples - we use several, but maybe it's not too bad.
 TODO: Maybe split 'knowing model', vs. 'knowing features'; the split appears to be roughly 60/40.
 TODO: totally okay with a screenshot of Redd here to go with the quote.
  -->
@@ -13,9 +13,6 @@ TODO: totally okay with a screenshot of Redd here to go with the quote.
 source("load_packages.R")
 source("setup.R")
 source("functions/utils.R")
-
-library(purrr)
-library(patchwork)
 
 
 library(reticulate)
@@ -348,18 +345,35 @@ p_dat = tibble(
     predicted = predictions
 ) 
 
-p_dat |> 
+p1 = p_dat |> 
     ggplot(aes(observed, predicted)) +
-    geom_point() +
+    geom_point(alpha = 0.36, size = 2, position = position_jitter(width = .1)) +
+    geom_abline(
+        intercept = 0,
+        slope = 1,
+        color = okabe_ito[2],
+        linewidth = 1
+    ) +
+    lims(x = c(1, 5), y = c(1, 5)) +
     labs(
         x = "Observed",
         y = "Predicted",
-        title = "Observed vs. Predicted Ratings"
+        # title = "Observed vs. Predicted Ratings"
     )
-    
-```
 
-Obviously, our points do not make a perfect line, which would indicate perfect prediction, so we'd like to determine how far off we are. There are a number of metrics that can be used to measure this. We'll go through a few of them here.
+p2 = p_dat |>
+    select(observed, predicted) |>
+    pivot_longer(everything()) |>
+    ggplot(aes(x = value)) +
+    # geom_density(aes(color = name, fill = name), alpha = 0.15) +
+    stat_ecdf(geom = "borderline", aes(color = name, fill = name), linewidth = 1) +
+    scale_fill_manual(values = c(okabe_ito[1], okabe_ito[2]), aesthetics = c("fill", "color")) +
+    labs(y = "Cumulative Density", x = "Rating") 
+
+
+p1 + p2
+```
+Obviously our points do not make a perfect line on the left, which would indicate perfect prediction. Also, the distribution of our values suggests we're over predicting on the lower end and under predicting on the higher end of the target's range. But we'd like to determine how far off we are in a general sense. There are a number of metrics that can be used to measure this. We'll go through a few of them here.
 
 
 
@@ -867,7 +881,7 @@ To help us with the task of choosing a threshold, we will start by creating what
 
 [^prerecallcurve]: The **precision-recall curve** is very similar approach which visualizes the tradeoff between precision and recall. The area under the precision-recall curve is its corresponding metric.
 
-<!-- TODO: double check this cluster for R. it seems whatever package you pick will only give you half of what you want -->
+
 
 :::{.panel-tabset}
 
@@ -988,7 +1002,6 @@ Note that this only changes the values relative to one another, not the overall 
 
 ### Model Selection & Comparison {#sec-knowing-model-compare}
 
-<!-- TODO: under the hood each iteration vs explictly pitting models against one another -->
 
 Another important way to understand our model is by looking at how it compares to other models in terms of performance, however we choose to define that. One common way we can do this is by comparing models based on the metric(s) of our choice, for example, with RMSE or AUC. Let's see this in action for our regression model. Here we will compare three models: one with three features, our original model, and the three feature model with interactions with genre.  Our goal will be to see how these perform on the test set based on RMSE.
 
@@ -1107,7 +1120,7 @@ A key method understanding of how our model is performing is through visualizati
 ```{r}
 #| echo: false
 #| label: fig-regression-visualize
-#| fig-cap: Residuals vs. Fitted and PP Check plots for our regression model
+#| fig-cap: Residuals vs. Fitted and PP Check plots for our regressio#| n model
 
 # ?see:::plot.see_performance_pp_check
 p_pp = plot(
@@ -1561,7 +1574,6 @@ Our result above suggests we're getting about a .09 drop in the expected probabi
 
 #### Marginal Means
 
-<!-- TODO: complete -->
 
 Marginal means are just about getting an average prediction for the levels of *categorical features*. As an example, we can get the average predicted probability of a good review for each level of the genre feature, and then compare them. To do this we just have to make predictions as if every observation had a certain value for genre, and then average the predictions. This is also the exact same approach that produced the PDP for word count we saw earlier.
 
@@ -1639,7 +1651,7 @@ The nice thing about having a model is that we can make predictions for any set 
 
 Consider an experimental setting where we have lots of control over how the data is produced for different scenarios. Ideally we'd be able to look at the same instances under when everything about them was identical, but in one case, the instance was part of the control group, and in another, part of the treatment group. Unfortunately, not only is it impossible to have *everything* be identical, but it's also impossible to have the same instance be in two experimental group settings at the same time. Counterfactual predictions are the next best thing though, because once we have a model, we can predict an observation *as if* it was in the treatment, and then when it is a control. If we do this for all observations, we can get a sense of the **average treatment effect**, one of the main points of interest in causal inference.  
 
-<!-- If it sounds like a familiar tune, PDP, SHAP values and counterfactual predictions all are ways to look at predictions for features held at key values. -->
+<!-- TODO: potential callout- If it sounds like a familiar tune, PDP, SHAP values and counterfactual predictions all are ways to look at predictions for features held at key values. -->
 
 <!-- TODO: note or use the counterfactuals package -->
 
@@ -2879,12 +2891,8 @@ It is easy to get caught up in the excitement of creating a model and then using
 
 If you haven't already, feel free to take your linear models further in @sec-lm-extend and @sec-glm, where you'll see how to handle different distributions for your target, add interactions, nonlinear effects, and more.  Otherwise, you've got enough at this point to try your hand at the @sec-ml-core-concepts section, where you can dive into machine learning!
 
-## Exercise
 
-Use the world happiness data set to create a model of your choosing that predicts happiness score. Create a simpler or more complex model for comparison. Interpret the model as a whole, then compare it to the simpler/more complex model. Choose the 'best' model, and justify your reason for doing so. Given that model, explore the predictions and interpret the features. Can you comfortably claim which is the most important? Why or why not?
-
-
-## Additional Resources
+#### Additional Resources
 
 If this chapter has piqued your curiosity, we would encourage you to check out the following resources. 
 
@@ -2900,4 +2908,6 @@ The [marginal effects zoo](https://marginaleffects.com/), written by the [margin
 
 
 
+## Exercise
 
+Use the world happiness data set to create a model of your choosing that predicts happiness score. Create a simpler or more complex model for comparison. Interpret the model as a whole, then compare it to the simpler/more complex model. Choose the 'best' model, and justify your reason for doing so. Given that model, explore the predictions and interpret the features. Can you comfortably claim which is the most important? Why or why not?
