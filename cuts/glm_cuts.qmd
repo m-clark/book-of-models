@@ -1,0 +1,202 @@
+---
+title: "Untitled"
+format: html
+---
+
+
+It is far more intuitive to interpret the probability.  We can do this by exponentiating the coefficients and dividing by 1 + that value.  This will give us the probability of the outcome occurring for a one unit increase in the predictor.
+
+```{r}  
+#| echo: false
+exp(model_logistic$coefficients) / (1 + exp(model_logistic$coefficients))
+```
+
+We would say that our probability of moving from a "bad" review to a "good" review is .84 when there are 0 words in the review and the gender is female. Since word_count is below .5, we know that it will have a negative relationship with the probability of moving from "bad" to "good"; being a male reviewer will have a positive relationship with the probability of moving from "bad" to "good".
+
+And visualizing those probabilities is absolutely the best way to see how the features influence the target:
+
+TODO: Use output to make a better visual, also use `see` over `sjPlot`
+
+<!-- 
+With that list of probability values, we can convert them to odds with $\\p\, / 1 - p$. 
+
+```{r}
+#| echo: false
+#| label: fig-odds-log-odds
+#| fig-cap: "Log odds and odds values for a range of probabilities"
+
+oddsConversion = function(p) {
+  res = p / (1 - p)
+  return(res)
+}
+
+odds = oddsConversion(probability)
+
+ggplot(
+  data.frame(log_odds = log(odds), odds = odds),
+  aes(log_odds, odds)) +
+  geom_point() +
+  xlab("Log Odds") +
+  ylab("Odds")
+```
+
+We can see how those probability values map to odds in @fig-odds-log-odds.
+
+Now, we can take those odds values and convert them to log odds. -->
+<!-- 
+TODO: removing since this regards a marginal distribution
+
+### The (Sometimes) Thin Line  {#sec-glm-thinline}
+
+Let's think long and hard about our target variable and what it actually might be. Since Poisson regression gets its name from the Poisson distribution, we should probably see if it follows the Poisson distribution.
+
+```{r}
+#| echo: false
+library(vcd)
+
+poissonTest = goodfit(df_reviews$poss_pronoun, type = "poisson")
+
+summary(poissonTest)
+```
+
+This is a $\chi^2$ to test if the distribution deviates from a Poisson. If we see a statistically significant value, we would say that it deviates from the tested distribution. In this case, it is pretty clear that `poss_pronoun` could come from a Poisson distribution.
+
+We can also plot that test using a hanging rootogram:
+
+<!-- TODO: convert to ggplot -->
+
+```{r}
+#| echo: false
+#| label: fig-poisson-test
+#| fig-cap: "Hanging rootogram for Poisson distribution"
+# plot(poissonTest)
+# str(poissonTest)
+
+as_tibble(
+  poissonTest[1:3]
+) |> 
+  mutate(
+    observed = sqrt(observed),
+    residual = poissonTest$residuals,
+    fitted = sqrt(fitted),
+    # residual = observed - fitted,
+    # fitted = fitted  + residual
+  ) |> 
+  ggplot(aes(count, observed)) +
+  geom_col(width = .5) +
+  geom_point(aes(y = fitted), size = 4, color = okabe_ito[2], alpha = 1) +
+  geom_line(aes(y = fitted), linewidth = 2) +
+  labs(y = 'Sqrt Frequency', x = 'Count') #+
+  scale_y_continuous(breaks = -1:5) 
+
+```
+
+In @fig-poisson-test, the bars are the observed counts and the red line/points are the fitted counts (i.e., how many would be expected). If a bar does not reach the 0 line, then the model would over-predict for that particular count; if the bar dips below the 0 line, the model under-predicts that count. It looks like we are pretty close for our counts. 
+
+-->
+
+from logistic- not sure this is how we'd want to put it.
+There are interesting issues at play here with regard to our feature coefficients (what can be considered a *relative effect*) and the model's effect as a whole on the probability (the *absolute effect*). In circumstances where the intercept is very large (essentially promising a success), the relative effect of a coefficient is practically meaningless. Similarly, very negative coefficients render the relative effects useless. 
+
+
+maybe this callout gets into the weeds without enough context for the chatper
+:::{.callout-important}
+In theory, there is no such thing as 0 or 1 probability. When your model encounters such a value, you may receive a warning, but not an error. The most likely cause of this warning is **separation**: a variable is perfectly separating the target. In other words, once a feature gets below/above a certain value, the target is always 0/1. This can often be caused by very extreme feature values, interaction groups with very small sample sizes, or even accidentally including a function of your target as a feature. More evidence of separation comes when you see your log odds coefficients return something comically large. 
+:::
+
+
+## Poisson
+
+This was more revised than cut
+
+<!-- 
+```{r}
+#| echo: false
+library(AER)
+
+dispersiontest(model_poisson)
+```
+
+The dispersion value that we see returned (0.7606014 in our case) should be under 1. A dispersion value over 1 means that we have overdispersion. Our dispersion value, coupled with our high *p*-value, indicates that we would fail to reject the null hypothesis of equidispersion.
+
+We can also look back to our model results to compare our residual deviance to our residual deviance degrees of freedom; if our deviance is greater than our degrees of freedom, we might have an issue with overdispersion. Since we are just a bit over and our overdispersion tests do not indicate any huge issue, we can be relatively okay with our model. If we had some more extreme overdispersion, we would want to flip to a quasi-poisson distribution -- our coefficients would not change, but we would have improved standard errors.
+
+### Model Specification  {#sec-glm-poisson-spec}
+
+TODO: Need some text here
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+pois_ll = function(y, X, par) {
+  beta = par
+  lambda = exp(beta%*%t(X))
+  loglik = -sum(dpois(y, lambda, log = TRUE))
+  return(loglik)
+}
+```
+
+##### Python
+
+```{python}
+from scipy.stats import poisson
+
+def pois_ll(par, X, y):
+    beta = par
+    lambda_ = np.exp(X.dot(beta))
+    loglik = -np.sum(poisson.logpmf(y, lambda_))
+    return loglik
+```
+
+:::
+
+### Model Fitting {#sec-glm-poisson-fitting}
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+form = as.formula("poss_pronoun ~ word_count")
+model = model.frame(form, data = df_reviews)
+X = model.matrix(form, data = df_reviews)
+y = model.response(model)
+
+starts = c(0, 0)
+
+fit = optim(
+  par = starts ,
+  fn  = pois_ll,
+  X   = X,
+  y   = y,
+  method  = "BFGS",
+  hessian = TRUE
+)
+
+fit$par
+```
+
+
+##### Python
+
+```{python}
+X = np.column_stack((np.ones(df_reviews.shape[0]), df_reviews[['word_count']]))
+
+y = df_reviews["poss_pronoun"]
+
+init = np.zeros(X.shape[1])
+
+fit = minimize(
+  fun = pois_ll,
+  x0 = init,
+  args = (X, y),
+  method = 'BFGS'
+)
+
+
+fit.x
+```
+
+::: -->
