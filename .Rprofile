@@ -2,6 +2,8 @@ library(tidyverse)
 library(patchwork)
 library(gt)
 
+filter = dplyr::filter
+
 
 # create a theme
 
