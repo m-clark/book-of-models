@@ -119,8 +119,7 @@ as.data.frame(rbind(binom.25, binom.5, binom.75)) %>%
   ggplot(., aes(x = key, y = value, fill = prob)) + 
   geom_col(alpha = .5, color = NA) + 
   scale_fill_manual(values = okabe_ito) +
-  xlab("Number of Successes") +
-  ylab("Probability") +
+  labs(x = "Number of Successes", y = "Probability") +
   guides(fill = guide_legend(title = "Probability\nValues"))
 ```
 
@@ -167,43 +166,17 @@ Probability lies at the heart of all of this, so let's look at the relationship 
 #| label: fig-probs
 probability = seq(.0001, .9999, by = .01)
 ```
-<!-- 
-With that list of probability values, we can convert them to odds with $\\p\, / 1 - p$. 
 
-```{r}
-#| echo: false
-#| label: fig-odds-log-odds
-#| fig-cap: "Log odds and odds values for a range of probabilities"
-
-oddsConversion = function(p) {
-  res = p / (1 - p)
-  return(res)
-}
-
-odds = oddsConversion(probability)
-
-ggplot(
-  data.frame(log_odds = log(odds), odds = odds),
-  aes(log_odds, odds)) +
-  geom_point() +
-  xlab("Log Odds") +
-  ylab("Odds")
-```
-
-We can see how those probability values map to odds in @fig-odds-log-odds.
-
-Now, we can take those odds values and convert them to log odds. -->
 
 ```{r}
 #| echo: false
 #| label: fig-prob-log-odds
 #| fig-cap: "Log odds and probability values"
 ggplot(
-  tibble(log_odds = log(odds), probability = probability),
+  tibble(log_odds = log(probability / (1- probability)), probability = probability),
   aes(log_odds, probability)) +
   geom_point() +
-  xlab("Log Odds") +
-  ylab("Probability")
+  labs(x = "Log Odds", y = "Probability")
 ```
 
 This is the classic logistic function, where we can see that the probability of success approaches 0 when the log odds are negative and approaches 1 when the log odds are positive. The main message here is that we can take a bounded variable in probability and transformed it to continuous space, and vice versa.
@@ -288,7 +261,7 @@ model_logistic.summary()
 
 ### Interpretation and Visualization {#sec-glm-binomial-interpret}
 
-We need to know what those results mean. The coefficients that we get from our model are in log odds. We can exponentiate them to get the odds ratio, but we can also exponentiate them and divide by 1 + that value to get the probability. Interpretting log odds is a fool's errand, but we can at least get a feeling for them directionally. A log odds of 0 would indicate no relationship between the feature and target. A positive log odds would indicate that an increase in the feature will increase the log odds of moving from "bad" to "good", whereas a negative log odds would indicate that a decrease in the feature will decrease the log odds of moving from "bad" to "good". We can convert those log odds to help make some more sense from them.
+We need to know what those results mean. The coefficients that we get from our model are in log odds. We can exponentiate them to get the odds ratio, but we can also exponentiate them and divide by 1 + that value to get the probability. Interpreting log odds is a fool's errand, but we can at least get a feeling for them directionally. A log odds of 0 would indicate no relationship between the feature and target. A positive log odds would indicate that an increase in the feature will increase the log odds of moving from "bad" to "good", whereas a negative log odds would indicate that a decrease in the feature will decrease the log odds of moving from "bad" to "good". We can convert those log odds to help make some more sense from them.
 
 When we exponentiate the log odds coefficients, we are given the odds ratio.  This is the ratio of the odds of the outcome (i.e., success from our binomial distribution) occurring for a one unit increase in the feature. 
 
@@ -360,7 +333,7 @@ my_glm = function(par, X, y, family = "binomial") {
     # Calculate the linear predictor
     mu = X %*% par # %*% is matrix multiplication
 
-    # get the likeilihood for the binomial or poisson distribution
+    # get the likelihood for the binomial or poisson distribution
     if (family == "binomial") {
       # Convert to a probability ('logit' link/inverse)
       p = 1 / (1 + exp(-mu))
@@ -390,7 +363,7 @@ def my_glm(par, X, y, family = "binomial"):
     # Calculate the linear predictor
     mu = X.dot(par)
     
-    # get the likeilihood for the binomial or poisson distribution
+    # get the likelihood for the binomial or poisson distribution
     if family == "binomial":
         p = 1 / (1 + np.exp(-mu))
         L = binom.logpmf(y, 1, p)
@@ -443,8 +416,7 @@ fit_logistic = minimize(
     fun = my_glm,
     x0 = init,
     args = (X, y),
-    method = 'BFGS',
-    options = {'disp': True}
+    method = 'BFGS'
 )
 
 fit_logistic.x
@@ -480,7 +452,7 @@ Logistic regression does not have an $R^2$ value in the way that a linear regres
 
 The Poisson distribution is very similar to the binomial distribution, because the binomial is also a count distribution and in fact generalizes the poisson[^poisbin]. The main difference is in its parameter: Poisson has a single parameter noted as $\lambda$. This rate parameter is going to estimate the expected number of events during a time interval. This can be accidents in a year, pieces produced in a day, or hits during the course of a baseball season. We can find the rate by determining the number of events per interval, multiplied by the interval length.
 
-[^poisbin]: If your binomial regarded very small rates, where the number of trials is very large relative to the number of succcesses (relatively small $p$), you would find that the binomial distribution would converge to the poisson distribution.
+[^poisbin]: If your binomial regarded very small rates, where the number of trials is very large relative to the number of successes (relatively small $p$), you would find that the binomial distribution would converge to the poisson distribution.
 
 $$\frac{\text{event}}{\text{interval}}*\text{interval length} $$
 
@@ -495,8 +467,7 @@ Let's see what that particular distribution might look like in @fig-poisson-dist
 
 ggplot(tibble(x = 0:20), aes(x)) +
     geom_col(aes(y = dpois(x, (1 / 7) * 28))) +
-    xlab("Number of Accidents") +
-    ylab("Probability")
+    labs(x = "Number of Accidents", y = "Probability")
 ```
 
 We can also see what it looks like for different rates (some places might be safer than others) in @fig-poisson-distribution-rates.
@@ -520,7 +491,7 @@ ggplot() +
     )
 ```
 
-:::{.callout-tip title="More Possion" collapse="true"}
+:::{.callout-tip title="More Poisson" collapse="true"}
 A cool thing about these distributions is that they can deal with different *exposure* rates. You don't need observations recorded over the same interval length, because you can adjust for them appropriately. They can also be used to model inter-arrival times and time-until-events.  Also note how the distribution becomes more symmetric and bell-shaped as the rate increases. For large mean counts, you can just go back to using the normal distribution.
 :::
 
@@ -531,7 +502,7 @@ Let's make a new variable that will count the number of times a person uses a pe
 ##### R
 
 ```{r}
-#| label: create-poss-prounoun-r
+#| label: create-poss-pronoun-r
 #| fig-show: 'hide'
 df_reviews$poss_pronoun = stringr::str_count(
   df_reviews$review_text, 
@@ -544,7 +515,7 @@ hist(df_reviews$poss_pronoun)
 ##### Python
 
 ```{python}
-#| label: create-poss-prounoun-py
+#| label: create-poss-pronoun-py
 #| fig-show: 'hide'
 df_reviews['poss_pronoun'] = df_reviews['review_text'].str.count(
   "\\bI\\b|\\bme\\b|\\b[Mm]y\\b|\\bmine\\b|\\bmyself\\b"
@@ -557,12 +528,11 @@ df_reviews['poss_pronoun'].hist()
 
 ```{r}
 #| echo: false
-#| label: fig-poss-prounoun
+#| label: fig-poss-pronoun
 
 ggplot(df_reviews, aes(poss_pronoun)) +
     geom_histogram(binwidth = .5, fill = okabe_ito[1]) +
-    xlab("Number of Personal Pronouns") +
-    ylab("Count")
+    labs(x = "Number of Personal Pronouns", y = 'Count')
 ```
 
 ### Model {#sec-glm-poisson-model-fitting}
@@ -673,7 +643,7 @@ Did you notice that both our effects for word count in the logistic (@fig-logist
 
 ## Wrapping Up {#sec-glm-wrap}
 
-So at this point you have standard linear regression with the gaussian (normal) distribution for continuous targts, logistic for binary ones, and poisson for counts. These models combine to provide you all you need for starting out, and all serve well as baseline models for comparison to more complex methods (@sec-ml-baseline). That is, however, just a tiny slice of the potential distributions that you could use, and there are still others both in the [GLM family](https://en.wikipedia.org/wiki/Exponential_family) proper and in related scenarios. Here is a quick list[^glmlist]:
+So at this point you have standard linear regression with the gaussian (normal) distribution for continuous targets, logistic for binary ones, and poisson for counts. These models combine to provide you all you need for starting out, and all serve well as baseline models for comparison to more complex methods (@sec-ml-baseline). That is, however, just a tiny slice of the potential distributions that you could use, and there are still others both in the [GLM family](https://en.wikipedia.org/wiki/Exponential_family) proper and in related scenarios. Here is a quick list[^glmlist]:
 
 [^glmlist]: There is not strict agreement about what qualifies.
 
@@ -682,7 +652,7 @@ Other Core GLM (available in standard functions):
 - **Gamma**: For continuous, positive targets that are skewed.
 - **Inverse Gaussian**: For continuous, positive targets that are skewed and have a long tail.
 
-Others (some fairly commmon):
+Others (some fairly common):
 
 - **Beta**: For continuous targets that are bounded between 0 and 1.
 - **Log-Normal**: For continuous targets that are skewed.  Essentially what you get with linear regression and logging the target[^lognorm].
@@ -726,16 +696,18 @@ At this point you have a pretty good sense of what linear models have to offer, 
 
 ### Additional Resources {#sec-glm-resources}
 
-If you are itching for a text book, there isn't any shortage of them out there and you can essentially take your pick, though most purely statistical treatments are going to be a bit dated at this point, but still accurate and maybe worth your time. 
+If you are itching for a textbook, there isn't any shortage of them out there and you can essentially take your pick, though most purely statistical treatments are going to be a bit dated at this point, but still accurate and maybe worth your time. 
 
 
-- *Generalized Linear Models* (@mccullagh_generalized_2019) is the classic text on the subject, but it is a bit dense and not for the faint of heart.
-- *An Introduction to Generalized Linear Models* Dobson and Barnett (@dobson_introduction_2018).
-- *Generalized Linear Models* by Hardin and Hilbe is more accessible (@hardin_generalized_2018).
+- *Generalized Linear Models* (@mccullagh_generalized_2019) is a classic text on the subject, but it is a bit dense and not for the faint of heart, or even @nelder_generalized_1972, which is a very early treatment.
 
-If you are looking for something a bit more applied to get you going, you might want to check out Roback and Legler's *Beyond Multiple Linear Regression*, available for free at [https://bookdown.org/roback/bookdown-BeyondMLR/](https://bookdown.org/roback/bookdown-BeyondMLR/).
+For more accessible fare that doesn't lack on core details either:
 
-- *Applied Regression Analysis and Generalized Linear Models* by Fox (@fox_applied_2015) and *Generalized Linear Models with Examples in R* by Dunn and Smyth (@dunn_generalized_2018) are also more applied but not lacking on technical details either.
+- *An Introduction to Generalized Linear Models* is generally well regarded (@dobson_introduction_2018).
+- *Generalized Linear Models* is more accessible (@hardin_generalized_2018).
+- Roback and Legler's [*Beyond Multiple Linear Regression*](https://bookdown.org/roback/bookdown-BeyondMLR/), available for free.
+- *Applied Regression Analysis and Generalized Linear Models*  (@fox_applied_2015)
+- *Generalized Linear Models with Examples in R* (@dunn_generalized_2018) 
 
 
 ## Exercise
