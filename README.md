@@ -10,7 +10,7 @@ This is the repository for a book tentatively titled:
 - ~~- Something really cool but won't be published as such~~
 
 
-We've seen many people struggle with understanding how models work, just as we've struggled ourselves during our own journey into data science, and as we still do whenever something new comes along. We've also seen how much easier it is to understand models when they are presented in a way that builds on what's been learned, and when some of the mystery can be taken away with a few key ideas and clear examples. What's more, by showing a common threads among the wide universe of models, it's easier to understand how they work, and how they can be used in different situations. We hope this book will provide those who read it a strong, practical foundation and help empower them to explore more on their own.
+We've seen many people struggle with understanding how models work, just as we've struggled ourselves during our own journey into data science, and as we still do whenever something new comes along. We've also seen how much easier it is to understand models when they are presented in a way that builds on what's been learned, and when some of the mystery can be taken away with a few key ideas and clear examples. What's more, by showing common threads among the wide universe of models, it's easier to understand how they work, and how they can be used in different situations. We hope this book will provide those who read it a strong, practical foundation and help empower them to explore more on their own.
 
 
 

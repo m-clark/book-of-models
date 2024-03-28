@@ -1,10 +1,11 @@
 # Danger Zone
 
 
-Avoid/Don't do these things!
+The following are very brief thoughts on common pitfalls in modeling. This is not meant to be comprehensive, but rather a quick reference for common things we think you'd probably want to avoid. We're not going to tell you not to do these things, but we are going to tell you to be very careful if you do, and be ready to defend your choices.
 
 
 LM:
+
 - stepwise/best subset regression
 - focus on stats while ignoring predictive/practical results
 - forget to rely heavily on domain knowledge
@@ -13,7 +14,9 @@ LM:
 - compare models with R2
 
 GLM:
-- Use pseudo-R2
+
+- Use pseudo-R2. These aren't very useful and will never really be the R^2^ you get from OLS.
+
 
 Estimation:
 - overly worry about distribution if primary goal is interpretation
