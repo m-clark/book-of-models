@@ -12,8 +12,9 @@ use_condaenv("book-of-models")
 #| include: false
 #| label: r-data-import
 
-df_reviews = read.csv("data/movie_reviews.csv")
-df_happiness = read.csv("data/world_happiness_2018.csv")
+df_reviews = read_csv("data/movie_reviews.csv")
+df_happiness = read_csv("data/world_happiness_2018.csv")
+df_happiness_all = read_csv("data/world_happiness_all_years.csv")
 
 model_base = lm(rating ~ children_in_home + genre, data = df_reviews)
 model_interaction = lm(rating ~ children_in_home * genre, data = df_reviews)
@@ -692,7 +693,7 @@ In short, mixed models are a fun way to incorporate additional interpretive colo
 
 
 
-## Additive Models {#sec-gam}
+## Generalized Additive Models {#sec-gam}
 
 > Wiggle, wiggle, wiggle, yeah!
 > -- LMFAO
@@ -700,51 +701,54 @@ In short, mixed models are a fun way to incorporate additional interpretive colo
 <!-- 
 TODO: GAM gets a bit deep, but we do want to keep discussion of penalized approach, and ultimately a word on the random effect connection. -->
 
-But what if we want to allow the effect of a feature to vary depending on its own values? This is called a **curvilinear** effect, and we can use a linear model to capture this as well.
-<!-- 
-### Why Should You Care? {#sec-gam-why}
-
-Not every relationship is linear and not every relationship is monotonic. Sometimes, you need to be able to model a relationship that has a fair amount of nonlinearity -- they can appear as slight curves, waves, and any other type of wiggle that you can imagine. Additive models will give you the ability to model those nonlinear relationships between your features and target. -->
 
 ### When Straight Lines Aren't Enough {#sec-gam-curve}
 
-Fitting a line through your data is always going to be the best approach. While doing so often give us a wonderful ability to say important things about the relationships between variables and how one variable might influence another. What if we just want to dispense with the notion that we need to fit a straight line through some mass of the data? What if we relax the idea that we need a straight line and think in terms of fitting something curvy through the data?
+Fitting a line through your data is always going to be the best approach. Not every relationship is linear and not every relationship is monotonic. Sometimes, you need to be able to model a relationship that has a fair amount of nonlinearity -- they can appear as slight curves, waves, and any other type of wiggle that you can imagine.
 
-
-<!-- TODO: Maybe make a single plot. -->
 
 In other words, we can go from the straight line here:
-  
+
+:::{.content-visible when-format="html"}
 ```{r}
 #| echo: false
-#| label: fig-regular-linear-line
-#| fig-cap: A standard linear model
-
-df_happiness = read_csv('data/world_happiness_2018.csv')
-
+#| label: fig-regular-linear-effect
+#| fig-cap: A standard linear effect
 df_happiness |> 
   ggplot(aes(healthy_life_expectancy_at_birth, happiness_score)) +
   geom_point() +
-  geom_smooth(method = "lm", se = FALSE) +
-  theme_clean()
+  geom_smooth(method = "lm", se = FALSE)
+
+ggsave("img/lm-extend-linear_effect.png")
 ```
+:::
+:::{.content-visible when-format="pdf"}
+![A standard linear effect](img/lm-extend-linear_line.png){#fig-regular-linear-line}
+:::
+
 
 
 To the curve seen here:
-  
+
+:::{.content-visible when-format="html"}  
 ```{r, gam_model_line}
 #| echo: false
-#| label: fig-gam-model-line
-#| fig-cap: A generalized additive model
+#| label: fig-gam-model-effect
+#| fig-cap: A curvilinear effect
 
 df_happiness |> 
   ggplot(aes(healthy_life_expectancy_at_birth, happiness_score)) +
   geom_point() +
-  geom_smooth(method = 'gam', se = FALSE) +
-  theme_clean()
+  geom_smooth(method = 'gam', se = FALSE)
 ```
+:::
+:::{.content-visible when-format="pdf"}
+![A curvilinear effect](img/lm-extend-gam_line.png){#fig-gam-model-line}
+:::
 
-That curved line in @fig-gam-model-line is called a **spline**. It is created by a feature and expanding it to multiple columns, each of which is a function of the original feature. We then a fit a model to that data as usual. Oddly enough, the result is that we can use a linear model to fit a curve through the data. While this might not give us the same tidy explanation that a typical line would offer, we will certainly get better prediction, and a better understanding of the reality and complexity of the true relationship. But often it's useful for exploratory purposes, and tools like ggplot, plotly[^ggplotly] and others make it easy to do so.
+
+
+That curved line in @fig-gam-model-line is called a **spline**. It is created by a feature and expanding it to multiple columns, each of which is a function of the original feature. We then a fit a model to that data as usual. Oddly enough, the result is that we can use a linear model to fit a curve through the data. While this might not give us the same tidy explanation that a typical line would offer, we will certainly get better prediction if it's appropriate, and a better understanding of the reality and complexity of the true relationship. But often it's useful for exploratory purposes, and visualization tools like [ggplot]{.pack}, [plotly]{.pack}[^ggplotly] and others make it easy.
 
 [^ggplotly]: [Plotly]{.pack} is directly available in R and Python, and [plotnine]{.pack} is the [ggplot]{.pack} equivalent in Python.
 
@@ -789,28 +793,33 @@ fig.add_trace(
 
 :::
 
-Such models belong to a broad group of *generalized additive models* (**GAM**s). When we used an interactions, we explored how the feature-target relationship varies with another feature. When we fit mixed models and interactions earlier, we focused on our feature and its relationship to the target at different values of other features. When we use a GAM, we are going to focus on our feature, and see how the relationship changes at different values for it. How are we going to do this, you might ask? Conceptually, we will have a model that looks like this:
+Models incorporating this type of effect belong to a broad group of *generalized additive models* (**GAM**s). When we explored interactions and mixed models, we explored how the feature-target relationship varies with another feature. There we focused on our feature and its relationship to the target at different values of other features. When we use a GAM, our initial focus is just on a specific feature and how its relationship with the target changes at different feature values. How are we going to do this, you might ask? Conceptually, we will have a model that looks like this:
 
 $$
 y = f(x) + \epsilon
 $$
 
-This isn't much different than before, and technically, it really isn't. It's the same linear combination of features we have with a basic linear model. The difference is that we are going to let $f(x)$ be a function of a particular feature $x$ that allows us to capture other types of relationships by expanding the feature $x$ in different ways. Some approaches can be quite complex, tackling spatial, temporal, or other aspects of the data. But on the practical side are just extra columns in the **model matrix** that find their way into the model fitting function like any other feature.
-
-These additive features will allow us to capture nonlinearities in our data very nicely. At this point, you might be asking yourself, "Why couldn't I just use some type of polynomial regression or even a nonlinear regression?". Of course you could, but both have limitations relative to a GAM. If you are familiar with polynomial regression, where we add columns that are squares, cubes, etc. of the original feature, you can think of GAMs as a more general approach, and very similar in spirit. But with a lack of penalization, the typical polynomial regression tends to overfit the data you currently have, and **you** are forcing curves to fit through the data. To use a nonlinear model, you need to know what the underlying nonlinear form actually looks like before you can even specify the model, and without taking extra steps, such models likewise can tend to overfit. Furthermore, outside of well-known physical, chemical, or biological processes, it's rarely clear what the underlying functional form should be.
+This isn't actually any different than what you've seen - it really isn't! It's just shorthand for the input $x$ being fed into a function $f()$  of some kind. The difference is that we are going to expand the feature $x$ in some way, and so it will actually become multiple columns of input. Some approaches can be quite complex, tackling spatial, temporal, or other aspects of the data.  But practically, it's just extra columns in the **model matrix** that go into the model fitting function like any other feature. This helps us capture non-linear patterns in our data.
 
 
-A GAM handles this situation a little better in that it will produce a curve that will provide a good fit to the data without the need to know the underlying functional form. Additionally, the default penalized approach will help prevent overfitting for smaller and/or more complex settings. Note also that we can do this for multiple features at once, and we can even include interactions between features. We can also use different types of splines to capture different types of nonlinearities.  Here is another formal definition of a GAM that makes more clear we can deal with multiple features.
+At this point, you might be asking yourself, "Why couldn't I just use some type of polynomial regression or even a nonlinear regression?". Of course you could, but both have limitations relative to a GAM. If you are familiar with polynomial regression, where we add columns that are squares, cubes, etc. of the original feature, you can think of GAMs as a more general approach, and very similar in spirit. But that polynomial approach assumes a specific form of nonlinearity, and has no regularization. This means that it tends to overfit the data you currently have, and **you** are forcing curves to fit through the data. 
+
+To use a **nonlinear regression model**, you need to know what the underlying nonlinear form is. Without taking extra steps, such models can also overfit. Furthermore, outside of well-known physical, chemical, or biological processes, it's rarely clear what the underlying functional form should be. At the very least, we wouldn't know a formula for life expectancy and happiness!
+
+GAMs are better because they fit the data well without needing to know the underlying form.  They also prevent overfitting in smaller data and/or more complex settings. We can use them for multiple features at once, and even include interactions between features. We also can use different types of splines to capture different types of non-linearities.  Here is another formal definition of a GAM that makes more clear we can deal with multiple features.
 
 $$
 \hat{y} = \sum \mathbf{X_j\beta_j}
 $$
 
-In this case, each $X_j$ is a matrix of the feature and its **basis expansion**, and the $\beta_j$ are the coefficients for each of those basis expansion columns. But a specific X could also just be a single feature and it's coefficient to model a linear relationship. The nice thing is that you don't have to worry about the details of the basis expansion -- the package you choose will take care of that for you. You will have different options, and often the default is fine, but sometimes you'll want to play with both the technique, and how 'wiggly' you want the curve to be.
+In this case, each $X_j$ is a matrix of the feature and its **basis expansion**, and the $\beta_j$ are the coefficients for each of those basis expansion columns. But a specific X could also just be a single feature and it's coefficient to model a linear relationship. 
+
+The nice thing is that you don't have to worry about the details of the basis expansion - the package you choose will take care of that for you. You'll have different options, and often the default is fine, but sometimes you'll want to adjust the technique and how 'wiggly' you want the curve to be.
+
 
 ### A Standard GAM {#sec-gam-standard}
 
-Now that you have some background, let's give this a shot! In most respects, we can use the same sort of approach as we did with our other linear model examples. For our example here, we'll use model what was depicted in figure @fig-gam-model-line, which looks at the relationship between the `healthy_life_expectancy_at_birth` and `happiness_score` variables from the world happiness data.
+Now that you have some background, let's give this a shot! In most respects, we can use the same sort of approach as we did with our other linear model examples. For our example here, we'll use model what was depicted in figure @fig-gam-model-line, which looks at the relationship between the life expectancy and happiness score from the world happiness data (2018).
 
 :::{.panel-tabset}
 
@@ -835,7 +844,7 @@ summary(gam_model)
 
 ##### Python
 
-We can use the [statsmodels]{.pack} package in Python to fit a GAM, or alternatively, [pygam]{.pack}, and for consistency with previous models we'll choose the former. Honestly though, you should use R's [mgcv]{.pack}, as both require notably more work without much of the functionality. In addition, there is an ecosystem of R packages to further extend [mgcv's]{.pack} capabilities.
+We can use the [statsmodels]{.pack} package in Python to fit a GAM, or alternatively, [pygam]{.pack}, and for consistency with previous models we'll choose the former. Honestly though, you should use R's [mgcv]{.pack}, as these require notably more work without having even much of basic functionality. In addition, there is an ecosystem of R packages to further extend [mgcv]{.pack}'s capabilities.
 
 ```{python, python_gam_demo}  
 #| eval: false
@@ -848,7 +857,7 @@ import pandas as pd
 
 df_happiness = pd.read_csv('data/world_happiness_2018.csv')
 
-bs = BSplines(df_happiness['healthy_life_expectancy_at_birth'], df=[9])
+bs = BSplines(df_happiness['healthy_life_expectancy_at_birth'], df=9, degree=3)
 
 gam_happiness = GLMGam.from_formula(
   'happiness_score ~ healthy_life_expectancy_at_birth', 
@@ -895,33 +904,19 @@ d_0 |>
     gt() |> 
     tab_style(locations = cells_body(rows = 2), style = cell_text(size = 'small', color = 'gray50'))  |> # px or words but not actual font size specification
     tab_style(locations = cells_column_labels(), style = cell_text(color = 'gray50'))
-
-
 ```
 
 When you look at the model output, what you get will depend a lot on the tool you use, and the details are mostly beyond the scope we want to present here ([check out this for more](https://m-clark.github.io/generalized-additive-models/application.html)). But in general, the following information will be provided as part of the summary or as an attribute of the model object:
 
-- **coefficients**: The coefficients for each of the features in the model. For a GAM, these are the coefficients for the basis expansion columns, as well as standard linear feature effects. Typically, the total effect for a smooth term is displayed in the summary rather than the coefficients for each basis expansion column. Above we have the intercept and the summarized smooth term.
+- **coefficients**: The coefficients for each of the features in the model. For a GAM, these are the coefficients for the basis expansion columns, as well as standard linear feature effects.
 
-- **global test of significance**: Some tools will provide a test of the significance of the entire feature, as opposed to just the individual coefficients. This is a test of whether the feature is useful in the model at all.
+- **global test of a feature**: Some tools will provide a statistical test of the significance of the entire feature's basis expansion, as opposed to just the individual coefficients. Above we have the intercept and the summarized smooth term.
 
-- **edf**/**EDoF**: Effective degrees of freedom. This is a measure of wiggle in the relationship between the feature and the target. The higher the value, the more wiggle you have. If you have a value close to 1, then you have a linear relationship. With our current result, we can be pretty confident that a nonlinear relationship gives a better idea about the relationship between `healthy_life_expectancy_at_birth` and `happiness_score` than a linear one.
+- **edf**/**EDoF**: Effective degrees of freedom. This is a measure of wiggle in the relationship between the feature and the target. The higher the value, the more wiggle you have. If you have a value close to 1, then you have a linear relationship. With our current result, we can be pretty confident that a nonlinear relationship gives a better idea about the relationship between a country's life expectancy and happiness than a linear one.
 
-- **R-squared**: Adjusted/Pseudo $R^2$ or *deviance explained*. This is a measure of how much of the variance in the target is explained by the model. The higher the value, the better the model. Deviance explained is an analog to the unadjusted $R^2$ value for a Gaussian model that is used in the GLM setting. It's fine as a general assessment of prediction-target correspondence, but don't believe the actual value since we're not in a basic OLS setting.
+- **R-squared**: Adjusted/Pseudo $R^2$ or *deviance explained*. This is a measure of how much of the variance in the target is explained by the model. The higher the value, the better the model. Deviance explained is an analog to the unadjusted $R^2$ value for a Gaussian model that is used in the GLM setting. It's fine as a general assessment of prediction-target correspondence, and in this case, we might be feeling pretty good about the model.
 
-Far more important than any of these is the visual interpretation, and we can get plots from GAMs easily enough (results not shown).
-
-
-
-
-<!-- For the results of our gam model, one of the best places to look first is the `edf`/`EDoF` column or attribute. This column indicates the *effective degrees of freedom*. You can think of it as a measure of wiggle in the relationship between the predictor and the target. The higher the value, the more wiggle you have. If you have a value close to 1, then you have a linear relationship. With our current result, we can be pretty confident that a nonlinear relationship gives a better idea about the relationship between `total_reviews` and `rating` than a linear relationship. -->
-
-
-<!-- 
-Depending on the tool we used, we may also get information about our Adjusted $R^2$ (**R-sq.(adj)**) and **Deviance explained**, which is an analog to the unadjusted $R^2$ value for a Gaussian model. We also have **GCV** -- the generalized cross validation score. It is an estimate of the mean square prediction error based on a leave-one-out cross validation estimation process. Naturally, the lower the GCV, the better the model. -->
-
-TODO: NEED VISUAL
-
+Far more important than any of these is the visual interpretation, and we can get plots from GAMs easily enough.
 
 :::{.panel-tabset}
 
@@ -950,6 +945,7 @@ Unfortunately the default package plots are not pretty, and sadly aren't provide
 
 [^gamplot]: We used the [see]{.pack} in R for a quick plot. We also recommend its functionality via the [gratia]{.pack} package to visualize the derivatives, which will show more of where the effect is changing most.
 
+:::{.content-visible when-format="html"}
 ```{r}
 #| echo: false
 #| label: fig-gam-plot
@@ -965,23 +961,39 @@ gam_model = mgcv::gam(
 library(see)
 # can't change alpha?
 plot(
-  modelbased::estimate_expectation(gam_model, alpha = .1)
+  modelbased::visualisation_recipe(
+    modelbased::estimate_expectation(gam_model),
+    ribbon = list(alpha = 0.1),
+    point  = list(color = okabeito_colors()[1])
+    line   = list(color = okabeito_colors()[2])
+  ),
+  alpha = 0.5
 ) +
-  labs(title = 'Results from a GAM')
+  labs(
+    x = 'Healthy Life Expectancy at Birth',
+    y = 'Happiness',
+    title = 'GAM Results'
+  )
 
+ggsave("img/lm-extend-gam_plot.png")
 ```
+:::
+
+:::{.content-visible when-format="pdf"}
+![Visualizing a GAM](img/lm-extend-gam_plot.png){#fig-gam-plot}
+:::
 
 
-To summarize, we can use a GAM to model nonlinear relationships between our features and target. We can use splines to capture those nonlinearities, and we can use a penalized approach to control the amount of wiggle in our model. What's more we can interact the wiggle with other categorical and numeric features to capture even more complexity in our data.  Because of this, GAMs are a very powerful modeling tool that take us a step toward more complex models, but without the need to go all the way to a neural network or other more complex model, and they can still provide statistical inference information as a default. A great tool to have in your modeling toolbox!
+To summarize, we can use a GAM to model nonlinear relationships with a linear model approach. We can use splines to capture those nonlinearities, and we can use a penalized approach to control the amount of wiggle in our model. What's more we can interact the wiggle with other categorical and numeric features to capture even more complexity in our data. This allows us to model spatial, temporal, and other types of data that have complex relationships.
 
-
+GAMs are a very powerful modeling tool that take us a step toward more complex models, but without the need to go all the way to a neural network or similar. Plus they still provide standard statistical inference information. In short, they're a great tool for modeling!
 
 
 
 ## Quantile Regression {#sec-lm-extend-quantile}
 
 
-> Oh, you think the median is your ally. But you merely adopted the median; I was born in it, molded by it. I didn't see anything interesting until I was already a man. And by then, it was nothing to me but illuminating.
+> Oh, you think the median is your ally. But you merely adopted the median. I was born in it, molded by it. I didn't see anything interesting until I was already a statistician, and by then it was nothing to me but misleading.
 > -- Bane (probably)
 
 
