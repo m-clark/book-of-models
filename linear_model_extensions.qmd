@@ -208,12 +208,12 @@ p_init |>
   )
 
 # plot(modelbased::estimate_expectation(model_interaction), si_alpha = .01)
-ggsave("img/lm-extend-interaction_plot.png")
+ggsave("img/lm-extend-interaction_plot.svg")
 ```
 :::
 
 ::: {.content-visible when-format="pdf"}
-![Interaction plot](img/lm-extend-interaction_plot.png){#fig-model-interaction-plot}
+![Interaction plot](img/lm-extend-interaction_plot.svg){#fig-model-interaction-plot}
 :::
 
 So we can see that interactions can allow a linear effect to vary depending on the values of another feature. But the real take home message from this is that *the general effect is actually not just a straight line*! The linear effect *changes* depending on the setting. Furthermore, the effect for children only applies when 'genre' is at its default group, or when other features are at their default or zero.
@@ -330,11 +330,11 @@ ggplot(df_reviews, aes(length_minutes, rating)) +
   geom_point() +
   geom_smooth(method="lm", se = FALSE)
 
-ggsave("img/lm-extend-length_release_rating.png")
+ggsave("img/lm-extend-length_release_rating.svg")
 ```
 :::
 :::{.content-visible when-format="pdf"}
-![Linear relationship between length of movie and rating](img/lm-extend-length_release_rating.png){#fig-length-release-rating}
+![Linear relationship between length of movie and rating](img/lm-extend-length_release_rating.svg){#fig-length-release-rating}
 :::
 
 
@@ -402,7 +402,7 @@ see::plots(
   # scale_color_brewer(palette = 'Set1') &
   theme(panel.grid.major.y = element_line(color = scales::alpha('black', .1)))
 
-ggsave("img/lm-extend-length_genre_rating.png")
+ggsave("img/lm-extend-length_genre_rating.svg")
 
 # Calculate ICC for each feature
 # feature_icc = purrr::map_df(stringr::str_subset(colnames(df_reviews), '_0|_sc'), function(feature) {
@@ -417,7 +417,7 @@ ggsave("img/lm-extend-length_genre_rating.png")
 
 :::
 :::{.content-visible when-format="pdf"}
-![Genre Effects on Length and Rating](img/lm-extend-length_genre_rating.png){#fig-length-genre-rating}
+![Genre Effects on Length and Rating](img/lm-extend-length_genre_rating.svg){#fig-length-genre-rating}
 :::
 
 A very quick examination of @fig-length-genre-rating might suggest that the rating varies by genre, and that the relationship between length and rating varies significantly over the different genres. The group means in the right panel show variability across genre. In addition, on the left panel, some genres show a strong positive relationship, some show less of a positive relationship, a couple even show a negative relationship, and one even looks flat. We can also see that they would have different intercepts. This is a very important thing to know about your data! If we had just run a model with length as a feature and nothing else, we would have missed this important information.
@@ -444,12 +444,12 @@ p_slopes_release = ggplot(mods_release, aes(length_minutes, .fitted, color = rel
 
 p_slopes_release
 
-ggsave("img/lm-extend-length_release_rating_year.png")
+ggsave("img/lm-extend-length_release_rating_year.svg")
 
 ```
 :::
 :::{.content-visible when-format="pdf"}
-![Release Year Effects on Length and Rating](img/lm-extend-length_release_rating_year.png){#fig-length-release-rating-year}
+![Release Year Effects on Length and Rating](img/lm-extend-length_release_rating_year.svg){#fig-length-release-rating-year}
 :::
 
 ### Overview of Mixed Models {#sec-mixed-models-overview}
@@ -490,7 +490,9 @@ A simple random intercept and slope is just the start. As an example, we can let
 
 ### Using a Mixed Model  {#sec-mixed-models-using}
 
-To use mixed models, at a minimum we have to specify a group effect in some way, but that's the primary difference from our previous approaches used for linear or generalized linear models. We can do this in a few different ways, but we'll start with the simplest way. We do it for having just a random intercept for genre, and then we'll add a random slope for length by genre. In both cases we use the standardized version of length, as we have done elsewhere.
+One of the key advantages of a mixed is that we can use it when the observations within a group are not independent. This is a very common situation in many fields, and it's a good idea to consider this when you have grouped data. As an example we'll use the happiness data for all available years, and we'll consider the country as a grouping variable. In this case, observations within a country are likely to be more similar to each other than to observations from other countries. This is a classic example of when to use a mixed model. This is also a case where we wouldn't just throw in country as a feature like any other factor since there `r n_distinct(df_happiness_all$country)` countries in the data.
+
+In general, to use mixed models we have to specify a group effect for the model, but that's the primary difference from our previous approaches used for linear or generalized linear models. For our example, we'll look at a model with a random intercept of country, and one that adds a random slope of for the yearly trend per capita. This means that we are allowing the intercepts and slopes to vary across countries. Furthermore, by recoding year to start at zero, we're allowing the starting point for country (the intercept) to vary across countries along with the yearly trend. For a larger effect, we also divide the yearly trend by 10, so the coefficient provides the change in happiness score per decade.
 
 
 :::{.panel-tabset}
@@ -505,15 +507,20 @@ We'll use the [lme4]{.pack} package in R which is the most widely used package f
 
 library(lme4)
 
+df_happiness_all = read_csv("data/world_happiness_all_years.csv")
+
+df_happiness_all = df_happiness_all |> 
+  mutate(year_0 = (year - min(year))/10)
+
 # random intercepts are specified by a 1
 fit_ran_int = lmer(
-  rating ~ length_minutes_sc + (1 | genre), 
-  df_reviews
+  happiness_score ~ year_0 + (1| country), 
+  df_happiness_all
 )
 
 fit_ran_slope = lmer(
-  rating ~ length_minutes_sc + (1 + length_minutes_sc | genre), 
-  df_reviews
+  happiness_score ~ year_0 + (1 + year_0 | country), 
+  df_happiness_all
 )
 
 summary(fit_ran_int)
@@ -532,22 +539,27 @@ As with our recommendation with GAMs later, R is the better tool for mixed model
 #| label: python_mixed_model
 import statsmodels.api as sm
 
-fit_ran_int = sm.MixedLM.from_formula(
-  "rating ~ length_minutes_sc", 
-  df_reviews, 
-  re_formula= '1',
-  groups=df_reviews["genre"]
+df_happiness_all = pd.read_csv("data/world_happiness_all_years.csv")
+
+df_happiness_all = (
+  df_happiness_all
+  .assign(year_0 = lambda x: (x['year']- x['year'].min())/10)
 )
+
+fit_ran_int = sm.MixedLM.from_formula(
+  "happiness_score ~ year_0", 
+  df_happiness_all, 
+  re_formula='1',
+  groups=df_happiness_all["country"]  
+).fit()
 
 fit_ran_slope = sm.MixedLM.from_formula(
-  "rating ~ length_minutes_sc ", 
-  df_reviews, 
-  re_formula='length_minutes_sc',
-  groups=df_reviews["genre"]  
-)
+  "happiness_score ~ year_0", 
+  df_happiness_all, 
+  re_formula='1 + year_0',
+  groups=df_happiness_all["country"]  
+).fit()
 
-fit_ran_int = fit_ran_int.fit()
-fit_ran_slope = fit_ran_slope.fit(maxiter=1000)
 
 fit_ran_int.summary()
 fit_ran_slope.summary()
@@ -555,60 +567,72 @@ fit_ran_slope.summary()
 
 :::
 
-@tbl-mixed-model shows some typical output from a mixed model, focusing on the random slope model. The fixed effect part (Fixed) is your basic GLM result and interpreted the same way. Nothing new there, and we can see a general positive relationship between length and rating, though maybe not a strong one. But the random effects (Random) are where the action is! We can see the standard deviation of the random effects, i.e., the intercepts and slopes. We can also see the standard deviation of the residuals, which  is conceptually the same as what you saw with standard linear regression. We can also see the correlation between the random intercepts and random slopes. Depending on your tool, the default may be in terms of variances and covariances rather than standard deviations and correlations, but otherwise the same.
+@tbl-mixed-model shows some typical output from a mixed model, focusing on the random slope model. The fixed effect part (Fixed) is your basic GLM result and interpreted the same way. Nothing new there, and we can see a slight positive decade trend in happiness, though maybe not a strong one. But the random effects (Random) are where the action is! We can see the standard deviation of the random effects, i.e., the intercepts and slopes. We can also see the residual (observation level) standard deviation, which  is conceptually the same as what you saw with standard linear regression. We can also see the correlation between the random intercepts and random slopes. Depending on your tool, the default may be in terms of variances and covariances rather than standard deviations and correlations, but otherwise the same.
 
 ```{r}
 #| echo: false
 #| label: tbl-mixed-model
 #| tbl-cap: Mixed model results
+#| out.width: 90%
 
 library(lme4)
 
-# random intercepts are specified by a 1
+library(countrycode)
+df_happiness_all_show = df_happiness_all |> 
+  mutate(
+    country2 = countrycode::countrycode(country, 'country.name', 'iso3c'),
+    country2 = ifelse(is.na(country2), str_sub(country, end = 3), country2),
+    country = country2,
+    year_0 = (year - min(year))/10
+  )
+  
+
 fit_ran_int = lmer(
-  rating ~ length_minutes_sc + (1 | genre), 
-  df_reviews
+  happiness_score ~ year_0 + (1| country), 
+  df_happiness_all_show
 )
 
 fit_ran_slope = lmer(
-  rating ~ length_minutes_sc + (1 + length_minutes_sc | genre), 
-  df_reviews
+  happiness_score ~ year_0 + (1 + year_0 | country), 
+  df_happiness_all_show
 )
 
 vc = fit_ran_slope |> mixedup::extract_vc(ci_level = 0)
 vcor = fit_ran_slope |> mixedup::extract_vc(ci_level = 0, show_cor = TRUE)
-vcor = vcor$Cor$genre
+vcor = vcor$Cor$country
 cor_sign = ifelse(sign(vcor[2]) > 0, 'positive', 'negative')
 
 
-# mixedup::summarise_model(fit_ran_slope) 
-# library(flextable)
-
-# NOTE: flextable continues to have issues with pdf; I've seen the same undefined error creep up repeatedly on the issues, and the attempts to fix seem to be in vain. Unfortunately, it's also the better format for mixed and GAM models. Maybe revisit or hope gtsummary eventually does better.
-# flextable::as_flextable(fit_ran_slope) |> 
-#   set_header_labels(
-#     estimate = 'Estimate',
-#     std.error = 'Std. Err.',
-#     statistic = 't value',
-#     p.value = 'Pr(>|t|)'
-#   ) 
-# broom.mixed::tidy(fit_ran_slope)
 # gtsummary::tbl_regression(fit_ran_slope, tidy_fun = broom.mixed::tidy) # doesn't include intercept and default is 'include everything'.
-broom.mixed::tidy(fit_ran_slope) |>
+# broom.mixed::tidy(fit_ran_slope) |>
+#     mutate(
+#       effect = ifelse(str_detect(effect, 'ran_pars'), 'Random', 'Fixed'),
+#       term = ifelse(str_detect(term, 'Observation'), '', term),
+#       term = str_remove_all(term, '\\(|\\)'),
+#     ) |>
+#     group_by(effect) |>
+#     gt() |> 
+#     sub_missing(
+#       missing_text = "",
+#     )
+parameters::parameters(fit_ran_slope) |> 
     mutate(
-      effect = ifelse(str_detect(effect, 'ran_pars'), 'Random', 'Fixed'),
-      term = ifelse(str_detect(term, 'Observation'), '', term),
-      term = str_remove_all(term, '\\(|\\)'),
+      across(where(is.numeric), \(x) as.character(round(x, 2))),
+      Effects = str_to_title(Effects)
     ) |>
-    group_by(effect) |>
+    select(-c(t:p)) |> 
+    group_by(Effects) |>
     gt() |> 
     sub_missing(
       missing_text = "",
     )
-
 ```
 
-In this case, we can see notable variability attributable to the random effects. How do we know? Well, if if our movie rating is on a 1-5 scale, and we naturally have a standard deviation of `r round(sd(df_reviews$rating), 2)` for rating before accounting for anything else, we mights surmise that having an effect of that size for just genre (roughly `r round(vc$sd[1], 2)`)  is a relatively notable amount. We can also see that the correlation between the random intercepts and random slopes is  `r cor_sign`, which means that the groups with higher intercepts have `r ifelse(cor_sign == 'positive', 'more positive', 'more negative')` slopes. Now let's look at the estimates for the random effects for the model with both intercepts and slopes[^mixedup].
+```{r}
+happy_range = round(range(df_happiness_all$happiness_score))
+```
+
+In this case, we can see notable variability attributable to the random effects. How do we know? Well, if if our happiness score is on a roughly `r happy_range[1]` - `r happy_range[2]`  scale, and we naturally have a standard deviation of `r round(sd(df_happiness_all$happiness_score), 2)` for it before accounting for anything else, we might surmise that having an effect of that size for just country (roughly `r round(vc$sd[1], 2)`)  is a relatively notable amount. We can also see that the correlation between the random intercepts and random slopes is  `r cor_sign`, which means that the groups with higher starting points have `r ifelse(cor_sign == 'positive', 'more positive', 'more negative')` slopes. Now let's look at the estimates for the random effects for the model with both intercepts and slopes[^mixedup].
 
 [^mixedup]: One of your authors provides a package for mixed models in R called [mixedup]{.pack}. It provides a nice way to extract random effects and summarize such models ([link](https://github.com/m-clark/mixedup)).
 
@@ -618,8 +642,8 @@ In this case, we can see notable variability attributable to the random effects.
 ##### R
 
 ```{r}
+#| eval: false
 #| label: r_mixed_model_random_effects
-
 ranef = ranef(fit_ran_slope)
 # mixedup::extract_random_effects(fit_ran_slope) # prettier version
 ```
@@ -629,7 +653,6 @@ ranef = ranef(fit_ran_slope)
 ```{python}
 #| eval: false
 #| label: python_mixed_model_random_effects
-
 ranef = pd.DataFrame(fit_ran_slope.random_effects).T
 ```
 
@@ -641,27 +664,93 @@ ranef = pd.DataFrame(fit_ran_slope.random_effects).T
 #| label: fig-random-effects
 #| fig-cap: Random effects for mixed model
 #| out-width: 100%
-x = visibly::plot_coefficients(fit_ran_slope, ranef = TRUE, which_ranef = 'genre') 
+x = visibly::plot_coefficients(fit_ran_slope, ranef = TRUE, which_ranef = 'country') 
+
+all_re = mixedup::extract_random_effects(fit_ran_slope)
+re_usa = all_re  |> 
+    filter(group == 'USA')
+ran_coef_usa = mixedup::extract_random_coefficients(fit_ran_slope)  |> 
+    filter(group == 'USA')
+ran_ef_extreme_pos =  all_re |>
+    arrange(desc(value)) |> 
+    group_by(effect) |> 
+    slice(1:3)
+ran_ef_extreme_neg =  all_re |>
+    arrange(value) |> 
+    group_by(effect) |> 
+    slice(1:3)
+
+all_re_wide =  mixedup::extract_random_coefficients(fit_ran_slope)  |> 
+    select(group, effect, value) |>
+    pivot_wider(names_from = effect, values_from = value)
+
+p_re_cor = all_re_wide |>
+    ggplot(aes(x = Intercept, y = `year_0`)) +
+    geom_hline(yintercept = 0, color = 'gray75', linewidth = 2) +
+    geom_point(aes(), 
+        data = all_re_wide |> filter(group %in% c(ran_ef_extreme_neg$group, ran_ef_extreme_pos$group)), 
+        color = okabe_ito[2],
+        size =3
+    ) +
+    geom_point(aes()) +
+    geom_text_repel(
+      aes(label = group, x = Intercept, y = `year_0`), 
+      segment.color = 'gray75',
+      size = 2.5,
+      max.overlaps = 20
+  ) +
+  labs(
+    x = 'Intercept', 
+    y = 'Decade\nTrend',
+    subtitle = 'Estimated random effects for country',
+  )
+    
+    
 
 (
-  x[[1]] + labs(y = 'Intercept') + 
-  x[[2]] + labs(y = 'Length')
+  (x[[1]] + labs(x = '', y = 'Intercept')) /
+  (x[[2]] + labs(x = 'Country', y = 'Decade\nTrend')) 
 ) &
-  scale_x_discrete(guide = guide_axis(n.dodge=2))
+  scale_x_discrete(guide = guide_axis(n.dodge=2)) &
+  plot_layout(guides = 'collect') &
+  plot_annotation(
+    subtitle = 'Estimated random effects for country',
+  ) &
+  theme(
+    axis.text.x = element_text(size = 4, angle = 90, hjust = 1, vjust = .5),
+    panel.grid.major = element_blank()
+    # axis.text.x = element_blank(),
+  )
 
-ggsave("img/lm-extend-random_effects.png")
+ggsave("img/lm-extend-random_effects.svg")
 ```
 :::
 :::{.content-visible when-format="pdf"}
-![Random effects for mixed model](img/lm-extend-random_effects.png){#fig-random-effects}
+![Random effects for mixed model](img/lm-extend-random_effects.svg){#fig-random-effects}
 :::
 
 
-How do we interpret these *deviations*? For starters, they are deviations from the fixed effect for the intercept and slope. So here that value is zero, and anything negative is below that value, and anything positive is above that value. If we want the specific effect for a genre, we just add the random effect to the fixed effect. So, for example, if we wanted to know the effect of the kids genre, we would add the random effect for the kids genre to the fixed effect for the intercept. This is exactly what we did in the previous section with the interaction model.
+How do we interpret these *deviations*? For starters, they are deviations from the fixed effect for the intercept and year trend coefficient. So here that means anything negative is an intercept or slope below the corresponding fixed effect value, and anything positive is above that value. If we want the specific effect for a country, we just add the random effect value to the fixed effect value, and we can refer to those as random coefficients. So, for example, if we wanted to know the effects for the US, we would add its random effects to the fixed effect. This is exactly what we did in the previous section with the interaction model.
 
-For the intercept plot, we see that Kids, Sci-Fi, and Action/Adventure have a lower default value for rating, while Drama and Comedy start off relatively higher. These values reflect what's happening when the length is zero, which, since it's standardized, means that we're talking about what's happening for an average length movie.
 
-The length effect for comedy suggests that it has a smaller slope, and relative to the global coefficient, this suggests that comedies can wear out their welcome faster than other genres. Longer romance movies, on the other hand, have an even larger positive coefficient, and so seem to do better seem to do better than short ones- maybe all the short ones are mostly awful Rom-Coms!
+So let's plot those random coefficients together to see how they relate to each other. 
+
+:::{.content-visible when-format="html"}
+```{r}
+#| echo: false
+#| label: fig-random-effects-cor-plot
+#| fig-cap: Random effects for mixed model
+
+p_re_cor
+
+ggsave("img/lm-extend-random_effects_cor_plot.svg")
+```
+:::
+:::{.content-visible when-format="pdf"}
+![Random effects for mixed model](img/lm-extend-random_effects_cor_plot.svg){#fig-random-effects-cor-plot}
+:::
+
+From this plot, we can sense why the estimated random effect correlation was negative. For individual country results, we can see that recently war-torn regions like Syria and Afghanistan have declined over time even while they started poorly as well. Some like Guinea and Togo started poorly but have improved remarkably over time.  Many western countries started high and mostly stayed that way, though generally with a slight decline. Perhaps there's only one direction to go when you're already starting off well!
 
 :::{.callout type='tip' title='Always scale features for mixed models' collapse="true"}
 
@@ -672,21 +761,19 @@ Your authors have run a lot of these models. Save yourself some trouble and stan
 
 ### Mixed Model Summary {#sec-mixed-models-summary}
 
-For a model with just one feature, we certainly had a lot to talk about! And this is just a glimpse of what mixed models have to offer, and the approach can be even richer than what we've just seen.  But you might be asking- Why don't I just put genre into the model like other categorical features? In the case of genre, that's okay. Now consider thousands of United States county voting percentages for elections over time- would you just put 3000+ county indicator variables into the model as is? You can try, but you'll likely run into estimation problems for typical GLM settings. 
+For a model with just one feature, we certainly had a lot to talk about! And this is just a glimpse of what mixed models have to offer, and the approach can be even richer than what we've just seen.  But you might be asking- Why don't I just put genre into the model like other categorical features? In the case of genre for movie reviews where there are few groups, that's okay. But doing that with country or similar as in our model would typically result in estimation issues due to so many parameters.  In general mixed models provide several advantages for the data scientist:
 
-In addition, mixed models help explore the correlation of group effects, as well as mixed models estimate the correlation of the observations within groups. Default mixed models assume this correlation is constant, but this can be modified to allow for different correlation structures. For example, in a longitudinal study you might want to assume that the correlation between observations within a group decreases as the time between observations increases. This is a very common approach for longitudinal data, where the correlation between observations decreases as the time between observations increases.
-
-In general mixed models provide several advantages for the data scientist:
-
-- Any coefficient can be allowed to vary by groups, including other random effects. It actually is just an interaction in the end as far as the linear predictor is concerned.
+- Any coefficient can be allowed to vary by groups, including other random effects. It actually is just an interaction in the end as far as the linear predictor and conceptual model is concerned.
 - The group-specific effects are *penalized*, which shrinks them toward the overall mean, and makes this a different approach from just adding a 'mere interaction'. This helps avoid overfitting, and that penalty is related to the variance estimate of the random effect. In other words, you can think of it as running a penalized linear model where the penalty is applied to the group-specific effects (see @#sec-estim-penalty).
 - Also unlike standard interaction approaches, we can estimate the covariance of the random effects, and specify different covariance structures for observations within groups.
+- Because of the way they are estimated, mixed models can account for lack of independence of observations[^indieobs], which is a common issue in many datasets. This is especially important when you have repeated measures, or when you have a hierarchical structure in your data, such as students within schools, or patients within hospitals.
 - Standard modeling approaches can estimate these difficult models very efficiently, even with thousands of groups.
 - The group effects are like a very simplified **embedding** (@sec-data-cat), where we have taken a categorical feature and turned it into a numeric one, like those shown in @fig-random-effects. This may help you understand other embedding techniques that are used in other places like deep learning if you think of this as the simplest embedding approach.
 - When you start to think about random effects and/or distributions for effects, you're already thinking like a Bayesian (@sec-estim-bayes), who is always thinking about the distributions for various effects. Mixed models are the perfect segue from standard linear model estimation to Bayesian estimation, where everything is random.
 - The random effect is akin to a latent variable of 'unspecified group causes'. This is a very powerful idea that can be used in many different ways, but importantly, you might want to start thinking about how you can figure out what those 'unspecified' causes may be!
 - Group effects will almost always improve your model's performance relative to not having them, especially if you weren't including those groups in your model because of how many groups there were.
 
+[^indieobs]: Independence of observations is a key assumption in linear regression models, and when it's violated, the standard errors of the coefficients are biased, which can lead to incorrect inferences. Rather than hacking a model (so-called 'fixed effects' models) or 'correcting' the standard error (e.g. with some 'sandwich' or estimator), mixed models can account for this lack of independence through the model itself.
 
 In short, mixed models are a fun way to incorporate additional interpretive color to your model, while also getting several additional benefits to help you understand your data!
 
@@ -719,11 +806,12 @@ df_happiness |>
   geom_point() +
   geom_smooth(method = "lm", se = FALSE)
 
-ggsave("img/lm-extend-linear_effect.png")
+ggsave("img/lm-extend-linear_effect.svg")
 ```
 :::
+
 :::{.content-visible when-format="pdf"}
-![A standard linear effect](img/lm-extend-linear_line.png){#fig-regular-linear-line}
+![A standard linear effect](img/lm-extend-linear_effect.svg){#fig-regular-linear-effect}
 :::
 
 
@@ -740,10 +828,13 @@ df_happiness |>
   ggplot(aes(healthy_life_expectancy_at_birth, happiness_score)) +
   geom_point() +
   geom_smooth(method = 'gam', se = FALSE)
+
+ggsave("img/lm-extend-nonlinear_effect.svg")
 ```
 :::
+
 :::{.content-visible when-format="pdf"}
-![A curvilinear effect](img/lm-extend-gam_line.png){#fig-gam-model-line}
+![A curvilinear effect](img/lm-extend-nonlinear_effect.svg){#fig-gam-model-effect}
 :::
 
 
@@ -950,9 +1041,6 @@ Unfortunately the default package plots are not pretty, and sadly aren't provide
 #| echo: false
 #| label: fig-gam-plot
 #| fig-cap: Visualizing a GAM
-# TODO: GRAB DATA FROM SEE PACKAGE RESULT AND REPLOT TO CONTROL COLOR/ALPHA ETC.
-
-
 gam_model = mgcv::gam(
   happiness_score ~ s(healthy_life_expectancy_at_birth, bs = "bs"), 
   data = df_happiness
@@ -964,8 +1052,8 @@ plot(
   modelbased::visualisation_recipe(
     modelbased::estimate_expectation(gam_model),
     ribbon = list(alpha = 0.1),
-    point  = list(color = okabeito_colors()[1])
-    line   = list(color = okabeito_colors()[2])
+    point  = list(color = "#E69F00"),
+    line   = list(color = "#56B4E9")
   ),
   alpha = 0.5
 ) +
@@ -975,12 +1063,12 @@ plot(
     title = 'GAM Results'
   )
 
-ggsave("img/lm-extend-gam_plot.png")
+ggsave("img/lm-extend-gam_plot.svg")
 ```
 :::
 
 :::{.content-visible when-format="pdf"}
-![Visualizing a GAM](img/lm-extend-gam_plot.png){#fig-gam-plot}
+![Visualizing a GAM](img/lm-extend-gam_plot.svg){#fig-gam-plot}
 :::
 
 
@@ -993,7 +1081,7 @@ GAMs are a very powerful modeling tool that take us a step toward more complex m
 ## Quantile Regression {#sec-lm-extend-quantile}
 
 
-> Oh, you think the median is your ally. But you merely adopted the median. I was born in it, molded by it. I didn't see anything interesting until I was already a statistician, and by then it was nothing to me but misleading.
+> Oh, you think the median is your ally. But you merely adopted the median. I was born in it, molded by it. I didn't see anything interesting until I was already a data scientist, and by then it was nothing to me but misleading.
 > -- Bane (probably)
 
 
