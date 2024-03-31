@@ -76,7 +76,7 @@ Note that trying to do both short and long confused ChatGPT.
 
 
 
-## Data Generation Setup
+### Data Generation Setup
 
 ```{r} 
 #| label: import-ready-made-data
@@ -243,7 +243,7 @@ generate_data = function(n, seed = 42) {
 }
 ```
 
-## Generate, Explore and Test
+### Generate, Explore and Test
 
 ```{r}
 df = generate_data(1000, seed = 42)
@@ -330,7 +330,7 @@ ggplot(df, aes(length_minutes, rating)) +
     geom_smooth(method = "gam")
 ```
 
-## Feature Processing
+### Feature Processing
 
 ```{r}
 # Subtract minimum from review year, release year
@@ -351,7 +351,7 @@ df_processed <- df |>
 
 ```
 
-## Save
+### Save
 ```{r}
 write_csv(
     df, 
@@ -361,4 +361,36 @@ write_csv(
     df_processed, 
     "data/movie_reviews.csv" # no need to save as separate objects
 )
+```
+
+## World Happiness
+
+
+
+```{r}
+df_happiness = read_csv("data/world_happiness_data_all_years_raw.csv") |> 
+    janitor::clean_names() |>
+    janitor::remove_empty() 
+
+skimr::skim(df_happiness)
+
+df_happiness = df_happiness |> 
+    rename(
+        country = country_name,
+        happiness_score = life_ladder,
+        life_exp = healthy_life_expectancy_at_birth,
+        log_gpd_pc = log_gdp_per_capita,
+    ) 
+
+df_happiness = df_happiness |> 
+    left_join(
+        df_happiness |> 
+        mutate(across(where(is.numeric) & !(year), \(x) scale(x)[, 1])) |> 
+        rename_with(\(x) str_c(x, "_sc"), .cols = -c(year, country))
+    )
+
+write_csv(
+    df_happiness, 
+    "data/world_happiness_all_years.csv"
+)   
 ```

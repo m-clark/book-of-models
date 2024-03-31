@@ -11,6 +11,7 @@ library(ggrepel)
 library(ggborderline)
 library(geomtextpath)
 library(patchwork)
+library(scico)
 
 # Tables
 

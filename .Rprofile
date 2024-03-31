@@ -1,6 +1,5 @@
-library(tidyverse)
-library(patchwork)
-library(gt)
+source("load_packages.R")
+source("functions/utils.R")
 
 filter = dplyr::filter
 
@@ -10,11 +9,12 @@ filter = dplyr::filter
 # sysfonts::font_add_google(name = "Roboto Condensed", family = "roboto-condensed")
 
 # nonsense required for ggplot + latex to figure things out, still doesn't work;
-# NOTE: it seems the font will render correctly via a browser viewer, but not in acrobat reader or acrobat, which is 
+# NOTE: it seems the font will render correctly via a browser viewer (sometimes), but not in acrobat reader or acrobat, which is 
 # ridiculous but at least we can save the browser pdf for correct rendering.
 # probably the only way to get plots to behave for latex/pdf will likely be to save them out and use conditional 
 # includegraphics; this is also partly ggplot as it will give warnings for pdf but not html
-extrafont::loadfonts(quiet = TRUE)
+# library(extrafont)
+extrafont::loadfonts(quiet = FALSE)
 # extrafont::font_import(pattern = "RobotoCondensed", prompt = FALSE)
 # extrafont::font_import(pattern = "Arial Narrow", prompt = FALSE)
 # showtext::showtext_auto()
@@ -27,9 +27,10 @@ extrafont::loadfonts(quiet = TRUE)
 
 # plot_ff = stringr::str_to_title(ifelse(length(check_fonts) == 0, '', plot_fonts[which.min(check_fonts)]))
 
+
 plot_ff = 'Roboto Condensed'
 # plot_ff = 'Arial Narrow'
-# plot_ff = NULL
+# plot_ff = 'Roboto'
 
 
 theme_clean = function(
@@ -214,7 +215,14 @@ tbl_summary = function(..., title = '', butcher = TRUE) {
 }
 
 
-
+ggsave = function(filename, width = 8, height = 6, ...) {
+  ggplot2::ggsave(
+    filename = filename,
+    width = width,
+    height = height,
+    ...
+  )
+}
 
 
 
