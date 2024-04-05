@@ -48,7 +48,7 @@ Here are the key ideas we'll cover in this chapter:
 
 ### Why this matters
 
-Machine learning applications help define the modern world and how we interact with it.  There are few aspects of modern society that have not been touched by it in some way. By understanding the basic ideas behind machine learning, you will be able to understand the models and techniques that are used in these applications, and be able to apply them to your own work. You'll also be able to understand the limitations of these models.
+Machine learning applications help define the modern world and how we interact with it.  There are few aspects of modern society that have not been touched by it in some way. With a basic understanding of the core ideas behind machine learning, you will better understand the models and techniques that are used in ML applications, and be able to apply them to your own work. You'll also be able to understand the limitations of these models, and not think of machine learning as 'magic'. 
 
 
 ### Good to know
@@ -115,7 +115,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 
 import pandas as pd
 
-df_movie_reviews = pd.read_csv("data/movie_reviews_processed.csv")
+df_movie_reviews = pd.read_csv("data/movie_reviews.csv")
 
 X = df_movie_reviews[
     [
@@ -167,7 +167,7 @@ In R, we can use the `yardstick` package, which has a consistent interface for a
 library(mlr3measures)
 
 # convert rating_good to factor for yardstick input
-df_movie_reviews = read_csv("data/movie_reviews_processed.csv") |> 
+df_movie_reviews = read_csv("data/movie_reviews.csv") |> 
   mutate(rating_good = factor(rating_good, levels = c(0, 1), labels = c("bad", "good")))
 
 model_lin_reg = lm(
@@ -569,15 +569,18 @@ The take home point is this: our primary concern is generalization error. We can
 
 ## Regularization {#sec-ml-regularization}
 
-As we've seen, a key aspect of the machine learning approach is to generalize to new data.  One way to improve generalization is through the use of **regularization**, which is a general approach to penalize complexity in a model, and is typically used to prevent **overfitting**. Overfitting occurs when a model fits the training data very well, but does not generalize well to new data, and this is often due to the model being too complex for the data setting, and is fitting to noise in the training data that isn't present in other data. Note that the converse can also happen, and is often the case with simpler models, where the model does not fit the training data well, and so does not generalize well to new data either, and this is known as **underfitting**[^underfit].
+We now are very aware that a key aspect of the machine learning approach that we want our model to work well with new data.  One way to improve generalization is through the use of **regularization**, which is a general approach to penalize complexity in a model, and is typically used to prevent **overfitting**. Overfitting occurs when a model fits the training data very well, but does not generalize well to new data. This usually happens when the model is too complex and starts fitting to random noise in the training data. We can also have the opposite problem, where the model is too simple to capture the patterns in the data, and this is known as **underfitting**[^underfit].
 
-We demonstrate this in the following visualization. The first plot shows results from a model that is notably complex, and in doing so presents a very wiggly result. This is an example of overfitting, and is often seen in models that are too complex for the underlying data. The second plot shows a straight line fit as we'd get from linear regression, which is an example of underfitting. The third plot shows a model that is a better fit to the data, and is an example of a model that is complex enough to capture the nonlinear aspect of the data, but not so complex that it is trying to capitalize on noise in the data. 
+[^underfit]: Underfitting is a notable problem in many academic disciplines, where the models are often too simple to capture the complexity of the underlying process. Typically the models are assume linear relationships without any interactions, and the underlying process may be anything but. These disciplines were slow to adopt machine learning techniques as they are often more difficult to interpret, and so seen as not as useful for understanding the underlying theoretical process. However, one could make the rather obvious argument that 'understanding' an unrealistic result is not very useful either, and that the goal should be to understand the underlying process however we can, and not just the model we've chosen to use.
 
+In the following demonstration, the first plot shows results from a model that probably too complex for the data setting. The curve is very wiggly result as it tries as much of the data as possible, and is an example of overfitting. The second plot shows a straight line fit as we'd get from linear regression. It's too simple for the underlying feature-target relationship, and is an example of underfitting. The third plot shows a model that is a better fit to the data, and is an example of a model that is complex enough to capture the nonlinear aspect of the data, but not so complex that it capitalizes on a lot of noise. 
+
+:::{.content-visible when-format="html"}
 ```{r}
 #| echo: false
 #| label: fig-over-under
 #| fig-cap: Overfitting and Underfitting
-
+#| out-width: 100%
 
 # create sample data
 set.seed(123)
@@ -619,13 +622,25 @@ p_goldie = ggplot(df_train, aes(x, y)) +
   labs(subtitle = "Better") +
   theme_void()
 
-library(patchwork)
-p_over + p_under + p_goldie
+(p_over + p_under + p_goldie) &
+  theme(
+    panel.border = element_rect(color = "gray50", fill = NA, size = .05),
+    plot.subtitle = element_text(size = 10, hjust = 0.5)
+  )
+
+ggsave("img/ml-core-over-under-fit.svg", width = 8, height = 6)
 ```
+:::
 
-When we examine generalization performance[^gamdat], we see that the overfit model does best on training data, but relatively very poorly on test- nearly a 20% increase in the RMSE value.  The underfit model doesn't change as much in performance because it was poor to begin with on training. Our 'better' model wasn't best on training, but was best on the test set.
+:::{.content-visible when-format="pdf"}
+![Overfitting and Underfitting](img/ml-core-over-under-fit.svg){#fig-over-under}
+:::
 
-[^gamdat]: The data is based on a simulation (using `mgcv::gamSim`), so the test data is just more simulated data points. 
+
+
+When we examine generalization performance[^gamdat], we see that the overfit model does best on training data, but relatively very poorly on test- nearly a 20% increase in the RMSE value.  The underfit model doesn't change as much in test performance because it was poor to begin with, and is the worst performer for both. Our 'better' model wasn't best on training, but was best on the test set.
+
+[^gamdat]: The data is based on a simulation (using `mgcv::gamSim`), with training sample of 200 and scale of 1, so the test data is just more simulated data points. 
 
 
 ```{r}
@@ -691,29 +706,46 @@ df_test_perf |>
   
 ```
 
-[^underfit]: Underfitting is a notable problem in many academic disciplines, where the models are often too simple to capture the complexity of the underlying process. Typically the models are often linear, and the underlying process may be anything but. These disciplines were slow to adopt machine learning techniques, as they are often more difficult to interpret, and so seen as not as useful for understanding the underlying process. However, one could make the obvious argument that 'understanding' an unrealistic result is not very useful either, and that the goal should be to understand the underlying process however we can, and not just the model. 
 
-We have already seen one example of regularization in the ridge regression model (ADD CHAPTER LINK), where we add a penalty term to the objective function. This penalty term is a function of the coefficients, and is based on the sum of the squared values of the coefficients. It is also known as an **L2 penalty**, and is a very common type of regularization. Another common approach for linear models is the **L1 penalty**, which is the sum of the absolute values of the coefficients. This is used in the **lasso** model.  There are other types of regularization as well, such as the elastic net, which is a combination of the L1 and L2 penalties. The relative size of the two penalties is controlled by a mixing parameter, and the optimal value of that parameter is determined by cross-validation.
 
-It turns out that regularization is used in many modeling scenarios. Here is a quick rundown of some examples. 
+A fairly simple example of regularization can be seen with a ridge regression model (@sec-estim-penalty), where we add a penalty term to the objective function. The penalty is a function of the size of the coefficients, and helps keep the model from getting to complex.  It is also known as **L2 regularization** due to squaring the coefficients. Another type is the **L1 penalty**, used in the 'lasso' model, which is based on the absolute values of the coefficients. Yet another common approach combines the two, called **elastic net**. There we adjust the balance between the L1 and L2 penalties, and use cross-validation to find the best balance. L1 and/or L2 penalties are applied in many other models such as gradient boosting, neural networks, and others, and are a key aspect of machine learning.
 
-- GAMs also use penalized regression for estimation, where the coefficients used in the basis functions are penalized (typically with L2).  This keeps the 'wiggly' part of the GAM from getting too wiggly, as in the overfit model above (@fig-over-under), tending toward a linear effect. 
+Regularization is used in many modeling scenarios. Here is a quick rundown of some examples. 
 
-- Similarly, the variance estimate of a random effect in mixed models, e.g. for the intercept or slope, is inversely related to an L2 penalty on the fixed effects estimates for that group effect. The more penalization applied, the less random effect variance, and the more the random effect is shrunk toward the overall mean[^mixedpenalty]. 
+- GAMs use penalized regression for estimation of the coefficients for the basis functions (typically with L2). This keeps the 'wiggly' part of the GAM from getting too wiggly, as in the overfit model above (@fig-over-under). This shrinks the feature-target relationship toward a linear one.
+
+- Similarly, the variance estimate of a random effect in mixed models, e.g. for the intercept or slope, is inversely related to an L2 penalty on the effect estimates for that group effect. The more penalization applied, the less random effect variance, and the more the random effect is shrunk toward the overall mean[^mixedpenalty].
 
 [^mixedpenalty]: One more reason to prefer a random effects approach over so-called fixed effects models, as the latter are not penalized at all, and thus are more prone to overfitting.
 
-- Still another form of regularization occurs in the form of priors in Bayesian models. For example, the variance on the prior for regression coefficients could be very large, which amounts to a result where there is little influence of the prior on the posterior, or it could be very small, which amounts to a result where the prior has a lot of influence on the posterior, shrinking it toward the prior mean, which is typically zero. In fact, ridge regression is a frequentist form of standard Bayesian linear regression with a normal distribution prior for the coefficients, and the L2 penalty is related to the variance of that prior.
+- Still another form of regularization occurs in the form of priors in Bayesian models. There we use priors to control the influence of the data on the final model. A small variance on the prior shrinks the model towards the prior mean.  If large, there is little influence of the prior on the posterior. In regression models, there is correspondence between ridge regression and using a normal distribution prior for the coefficients in Bayesian regression, where the L2 penalty is related to the variance of that prior. Even in deep learning, there usually a 'Bayesian interpretation' of the regularization approaches employed.
 
 - As a final example of regularization, **dropout** is a technique used in deep learning to prevent overfitting. It works by randomly dropping out some of the nodes in intervening/hidden layers in the network during training. This tends to force the network to learn more robust features, allowing for better generalization.
 
-<!-- TODO: dropout pic to break up text -->
+```{r}
+#| echo: false
+#| eval: false
+#| label: tree-graph-setup
+g = DiagrammeR::grViz('img/dropout.dot')
 
-In short, regularization comes in many forms across the modeling landscape, and is a key aspect of machine learning and traditional statistical modeling alike. In general, we can add the same sort of penalty to any number of models, such as logistic regression, neural networks, recommender systems etc. The primary goal again is to hopefully increase our ability to generalize the selected model to new data. 
+g %>%
+    DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_svg("img/dropout.svg")
+```
+
+![A neural net with dropout](img/dropout.svg){#fig-dropout}
+
+In the end, regularization comes in many forms across the modeling landscape, and is a key aspect of machine learning and traditional statistical modeling alike. The primary goal is to decrease model complexity in the hopes of increasing our ability to generalize the selected model to new data scenarios. 
+
+:::{.callout-info title=Regularization with Large Data}
+
+For the linear model and related models for typical tabular data, a very large dataset can often lessen the need for regularization. This is because the model can learn the patterns in the data without overfitting, and the penalty ultimately is overwhelmed by the other parts of the objective function. However, regularization is still useful in many cases, and can help with model stability and speed of convergence.
+
+:::
 
 
 ## Cross-validation {#sec-ml-cv}
 
+:::{.content-visible when-format="html"}
 ```{r}
 #| echo: false
 #| eval: false
@@ -831,21 +863,27 @@ p_dat |>
 ggsave('img/kfold_new.svg')
 
 ```
-
-So we've talked a lot about generalization to unseen data, so now let's think about some ways to go about a general process of selecting parameters for a model and assessing performance and generalization. 
-
-As noted previously, the simplest approach is to split the data into training and test sets, fit the model on the training set, and then assess performance on the test set. This is all well and good, but the test error has uncertainty, and would be slightly different with any training-test split we came up with. We'd also like to get a better assessment when searching the parameter space, because there are oftentimes parameters for which we have no way of guessing the value beforehand. In this case, we need to figure out the best parameters *before* assessing a final model's performance. One way to do this is to split the data into multiple test sets, which we now call **validation sets**, because we still want a test set to be held out that is in no way used during the training process. We fit the model on the training set, and then assess performance on the validation set(s). We then repeat this process for many different splits of the data into training and validation sets, and average the results. This is known as **K-fold cross-validation**.  
-
-Here is a visualization of 3-fold cross validation. We split the data such that 2/3 of it will be used for training, and 1/3 for validation. We then do this for a total of 3 times, such that the validation set is on a different part of the data each time, and all observations are used for both training and validation at some point. We then average the results of any metric across the validation sets. Note that in each case here, there is no overlap of data between the training and validation sets.
-
-![](img/kfold_new.svg)
+:::
 
 
-The idea is that we are trying to get a better estimate of the test error by averaging over many different test sets. The number of folds, or splits, is denoted by $K$. The value of $K$ can be any number, but typically is 10 or less. The larger the value of $K$, the more accurate the estimate of the test error, but the more computationally expensive it is, and in application, you generally don't need much to get a good estimate of the mean error. However, with smaller datasets, one can even employ a **leave-one-out** approach, where $K$ is equal to the number of observations in the data. 
+So we've talked a lot about generalization, so now let's look think about some ways to go about a general process of selecting parameters for a model and assessing performance. 
 
-So cross-validation provides a better measure of the test error. If we are interested  when we look at models with different parameters we're trying to figure out, we can pit their respective average errors against one another, and select the model with the lowest average error, a process known generally as **model selection**.  This works for choosing a model within a potential set of hyperparameter settings, for example, with different penalty parameters for regularized regression, but can also aid in choosing a model from a set of different model types, for example, standard linear model approach vs. boosting.
+We previously used a simple approach where we split the data into training and test sets, fitted the model on the training set, and then assessed performance on the test set. This is fine, but the test set error, or any other metric, has uncertainty. It would be slightly different with any training-test split we came up with. 
 
-Now how might we go about this for modeling purposes? Very easily with modern packages.  In the following we demonstrate this with a logistic regression model. 
+We'd also like to get better model assessment when searching the parameter space, because there are parameters for which we have no way of guessing the value beforehand, and we'll need to try out different ones.  An example would be the penalty parameter in lasso regression. In this case, we need to figure out the best parameters *before* assessing a final model's performance.
+
+One way to do this is to split the training data into different partitions, which we now call **validation sets**.  We fit the model on the training set, and then assess performance on the validation set(s). We then repeat this process for many different splits of the data into training and validation sets, and average the results. This is known as **K-fold cross-validation**. It's important to note that we still want a test set to be held out that is in no way used during the training process. The validation sets are used to help us choose the best model based on some metric, and the test set is used to assess the final model's performance.
+
+Here is a visualization of 3-fold cross validation. We split the data such that 2/3 of it will be used for training, and 1/3 for validation. We then do this for a total of 3 times, so that the validation set is on a different part of the data each time, and all observations are used for both training and validation at some point. We then average the results of any metric across the validation sets. Note that in each case here, there is no overlap of data between the training and validation sets.
+
+![3-fold Cross Validation](img/kfold_new.svg){#fig-kfold}
+
+
+The idea is that we are trying to get a better estimate of the error by averaging over many different validation sets. The number of folds, or splits, is denoted by $K$. The value of $K$ can be any number, but typically is 10 or less. The larger the value of $K$, the more accurate the estimate of the metric, but the more computationally expensive it is, and in application, you generally don't need much to get a good estimate. However, with smaller datasets, one can even employ a **leave-one-out** approach, where $K$ is equal to the number of observations in the data. 
+
+So cross-validation provides a better measure of the metric we use to choose our model. When comparing a model with different parameter settings, we can look at the (average) metric each has from the validation process, and select the model parameter set that has the best metric value. This process is typically known  as **model selection**.  This works for choosing a model across different sets of hyperparameter settings, for example, with different penalty parameters for regularized regression. But can also aid in choosing a model from a set of different model types, for example, standard linear model approach vs. boosting. In that case we apply the cross-validation approach for each model, and the 'winner' is the one with the best average metric value on the test set.
+
+Now how might we go about this for modeling purposes? Very easily with modern packages.  In the following we demonstrate cross-validation with a logistic regression model. 
 
 
 :::{.panel-tabset}
@@ -854,40 +892,42 @@ Now how might we go about this for modeling purposes? Very easily with modern pa
 
 ```{python}
 #| label: py-kfold
-
-# import necessary libraries
-from pandas import read_csv
+import pandas as pd
 from sklearn.linear_model import LogisticRegressionCV
 from sklearn.metrics import accuracy_score
 
-df_movies = read_csv("data/movie_reviews_processed.csv")
+df_movies = pd.read_csv("data/movie_reviews.csv")
 
-X = df_movies.filter(regex="_sc$")
+X = df_movies.filter(regex="_sc$") # grab the standardized features
 y = df_movies["rating_good"]
 
 # Cs is the (inverse) penalty parameter;
-clf = LogisticRegressionCV(penalty='l2', Cs=[1], cv=5, max_iter=1000)
-clf.fit(X, y)
+model_logistic = LogisticRegressionCV(
+    penalty='l2', 
+    Cs=[1], 
+    cv=5, 
+    max_iter=1000, 
+    verbose=False
+  ).fit(X, y)
 
-# clf.scores_  # show the accuracy score for each fold
+# model_logistic.scores_  # show the accuracy score for each fold
 
 # print the average accuracy score
-clf.scores_[1].mean()
+model_logistic.scores_[1].mean()
 ```
 
 ##### R
 
-For R, we prefer `mlr3` for our machine learning demonstrations, as we feel it is more like sklearn in spirit, as well as offering computational advantages for when you want to actually do ML with R. The `tidymodels` ecosystem is also a good option.
+For R, we prefer [mlr3]{.pack} for our machine learning demonstrations, as we feel it is more like [sklearn]{.pack} in spirit, as well as offering computational advantages for when you want to actually do ML with R. The [tidymodels]{.pack} ecosystem is also a good option.
 
 ```{r}
 #| label: r-kfold
-
-# Load necessary libraries
+#| results: hide
 library(mlr3)
 library(mlr3learners)
 
 df_movies = read_csv(
-  "data/movie_reviews_processed.csv", 
+  "data/movie_reviews.csv", 
   col_select = matches('_sc|rating_good')
 )
 
@@ -912,14 +952,19 @@ result_lr_ridge = resample(
 
 # result_lr_ridge$score(msr('classif.acc')) # show the accuracy score for each fold
 
-# print the average accuracy score
 result_lr_ridge$aggregate(msr('classif.acc'))
 ```
 
+```{r}
+#| echo: false
+#| label: r-kfold-show
+# mlr3 prints unnecessary output so we print it here
+result_lr_ridge$aggregate(msr('classif.acc'))
+```
 :::
 
 
-In each case above, we end up with five separate accuracy values, one for each fold. Our final assessment of the model's accuracy is the average of these five values.  This is a better estimate of the model's accuracy than if we had just used a single test set, and in the end it is based on the entire data.
+In each case above, we end up with five separate accuracy values, one for each fold. Our final assessment of the model's accuracy is the average of these five values, which is shown.  This is a better estimate of the model's accuracy than if we had just used a single test of the model, and in the end it is still based on the entire training data.
 
 ### Methods of Cross-validation
 
@@ -927,29 +972,29 @@ There are different approaches we can take for cross-validation that we may need
 
 - **Shuffled**: Shuffling prior to splitting can help avoid data ordering having undue effects.
 - **Grouped/stratified**: In cases where we want to account for the grouping of the data, e.g. for data with a hierarchical structure. We may want groups to appear in training *or* test, but not both, as with grouped k-fold. Or we may want to ensure group proportions across training and test sets, as with stratified k-fold.
-- **Time-based**: e.g. for time series data, where we only want to assess error on future values
-- **Combinations**: e.g. grouped and time-based
+- **Time-based**: for time series data, where we only want to assess error on future values
+- **Combinations**: For example, grouped and time-based
 
-Here are images from the [scikit-learn library documentation](https://scikit-learn.org/stable/auto_examples/model_selection/plot_cv_indices.html) depicting some different cross-validation approaches.
+Here are images from the [scikit-learn library documentation](https://scikit-learn.org/stable/auto_examples/model_selection/plot_cv_indices.html) depicting some different cross-validation approaches In general, the type we use will be based on our data needs.
 
 
-::: {layout="[[1,1], [1, 1]]"}
 
-![k-fold](img/sklearn_k_fold_images/k_fold.png)
+::: {#fig-cv-strategies layout="[[1,1], [1, 1]]"}
 
-![Grouped](img/sklearn_k_fold_images/grouped_k_fold.png)
+![k-fold](img/sklearn_k_fold_images/k_fold.png){width="100%"}
 
-![Stratified](img/sklearn_k_fold_images/stratified_k_fold.png)
+![Grouped](img/sklearn_k_fold_images/grouped_k_fold.png){width="100%"}
 
-![Time series](img/sklearn_k_fold_images/time_series.png)
+![Stratified](img/sklearn_k_fold_images/stratified_k_fold.png){width="100%"}
 
+![Time series](img/sklearn_k_fold_images/time_series.png){width="100%"}
+
+A comparison of cross-validation strategies.
 :::
 
-In general, the form we employ will be based on our data needs.
 
-:::{.callout-tip}
-It's generally always useful to use a stratified approach to cross-validation, especially with classification problems, as it helps ensure a similar balance of the target classes across training and test sets. You can also employ this with numeric targets, enabling you to have a similar distribution of the target across training and test sets.
-
+:::{.callout-tip title='Stratified Cross-validation' collapse="true"}
+It's generally always useful to use a stratified approach to cross-validation, especially with classification problems, as it helps ensure a similar balance of the target classes across training and test sets. You can also use this with numeric targets, enabling you to have a similar distribution of the target across training and test sets.
 :::
 
 
@@ -961,14 +1006,14 @@ Another potential point of concern is that we are using the same data to both se
 
 ::: {layout-ncol=2}
 
-![Train-Validation-Test Workflow](img/sklearn_k_fold_images/grid_search_workflow.png)
+![Train-Validation-Test Workflow](img/sklearn_k_fold_images/grid_search_workflow.png){width="100%"}
 
-![](img/sklearn_k_fold_images/grid_search_cross_validation.png)
+![](img/sklearn_k_fold_images/grid_search_cross_validation.png){width="100%"}
 
 
 :::
 
-:::{.callout-note}
+:::{.callout-note title='Nested Cross-validation' collapse="true"}
 As the performance on test is not without uncertainty, we can actually nest the entire process within a validation approach, where we have an inner loop of k-fold cross-validation and an outer loop to assess the model's performance on multiple hold out sets. This is known as **nested cross-validation**.  This is a more computationally expensive approach, and generally would require more data, but it would result in a more robust assessment of performance
 :::
 
