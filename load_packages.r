@@ -10,6 +10,7 @@ library(scales)
 library(ggrepel)
 library(ggborderline)
 library(geomtextpath)
+library(ggrepel)
 library(patchwork)
 library(scico)
 
