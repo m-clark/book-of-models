@@ -2,8 +2,7 @@
 # Common Models {#sec-ml-common-models}
 
 
-
-Let's get one thing straight from the outset: **any model may be used in machine learning**, from a standard linear model to a deep neural network. The key focus in ML is on performance, and generally we'll go with what works. This means that the modeler is often less concerned with the interpretation of the model, but rather with the ability of the model to predict well on new data, but as we'll see we can do both if desired. In this chapter, we will explore some of the more common machine learning models and techniques. 
+Before really getting into some machine learning models, let's get one thing straight from the outset: **any model may be used in machine learning**, from a standard linear model to a deep neural network. The key focus in ML is on performance, and generally we'll go with what works. This means that the modeler is often less concerned with the interpretation of the model, but rather with the ability of the model to predict well on new data, but as we'll see we can do both if desired. In this chapter, we will explore some of the more common machine learning models and techniques. 
 
 
 ```{r}
@@ -18,7 +17,7 @@ library(glue)
 reticulate::use_condaenv("book-of-models")
 ```
 
-## Key Ideas
+## Key Ideas {#sec-ml-common-key-ideas}
 
 The take home messages from this section include the following:
 
@@ -26,18 +25,17 @@ The take home messages from this section include the following:
 - A good and simple baseline is essential for interpreting your performance results
 - One only needs a small set of tools (models) to go very far with machine learning
 
-### Why this matters
+### Why this matters {#sec-ml-common-why-matters}
 
-Having good choices in your data science toolbox means you don't have to waste time with nuance and can get down to what matters- performance! Furthermore, using these common tools means you'll know you're in good company, and that you'll be able to find many resources to help you along the way. Additionally, you'll be able to focus on the data and the problem at hand, rather than the model, which in the end, is just a tool to help you understand the data. If you can get a good understanding of the data with a simple model, then that may be all you need for your situation. If you decide you need a more complex modeling approach, then using these models will still give you a good idea of what you should expect in terms of performance.
+Having the right tools in data science saves time and improves results, and using well-known tools means you'll have plenty of resources for help. It also allows you to focus more on the data and the problem, rather than the details of the model. A simple model might be all you need, but if you need something more complex, these models can still provide a performance benchmark.
 
 
-### Good to know
+### Good to Know {#sec-ml-common-good-to-know}
 
-TODO: ADD LINK TO ESTIMATION CHAPTER
 
 Before diving in, it'd be helpful to be familiar with the following:
 
-- Linear models, esp. linear and logistic regression
+- Linear models, esp. linear and logistic regression (@sec-foundation, @sec-glm)
 - Basic machine learning concepts as outlined in the the ML Concepts chapter (@sec-ml-core-concepts)
 - Model estimation as outlined in the Estimation chapter (@sec-estimation)
 
@@ -45,14 +43,14 @@ Before diving in, it'd be helpful to be familiar with the following:
 
 ## General Approach {#sec-ml-general-approach}
 
-Let's start with a general approach to machine learning to help us get some bearings. Here is an example outline of the process we could take. This incorporates some of the ideas we've already discussed, and we'll demonstrate most of this in the following sections.
+Let's start with a general approach to machine learning to help us get some bearings. Here is an example outline of the process we could take. This incorporates some of the ideas we also cover in other chapters, and we'll demonstrate most of this in the following sections.
 
 - Define the problem, including the target variable(s)
 - Select the model(s) to be used, including one baseline model
 - Define the performance objective and metric(s) used for model assessment
 - Define the search space (parameters, hyperparameters) for those models
 - Define the search method (optimization)
-- Implement some sort of cross-validation technique and collect the corresponding performance metrics
+- Implement some sort of validation technique and collect the corresponding performance metrics
 - Evaluate the results on unseen data with the chosen model
 - Interpret the results
 
@@ -60,7 +58,7 @@ Here is a more concrete example:
 
 - Define the problem: predict the probability of heart disease given a set of features
 - Select the model(s) to be used: ridge regression, standard regression with no penalty as baseline
-- Define the objective and performance metric(s): (R)MSE, R-squared
+- Define the objective and performance metric(s): RMSE, R-squared
 - Define the search space (parameters, hyperparameters) for those models: penalty parameter 
 - Define the search method (optimization): grid search
 - Implement some sort of cross-validation technique: 5-fold cross-validation
@@ -68,7 +66,7 @@ Here is a more concrete example:
 - Interpret the results: the ridge regression model performed better than the baseline model, and the coefficients tell us something about the nature of the relationship between the features and the target
 
 
-As we go along in this chapter, we'll most of this in action at various points. We'll have a baseline model, an ultimately provide examples of several commonly used models in machine learning. In each case we will assess performance using cross-validation, and then evaluate the final models on unseen data. Separately, we'll also demonstrate how to tune hyperparameters, which are parameters that are not estimated directly from the data, but rather are set by the modeler. We'
+As we go along in this chapter, we'll see most of this in action. So let's get to it!
 
 
 ## Data setup
@@ -102,7 +100,7 @@ df_heart = read_csv("data/heart_disease_processed.csv")
 df_heart_num = read_csv("data/heart_disease_processed_numeric.csv")
 
 prevalence = mean(df_heart_num$heart_disease)
-prevalence = ifelse(prevalence > 0.5, prevalence, 1 - prevalence)
+majority = pmax(prevalence, 1 - prevalence)
 ```
 
 
@@ -213,13 +211,12 @@ pd.concat([x, cats, binaries], axis=1).to_csv(
 )
 ```
 
-FIXME: add appendix link for dataset! LINK to DATA Sections!
 
-For our demonstration here, we'll switch things up and use the heart disease dataset. This is a binary classification problem, where we want to predict whether a patient has heart disease, given information such as age, sex, resting heart rate etc. For more details see the appendix. We have done some initial data processing so that you can dive right in. 
+For our demonstration here, we'll and use the heart disease dataset. This is popular ML binary classification problem, where we want to predict whether a patient has heart disease, given information such as age, sex, resting heart rate etc (@#sec-dd-hear-failure).  
 
-*There are two forms of the data* - one which is mostly as seen elsewhere, and one that is purely numeric, where the categorical features are dummy coded and where numeric variables have been standardized (@sec-data-transfromations). The purely numeric version will save any additional data processing for some model/package implementations. We also have to drop missing values, so that our 21 century packages don't hurt themselves on them. When we get to the boosting demonstration, you can use the data as is, since the scale of the data doesn't really matter, and missing values are treated in the same way as the rest of the data values.
+*There are two forms of the data* - one which is mostly as seen elsewhere, and one that is purely numeric, where the categorical features are dummy coded and where numeric variables have been standardized (@sec-data-transformations). The purely numeric version will save any additional data processing for some model/package implementations. We also have to drop missing values. When we get to the boosting demonstration, you can use the data as is, since the scale of the data doesn't really matter, and missing values are handled automatically.
 
-In this data, roughly `r scales::percent(prevalence)` suffered a death, so that is an initial baseline if we're interested in accuracy- we could get `r scales::percent(1-prevalence)` correct by just guessing the majority class. 
+In this data, roughly `r scales::percent(prevalence)` suffered a death, so that is an initial baseline if we're interested in accuracy- we could get `r scales::percent(majority)` correct by just guessing the majority class. 
 
 
 :::{.panel-tabset}
@@ -274,7 +271,7 @@ X_num_df = df_heart_num %>%
 
 ## Do Better than the Baseline {#sec-ml-baseline}
 
-CAN WE GET A VISUAL IN HERE SOMEWHERE?
+<!-- TODO: CAN WE GET A VISUAL IN HERE SOMEWHERE? -->
 
 Before getting carried away with models, we should try and get something that gives us a good reference point for performance - a **baseline** model. The baseline model should serve as a way to gauge how much better your model performs over one that is simpler, probably more computationally efficient, and more interpretable. Or maybe it's one that is sufficiently complex to capture something about the data you are exploring, but not as complex as the models you're also interested in. Take a classification model for example. We use a logistic regression as abseline, which is as simple as it gets, but is often too simple to be adequately performant for many situations. Even so, we should still be able to beat it with more complex models, or there is little justification for using them.
 
@@ -1806,8 +1803,11 @@ In this chapter we've provided a few common and successful models you can implem
 You'll always get more payoff by coming up with better features to use in the model, as well as just using better data that's been 'fixed' because you've done some good exploratory data analysis. Thinking harder about the problem means you won't waste time going down dead ends, and you typically can find better data to use to solve the problem by thinking more clearly about the question at hand. And finally, it's good to not be stuck on one model, and be willing to use whatever it takes to get things done efficiently.
 
 
+### The Thread
 
-## Where to go from here
+### Where to go from here
+
+
 ### refs
 
 RadfordM.Neal.Priorsforinfinitenetworks(tech.rep.no.crg-tr-94-1).UniversityofToronto, 1994a. https://arxiv.org/abs/1711.00165
