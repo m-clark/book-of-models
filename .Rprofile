@@ -1,3 +1,6 @@
+library(reticulate)
+use_condaenv("book-of-models")
+
 source("load_packages.R")
 source("functions/utils.R")
 
