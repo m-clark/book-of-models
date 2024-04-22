@@ -394,3 +394,116 @@ write_csv(
     "data/world_happiness_all_years.csv"
 )   
 ```
+
+
+## Heart Disease
+
+
+```{python}
+#| eval: false
+#| echo: false
+#| label: uci heart
+from ucimlrepo import fetch_ucirepo
+import pandas as pd
+
+# fetch dataset
+heart_disease = fetch_ucirepo(id=45)
+
+# data (as pandas dataframes)
+X = heart_disease.data.features
+y = heart_disease.data.targets
+
+# metadata
+# print(heart_disease.metadata)
+
+# variable information
+# print(heart_disease.variables)
+
+df_heart = (
+    X.assign(
+        cp=pd.Categorical(X.cp).rename_categories(
+            ['typical', 'atypical', 'non-anginal', 'asymptomatic']
+        ),
+        fbs=pd.Categorical(X.fbs).rename_categories(['<= 120 mg/dl', '> 120 mg/dl']),
+        restecg=pd.Categorical(X.restecg).rename_categories(
+            ['normal', 'ST-T wave abnormality', 'left ventricular hypertrophy']
+        ),
+        exang=pd.Categorical(X.exang).rename_categories(['no', 'yes']),
+        slope=pd.Categorical(X.slope).rename_categories(
+            ['upsloping', 'flat', 'downsloping']
+        ),
+        # ca = pd.Categorical(X.ca, categories = ['0', '1', '2', '3']),
+        thal=pd.Categorical(X.thal).rename_categories(
+            ['normal', 'fixed defect', 'reversible defect']
+        ),
+        heart_disease=pd.Categorical(y.num > 0).rename_categories(['no', 'yes']),
+    ).rename(
+        columns={
+            'sex': 'male',
+            'cp': 'chest_pain_type',
+            'trestbps': 'resting_bp',
+            'chol': 'cholesterol',
+            'fbs': 'fasting_blood_sugar',
+            'restecg': 'resting_ecg',
+            'thalach': 'max_heart_rate',
+            'exang': 'exercise_induced_angina',
+            'oldpeak': 'st_depression',
+            'ca': 'num_major_vessels',
+            'thal': 'thalassemia',
+        }
+    )
+).dropna()
+
+
+df_heart.to_csv('data/heart_disease_processed.csv', index=False)
+```
+
+```{python}
+#| echo: false
+#| eval: false
+#| label: uci numeric py
+
+df_heart = pd.read_csv('data/heart_disease_processed.csv')
+
+
+from sklearn.preprocessing import StandardScaler
+
+cats = pd.get_dummies(
+    df_heart[['chest_pain_type', 'resting_ecg', 'slope', 'thalassemia']]
+).astype(int)
+
+binaries = (
+    pd.get_dummies(
+        df_heart[['fasting_blood_sugar', 'exercise_induced_angina', 'male', 'heart_disease']],
+        drop_first=True,
+    )
+    .astype(int)
+    .rename(columns={'heart_disease_yes': 'heart_disease'})
+)
+
+ss = StandardScaler()
+
+x = df_heart.drop(
+    columns=[
+        'chest_pain_type',
+        'resting_ecg',
+        'slope',
+        'thalassemia',
+        'fasting_blood_sugar',
+        'exercise_induced_angina',
+        'male',
+        'heart_disease',
+    ]
+)
+
+
+pd.concat([x, cats, binaries], axis=1).to_csv(
+    'data/heart_disease_processed_numeric.csv', index=False
+)
+
+x[x.columns] = ss.fit_transform(x)
+
+pd.concat([x, cats, binaries], axis=1).to_csv(
+    'data/heart_disease_processed_numeric_sc.csv', index=False
+)
+```

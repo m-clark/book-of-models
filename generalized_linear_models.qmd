@@ -51,7 +51,7 @@ What happens when your target variable isn't really something you feel comfortab
 
 ## Key Ideas {#sec-glm-key}
 
-- A simple tweak to our previous approach allows us to generalize are linear model to account for other settings.
+- A simple tweak to our previous approach allows us to generalize our linear model to account for other settings.
 - Common distributions such as binomial, poisson, and others can often do better for us both in terms of model fit and interpretability.
 - Getting familiar with just a couple distributions will allow you to really expand your modeling repertoire.
 
@@ -66,7 +66,9 @@ Generalized linear models are a broad class of models that extend the linear mod
 
 ## Distributions & Link Functions {#sec-glm-distributions}
 
-Remember how linear models really enjoy the whole Gaussian, i.e. 'normal', distribution scene? The essential form of the linear model can be expressed as follows:
+Remember how linear models really enjoy the whole Gaussian, i.e. 'normal', distribution scene? The essential form of the linear model can be expressed as follows[^conditional]:
+
+[^conditional]: The y in the formula is more properly expressed as $y | X$, where X is the matrix of features. We'll keep it simple here.
 
 $$
 \mu = \alpha + X\beta
@@ -81,7 +83,7 @@ From a theoretical perspective, link functions are tricky to get your head aroun
 
 - *Find the exponential of the response's density function and derive the canonical link function*...
 
-From a conceptual perspective, all they are doing is allowing our linear combination of feature to "link" to a distribution function's mean or other parameters. If you know a distribution's 'canonical' link function, that is all the deeper you will probably ever need to go. At the end of the day, these link functions will convert the target to an unbounded continuous variable. The take-away here is that the link function describes how the mean is generated from the (linear) predictor.
+From a conceptual perspective, all they are doing is allowing our linear combination of features to "link" to a distribution function's mean or other parameters. If you know a distribution's 'canonical' link function, that is all the deeper you will probably ever need to go. At the end of the day, these link functions will convert the target to an unbounded continuous variable. The take-away here is that the link function describes how the mean is generated from the (linear) predictor.
 
 ## Logistic Regression {#sec-glm-logistic}
 
@@ -141,13 +143,13 @@ The *logit* function is defined as:
 
 $$\textrm{log}\frac{p}{1-p}$$
 
-We are literally just taking the log of the odds (the log odds becomes important later).
+We are literally just taking the log of the odds (the log odds become important later).
 
 Now we can map this back to our model:
 
 $$\textrm{log}\frac{p}{1-p} = \alpha + X\beta$$
 
-And finally we can take that logistic function and invert it (the **inverse-logit** function) to produce the probabilities.
+And finally, we can take that logistic function and invert it (the **inverse-logit** function) to produce the probabilities.
 
 $$p = \frac{\textrm{exp}(\alpha + X\beta)}{1 + \textrm{exp}(\alpha + X\beta)}$$
 
@@ -179,11 +181,11 @@ ggplot(
   labs(x = "Log Odds", y = "Probability")
 ```
 
-This is the classic logistic function, where we can see that the probability of success approaches 0 when the log odds are negative and approaches 1 when the log odds are positive. The main message here is that we can take a bounded variable in probability and transformed it to continuous space, and vice versa.
+This is the classic logistic function, where we can see that the probability of success approaches 0 when the log odds are negative and approaches 1 when the log odds are positive. The main message here is that we can take a bounded variable in probability and transform it to continuous space, and vice versa.
 
 ### A Preliminary Model {#sec-glm-binomial-model}
 
-We are going to return to our movie review data and we are going to use `rating_good` as our target. Before we get to modeling, see if you can find out the frequency of "good" and "bad" reviews. We will use `word_count` and `gender` as our features. Before we move on, though, find the probability of getting a "good" review.
+We are going to return to our movie review data, and we are going to use `rating_good` as our target. Before we get to modeling, see if you can find out the frequency of "good" and "bad" reviews. We will use `word_count` and `gender` as our features. Before we move on, though, find the probability of getting a "good" review.
 
 <!-- TODO: Do we want to leave model fitting via optim to estimation chapter -->
 
@@ -261,9 +263,9 @@ model_logistic.summary()
 
 ### Interpretation and Visualization {#sec-glm-binomial-interpret}
 
-We need to know what those results mean. The coefficients that we get from our model are in log odds. We can exponentiate them to get the odds ratio, but we can also exponentiate them and divide by 1 + that value to get the probability. Interpreting log odds is a fool's errand, but we can at least get a feeling for them directionally. A log odds of 0 would indicate no relationship between the feature and target. A positive log odds would indicate that an increase in the feature will increase the log odds of moving from "bad" to "good", whereas a negative log odds would indicate that a decrease in the feature will decrease the log odds of moving from "bad" to "good". We can convert those log odds to help make some more sense from them.
+We need to know what those results mean. The coefficients that we get from our model are in log odds. We can exponentiate them to get the odds ratio, but we can also exponentiate them and divide by 1 + that value to get the probability. Interpreting log odds is difficult, but we can at least get a feeling for them directionally. A log odds of 0 would indicate no relationship between the feature and target. A positive log odds would indicate that an increase in the feature will increase the log odds of moving from "bad" to "good", whereas a negative log odds would indicate that a decrease in the feature will decrease the log odds of moving from "bad" to "good".  On the log odds scale, the coefficients are symmetric as well, such that, e.g., a +1 coefficient denotes a similar increase in the log odds as a -1 coefficient denotes a decrease.
 
-When we exponentiate the log odds coefficients, we are given the odds ratio.  This is the ratio of the odds of the outcome (i.e., success from our binomial distribution) occurring for a one unit increase in the feature. 
+We can convert those log odds to help make some more sense from them. When we exponentiate the log odds coefficients, we are given the odds ratio.  This is the ratio of the odds of the outcome (i.e., success from our binomial distribution) occurring for a one unit increase in the feature. 
 
 ```{r}
 #| echo: false
@@ -282,7 +284,7 @@ lo_result |>
 
 Fortunately, the intercept is easy -- it is the odds of a "good" review when word count is 0 and gender is "female". We see that we've got an odds ratio of `r round(or_result[2], 2)` for the word count variable and `r round(or_result[3], 2)` for the male variable. An odds ratio of 1 means that there is no change in the odds of the outcome occurring, that the feature does not influence the target. An odds ratio of less than 1 means that the odds of the outcome's chosen class occurring decreases as the feature increases. An odds ratio of greater than 1 means that the odds of the outcome occurring increase as the feature increases.
 
-It is more intuitive to interpret the probability, so we'll get predicted probabilities for different values of the features. The way we do this is through the (inverse) link function, which will convert our log odds of the linear predictor to probabilities (@fig-fig-graph-logreg). We can then plot these probabilities to see how they change with the features.
+It is more intuitive to interpret the probability, so we'll get predicted probabilities for different values of the features. The way we do this is through the (inverse) link function, which will convert our log odds of the linear predictor to probabilities. We can then plot these probabilities to see how they change with the features.
 
 ```{r}
 #| echo: false
@@ -318,7 +320,7 @@ ggeffects::ggpredict(model_logistic, terms = c("gender")) |>
 
 ### Objective Function & Model Fitting {#sec-glm-binomial-objective}
 
-Let's see how we can pick that work apart to create our own functions to help us demystify the process. We can use maximum likelihood estimation to estimate the parameters of our model, which is the approach used by standard package functions. Feel free to skip this part if you only wanted conceptual, but for even more information on maximimum likelihood estimation, see @sec-estim-maxlike where we take a deeper dive into the topic and with a similar function.  The following code is a simple but effective version of what goes on behind the scenes with 'glm' type functions.
+Let's see how we can pick that work apart to create our own functions to help us demystify the process. We can use maximum likelihood estimation to estimate the parameters of our model, which is the approach used by standard package functions. Feel free to skip this part if you only wanted conceptual, but for even more information on maximum likelihood estimation, see @sec-estim-maxlike where we take a deeper dive into the topic and with a similar function.  The following code is a simple but effective version of what goes on behind the scenes with 'glm' type functions.
 
 :::{.panel-tabset}
 
@@ -620,7 +622,7 @@ log_result |>
   gt(decimals = 3)
 ```
 
-We are going to interpret this similarly as with other linear models. The slight wrinkle here is that we are looking at the log counts - remember that we specified the log link function. In other words, an increase in one one review word leads to an expected log count `r word_sign(log_result$Coefficient[2], c('increase', 'decrease'))` of ~`r round(log_result$Coefficient[2], 2)`. We can exponentiate this to get `r round(rr_result[2], 2)` - which tells us that every added word in a review gets us a `r scales::label_percent()(round(rr_result[2], 2) - 1) ` `r word_sign(log_result$Coefficient[2], c('increase', 'decrease'))` in the number of possessive pronouns - probably not a surprising result we hope - wordier stuff has more types of words! But as usual, the visualization tells the real story. Notice too that the predictions are not discrete, but continuous, because predictions here are the expected or average counts.
+We are going to interpret this similarly as with other linear models. The slight wrinkle here is that we are looking at the log counts - remember that we specified the log link function. In other words, an increase in one review word leads to an expected log count `r word_sign(log_result$Coefficient[2], c('increase', 'decrease'))` of ~`r round(log_result$Coefficient[2], 2)`. We can exponentiate this to get `r round(rr_result[2], 2)` - which tells us that every added word in a review gets us a `r scales::label_percent()(round(rr_result[2], 2) - 1) ` `r word_sign(log_result$Coefficient[2], c('increase', 'decrease'))` in the number of possessive pronouns - probably not a surprising result we hope - wordier stuff has more types of words! But as usual, the visualization tells the real story. Notice too that the predictions are not discrete, but continuous, because predictions here are the expected or average counts.
 
 ```{r}
 #| echo: false
@@ -655,7 +657,7 @@ Other Core GLM (available in standard functions):
 Others (some fairly common):
 
 - **Beta**: For continuous targets that are bounded between 0 and 1.
-- **Log-Normal**: For continuous targets that are skewed.  Essentially what you get with linear regression and logging the target[^lognorm].
+- **Log-Normal**: For continuous targets that are skewed. Essentially what you get with linear regression and logging the target[^lognorm].
 - **Tweedie**: Generalizes several core GLM family distributions.
 
 [^lognorm]: [But there is a variance issue to consider](https://stats.stackexchange.com/questions/99867/difference-between-log-normal-distribution-and-logging-variables-fitting-normal).
