@@ -174,7 +174,10 @@ gt = function(..., decimals = 2, title = NULL, subtitle = NULL) {
         )
       )
     ) %>%
-    gt::tab_header(title = title, subtitle = subtitle) %>%
+    # gt::tab_header(title = title, subtitle = subtitle) %>%
+    # gt::tab_options(
+    #   table.font.size = 12
+    # ) |> 
     gtExtras::gt_theme_nytimes() |>
     tab_options(quarto.disable_processing = TRUE) # May have unintended consequences see https: //github.com/quarto-dev/quarto-cli/issues/6945
 }
