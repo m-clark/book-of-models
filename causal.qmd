@@ -1,65 +1,323 @@
 # Causal Modeling {#sec-causal}
 
-:::{.content-visible when-format="html"}
+:::{.content-visible when-format='html'}
 > All those causal effects will be lost in time, like tears in rain... without adequate counterfactual considerations.
 > ~ Roy Batty (paraphrased)
 :::
 
-Causal inference is a very important topic in machine learning and statistics, and it is also a very difficult topic to understand well, or consistently, because not everyone agrees on how to define **causal** in the first place. Our focus here is merely practical- we just want to show how it plays out in the modeling landscape from a high level overview. This is such a rabbit hole, that we will not be able to go into much detail, but we will try to give you a sense of the landscape, and some of the key ideas.
+
+:::{.content-visible when-format='html'}
+```{r}
+#| echo: false
+#| label: fig-causal-dag
+#| fig-cap: A causal DAG
+library(ggdag)
+
+
+#  using more R-like syntax to create the same DAG
+tidy_ggdag <- dagify(
+  target ~ x + z2 + w2 + w1,
+  x ~ z1 + w1 + w2,
+  z1 ~ w1 + v,
+  z2 ~ w2 + v,
+  w1 ~ ~w2, # bidirected path
+  exposure = 'x',
+  outcome = 'target'
+) %>%
+  tidy_dagitty()
+
+# ggdag(tidy_ggdag, label_col = okabe_ito_colors[1], text_color = 'black')
+tidy_ggdag |> 
+    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+    geom_dag_edges(
+        edge_width = 1, 
+        edge_color = 'grey92',
+        arrow_directed = grid::arrow(length = grid::unit(10, 'pt'), type = 'closed')
+    ) +
+    geom_dag_point(aes(), show.legend = FALSE, color = okabe_ito[1], size = 25) +
+    geom_dag_text(size = 5) +
+    theme_void()
+    # theme_dag() +
+    # theme_clean()
+
+ggsave('img/causal-dag.svg', width = 8, height = 6)
+```
+:::
+
+:::{.content-visible when-format='pdf'}
+![](img/causal-dag.svg){width=50% #fig-causal-dag}
+:::
+
+Causal inference is a very important topic in machine learning and statistics, and it is also a very difficult one to understand well, or consistently, because *not everyone agrees on how to define a cause in the first place*. Our focus here is merely practical- we just want to show how it can play out in the modeling landscape from a very high level overview. This is such a rabbit hole that we won't be able to go into much detail, but we will try to give you a sense of the landscape, and some of the key ideas.
 
 
 ## Key ideas
 
 - No model can tell you whether a relationship is causal or not. Causality is inferred, not proven, based on the available evidence.
-- The exact same models would be used for similar data settings to answer a causal question, or a predictive question. The difference is in the interpretation of the results.
-- Experimental design, such as randomized control trials, are the gold standard for causal inference. But in this case, the gold standard is often not practical, and not without its shortcomings even when it is, and never perfectly implemented. More like a silver standard?
+- The exact same models would be used for similar data settings to answer a causal question or a purely predictive question. The primary difference is in the interpretation of the results.
+- Experimental design, such as randomized control trials, are the gold standard for causal inference. But the gold standard is often not practical, and not without its limitation even when it is.
 - Causal inference is often done with observational data, which is often the only option, and that's okay.
+- Counterfactual thinking is at the heart of causal inference, but is useful for all modeling contexts.
 - Several models exist which are typically employed to answer a more causal-oriented question. These include structural equation models, graphical models, uplift modeling, and more.
 - Interactions are the norm, if not the reality. Causal inference generally regards a single effect. If the normal setting is that such an effect would always vary depending on other features, you should question why you want to aggregate your results to a single 'effect', since that effect would be potentially misleading.
 
-## Why it matters
+### Why it matters
 
 Often we need a precise statement about the feature-target relationship, not just whether there is some relationship. For example, we might want to know whether a drug works well, or whether showing an advertisement results in a certain amount of new sales. Whether or not random assignment was used, we generally need to know whether the effect is real, and the size of the effect, and often, the uncertainty in that estimate. Causal modeling is, like machine learning, more of an approach than a specific model, and that approach may involve the design or implementing models we've already seen in a different way to answer the key question. Without more precision in our understanding, we could miss the effect, or overstate it, and make bad decisions as a result.
 
 
 ### Good to know
 
-Honestly this section is pretty high level, and we are not going to go into much detail here so even just some understanding of correlation and modeling would likely be enough.
+This section is pretty high level, and we are not going to go into much detail here so even just some understanding of correlation and modeling would likely be enough.
 
+
+```{r}
+
+```
 
 ## Classic Experimental Design
 
-Many of those who have taken a statistics course have been exposed to the simple t-test to determine whether two groups are different. While it can be applied to any binary group setting, for our purposes here we can assume the two groups result from some sort of **treatment** that is applied to one group, and not the other. The 'treatment' could regard a new drug, demographic groups, a marketing campaign, a new app's feature, or anything else.
+<!-- TODO: PLACEHOLDER until we can get some sort of coin flip random assignment pic -->
 
-This is a very simple example of an experimental design, and it is a very powerful one. Ideally, we would randomly assign our observational units to the two groups, one which gets the treatment and one which doesn't.Then we'd measure the difference between the two groups, using some metric to conclude that the two groups are different. This is the basic idea behind the t-test, which would compare the target means of the two groups.
-
-The t-test tells us whether the difference in means between the two groups is *statistically* significant. It definitely does not tell us whether the treatment itself caused the difference, whether the effect is large, nor whether the effect is real, or even if the treatment is a good idea to do in the first place. It just tells us whether the two groups are statistically different.
-
-Turns out, a t-test is just a linear regression. It's a special case of linear regression where there is only one independent variable, and it is a categorical variable with two levels. The coefficient from the linear regression would tell you the mean difference, i.e. as you go from one group to the other, how much does the target mean change? The t-test is just a special case of this, but under the same conditions, the t-statistic from the linear regression and t-test, and corresponding p-value would be identical.
-
-Analysis of variance, or **ANOVA*,* allows the t-test to be extended to more than two groups, and multiple features, and is also commonly employed to analyze the results of experimental design settings.  But ANOVA is still just a linear regression. Even when we get into more complicated design settings such as repeated measures and mixed design, it's still just a linear regression, we'd just be using mixed models. 
-TODO: LINK TO MIXED MODELS
-
-If using a linear regression didn't suggest any notion of causality to you before, it certainly shouldn't now either. The model is *identical* whether there was an experimental design with random assignment or not. The only difference is that the data was collected in a different way, and the theoretical assumptions and motivations are different. Experimental design can give us more confidence in the causal explanation of model results, whatever model is used, and this is why we like to use random assignment when we can. It gives us control for the unobserved factors that might otherwise be influencing the results. If we can be fairly certain the observations are essentially the same *except* for the treatment, then we can be more confident that the treatment is the cause of the difference, and we can be more confident in the causal interpretation of the results. But it doesn't change the model itself, and the results of a model do not in any way prove a causal relationship.
+```{r}
+#| eval: false
+#| echo: false
+#| label: r-random-assignment
+#| 
+# Load the necessary library
 
 
+# Create a data frame with random assignments
+set.seed(123)
+N = 250
+df <- data.frame(
+    x = rnorm(250, sd = .1),
+    y = rnorm(250, sd = .1),
+    group = sample(c('A', 'B'), 250, replace = TRUE),
+    col_group = sample(rainbow(5), 250, replace = TRUE)
+)
+
+dot_size = 3
+
+# Plot the data as a single cluster
+p_all = ggplot(df, aes(x, y)) +
+    geom_point(
+        aes(color = col_group),  
+        fill = 'white', 
+        pch=21, 
+        size = dot_size, 
+        show.legend = FALSE, 
+        alpha = 1
+    ) +
+    labs(
+        title = 'Random Assignment to Groups A and B',
+    ) +
+    theme_void() +
+    theme(
+        plot.title = element_text(size = 20, hjust = 0.5, margin = margin(.5, .5, .5, .5, 'cm'))
+    )
+# p_all
+
+# Plot the data separated into groups A and B
+p_groups = ggplot(df, aes(x, y)) +
+    geom_point(
+        aes(color = col_group),  
+        fill = 'white', 
+        # border = 5,
+        pch=21, 
+        size = dot_size, 
+        show.legend = FALSE, 
+        alpha = 1
+    ) +
+    facet_wrap(~ group) +
+    labs(
+        # title = 'Random Assignment to Groups A and B',
+    ) +
+    theme_void() +
+    theme(
+        strip.text = element_text(size = 20, margin = margin(.5, .5, .5, .5, 'cm')),
+        panel.border =  element_rect(color = 'gray25', fill=NA),
+        panel.spacing = unit(2, 'cm'),
+        plot.margin = margin(1, 1, 1, 1, 'cm')
+    )
+
+library(waffle)
+
+p_waff = df  |> 
+    count(group, col_group)  |> 
+    ggplot( aes(values=n, fill = col_group)) +
+    geom_waffle(n_rows = 10, size = .5, color = 'white', show.legend = FALSE) +
+    facet_wrap(~group) +
+    theme_void()  +
+    theme(
+        strip.text = element_text(size = 20, margin = margin(.5, .5, .5, .5, 'cm')),
+        # panel.border =  element_rect(color = 'black', fill=NA),
+        panel.spacing = unit(2, 'cm'),
+        plot.margin = margin(1, 1, 1, 1, 'cm')
+    )
+    
+design <- '
+ ##11##
+  222222
+  333333
+'
+
+(p_all /
+    p_groups/
+    p_waff) +
+    plot_layout(width = c(1, 2, 2), design = design) &
+    scale_color_manual(values = okabe_ito, aesthetics = c('fill', 'color')) 
+
+ggsave(
+    'img/causal-random-assignment.svg', 
+    width = 6, 
+    height = 10,
+    dpi = 300
+)   
+```
+
+![Random Assignment](img/causal-random-assignment.svg){width=33% #fig-random-assignment}
+
+Many are familiar with the basic idea of an experiment, where we have a **treatment** group and a **control** group, and we want to measure the difference between the two groups. The 'treatment' could regard a new drug, a marketing campaign, or a new app's feature.  If we randomly assign our observational units to the two groups, say, one that gets the new app feature and the other doesn't, we can be more confident that the two groups are essentially the same aside from the treatment, and that any difference in the outcome, for example, customer satisfaction with the app, is due to the treatment. 
+
+This is the basic idea behind a **randomized control trial**, or **RCT**.  We can randomly assign the groups in a variety of ways, but you can think of it as flipping a coin, and assigning each sample to the treatment when the coin comes up on one side, and to the control when it comes up on the other. The idea is that the only difference between the two groups is the treatment, and so any difference in the outcome can be attributed to the treatment. This is visualized in @fiz-random-assignment, where the colors represent different groups, and the groups are essentially the same aside from the treatment.
+
+Many of those who have taken a statistics course have been exposed to the simple t-test to determine whether two groups are different. The t-test tells us whether the difference in means between the two groups is *statistically* significant. However, it definitely *does not* tell us whether the treatment itself caused the difference, whether the effect is large, nor whether the effect is real, or even if the treatment is a good idea to do in the first place. It just tells us whether the two groups are statistically different.
+
+Turns out, a t-test is just a linear regression model. It's a special case of linear regression where there is only one independent variable, and it is a categorical variable with two levels. The coefficient from the linear regression would tell you the mean difference of the outcome between the two groups. Under the same conditions, the t-statistic from the linear regression and the t-test would have identical statistical results.
+
+Analysis of variance, or **ANOVA**, allows the t-test to be extended to more than two groups, and multiple features, and is also commonly employed to analyze the results of experimental design settings.  But ANOVA is still just a linear regression. Even when we get into more complicated design settings such as repeated measures and mixed design, it's still just a linear regression, we'd just be using mixed models (@sec-lm-extend-mixed-models). 
+
+If using a linear regression didn't suggest any notion of causality to you before, it certainly shouldn't now either. The model is *identical* whether there was an experimental design with random assignment or not. The only difference is that the data was collected in a different way, and the theoretical assumptions and motivations are different. Even the statistical assumptions are the same whether you use random assignment or the there are one or more groups, or whether the treatment is continuous or categorical. 
+
+Experimental design[^exprand] can give us more confidence in the causal explanation of model results, whatever model is used, and this is why we like to use it when we can. It helps us control for the unobserved factors that might otherwise be influencing the results. If we can be fairly certain the observations are essentially the same *except* for the treatment, then we can be more confident that the treatment is the cause of the difference, and we can be more confident in the causal interpretation of the results. But it doesn't change the model itself, and the results of a model don't prove a causal relationship by themselves. Your experimental study will also be limited by the quality of the data, and the population it generalizes to. Even with strong design and modeling, if care isn't taken in the modeling process to even assess the generalization of the results (@sec-ml-generalization), you may find they don't hold up[^explimits].
+
+[^exprand]: Note that experimental design is not just any setting that uses random assignment, but more generally how we introduce *control* in the sample settings.
+[^explimits]: Many experimental design settings involve sometimes very small samples due to the cost of the treatment implementation and other reasons. This often limits exploration of more complex relationships (e.g. interactions), and it is relatively rare to see any assessment of performance generalization. It would probably worry many to know how many experimental results are based on p-values with small data, and this is the part of the problem seen with the [replication crisis](https://en.wikipedia.org/wiki/Replication_crisis) in science.
 
 
-:::{.callout-note}
-**A/B testing** is just marketing-speak for a two-group setting where one could employ the same mindset they would if they were doing a t-test. It implies randomized assignment, but you'd have to know the context to know if that is actually the case.
+:::{.callout-note title='A/B Testing' collapse='true'}
+**A/B testing** is just marketing-speak for a project focused on comparing two groups. It implies randomized assignment, but you'd have to understand the context to know if that is actually the case.
 :::
 
 
 ## Natural Experiments
 
-As we noted, random assignment or a formal experiment is not always possible or practical to implement. But sometimes we get to do it anyway, or at least close enough! Sometimes, the world gives us a **natural experiment**, where the assignment to the groups is essentially random, or where there is clear break before and after some event occurs, such that we examine the change as we would in pre-post design. 
+```{r}
+#| eval: false
+#| echo: false
+deaths = read_csv('misc/covid_new_deaths_per_million.csv', col_select= matches('date|United States$')) |> 
+    rename(deaths_per_mi = `United States`)
+vax = read_csv('misc/us_covid_vaccinations.csv') 
 
-For example, a certain recent pandemic allowed us to examine vaccination effects, policy effects, remote work, and more. This was not a tightly controlled experiment, but it's something we can treat very similar to an experiment, and we can compare the differences in various outcomes before and after the pandemic to see what changes took place. 
+dim(deaths)
+dim(vax)
+
+deaths |> print(n=100)
+# min(deaths$date)
+# length(seq.Date(as_date('2020-01-05'), as_date('2022-12-31'), by = 'day'))
+
+
+covid_us = full_join(
+    vax, deaths |> select(date, deaths_per_mi) |> filter(deaths_per_mi>0), by = 'date'
+)
+
+covid_us |> 
+    select(date, people_vaccinated, deaths_per_mi) |>
+    filter(date < '2022-01-01') |>
+    drop_na() |> 
+    # mutate(total_vaccinations = total_vaccinations - dplyr::lag(total_vaccinations)) |> 
+    mutate(people_vaccinated_million = people_vaccinated/1e6) |> 
+    select(-people_vaccinated) |>
+    pivot_longer(-date, names_to = 'variable', values_to = 'value') |>
+    filter(variable != 'people_vax_million') |>
+    mutate(variable = if_else(variable == 'deaths_per_mi', '# deaths per million', '# vaccinated in millions')) |>
+    # group_by(variable) |>
+    # mutate(scale_value = scale(value)) |>
+    ggplot(aes(x = date, y = value)) +
+    # geom_point(aes(color = variable)) +
+    geom_line(aes(color = variable, linetype = variable)) +
+    geom_smooth(aes(color = variable, linetype = variable), se=FALSE, method = 'gam', formula = y ~ s(x, bs='cs', k = 25)) +
+    scale_x_date(date_breaks = '1 month', labels = label_date_short()) +
+    see::scale_color_okabeito() + 
+    # geom_smooth(method = 'lm') +
+    labs(
+        x = '', 
+        y = '', 
+        caption = 'Data from Our World in Data: https://github.com/owid/',
+        title = 'Covid Vaccinations and Deaths in the US'
+    ) +
+    theme(
+        legend.direction = 'vertical',
+    )
+
+ggsave(
+    'img/causal-covid-vax-deaths.svg', 
+    width = 8, 
+    height = 6
+)
+```
+
+```{r}
+#| eval: false
+#| echo: false
+#| label: r-causal-covid-derivs
+# just eda
+library(mgcv)
+library(gratia)
+
+model_data = covid_us |> 
+    select(date, people_vaccinated, deaths_per_mi) |>
+    filter(date < '2022-01-01') |>
+    drop_na() |> 
+    # mutate(total_vaccinations = total_vaccinations - dplyr::lag(total_vaccinations)) |> 
+    mutate(people_vaccinated_million = people_vaccinated/1e6)
+
+
+# Model death data
+death_model <- gam(deaths_per_mi ~ s(date), data = model_data |> mutate(date = as.numeric(date)))
+death_derivatives <- derivatives(death_model, term = 's(date)')
+# Model vaccination data
+vax_model <- gam(people_vaccinated_million ~ s(date), data = model_data |> mutate(date = as.numeric(date)))
+vax_derivatives <- derivatives(vax_model, term = 's(date)')
+
+# Plot death derivatives
+# draw(death_derivatives)
+# draw(vax_derivatives) 
+
+vax_derivatives |> 
+    select(date = data, vax_d = derivative) |>
+    left_join(death_derivatives |> select(date = data, death_d = derivative), by = 'date') |>
+    # arrange(date) |> 
+    mutate(
+        date = as_date(date),
+        # vax_d = dplyr::lag(vax_d, 4)
+    ) |>
+    pivot_longer(-date, names_to = 'variable', values_to = 'value') |>
+    ggplot(aes(x = date, y = value)) +
+    geom_line(aes(color = variable, linetype = variable)) +
+    scale_x_date(date_breaks = '1 month', labels = label_date_short()) +
+    see::scale_color_okabeito() +
+    labs(
+        x = '', 
+        y = '',
+    )
+    # ggplot(aes(x = vax_d, y = death_d)) +
+    # geom_point()
+```
+
+![Covid Vaccinations and Deaths in the US](img/causal-covid-vax-deaths.svg){width=50% #fig-covid-vax-deaths}
+
+
+
+As we noted, random assignment or a formal experiment is not always possible or practical to implement. But sometimes we get to do it anyway, or at least we can get pretty close! Sometimes, the world gives us a **natural experiment**, where the assignment to the groups is essentially random, or where there is clear break before and after some event occurs, such that we examine the change as we would in pre-post design. 
+
+For example, the covid pandemic allowed us to potentially examine vaccination effects, governmental policy effects, the effectiveness remote work, and more. This was not a tightly controlled experiment, but it's something we can treat very similar to an experiment, and we can compare the differences in various outcomes before and after the pandemic to see what changes took place. 
 
 
 ## Causal Inference
 
-Reasoning about causality is a very old topic, philosophically dating back millenia, and more formally [hundreds of years](https://plato.stanford.edu/entries/causation-medieval/). Random assignment is a relatively new idea, say [150 years old](https://plato.stanford.edu/entries/peirce/), but was even posited before Wright, Fisher, and Neyman Pearson and the 20th century rise of statistics. But with stats and random assignment we had a way to start using models to help us reason about causal relationships. [Pearl and others](https://muse.jhu.edu/pub/56/article/867087/summary) came along to provide a perspective from computer science, and things have been progressing along. We were actually using programming approaches to do causal inference before back in the 1970s even! Economists eventually got into the game too (e.g., Heckman), though largely reinventing the wheel.
+Reasoning about causality is a very old topic, philosophically dating back millennia, and more formally [hundreds of years](https://plato.stanford.edu/entries/causation-medieval/). Random assignment is a relatively new idea, say [150 years old](https://plato.stanford.edu/entries/peirce/), but was posited even before Wright, Fisher, and Neyman and the 20th century rise of statistics. But with stats and random assignment we had a way to start using models to help us reason about causal relationships. [Pearl and others](https://muse.jhu.edu/pub/56/article/867087/summary) came along to provide a perspective from computer science, and things have been progressing along. We were actually using programming approaches to do causal inference back in the 1970s even! Economists got into the game too (e.g., Heckman), and eventually most scientific academic disciplines were well acquainted with causal inference in some fashion.
 
 Now we can use recently developed modeling approaches to help us reason about causal relationships, which can be both a blessing and a curse. Our models can be more complex, and we can use more data, which can potentially give us more confidence in our conclusions. But we can still be easily fooled by our models, as well as by ourselves. So we'll need to be careful in how we go about things, but let's see what some of our options are!
 
@@ -67,27 +325,40 @@ Now we can use recently developed modeling approaches to help us reason about ca
 
 ## Models for Causal Inference
 
+Any model can be used to answer a causal question, and which one you use will depend on the data setting and the question you are asking. The following covers a few models that might be seen in various academic and professional settings.
+
+
 ### Linear Regression
 
-Yep, [linear regression](https://matheusfacure.github.io/python-causality-handbook/05-The-Unreasonable-Effectiveness-of-Linear-Regression.html). Your old #1 is quite possibly the mostly widely used model for causal inference, historically speaking.  We've even already seen linear regression as a graphical model @fig-graph-lm, and in that sense can serve as the starting point for structural equation models and related, or be used as a baseline for other approaches. Linear regression also tells us for any particular effect, what that effect is, accounting for all the other features constant, which kind of already gets into a causal mindset.
+Yep, [linear regression](https://matheusfacure.github.io/python-causality-handbook/05-The-Unreasonable-Effectiveness-of-Linear-Regression.html). Your old #1 is quite possibly the mostly widely used model for causal inference, historically speaking and even today. We've even already seen linear regression as a graphical model @fig-graph-lm, and in that sense, it can serve as the starting point for structural equation models and related models that we'll talk about next. It can also be used as a baseline model for other more complex approaches. Linear regression can potentially tell us  for any particular feature, what that feature's effect is, accounting for all the other features constant. This **ceteris paribus** interpretation - 'all else being equal' - already gets us into a causal mindset. 
 
-However, your standard linear model doesn't care where the data came from and will tell you about group differences whether they come from a randomized experiment or not. And if you don't include features that would have a say in the treatment, you'll potentially get a biased estimate of the effect. As such, linear regression by itself cannot save us from the difficulties of causal inference. But it can be used in conjunction with other approaches, and it can be used to help us reason about causal relationships. For example, we can use it to help us understand the effect of a treatment, or to help us understand the effect of a feature on the target, accounting for other features.
+However, your standard linear model doesn't care where the data came from, and will tell you about group differences whether they come from a randomized experiment or not. And if you don't include features that would have a say in how the treatment comes about, you could get a biased estimate of the effect[^biasedcause]. As such, linear regression by itself cannot save us from the difficulties of causal inference. It needs a lot of assumptions to pan out before we can interpret it causally. But it can be useful on its own or in conjunction with other approaches.
+
+[^biasedcause]: A reminder that a conclusion of 'no effect' is also a causal statement, and can be just as biased as any other statement, and that you could come to the same *practical* conclusion with a biased estimate as with an unbiased one.
 
 
-### Structural Equation Models
+### Graphical Models & Structural Equation Models
 
-TODO: LINK LATENT VARIABLES
 
-**Structural Equation Models** are basically multivariate models, as in multiple targets, used for regression and classification. They are widely employed in the social sciences, and are often used to model both observed and latent variables, with either serving as features or targets. They are also used to model causal relationships, to the point that historically they were called causal graphical models or causal structural models, and are a special case of **graphical models** more generally speaking. They have one of the longest histories of formal statistical modeling dating back over a century[^wright]. Economists later reinvented the approach under various guises, and computer scientists joined the party after that.
+**Graphical and Structural Equation Models (SEM)** are flexible approach to regression and classification (see @fig-causal-dag), and have one of the longest histories of formal statistical modeling, dating back over a century[^wright]. They are widely employed in the social sciences, and are often used to model both observed *and* latent variables (@sec-data-latent), with either serving as features or targets. They are also used to model causal relationships, to the point that historically they were even called 'causal graphical models' or 'causal structural models'. SEMs are a form of **graphical models** which are more common in computer science and non-social science disciplines.
 
 [^wright]: [Wright](https://en.wikipedia.org/wiki/Sewall_Wright) is credited with coming up with what would be called **path analysis** in the 1920s, which is a precursor to and part of SEM. 
 
-Unfortunately for those looking for causal effects, the basic input for SEM is a correlation matrix, and the basic output is a correlation matrix. Insert your favorite modeling quote here - you know which one. Also, a linear regression and even deep-learning models like autoencoders can be depicted as graphical models, as we have seen. The point is that SEM, like linear regression, can no more tell you whether a relationship is causal than the linear regression, or for that matter, the t-test, could.
+Formal graphical models like SEM provide a much richer set of tools for controlling various confounding, interaction, and indirect effects that simpler linear models cannot. And for this reason, they can very useful for causal inference. Unfortunately for those looking for causal effects, the basic input for SEM is a correlation matrix, and the basic output is a correlation matrix. Insert your favorite modeling quote here - you know which one! The point is that SEM, like linear regression, can no more tell you whether a relationship is causal than the linear regression or t-test could[^sembias].
 
+[^sembias]: Your authors have to admit some bias here. We've spent a lot of our past dealing with SEMs, and almost every application we saw had too little data and too little generalization, and were grossly overfit. Many SEM programs even added multiple ways to overfit the data even further, and it is difficult to trust the results reported in many papers that used them. But that's not the fault of SEM in general- it can be a very powerful tool when used correctly, and it can help to answer causal questions, but it is not a magic bullet, and it doesn't make anyone look fancier by using it.
+
+
+
+:::{.callout-note title='Causal Language' collapse='true'}
+It's often been suggested that we keep certain phrasing (e.g. feature A *affects* target Q) only for the causal model setting. But the model we use can only tell us that the data is consistent with the effect we're trying to understand, not that it actually exists. In everyday language, we often use causal language whenever we think the relationship is or should be causal, and that's fine, and we think that's okay in a modeling context too, as long as you are clear about the limits of your generalizability.
+:::
 
 ### Counterfactual Thinking
 
-When we think about causality, we really out to think about **counterfactuals**. What would have happened if I had done something different? What would have happened if I had not done something? What would have happened if I had done something sooner rather than later? What would have happened if I had done nothing at all? These questions are all examples of counterfactual thinking. And this is one of the best ideas to take aways from this... 
+<!-- TODO: could use some viz here -->
+
+When we think about causality, we really out to think about **counterfactuals**. What would have happened if I had done something different? What would have happened if I had done something sooner rather than later? What would have happened if I had done nothing at all? These questions are all examples of counterfactual thinking. It's natural to question our actions in this way, but we can think this way in a modeling context too. In terms of our treatment effect example, we can summarize counterfactual thinking as:
 
 > the question is not whether there is a difference between A and B but whether there would still be a difference if A *was* B and B *was* A.
 
@@ -100,7 +371,7 @@ Here is a more concrete example:
 
 What are we to make of this? Which ad is better? **A** seems to be, but maybe Pris wouldn't have bought the product if shown that ad either, and maybe Roy would have bought the product if shown ad **B** too! With counterfactual thinking, we are concerned with the potential outcomes of the treatment, which in this case is whether or not to show the ad. 
 
-Let's say ad A is the new one, i.e., our treatment group, and B is the status quo ad, our control group.  Our real question can't be answered by a simple test of whether means or predictions are different among the two groups, as this estimate would be biased if the groups are already different in the first place. The real effect is whether, for those who saw ad A, what the difference in the target would be if they hadn't seen it.
+Let's say ad A is the new one, i.e., our treatment group, and B is the status quo ad, our control group.  Our real question can't be answered by a simple test of whether means or predictions are different among the two groups, as this estimate would be biased if the groups are already different in some way to start with. The real effect is whether, for those who saw ad A, what the difference in the target would be if they hadn't seen it.
 
 From a prediction stand point, we can get an estimate straightforwardly. For those in the treatment, we can just plug in their feature values with treatment set to ad A. Then we just make a prediction with treatment set to ad B.
 
@@ -126,24 +397,31 @@ predict(model, X |> mutate(treatment = 'A')) -
 
 :::
 
-With counterfactual thinking explicitly in mind, we can see that the difference in predictions is the difference in the potential outcomes of the treatment. 
+With counterfactual thinking explicitly in mind, we can see that the difference in predictions is the difference in the potential outcomes of the treatment. This is a very simple demo to illustrate how easy it is to start getting some counterfactual results from our models. But it's not quite that simple in practice, and there are many ways to get this estimate wrong as well. As in other circumstances, the data, or our assumptions about the problem can potentially lead us astray. Assuming those aspects of our modeling endeavor are in order, this is one way to get an estimate of the causal effect of the treatment.
 
+:::{.callout type='info' title='Weighting and Sampling Methods' collapse='true'}
+Common techniques for traditional statistical models used for causal inference include a variety of **weighting** or **sampling** methods. These methods are used to adjust the data so that the groups are more similar, and the effect of the treatment can be more accurately estimated. Sampling method include techniques such as stratification and matching, which focus on the selection of the sample as a means to balance treatment and control groups. Weighting methods include inverse probability weighting and propensity score weighting, which focus on adjusting the weights of the observations to make the groups more similar.
+
+These methods are not models themselves, and potentially can be used with just about any model that attempts to estimate the effect of a treatment.
+:::
 
 ### Uplift Modeling
 
 The counterfactual prediction we just did can be called the **uplift** or **gain** from the treatment. **Uplift modeling** is a general term applied to models where counterfactual thinking is at the forefront, especially in a marketing context. Uplift modeling is not *a* model, but any model that is used to answer a question about the potential outcomes of a treatment. The key question is what is the gain, or uplift, in applying a treatment vs. not?  Typically any statistical model can be used to answer this question, and often the model is a classification model, whether Roy both the product or not. 
 
-Some in uplift modeling distinguish:
+It is common in uplift modeling to distinguish certain types of individuals or instances, and we think it's useful to extend this to other modeling contexts as well. They are:
 
 - **Sure things**: those who would buy the product whether or not shown the ad.
 - **Lost causes**: those who would not buy the product whether or not shown the ad.
 - **Sleeping dogs**: those who would buy the product if not shown the ad, but not if shown the ad. 'Do not disturb'!
 - **Persuadables**: those who would buy the product if shown the ad, but not if not shown the ad.
 
-One of additional goals in uplift modeling is to identify persuadables for additional marketing efforts, and to avoid wasting money on the lost causes. But to get there, we have to think causally first!
+It's worthwhile to think about which aspects of your data could correspond to these groups. One of additional goals in uplift modeling is to identify persuadables for additional marketing efforts, and to avoid wasting money on the lost causes. But to get there, we have to think causally first!
 
-:::{.callout-tip}
-There appear to be more widely used tools for uplift modeling and meta-learners in Python than in R, but there are some options in R as well. In Python you can check out [causalml](https://causalml.readthedocs.io/en/latest/index.html) and [sci-kit uplift](https://www.uplift-modeling.com/en/v0.5.1/index.html) for some nice tutorials and documentation.
+:::{.callout type='tip' title='Uplift Modeling in R and Python' collapse='true'}
+
+There are more widely used tools for uplift modeling and meta-learners in Python than in R, but there are some options in R as well. In Python you can check out [causalml](https://causalml.readthedocs.io/en/latest/index.html) and [sci-kit uplift](https://www.uplift-modeling.com/en/v0.5.1/index.html) for some nice tutorials and documentation.
+
 :::
 
 ### Meta-Learning
@@ -156,8 +434,8 @@ There appear to be more widely used tools for uplift modeling and meta-learners 
 - **Misc-learner** - other meta-learners that are not as popular, but might be applicable for your problem.
 - **Transformed outcome**: transform your uplift modeling into a regression problem in which the prediction is the difference in the potential outcomes. This simplifies the problem to a single model, and can be quite effective. 
 
-:::{.callout-note}
-Meta-learners are not to be confused with **meta-analysis**, which is also related to understanding causal effects. Meta-analysis attempts to combine the results of multiple *studies* to get a better estimate of the true effect. The studies are typically conducted by different researchers and in different settings.  **Meta-learning** has also been used to refer to what is more commonly called ensemble learning.
+:::{.callout-note title='Meta-Learners vs. Meta-Analysis' collapse='true'}
+Meta-learners are not to be confused with **meta-analysis**, which is also related to understanding causal effects. Meta-analysis attempts to combine the results of multiple *studies* to get a better estimate of the true effect. The studies are typically conducted by different researchers and in different settings.  The term **meta-learning** has also been used to refer to what is more commonly called **ensemble learning**, the approach used in random forests and boosting. It is also used by other people that don't bother to look things up before naming their technical terms.
 :::
 
 ### Others approaches
@@ -178,14 +456,16 @@ You will often hear people speak very strongly about causality in the context of
 In the end, the main thing is that when we want to make causal statements, we'll make do with what data setting we have, and be careful that we rule out some of the other obvious explanations and issues. The better we can control the setting, or the better we can do things from a model standpoint, the more confident we can be in making causal claims. Causal modeling is an exercise in reasoning, which makes it such an interesting endeavor.
 
 
-## The Common Thread
+### The Common Thread
 
-## Choose Your Own Adventure
+### Choose Your Own Adventure
 
-## Additinoal Resources
+### Additional Resources
 
 We have only scratched the surface here, and there is a lot more to learn. Here are some resources to get you started:
 
 - @barrett_causal_2023
 - @cunningham_causal_2023
 - @facure_alves_causal_2022
+- [Applied Causal Inference Powered by ML and AI] (@chernozhukov_applied_2024)
+- [The c-word]()
