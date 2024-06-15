@@ -5,16 +5,6 @@
 ― Isaac Asimov (paraphrased)
 :::
 
-```{r}
-#| label: setup-lm
-#| include: false
-source("load_packages.R")
-source("setup.R")
-source("functions/utils.R")
-library(reticulate)
-use_condaenv("book-of-models")
-```
-
 
 ```{r}
 #| echo: false
@@ -62,6 +52,8 @@ The basic linear model and how it comes about underpins so many models, from the
 ### Good to know {#sec-lm-good-to-know}
 
 We're just starting out here, but we're kind of assuming you've had some exposure to to the idea of statistical or other models, even if only from an interpretation standpoint. We assume you have understanding of basic stats like central tendency (e.g., a mean or median) and correlation, stuff like that. And if you intend to get into the code examples, you'll need a basic familiarity to with Python or R.
+
+<!-- TODO: consider moving what is a model to a more general intro chap for this part, see conclusion content also -->
 
 ## What is a Model? {#sec-lm-what-is-a-model}
 
@@ -128,6 +120,7 @@ As noted, a model is a way of expressing a relationship between a set of feature
 
 Well, first off, we assume that the features and target are **correlated**, that there is some relationship between the feature `x` and target `y`.  The output of a model will correspond to the target if they are correlated, and more closely match it with stronger correlation.  If so, then we can ultimately use the features to **predict** the target. In the simplest setting, a correlation implies a  relationship where x and y typically move up and down together (left plot) or they move in opposite directions where x goes up and y goes down (right plot).
 
+:::{.content-visible when-format="html"}
 ```{r}
 #| echo: false
 #| label: fig-corr-plot
@@ -163,7 +156,14 @@ p2 = ggplot(p_dat, aes(x, yneg)) +
     labs(subtitle = "Negative Correlation")
 
 p1 + p0 + p2
+
+ggsave("img/lm-corr_plot.svg", width = 8, height = 6)
 ```
+:::
+
+:::{.content-visible when-format="pdf"}
+![Correlation](img/lm-corr_plot.svg)
+:::
 
 In addition, the simplest correlation suggests a *linear* relationship, one that is adequately captured by a straight line. There are many types of correlation metrics, but the most common one, the **Pearson correlation**, is explicitly a measure of the linear relationship between two variables. It's expressed as a number between -1 and 1, where 0 means there is no linear relationship. As we move closer to a 1.0 correlation value, we would see a tighter scatterplot like the one on the left, until it became a straight line. The same happens for the negative relationship as we get closer to a value of -1, like the plot on the right.  If we have only one feature and target, the Pearson correlation reflects the exact result of the linear model we'd conduct in a more complicated fashion. But even with multiple features, we still stick to this notion of correlation to help us understand how the features account for the target's variability, or why it behaves the way it does.
 
@@ -273,8 +273,10 @@ For our first linear model, we'll keep things simple.  Let's predict the rating 
 
 ```{r my-first-model}
 #| label: r-my-first-model
+
+# all data found on github repo
 df_reviews = read_csv(
-  "https://raw.githubusercontent.com/m-clark/book-of-models/main/data/movie_reviews.csv"
+  'https://tinyurl.com/5n9axad6'
 )
   
 model_reviews = lm(rating ~ word_count, data = df_reviews)
@@ -298,17 +300,18 @@ latex fix for pdf due to ridiculous 'Notes' output that should be documented and
 https://stackoverflow.com/questions/76391230/change-the-font-size-of-the-output-of-python-code-chunk
 -->
 
-\small
 
 ```{python}
 #| label: py-my-first-model
+#| results: hide
 
 import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
 
+# all data found on github repo
 df_reviews = pd.read_csv(
-  'https://raw.githubusercontent.com/m-clark/book-of-models/main/data/movie_reviews.csv'
+  'https://tinyurl.com/5n9axad6'
 )
 
 model_reviews = smf.ols('rating ~ word_count', data = df_reviews).fit()
@@ -316,7 +319,18 @@ model_reviews = smf.ols('rating ~ word_count', data = df_reviews).fit()
 model_reviews.summary(slim = True)
 ```
 
+\small
+
+```{python}
+#| echo: false
+#| label: py-my-first-model-show
+
+
+model_reviews.summary(slim = True)
+```
+
 \normalsize
+
 
 ```{python}
 #| echo: false
@@ -407,7 +421,7 @@ Not too complicated we hope!  But let's make sure we see what's going on here ju
 
 ### The Linear Model as a Graph {#sec-lm-graph}
 
-We can also express the linear model as a graph, which can be a very useful way to think about models in a visual fashion, and as we see other models, can help us literally see how different models relate to one another and are actually very similar to one another. In the following, we have three features predicting a single target, so we have three 'nodes' for the features, and a single node for the target. The feature nodes are combined into a linear combination, or, **linear predictor**, with each 'edge' signifying the connection, and labeled with the coefficient or weight.  This connection between our linear predictor, and the ultimate target is direct, without any additional change. We'll return to this depiction a little bit later (@sec-lm-classification), but for our standard linear model, we're all set.
+We can also express the linear model as a graph, which can be a very useful way to think about models in a visual fashion, and as we see other models, can help us literally see how different models relate to one another and are actually very similar to one another. In the following, we have three features predicting a single target, so we have three 'nodes' for the features, and a single node for the target. The feature nodes are combined into a linear combination to produce the **output** of the model. In the context of linear regression, the output is often called the **linear predictor**. Each 'edge' signifies the connection of a feature to the output, and is labeled with the coefficient or weight.  The connection between the output and the target is direct, without any additional change. We'll return to this depiction a little bit later (@sec-lm-classification), but for our standard linear model, we're all set.
 
 
 
@@ -524,16 +538,18 @@ The reference line is where the points would fall if we had perfect prediction. 
 
 <!-- TODO: the above paragraph is one of the earlier instances where we used 'observed' rather than 'true'. MC wants to footnote or maybe even callout the poor practice of calling data full of uncertainty true. -->
 
+:::{.content-visible when-format="html"}
+
 ```{r}
 #| echo: false
 #| label: fig-my-first-model-predictions-plot
 #| fig-cap: Predicted vs. Observed Ratings
 
-df_reviews |>
+p = df_reviews |>
     mutate(pred = all_predictions) |>
     ggplot(aes(pred, rating)) +
     geom_point(position = position_jitter()) +
-    geom_abline(intercept = 0, slope = 1, color = okabe_ito[2], size = 2) +
+    geom_abline(intercept = 0, slope = 1, color = okabe_ito['darkblue'], size = 2) +
     labs(
         x = "Predicted Rating",
         y = 'Observed\nRating',
@@ -545,7 +561,18 @@ df_reviews |>
         plot.caption = element_text(vjust = -2)
 
     )
+
+p
+
+# p_gray = p + scale_color_grey() 
+
+ggsave("img/lm-my-first-model-predictions-plot.svg", width = 8, height = 6)
 ```
+:::
+
+:::{.content-visible when-format="pdf"}
+![Predicted vs. Observed Ratings](img/lm-my-first-model-predictions-plot.svg){width=50% #fig-my-first-model-predictions-plot}
+:::
 
 Now let's look at what our prediction looks like for a single observation, and we'll add in a few more- one for 10 words, and one for a 50 word review, which is beyond the length of any review in this dataset, and one for 12.3 words, which isn't even possible for this data, since words are only counted as whole values. To get these values we just use the same prediction approach as before, and we specify the word count value we want to predict for. 
 
@@ -574,6 +601,8 @@ As we have seen, predictions are not perfect, and an essential part of the model
 
 Let's start with looking at the residuals visually. Often the modeling package you use will have this as a default plotting method when doing a standard linear regression, so it's wise to take advantage of it. We plot both the distribution of raw error scores and the cumulative distribution of absolute prediction error. Here we see a couple things. First, the distribution is roughly normal, which is a good thing, since statistical linear regression assumes our error is normally distributed, and the prediction error serves as an estimate of that. Second, we see that the mean of the errors is zero, which is a consequence of linear regression, and the reason we look at other metrics when assessing model performance. We can also see that most of our predictions are within ±1 star rating. 
 
+
+:::{.content-visible when-format="html"}
 ```{r}
 #| echo: false
 #| label: fig-my-first-model-error-plot
@@ -583,8 +612,8 @@ p_hist = tibble(
     error = resid(model_reviews)
 ) |>
     ggplot(aes(error)) +
-    geom_histogram() +
-    geom_vline(xintercept = 0, color = okabe_ito[2], size = 1.5, alpha = 1) +
+    geom_histogram(alpha = .8) +
+    geom_vline(xintercept = 0, color = okabe_ito['darkblue'], size = 1.5, alpha = 1) +
     labs(
         x = "Prediction Error",
         y = "Count",
@@ -598,10 +627,10 @@ p_ecdf = tibble(res = abs(resid(model_reviews))) |>
     arrange(res) |>
     mutate(prop = 1 - row_number() / n()) |>
     ggplot(aes(x = res)) +
-    geom_vline(xintercept = 1, color = okabe_ito[2], alpha = 1) +
-    geom_vline(xintercept = mean(abs(resid(model_reviews))), color = okabe_ito[2], alpha = 1) +
-    stat_ecdf(size = 1, color = okabe_ito[1]) +
-    stat_ecdf(aes(ymin = 0, ymax = ..y..), size = 1, fill = okabe_ito[1], geom = "ribbon", alpha = .1) +
+    geom_vline(xintercept = 1, color = okabe_ito['darkblue'], alpha = 1) +
+    geom_vline(xintercept = mean(abs(resid(model_reviews))), color = okabe_ito['darkblue'], alpha = 1) +
+    stat_ecdf(size = 1, color = okabe_ito['orange']) +
+    stat_ecdf(aes(ymin = 0, ymax = ..y..), size = 1, fill = okabe_ito['orange'], geom = "ribbon", alpha = .1) +
     scale_y_continuous(breaks = seq(10, 100, 10) / 100, labels = scales::percent) +
     labs(
         x = "Absolute Prediction Error",
@@ -619,7 +648,15 @@ p_hist + p_ecdf &
         axis.title.x = element_text(size = 10),
         axis.title.y = element_text(size = 10)    
     )
+
+ggsave("img/lm-my-first-model-error-plot.svg", width = 8, height = 6)
 ```
+
+:::
+
+:::{.content-visible when-format="pdf"}
+![Distribution of Prediction Errors](img/lm-my-first-model-error-plot.svg){width=50% #fig-my-first-model-error-plot}
+:::
 
 
 ```{r}
@@ -942,7 +979,8 @@ If we look back at our results, we can see this expressed as the part of the out
 
 ```{r}
 #| label: my-first-model-mse-r
-summary(model_reviews) # 'Residual standard error' is approx RMSE
+# summary(model_reviews) # 'Residual standard error' is approx RMSE
+summary(model_reviews)$sigma   # We can extract it directly
 ```
 
 ##### Python
@@ -956,7 +994,7 @@ np.sqrt(model_reviews.scale)   # RMSE
 :::
 
 
-Another metric we can use to assess **model fit**. in this particular situation is the mean absolute error, which is similar to the mean squared error, but instead of squaring the errors, we just take the absolute value. Conceptually it attempts to get at the same idea, how much our predictions miss on average, and here the value is `r mae`, which we actually showed in our residual plot (@fig-my-first-model-error-plot). With either metric, the closer to zero the better, since as we get closer, we are reducing error.
+Another metric we can use to assess **model fit** in this particular situation is the **mean absolute error** (MAE). MAE is similar to the mean squared error, but instead of squaring the errors, we just take the absolute value. Conceptually it attempts to get at the same idea, how much our predictions miss the target on average, and here the value is `r mae`, which we actually showed in our residual plot (@fig-my-first-model-error-plot). With either metric, the closer to zero the better, since as we get closer, we are reducing error.
 
 We can also look at the **R-squared** (R^2^) value of the model. R^2^ is possibly the most popular measure of model performance with linear regression and linear models in general. Before squaring, it's just the correlation of the values that we saw in the previous plot (@fig-my-first-model-predictions-plot). When we square it,  we can interpret it as a measure of how much of the variance in the target is explained by the model. In this case, our model shows the R^2^ is `r rsq`, which is not bad for a single feature model in this type of setting. We interpret it that `r rsq_perc`% of the target is explained by our model, and more specifically by the features in the model. In addition, we can also interpret R^2^ as 1 - the proportion of error variance in the target, which we can calculate as $1 - \frac{\textrm{MSE}}{var(y)}$.  In other words the complement of R^2^ is the proportion of the variance in the target that is not explained by the model. Either way, since `r 100-rsq_perc`% is not explained by the model, our result suggests there is plenty of work left to do!
 
@@ -1095,10 +1133,13 @@ sqrt(max(ev$values) / min(ev$values))
 car::vif(model_reviews_extra)
 ```
 
+
 ##### Python
+
 
 ```{python}
 #| label: lm-extra-features-py
+#| results: hide
 model_reviews_extra = smf.ols(
     formula = 'rating ~ word_count \
         + age \
@@ -1112,6 +1153,15 @@ model_reviews_extra = smf.ols(
 
 model_reviews_extra.summary(slim = True)
 ```
+
+\small
+
+```{python}
+#| label: lm-extra-features-py-show
+#| echo: false
+model_reviews_extra.summary(slim = True)
+```
+\normalsize
 
 :::
 
@@ -1276,6 +1326,7 @@ summary(model_cat)
 ```{python}
 #| eval: true
 #| label: cat-feature-py
+#| results: hide
 
 model_cat = smf.ols(
     formula = "rating ~ word_count + season",
@@ -1284,6 +1335,15 @@ model_cat = smf.ols(
 
 model_cat.summary(slim = True)
 ```
+
+\small
+
+```{python}
+#| label: cat-feature-py-show
+#| echo: false
+model_cat.summary(slim = True)
+```
+\normalsize
 
 :::
 
@@ -1343,6 +1403,7 @@ The only reason to use this is for claims of statistical significance, which in 
 
 A better approach to understanding categorical features for standard linear models is through what are called **marginal effects**, which can provide a kind of average prediction for each category while accounting for the other features in the model. Better still is to visualize these. It's actually tricky to define 'average' when there are multiple features and interactions involved, so be careful, but we'd interpret the result similarly in those cases as best we can. In this case, we expect higher ratings for summer releases. We'll return more to this concept in -@sec-marginal-effects.
 
+:::{.content-visible when-format="html"}
 ```{r}
 #| echo: false
 #| label: cat-feature-viz-r
@@ -1353,12 +1414,12 @@ broom::tidy(init) |>
     ggplot(aes(x = value, y = estimate)) +
     geom_linerange(
         aes(ymin = conf.low, ymax = conf.high),
-        color = okabe_ito[1],
+        color = okabe_ito['orange'],
         size = 0,
         linewidth = 2
     ) + 
     geom_point(
-        color = okabe_ito[2],
+        color = okabe_ito['darkblue'],
         size = 5,
         alpha = 1
     ) +
@@ -1370,7 +1431,15 @@ broom::tidy(init) |>
     theme(
         panel.grid.major.y = element_line(color = 'gray92'),
     )
+
+ggsave("img/lm-marginal_means.svg", width = 8, height = 6)
 ```
+:::
+
+:::{.content-visible when-format="pdf"}
+![Marginal Effects of Season on Rating](img/lm-marginal_means.svg)
+:::
+
 
 
 ### Other Complexity {#sec-lm-other-complexity}
