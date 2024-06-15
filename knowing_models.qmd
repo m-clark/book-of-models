@@ -8,13 +8,6 @@ TODO: Maybe split 'knowing model', vs. 'knowing features'; the split appears to 
 TODO: totally okay with a screenshot of Redd here to go with the quote.
 TODO: cache the saving of data/models
  -->
-```{r}
-#| label: setup-knowing
-#| include: false
-
-library(reticulate)
-use_condaenv("book-of-models")
-```
 
 ```{r}
 #| label: setup-knowing-r-load-objects
@@ -24,7 +17,7 @@ load("data/models/knowing_models/model_train_class.RData")
 load("data/models/knowing_models/model_reviews_3feat.RData")
 
 load("data/models/knowing_models/knowing_model_data.RData")
-df_reviews = read_csv("data/movie_reviews_processed.csv")
+df_reviews = read_csv("data/movie_reviews.csv")
 ```
 
 ```{python}
@@ -46,7 +39,7 @@ model_train_reg = load_pickle("data/models/knowing_models/model_train_reg.pkl")
 model_train_class = load_pickle("data/models/knowing_models/model_train_class.pkl")
 model_reviews_3feat = load_pickle("data/models/knowing_models/model_reviews_3feat.pkl")
 
-df_reviews = pd.read_csv("data/movie_reviews_processed.csv")
+df_reviews = pd.read_csv("data/movie_reviews.csv")
 
 
 # misc helpful objects
@@ -58,8 +51,7 @@ features = [
     "total_reviews_sc", 
     "word_count_sc", 
     "genre", 
-    ]
-
+]
 ```
 
 
@@ -136,22 +128,22 @@ performance_metrics = tribble(
 )
 
 performance_metrics %>% 
-  group_by(Problem_Type) %>%
-  gt() %>% 
-  tab_header(
-    title = "",
-    subtitle = ""
-  ) |> 
-  tab_footnote(
-    footnote = "Beta = 1 for F1",
-    locations = cells_body(columns = vars(`Other Names/Notes`), rows = Metric == 'F1')
-  )  |> 
-  # tab_footnote(
-  #   footnote = "Not sure which fields refer to Matthews Correlation outside of CS and bioinformatics, since 'phi' had already been widely used for over 60 years before Matthews forgot to cite it in his paper, and phi was literally the first correlation coefficient devised by Pearson.[phi == mcc](https://en.wikipedia.org/wiki/Phi_coefficient#Machine_learning)",locations = cells_body(columns = vars(`Other Names/Notes`), rows = Metric == 'Phi') 
-  # )  |> 
-  tab_options(
-    footnotes.font.size = 10,
-  )
+    group_by(Problem_Type) %>%
+    gt() %>% 
+    tab_header(
+        title = "",
+        subtitle = ""
+    ) |> 
+    tab_footnote(
+        footnote = "Beta = 1 for F1",
+        locations = cells_body(columns = vars(`Other Names/Notes`), rows = Metric == 'F1')
+    )  |> 
+    # tab_footnote(
+    #   footnote = "Not sure which fields refer to Matthews Correlation outside of CS and bioinformatics, since 'phi' had already been widely used for over 60 years before Matthews forgot to cite it in his paper, and phi was literally the first correlation coefficient devised by Pearson.[phi == mcc](https://en.wikipedia.org/wiki/Phi_coefficient#Machine_learning)",locations = cells_body(columns = vars(`Other Names/Notes`), rows = Metric == 'Phi') 
+    # )  |> 
+    tab_options(
+        footnotes.font.size = 10,
+    )
 
 ```
 
@@ -186,14 +178,16 @@ This basic split is the foundation of **cross-validation**. Cross-validation is 
 
 ```{r}
 #| label: r-regression-import-split
+
+# all data found on github repo
 df_reviews = read.csv(
-  "https://raw.githubusercontent.com/m-clark/book-of-models/main/data/movie_reviews_processed.csv"
+    'https://tinyurl.com/5n9axad6'
 )
 
 initial_split = sample(
-  x = 1:nrow(df_reviews), 
-  size = nrow(df_reviews) * .75, 
-  replace = FALSE
+    x = 1:nrow(df_reviews), 
+    size = nrow(df_reviews) * .75, 
+    replace = FALSE
 )
 
 training_data = df_reviews[initial_split, ]
@@ -210,8 +204,9 @@ import numpy as np
 
 from sklearn.model_selection import train_test_split
 
+# all data found on github repo
 df_reviews = pd.read_csv(
-  'https://raw.githubusercontent.com/m-clark/book-of-models/main/data/movie_reviews_processed.csv'
+  'https://tinyurl.com/5n9axad6'
 )
 
 training_data, testing_data = train_test_split(
@@ -247,7 +242,6 @@ save(
 
 training_data.to_csv("data/models/knowing_models/knowing_model_data_train.csv", index = False)
 testing_data.to_csv("data/models/knowing_models/knowing_model_data_test.csv", index = False)
-
 ```
 
 You'll notice that we created training data with 75% of our data and we will use the other 25% to test our model. With training data in hand, let's produce a model to predict review rating. We'll use the standardized (scaled `_sc`) versions of several features, and use the 'year' features starting at year 0, which is the earliest year in our data. Finally, we also include the genre of the movie as a categorical feature.
@@ -259,16 +253,16 @@ You'll notice that we created training data with 75% of our data and we will use
 ```{r}
 #| label: r-regression-model-train
 model_train_reg = lm(
-  rating ~ 
-    review_year_0 
-    + release_year_0 
-    + age_sc 
-    + length_minutes_sc 
-    + total_reviews_sc 
-    + word_count_sc 
-    + genre 
-    ,
-    training_data
+    rating ~ 
+        review_year_0 
+        + release_year_0 
+        + age_sc 
+        + length_minutes_sc 
+        + total_reviews_sc 
+        + word_count_sc 
+        + genre 
+        ,
+        training_data
 )
 ```
 
@@ -346,6 +340,7 @@ predictions = model_train_reg.predict(testing_data)
 
 The goal now is to find out how close our predictions match reality. Let's look at them first:
 
+:::{.content-visible when-format='html'}
 ```{r}
 #| label: fig-pred-vs-obs
 #| echo: false
@@ -361,28 +356,36 @@ p1 = p_dat |>
     geom_abline(
         intercept = 0,
         slope = 1,
-        color = okabe_ito[2],
+        color = okabe_ito[['darkblue']],
         linewidth = 1
     ) +
     lims(x = c(1, 5), y = c(1, 5)) +
     labs(
-        x = "Observed",
-        y = "Predicted",
-        # title = "Observed vs. Predicted Ratings"
+        x = 'Observed',
+        y = 'Predicted',
+        # title = 'Observed vs. Predicted Ratings'
     )
-
+# https://github.com/tidyverse/ggplot2/issues/5669 when did they introduce this feature?
 p2 = p_dat |>
     select(observed, predicted) |>
     pivot_longer(everything()) |>
     ggplot(aes(x = value)) +
     # geom_density(aes(color = name, fill = name), alpha = 0.15) +
-    stat_ecdf(geom = "borderline", aes(color = name, fill = name), linewidth = 1) +
-    scale_fill_manual(values = c(okabe_ito[1], okabe_ito[2]), aesthetics = c("fill", "color")) +
-    labs(y = "Cumulative Density", x = "Rating") 
+    stat_ecdf(geom = 'borderline', aes(color = name), linewidth = 1) +
+    scale_color_manual(values = c(okabe_ito[['orange']], okabe_ito[['darkblue']]), aesthetics = c('fill', 'color')) +
+    labs(y = 'Cumulative Density', x = 'Rating') 
 
 
 p1 + p2
+
+ggsave('img/knowing-pred_vs_obs.svg', width = 8, height = 6)
 ```
+:::
+
+:::{.content-visible when-format="pdf"}
+![Observed vs. Predicted Ratings](img/knowing-pred_vs_obs.svg)
+:::
+
 Obviously, our points do not make a perfect line on the left, which would indicate perfect prediction. Also, the distribution of our values suggests we're over predicting on the lower end and under predicting on the higher end of the target's range. But we'd like to determine how far off we are in a general sense. There are a number of metrics that can be used to measure this. We'll go through a few of them here.
 
 
@@ -404,7 +407,11 @@ More simply, $R^2$ is the squared correlation of our predicted values and the ta
 ```{r}
 #| label: r-regression-r2
 
-1 - sum((testing_data$rating - predictions)^2) / sum((testing_data$rating - mean(testing_data$rating))^2)
+residual_ss = sum((testing_data$rating - predictions)^2)
+total_ss = sum((testing_data$rating - mean(testing_data$rating))^2)
+
+1 - residual_ss / total_ss
+
 yardstick::rsq_trad_vec(testing_data$rating, predictions)
 
 # conceptually identical, but slight difference due to how internal calculations are done
@@ -418,7 +425,10 @@ yardstick::rsq_vec(testing_data$rating, predictions)
 #| label: python-regression-r2
 from sklearn.metrics import r2_score
 
-1 - np.sum((testing_data.rating - predictions)**2) / np.sum((testing_data.rating - np.mean(testing_data.rating))**2)
+residual_ss = np.sum((testing_data.rating - predictions)**2)
+total_ss = np.sum((testing_data.rating - np.mean(testing_data.rating))**2)
+
+1 - residual_ss / total_ss
 
 r2_score(testing_data.rating, predictions)
 
@@ -592,6 +602,7 @@ y_target_testing_bin = ifelse(testing_data$rating_good == "good", 1, 0)
 
 ```{python}
 #| label: python-classification-model-train
+#| results: hide
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
@@ -606,6 +617,17 @@ model_train_class = smf.glm(
 
 model_train_class.summary() 
 ```
+
+\small
+
+```{python}
+#| label: python-classification-model-train-show
+#| echo: false
+
+model_train_class.summary()
+```
+
+\normalsize
 
 :::
 
@@ -932,7 +954,7 @@ auc(fpr, tpr)
 ```
 :::
 
-
+:::{.content-visible when-format="html"}
 ```{r}
 #| echo: false
 #| label: fig-pretty-roc-auc
@@ -957,8 +979,16 @@ roc |>
         fontface = "bold",
         color = 'gray33'
     ) +
-    scale_x_reverse() 
+    scale_x_reverse()
+
+ggsave("img/knowing-roc_auc.svg", width = 8, height = 6)
 ```
+
+:::
+
+:::{.content-visible when-format="pdf"}
+![ROC curve and AUC value](img/knowing-roc_auc.svg)
+:::
 
 With ROC curves and AUC values in hand, now we can find the ideal cut-point for balancing the TPR and FPR. There are different ways to do this, but one common way is to use the Youden's J statistic, which both of the following do.
 
@@ -972,7 +1002,8 @@ roc_$thresholds[which.max(roc_$sensitivities - (1-roc_$specificities))] and it g
 ```{r}
 #| label: r-ideal-cut-point
 
-roc_ = pROC::roc(testing_data$rating_good, predicted_prob) # produces the same value as before
+# produces the same value as before
+roc_ = pROC::roc(testing_data$rating_good, predicted_prob)
 threshold = pROC::coords(roc_, "best", ret = "threshold")
 
 predictions = ifelse(
@@ -1030,34 +1061,26 @@ Another important way to understand our model is by looking at how it compares t
 
 # create the models
 model_3 = lm(
-  rating ~ 
-    review_year_0 
-    + release_year_0 
-    + age_sc 
-    , 
+    rating ~ review_year_0 + release_year_0 + age_sc,
     training_data
 )
 
 model_3_int = lm(
-  rating ~ 
-    review_year_0 * genre
-    + release_year_0  * genre
-    + age_sc * genre
-    , 
+    rating ~ review_year_0 * genre + release_year_0 * genre + age_sc * genre, 
     training_data
 )
 
 model_train_reg = lm(
-  rating ~ 
-    review_year_0 
-    + release_year_0 
-    + age_sc 
-    + length_minutes_sc 
-    + total_reviews_sc 
-    + word_count_sc 
-    + genre 
-    , 
-    training_data
+    rating ~ 
+        review_year_0 
+        + release_year_0 
+        + age_sc 
+        + length_minutes_sc 
+        + total_reviews_sc 
+        + word_count_sc 
+        + genre 
+        , 
+        training_data
 )
 
 # get the predictions, calculate RMSE
@@ -1091,7 +1114,18 @@ model_3_int = smf.ols(
 ).fit()
 
 model_train_reg = smf.ols(
-    formula='rating ~ review_year_0 + release_year_0 + age_sc + length_minutes_sc + total_reviews_sc + word_count_sc + genre',
+    formula=
+    '''
+    rating ~ 
+    review_year_0
+    + release_year_0
+    + age_sc
+    + length_minutes_sc
+    + total_reviews_sc
+    + word_count_sc
+    + genre
+    ''' 
+    ,
     data=training_data
 ).fit()
 
@@ -1131,7 +1165,6 @@ Another thing to consider is that even with a single model, the model fitting pr
 
 A key method understanding of how our model is performing is through visualization. You'll recall that we started out way back by look at the predicted values against the observed values to see if there was any correspondence (@fig-my-first-model-predictions-plot), but another key way to understand our model is to look at the residuals, or errors in prediction, which again is the difference in our prediction versus the observed value. Here are a couple plots that can help us understand our model:
 
-
 ```{r}
 #| echo: false
 #| label: fig-regression-visualize
@@ -1140,11 +1173,12 @@ A key method understanding of how our model is performing is through visualizati
 # ?see:::plot.see_performance_pp_check
 p_pp = plot(
     performance::check_predictions(model_train_reg), 
-    colors = okabe_ito,
+    # colors = okabe_ito,
     size_line = c(1),
     line_alpha = 0.1,
     style = theme_clean()
 ) +
+    scale_color_manual(values = c(okabe_ito[['darkblue']], okabe_ito[['orange']])) +
     labs(
         x = 'Rating',
         y = 'Density'
@@ -1158,7 +1192,7 @@ p_pp = plot(
 
 p_res = plot(
         performance::check_heteroscedasticity(model_train_reg), 
-        color=c(okabe_ito[2], scales::alpha(okabe_ito[1], .15)), # ignores alpha somehow 
+        color=c(okabe_ito[['darkblue']], scales::alpha(okabe_ito[['orange']], .15)), # ignores alpha somehow 
         alpha = 0.1
     ) + 
     labs(
@@ -1182,15 +1216,24 @@ p_res = plot(
 ```
 
 
+
 -   **Residuals vs. Fitted**: This type of plot shows predicted values vs. the residuals (or some variant of the residuals, like their square root). If you see a pattern, that potentially means your model is not capturing something in the data. For example, if you see a funnel shape, that would suggest that you are systematically having worse predictions for some part of the data. For some plots, patterns may suggestion an underlying non-linear relationship in the data is yet to be uncovered. For our main regression model, we don't see any patterns which would indicate that the model has a notable prediction issue of some kind.
 
-
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| label: fig-model-select-residuals
 #| fig-cap: Residuals vs. Fitted plot for a regression model
 p_res
+
+ggsave("img/knowing-model-select-residuals.svg", width = 8, height = 6)
 ```
+
+:::
+
+:::{.content-visible when-format='pdf'}
+![Residuals vs. Fitted and PP Check plots for our regression model](img/knowing-model-select-residuals.svg)
+:::
 
 - **Training/Test Performance**: For iterative approaches like deep learning, we may want to see how our model is performing across iterations, typically called epochs. We can look at the training and testing performance to see if our model is overfitting or underfitting. We can actually do this with standard models as well if the estimation approach is iterative, but it's not as common. We can also visualize performance across samples of the data, such as in cross-validation. The following shows performance for a model similar to the MLP model demonstrated later (@sec-ml-dl-nn), where we can see we get to a relatively low objective function value after just a few epochs.
 
@@ -1252,6 +1295,7 @@ mlp_loss_val   = mlp.validation_scores_  # this is supposedly R2 but doesn't mak
 
 ```
 
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| label: fig-model-select-training-loss
@@ -1264,7 +1308,7 @@ tibble(
 ) |> 
     ggplot(aes(epoch, loss)) +
     geom_line() +
-    # geom_line(aes(y = val_loss), color = okabe_ito[1]) + 
+    # geom_line(aes(y = val_loss), color = okabe_ito[['orange']]) + 
     coord_cartesian(xlim = c(1, 25)) +
     labs(
         title = 'MSE Loss over 25 epochs in an MLP model',
@@ -1272,19 +1316,34 @@ tibble(
         y = 'Loss',
         caption = 'Model for review rating'
     )
+
+ggsave("img/knowing-model-select-training-loss.svg", width = 8, height = 6)
 ```
+:::
+
+:::{.content-visible when-format='pdf'}
+![MSE Loss over 25 epochs in an MLP model](img/knowing-model-select-training-loss.svg)
+:::
 
 
 
 - **Posterior Predictive Check**: This is a basic comparison of predicted vs. observed target values. We simulate the target based on the model parameter estimates and their uncertainty, and compare that distribution to the observed target target distribution. If the two distributions are similar, then the model is doing a good job of capturing the target distribution. This plot is ubiquitous in Bayesian modeling, but can be used for any model that has uncertainty estimates or is otherwise able to generate random draws of the target distribution. For our regression model, our predictions match the target distribution well.
 
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| label: fig-model-select-pp-check
 #| fig-cap: Posterior Predictive Check for a regression model
 
 p_pp
+
+ggsave("img/knowing-model-select-pp-check.svg", width = 8, height = 6)
 ```
+:::
+
+:::{.content-visible when-format='pdf'}
+![Posterior Predictive Check for a regression model](img/knowing-model-select-pp-check.svg)
+:::
 
 - **Other Plots**: Other plots may look at the distribution of residuals, check for extreme values, see if there is an overabundance of zero values, and other issues, some of which may be specific to the type of model you are using.
 
@@ -1370,6 +1429,7 @@ Assuming our model is adequate, let's now turn our attention to the features. Th
 
 We saw in the linear model chapter ([-@sec-lm-interpretation-feature]) that we can get a lot out of the basic output from standard linear models. Our starting point should be the coefficients or weights, which can give us a sense of the direction and magnitude of the relationship between the feature and the target given their respective scales. We can also look at the standard errors and confidence intervals to get a sense of the uncertainty in those estimates. Here is a basic summary of the coefficients for our regression model on the training data.
 
+\footnotesize
 ```{r}
 #| echo: false
 #| label: r-regression-coefs-tbl
@@ -1382,6 +1442,7 @@ broom::tidy(model_train_reg, conf.int = TRUE) |>
     gt(decimals=2) 
 ```
 
+\normalsize
 
 We also noted how we can get a bit more relative comparison by using standardized coefficients, or some other scaling of the coefficients that allows for a bit of a more apples-to-apples comparison. But as we'll see, in the real world even if we have just apples, there are fuji, gala, granny smith, honeycrisp, and many other types of apples, and some may be good for snacks, others for baking pies, some are good for cider, etc. In other words, **there is no one size fits all approach to understanding how a feature contributes to understanding the target**, and the sooner you grasp that, the better.
 
@@ -1417,15 +1478,16 @@ One way to understand the contribution of a feature to the model is to look at t
 
 First let's think about an average slope. This is the average of the slopes across the feature's values or values of another feature it interacts with. But let's just look at the effect of word count first. A good question is, how do we visualize that? Here are two plots, and both are useful, neither is inherently wrong, and yet they both tell us something different. The first plot shows the predicted probability of a good review as word count changes, *with all other features at their mean* (or mode for categorical). The second plot shows what is called a **partial dependence plot**, which shows the *average predicted probability* of a good review as word count changes. In both cases we make predictions with imputed values- the left plot imputes the other features to be their mean or mode, while the right plot leaves the other features at their actual values, and then, using a range of values for word count, gets a prediction as if every observation had that value for word count. We then plot the average the predictions for each value in the range.
 
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| label: fig-r-mem-vs-pdp
-#| fig.cap: Marginal Effect at the Mean vs. Partial Dependence Plot
+#| fig-cap: Marginal Effect at the Mean vs. Partial Dependence Plot
 
 p_dat = ggeffects::ggpredict(model_train_class, terms = "word_count_sc")
 pred_0 = p_dat |> filter(x == 0) |> pull(predicted)
 
-p_mem = plot(p_dat) +
+p_mem = plot(p_dat, colors = c(okabe_ito[['darkblue']])) +
     geom_point(x = 0, y = pred_0, size = 4) +
     labs(
         # title = 'Predicted Probability of Good Review',
@@ -1447,7 +1509,8 @@ df_pdp = plot(
     DALEX::model_profile(
         explainer = DALEX::explain(model_train_class, verbose=FALSE), 
         N = NULL,
-        variables = 'word_count_sc')
+        variables = 'word_count_sc'
+        )
     )$data
 
 avg_pred_0 = predict(model_train_class, newdata=training_data |> 
@@ -1476,6 +1539,7 @@ p_pdp = df_pdp |>
     coord_cartesian(xlim = c(-2, 2))
 
 p_mem + 
+    scale_color_manual(values = c(okabe_ito[['darkblue']], okabe_ito[['orange']])) +
     theme_clean() +
     p_pdp +
     plot_layout(guides = 'collect', ) +
@@ -1489,7 +1553,15 @@ p_mem +
         panel.grid.minor.x = element_blank(),
         panel.grid.minor.y = element_blank(),
     )
+
+ggsave("img/knowing-mem-vs-pdp.svg", width = 8, height = 6)
 ```
+
+:::
+
+:::{.content-visible when-format='pdf'}
+![Marginal Effect at the Mean vs. Partial Dependence Plot](img/knowing-mem-vs-pdp.svg)
+:::
 
 When word count is zero, i.e. its mean and everything else is at its mean/mode, we'd predict a probability of a good review of about `r paste0(round(pred_0*100), '%')`. As such, we interpret this as 'when everything is typical', we have a pretty good chance of getting a good review. The average prediction we'd get if we predicted every observation as if it were the mean word count is more like 55%, which is notably less. Which is correct? Both, or neither!  They are telling us different things, either of which may be useful, or not.  If it's doubtful that the feature values used in the calculation are realistic (e.g. everything at its mean at the same time, or an average word count when length of a movie is at its minimum) then they may both be misleading. You have to know your features and your target to know best use the information.
 
@@ -1504,7 +1576,7 @@ Yes! We can look at what's called the **average marginal effect** of word count.
 #| echo: false
 #| eval: false
 #| label: fig-r-marginal-slope-word-count
-#| fig.cap: Average Slope of Word Count by Genre
+#| fig-cap: Average Slope of Word Count by Genre
 
 library(marginaleffects)
 
@@ -1541,13 +1613,13 @@ fudge_factor = 1e-3
 
 fudge_plus = predict(
     model_train_class, 
-    newdata = training_data  |> mutate(word_count_sc = word_count_sc + fudge_factor/2),
+    newdata = training_data |> mutate(word_count_sc = word_count_sc + fudge_factor/2),
     type = "response"
 )
 
 fudge_minus = predict(
     model_train_class, 
-    newdata = training_data  |> mutate(word_count_sc = word_count_sc - fudge_factor/2),
+    newdata = training_data |> mutate(word_count_sc = word_count_sc - fudge_factor/2),
     type = "response"
 )
 
@@ -1568,17 +1640,23 @@ marginaleffects::avg_slopes(
 fudge_factor = 1e-3
 
 fudge_plus = model_train_class.predict(
-    training_data.assign(word_count_sc = training_data.word_count_sc + fudge_factor/2)
+    training_data.assign(
+        word_count_sc = training_data.word_count_sc + fudge_factor/2
+    )
 )
 
 fudge_minus = model_train_class.predict(
-    training_data.assign(word_count_sc = training_data.word_count_sc - fudge_factor/2)
+    training_data.assign(
+        word_count_sc = training_data.word_count_sc - fudge_factor/2
+    )
 )
 
 np.mean(fudge_plus - fudge_minus) / fudge_factor
 
 # note that the marginaleffects is available in Python, but still very fresh!
-# we'll add a comparison in the future, but it doesn't handle models with categoricals right now.
+# we'll add a comparison in the future, but it doesn't handle models
+# with categoricals right now.
+
 # import marginaleffects as me
 # me.avg_slopes(model_train_class, variables = "word_count_sc")
 ```
@@ -1681,8 +1759,9 @@ But you don't need an experiment for this. Let's try a new data set to really dr
 #| label: r-counterfactual-happiness
 #| results: hide
 
+# data available on repo (full link in appendix)
 df_happiness_2018 = read_csv(
-  "https://raw.githubusercontent.com/m-clark/book-of-models/main/data/world_happiness_2018.csv"
+  "https://tinyurl.com/527pbc4v"
 )
 
 model_happiness = lm(
@@ -1738,8 +1817,10 @@ tibble(
 #| label: python-counterfactual-happiness
 #| results: hide
 
+
+# data available on repo (full link in appendix)
 df_happiness_2018 = pd.read_csv(
-  'https://raw.githubusercontent.com/m-clark/book-of-models/main/data/world_happiness_2018.csv'
+  'https://tinyurl.com/527pbc4v'
 )
 
 model_happiness = smf.ols(
@@ -1845,7 +1926,7 @@ import statsmodels.formula.api as smf
 from statsmodels.formula.api import ols
 
 df_reviews = pd.read_csv(
-  'https://tinyurl.com/moviereviewsprocessed'
+  'https://tinyurl.com/moviereviewsraw'
   )
 
 model_reviews_3feat = smf.ols(
@@ -1947,7 +2028,7 @@ rbind(
 ```
 
 
-##### Python with SHAP
+##### Python
 
 ```{python}
 #| eval: false
@@ -2031,6 +2112,10 @@ shap_value_package = pd.DataFrame(
 # pd.concat([shap_value_ours, shap_value_package])
 ```
 
+:::
+
+<!-- 
+TODO: Move to appendix
 
 ##### Python with Dalex
 
@@ -2074,9 +2159,8 @@ shap_value_package = (
 )
 
 pd.concat([shap_value_ours, shap_value_package])
-```
-
-:::
+``` 
+-->
 
 
 ```{r}
@@ -2163,7 +2247,7 @@ Pretty neat huh? So for any observation we want to inspect, and more importantly
 
 We've seen how we can get some plots for predictions in different ways previously with what's called a **partial dependence plot** (@fig-r-mem-vs-pdp). A PDP shows the average prediction of a feature on the target across the feature values, which is in fact what we were just doing to calculate our SHAP value, and for the linear case, the PDP has a direct correspondence to the SHAP. As we saw, the SHAP value is the value the difference between the average prediction and the point on the PDP for a feature at a specific feature value.  With regard to the PDP, this is the difference the point on the PDP and the average prediction for the model at that feature value, shown in the red line below.
 
-
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| label: fig-pdp-ice-r
@@ -2264,8 +2348,15 @@ ale = FeatureEffect$new(p_init, 'length_minutes', grid.size=100)$plot() +
     theme(
         plot.subtitle = element_text(size = 14)
     ) 
-# ggsave("img/pdp-ice-ale.png", width = 8, height = 6)
+
+ggsave("img/knowing-pdp-ice-ale.svg", width = 8, height = 6)
 ```
+
+:::
+
+:::{.content-visible when-format='pdf'}
+![PDP, ICE, and ALE Plots](img/knowing-pdp-ice-ale.svg)
+:::
 
 
 
@@ -2409,9 +2500,11 @@ To help us further understand this issue, consider the following two plots. On t
 
 [^interexplain]: To understand why, for the effect of X1, just take the mean of the two points on the left vs. the mean of the two points on the right. It would basically be a straight line of no effect as you move from group 0 to group 1. For the effect of X2, the two group means for A and B would be at the intersection of the two lines.
 
+
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
-#| fig.cap: Two plots showing the importance of understanding feature interactions and non-linear relationships
+#| fig-cap: Two plots showing the importance of understanding feature interactions and non-linear relationships
 #| label: fig-feature-importance
 
 set.seed(123)
@@ -2440,12 +2533,12 @@ interaction_plot = interaction |>
     ) |> 
     ggplot(aes(x = x1, y = y)) +
     # geom_borderline(aes(group = x2), linewidth = 2) +
-    geom_borderline(aes(color = x2, group = x2), linewidth = 1, alpha = 2) +
-    scale_color_manual(values = c(okabe_ito[3], okabe_ito[5])) +
-    guides(color = guide_legend(title = "Feature 2")) +
+    geom_borderline(aes(color = x2, group = x2, linetype = x2), linewidth = 1, alpha = 2) +
+    scale_color_manual(values = c(okabe_ito[['green']], okabe_ito[['red']])) +
+    guides(color = guide_legend(title = "Feature 2"), linetype = 'none') +
     ggnewscale::new_scale_color() +
     geom_pointrange(aes(ymin = y-2*se, ymax = y + 2*se, color = x1), fatten=10, show.legend = FALSE) +
-    scale_color_manual(values = c(okabe_ito[1], okabe_ito[2])) +
+    scale_color_manual(values = c(okabe_ito[['orange']], okabe_ito[['darkblue']])) +
     labs(
         title = "Interaction between two binary features",
         x = "Feature 1",
@@ -2482,7 +2575,14 @@ interaction_plot +
         axis.title.x = element_text(size = 10, face='bold'),
     )
     # plot_annotation()
+
+ggsave("img/knowing-feature-importance.svg", width = 8, height = 5)
 ```
+:::
+
+:::{.content-visible when-format='pdf'}
+![Two plots showing the importance of understanding feature interactions and non-linear relationships](img/knowing-feature-importance.svg)
+:::
 
 All this is to say as we get into measures of feature importance, we need to be very careful about how we interpret and use them!
 
@@ -2537,6 +2637,7 @@ model_importance = smf.ols(
 
 Our first metric available for us to use is just the raw coefficient value, but they aren't comparable because the features are on very different scales- moving a unit in length is not the same as moving a unit in age. We can standardize them which helps in this regard, and you might start there despite its limitations. Another we can usecomes from the SHAP value, which provides a measure of contribution of a feature to the prediction. These can be positive or negative and are specific to the observation. But If we take the **average absolute SHAP value** for each feature, we get a sense of the typical contribution size for the features. We can then rank order them as accordingly. Here we see that the most important features here are the number of reviews and the length of the movie. Note that we can't speak to direction here, only magnitude.  We can also see that word count is relatively less important. 
 
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| label: shap-importance-bar
@@ -2573,14 +2674,14 @@ p_dat_shap |>
             alpha = I(ifelse(p_dat_shap$feature == "word_count", 0, 1)),
             linewidth = I(ifelse(p_dat_shap$feature == "word_count", 0, .1))
         ),
-        # color = okabe_ito[2],
-        # fill = okabe_ito[2],
+        # color = okabe_ito[['darkblue']],
+        # fill = okabe_ito[['darkblue']],
         width = .05,
         show.legend = FALSE
     ) +
     geom_col(
         aes(),
-        fill = okabe_ito[1],
+        fill = okabe_ito[['orange']],
         width = .15,
         alpha = .25,
         show.legend = FALSE,
@@ -2588,7 +2689,7 @@ p_dat_shap |>
             filter(feature == 'word_count')
     ) +
     scale_color_manual(
-        values = c(okabe_ito[2], okabe_ito[1]),
+        values = c(okabe_ito[['darkblue']], okabe_ito[['orange']]),
         aesthetics = c("color", "fill")
     ) +
     ggnewscale::new_scale_color() +
@@ -2611,7 +2712,7 @@ p_dat_shap |>
         show.legend = FALSE,
     ) +
     scale_color_manual(
-        values = c(okabe_ito[1], okabe_ito[2]),
+        values = c(okabe_ito[['orange']], okabe_ito[['darkblue']]),
     ) +
     labs(
         x = "Average Absolute SHAP Value/Contribution to Rating Prediction",
@@ -2622,7 +2723,14 @@ p_dat_shap |>
         axis.ticks.y = element_blank(),
         plot.caption = element_text(vjust = -2)
     )
+
+ggsave("img/knowing-shap-importance.svg", width = 8, height = 5)
 ```
+:::
+
+:::{.content-visible when-format='pdf'}
+![SHAP Importance](img/knowing-shap-importance.svg)
+:::
 
 Now here are some additional methods[^relaimpo], some which decompose R^2^ (car, lmg, and pratt), and those that do not (SHAP, permutation-based, standardized coefficient squared). On the left, values represent the proportion of the R^2^ value that is attributable to the feature- their sum is equal to the overall R^2^ = `r round(summary(model_importance)$r.sq, 2)`. These are in agreement for the most part and seem to think more highly of word count as a feature. The others on the right suggest word count and age should rank lower, and length and review year higher. Which is best? Which is correct? Any of them. But by looking at a few of these, we can get a sense at least that total reviews, word count, release year, and length in minutes are likely useful features to our model, while age, review year, and children in home are less so, *at least in the context of the model we have*.
 
@@ -2632,10 +2740,11 @@ Now here are some additional methods[^relaimpo], some which decompose R^2^ (car,
 [^relaimpo]: The car, lmg, pratt, and beta-squared values were provided by the [relaimpo]{.pack} package in R. See the documentation there for details. Permutation based importance was provided by the [iml]{.pack} package, though we supplied a custom function to base it on the drop in R-squared. SHAP values were calculated using the [fastshap]{.pack} package.
 
 
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| eval: true
-#| label: fig-importance
+#| label: fig-feature-importance-2
 #| fig-cap: Feature Importance by Various Methods
 #| fig-height: 10
 
@@ -2730,7 +2839,7 @@ p_decompose = pdat_decompose |>
         show.legend = FALSE
     ) +
     scale_color_manual(
-        values = c(okabe_ito[2], okabe_ito[1]),
+        values = c(okabe_ito[['darkblue']], okabe_ito[['orange']]),
         aesthetics = c("color", "fill")
     ) +
     # ggnewscale::new_scale_color() +
@@ -2768,7 +2877,7 @@ p_no_decompose = pdat_no_decompose |>
         show.legend = FALSE
     ) +
     scale_color_manual(
-        values = c(okabe_ito[2], okabe_ito[1]),
+        values = c(okabe_ito[['darkblue']], okabe_ito[['orange']]),
         aesthetics = c("color", "fill")
     ) +
     # ggnewscale::new_scale_color() +
@@ -2809,7 +2918,7 @@ p_decompose +
 #         show.legend = FALSE
 #     ) +
 #     scale_color_manual(
-#         values = c(okabe_ito[2], okabe_ito[1]),
+#         values = c(okabe_ito[['darkblue']], okabe_ito[['orange']]),
 #         aesthetics = c("color", "fill")
 #     ) +
 #     ggnewscale::new_scale_color() +
@@ -2823,7 +2932,7 @@ p_decompose +
 #         show.legend = FALSE
 #     ) +
 #     scale_color_manual(
-#         values = c(okabe_ito[1], okabe_ito[2]),
+#         values = c(okabe_ito[['orange']], okabe_ito[['darkblue']]),
 #         # aesthetics = c("color", "fill")
 #     ) +
 #     # guides(color = 'none', fill = 'none', alpha = 'none') +
@@ -2838,9 +2947,13 @@ p_decompose +
 #         strip.text = element_text(size = 10)
 #     )
 
-# ggsave("img/fig-rsq-decomp.png", width = 8, height = 6)
+ggsave("img/knowing-feature-importance-2.svg", width = 8, height = 6)
 ```
+:::
 
+:::{.content-visible when-format='pdf'}
+![Feature Importance by Various Methods](img/knowing-feature-importance-2.svg)
+:::
 
 
 All of the metrics shown have uncertainty in their estimate, and some packages make it easy to plot or extract. As an example one could bootstrap a metric, or use the permutations as a a means to get at the uncertainty. However, the behavior and distribution of these metrics is not always well understood, and in some cases, the computation would often be notable (e.g. with SHAP). You could also look at the range of the ranks created by bootstrapping or permuting, and take the upper bound as worst case for a given feature. Although this might possibly be conservative, the usual problem is that people are too optimistic about their feature importance result, so this might be a good thing.

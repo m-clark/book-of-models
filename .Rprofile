@@ -129,10 +129,10 @@ theme_set(theme_clean())
 update_geom_defaults('vline', list(color = 'gray25', alpha = .25)) # vlines and hlines are typically not attention grabbers so set alpha
 update_geom_defaults('hline', list(color = 'gray25', alpha = .25)) # usually a zero marker
 update_geom_defaults('point', list(color = '#E69F00', alpha = .5)) # alpha as usually there are many points
-update_geom_defaults('smooth', list(color = '#56B4E9', alpha = .15))
-update_geom_defaults('line', list(color = '#56B4E9', alpha = .75))
-update_geom_defaults('path', list(color = '#56B4E9', alpha = .75))
-update_geom_defaults('abline', list(color = '#56B4E9', alpha = 1))
+update_geom_defaults('smooth', list(color = '#0072B2', alpha = .15))
+update_geom_defaults('line', list(color = '#0072B2', alpha = .75))
+update_geom_defaults('path', list(color = '#0072B2', alpha = .75))
+update_geom_defaults('abline', list(color = '#0072B2', alpha = 1))
 update_geom_defaults('bar', list(color = '#E69F00', fill = '#E69F00'))
 update_geom_defaults('col', list(color = '#E69F00', fill = '#E69F00'))
 update_geom_defaults('dotplot', list(color = '#E69F00', fill = '#E69F00'))
@@ -144,15 +144,16 @@ update_geom_defaults('dotplot', list(color = '#E69F00', fill = '#E69F00'))
 # will apply for both color and fill, which is usually what we want.
 
 okabe_ito = c(
-  '#E69F00',
-  '#56B4E9',
-  '#009E73',
-  '#F0E442',
-  '#0072B2',
-  '#D55E00',
-  '#CC79A7',
-  '#999999'
+  orange   = '#E69F00',
+  blue     = '#56B4E9',
+  green    = '#009E73',
+  yellow   = '#F0E442',
+  darkblue = '#0072B2',
+  red      = '#D55E00',
+  pink     = '#CC79A7',
+  gray     = '#999999'
 )
+
 
 # Use the following to overwrite basic ggplot to use color scheme
 # ggplot = function(...) ggplot2::ggplot(...) +
