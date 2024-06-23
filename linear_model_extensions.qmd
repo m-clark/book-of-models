@@ -2,13 +2,6 @@
 
 
 ```{r}
-#| label: setup-extensions
-#| include: false
-library(reticulate)
-use_condaenv("book-of-models")
-```
-
-```{r}
 #| include: false
 #| label: r-data-import
 
@@ -27,6 +20,9 @@ model_interaction = lm(rating ~ children_in_home * genre, data = df_reviews)
 import pandas as pd
 import numpy as np
 import statsmodels.formula.api as smf
+
+np.set_printoptions(formatter={'float': lambda x: '{0:0.4f}'.format(x)})
+pd.set_option('display.float_format', lambda x: '%.3f' % x)
 
 df_reviews = pd.read_csv("data/movie_reviews.csv")
 df_happiness = pd.read_csv("data/world_happiness_2018.csv")
@@ -196,10 +192,10 @@ p_init = plot(
 
 p_init |> 
   ggplot(aes(x = x, y = predicted, color = group, fill = group)) +
-  geom_line(linewidth = .5) +
+  geom_line(linewidth = 1) +
   # geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .1, color = NA) +
   geom_borderline(linewidth = 2.5, data = p_init |> filter(group == 'Kids') ) +
-  scale_color_manual(values = okabe_ito, aesthetics = c('color', 'fill')) +
+  scale_color_manual(values = unname(okabe_ito), aesthetics = c('color', 'fill')) +
   # scale_color_brewer(palette = 'Set1', aesthetics = c('color', 'fill')) +
   scale_y_continuous(breaks = seq(0, 5, .25)) +
   labs(x = "Children in home", y = "Predicted\nrating") +
@@ -208,8 +204,19 @@ p_init |>
     panel.grid.major = element_line(color = alpha('black', .05)),    
   )
 
+
+p_print = p_init |> 
+  ggplot(aes(x = x, y = predicted)) +
+  geom_line(aes(linetype = group), linewidth = 1) +
+  geom_borderline(linewidth = 2.5, data = p_init |> filter(group == 'Kids') ) +
+  scale_y_continuous(breaks = seq(0, 5, .25)) +
+  labs(x = "Children in home", y = "Predicted\nrating") +
+  theme(
+    legend.key.size = unit(1.25, "cm"),
+    panel.grid.major = element_line(color = alpha('black', .05)),    
+  )
 # plot(modelbased::estimate_expectation(model_interaction), si_alpha = .01)
-ggsave("img/lm-extend-interaction_plot.svg", width = 8, height = 6)
+ggsave("img/lm-extend-interaction_plot.svg", p_print, width = 8, height = 6)
 ```
 :::
 
@@ -228,12 +235,15 @@ So what *is* the effect of children in the home? Or a particular genre, for that
 
 [^ME]: These results are provided by the [marginaleffects]{.pack} R package, which is great for this.
 
+\small
 ```{r}
 #| echo: false
 #| label: tbl-model-interaction-avg-effect
 #| tbl-cap: Average Marginal Effects of Children in the Home
 library(marginaleffects)
+
 me_children = marginaleffects::avg_slopes(model_interaction, variables = c("children_in_home"))
+
 me_children |> 
   as_tibble() |> 
   select(-s.value) |> 
@@ -247,6 +257,7 @@ me_children |>
     decimals = 3
   )
 ```
+\normalsize
 
 
 So-called **marginal effects** and related approaches such as SHAP values (see @sec-knowing-shap-values) attempt to boil down the effect of a feature to a single number, but this is difficult even in the simpler GLM settings, and downright misleading in more complex settings like our interaction model. Here we see the average coefficient for children in the home is `r round(me_children$estimate, 2)`, but we saw in @tbl-model-interaction-output that this is slightly larger than what we would estimate in the non-interaction model, and we saw in @fig-model-interaction-plot it's actually near zero (flat) for some genres. So what is the average effect really telling us? Consider a more serious case of drug effects across demographic groups, where the effect of the drug is much stronger for some groups than others. Would you want your doctor to prescribe you a drug based on the average effect across all groups or the specific group to which you belong?
@@ -398,7 +409,10 @@ see::plots(
 ) + 
   plot_layout(guides = 'collect') &
   # scale_color_brewer(palette = 'Set1') &
-  theme(panel.grid.major.y = element_line(color = scales::alpha('black', .1)))
+  theme(
+    panel.grid.major.y = element_line(color = scales::alpha('black', .1)),
+    legend.key.size = unit(1.25, "cm"),
+  )
 
 ggsave("img/lm-extend-length_genre_rating.svg", width = 8, height = 6)
 ```
@@ -556,6 +570,7 @@ fit_ran_slope.summary()
 
 @tbl-mixed-model shows some typical output from a mixed model, focusing on the random slope model. The fixed effect part (Fixed) is your basic GLM result and interpreted the same way. Nothing new there, and we can see a slight positive decade trend in happiness, though maybe not a strong one. But the random effects (Random) are where the action is! We can see the standard deviation of the random effects, i.e., the intercepts and slopes. We can also see the residual (observation level) standard deviation, which  is conceptually the same as what you saw with standard linear regression. We can also see the correlation between the random intercepts and random slopes. Depending on your tool, the default may be in terms of variances and covariances rather than standard deviations and correlations, but otherwise the same.
 
+\small
 ```{r}
 #| echo: false
 #| label: tbl-mixed-model
@@ -565,6 +580,7 @@ fit_ran_slope.summary()
 library(lme4)
 
 library(countrycode)
+
 df_happiness_all_show = df_happiness_all |> 
   mutate(
     country2 = countrycode::countrycode(country, 'country.name', 'iso3c'),
@@ -614,6 +630,7 @@ parameters::parameters(fit_ran_slope) |>
       missing_text = "",
     )
 ```
+\normalsize
 
 ```{r}
 #| echo: false
@@ -670,7 +687,7 @@ ran_ef_extreme_neg =  all_re |>
     slice(1:3)
 
 
-(
+p = (
   (x[[1]] + labs(x = '', y = 'Intercept')) /
   (x[[2]] + labs(x = 'Country', y = 'Decade\nTrend')) 
 ) &
@@ -680,10 +697,13 @@ ran_ef_extreme_neg =  all_re |>
     subtitle = 'Estimated random effects for country',
   ) &
   theme(
-    axis.text.x = element_text(size = 3, angle = 90, hjust = 1, vjust = .5),
+    axis.ticks.x = element_line(linewidth = .5),
+    axis.text.x = element_text(size = 4, angle = 90, hjust = 1, vjust = .5),
     panel.grid.major = element_blank()
     # axis.text.x = element_blank(),
   )
+
+p
 
 ggsave("img/lm-extend-random_effects.svg", width = 8, height = 6)
 ```
@@ -751,7 +771,7 @@ Your authors have run a lot of these models. Save yourself some trouble and stan
 For a model with just one feature, we certainly had a lot to talk about! And this is just a glimpse of what mixed models have to offer, and the approach can be even richer than what we've just seen.  But you might be asking- Why don't I just put genre into the model like other categorical features? In the case of genre for movie reviews where there are few groups, that's okay. But doing that with country or similar as in our model would typically result in estimation issues due to so many parameters.  In general mixed models provide several advantages for the data scientist:
 
 - Any coefficient can be allowed to vary by groups, including other random effects. It actually is just an interaction in the end as far as the linear predictor and conceptual model is concerned.
-- The group-specific effects are *penalized*, which shrinks them toward the overall mean, and makes this a different approach from just adding a 'mere interaction'. This helps avoid overfitting, and that penalty is related to the variance estimate of the random effect. In other words, you can think of it as running a penalized linear model where the penalty is applied to the group-specific effects (see @#sec-estim-penalty).
+- The group-specific effects are *penalized*, which shrinks them toward the overall mean, and makes this a different approach from just adding a 'mere interaction'. This helps avoid overfitting, and that penalty is related to the variance estimate of the random effect. In other words, you can think of it as running a penalized linear model where the penalty is applied to the group-specific effects (see @sec-estim-penalty).
 - Also unlike standard interaction approaches, we can estimate the covariance of the random effects, and specify different covariance structures for observations within groups.
 - Because of the way they are estimated, mixed models can account for lack of independence of observations[^indieobs], which is a common issue in many datasets. This is especially important when you have repeated measures, or when you have a hierarchical structure in your data, such as students within schools, or patients within hospitals.
 - Standard modeling approaches can estimate these difficult models very efficiently, even with thousands of groups.
