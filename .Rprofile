@@ -176,7 +176,7 @@ gt = function(..., decimals = 2, title = NULL, subtitle = NULL) {
     gt::tab_style(
       style = gt::cell_text(color = 'gray25'),
       locations = gt::cells_body(
-        columns = gt::vars(
+        columns = gt::vars(   # TODO: update to c() or just drop vars
           where(is.numeric)
         )
       )
