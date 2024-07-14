@@ -129,6 +129,7 @@ theme_set(theme_clean())
 update_geom_defaults('vline', list(color = 'gray25', alpha = .25)) # vlines and hlines are typically not attention grabbers so set alpha
 update_geom_defaults('hline', list(color = 'gray25', alpha = .25)) # usually a zero marker
 update_geom_defaults('point', list(color = '#E69F00', alpha = .5)) # alpha as usually there are many points
+update_geom_defaults('pointrange', list(color = '#0072B2'))
 update_geom_defaults('smooth', list(color = '#0072B2', alpha = .15))
 update_geom_defaults('line', list(color = '#0072B2', alpha = .75))
 update_geom_defaults('path', list(color = '#0072B2', alpha = .75))
