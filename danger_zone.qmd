@@ -1,109 +1,662 @@
-# Danger Zone {#sec-danger-zone}
+# Danger Zone {#sec-danger}
 
-The following are very brief thoughts on common pitfalls in modeling we thought of while writing this book. This is not meant to be comprehensive, but rather a quick reference for common things that can trip folks up. We're not going to tell you not to do these things, but we are going to tell you to be very careful if you do, and be ready to defend your choices.
+![](img/chapter_gp_plots/gp_plot_11.svg){width=75%}
 
-## Things to Generally Avoid
 
-### The Linear Model
+:::{.content-visible when-format='html'}
+> You can usually anticipate and enumerate most of the ways your model will fail to work in advance. Yet the problems you'll encounter in practice are usually exactly one of those things you knew to watch out for, but failed to.
+>
+> \~ Andrej Karpathy ([supposedly](https://medium.com/@seanjtaylor/a-personal-retrospective-on-prophet-f223c2378985))
+:::
 
--   Using stepwise/best subset regression for feature selection. Instead, use ridge/lasso/elastic net.
 
--   Focusing on statistical significance while ignoring predictive/practical results can lead you down dangerous paths. It is often just as important to know if a feature doesn't have any effect on the target.
+When it comes to conducting models in data science, a lot can go wrong, and in many cases it's easy to get lost in the weeds and lose sight of the bigger picture. In this chapter, we'll discuss some common pitfalls that can sneak up on you when you're working on a data science project, and others that just came to mind while we were thinking about it. The topics are based on things we've commonly seen in consulting across many academic disciplines and industries, and here we attempt to provide a very general overview. That said, it is by no means exhaustive and may miss bigger issues in some domains. The following groups of focus attempt to reflect the content of the book as it was presented.
 
--   Forgetting to rely heavily on domain knowledge. Technical skills alone cannot make sense of context-specific effects or knowing what you are actually wanting to model.
 
--   Forgetting to rely heavily on visualizations. Visualizations can tell you general relationships (both linear and nonlinear), while also giving you an idea of variables that are unlikely to be helpful. The average person is going to find a visualization far more useful than a model.
 
--   Using statistical tests in lieu of visualizations or practical metrics for assumptions. Tests are often overly conservative, so using visualizations will give you an idea about just how bad it is.
+## Linear Models and Related Statistical Endeavors {#sec-danger-linear}
 
--   Comparing models with R^2^. Statistical tests like ANOVA or metrics like AIC would be a better choice for comparing models.
+Statistical models are a powerful tool for understanding the relationships between variables in a dataset. They are also excellent at helping us to understand the uncertainty in our data and the aspects of the model we wish to estimate. However, there are many ways in which statistical models can be misused.
 
--   Dropping/modifying extreme values. They are valid values, so you might just need to use a different distribution.
 
--   Misinterpreting simple contrasts of categorical features. A significant result doesn't mean that the level is "important", but only means that the level is significantly different than the baseline level.
+### Statistical Significance {#sec-danger-sig}
 
-### Generalized Linear Models
+One of the most common mistakes when conducting statistical linear models is simply relying too heavily on the statistical result. Statistical significance is simply not enough to determine feature importance or model performance. When complex statistical models are applied to small data, the results are typically very noisy and statistical significance can be misleading. This also means that 'big' effects can be a reflection of that noise, rather than something meaningful.
 
--   Using pseudo-R^2^ for any important conclusion. These aren't very useful and will never really be the R^2^ you get from OLS.
+Focusing on statistical significance can lead you down other dangerous paths. For example, relying on statistical tests of assumptions instead of visualizations or practical metrics can lead you to believe that your model is valid when it is not. Using a statistical testing approach to select features can often result in incorrect choices about feature contributions, as well as poorer models. 
 
--   Thinking accuracy is the primary metric for your logistic regression. A combination of balanced accuracy and AUC are both better choices than standard accuracy alone.
+### Ignoring Complexity {#sec-danger-complexity}
 
--   Thinking GLMs are enough for your problem. For example, Poisson's assumption of equivalent means and variances is very restrictive and typically doesn't hold.
+While techniques like standard linear/logistic regression and GLMs are valid and very useful, for many modeling contexts they may be too simplified to capture the complexity of the data generating process. This can lead to underfitting, where the model is too simple to capture the underlying structure of the data.
 
-### Estimation
+On the other side of the coin, many applications of statistical models ignore model assessment on a separate dataset, which can lead to overfitting. This makes generalization of statistical and other results more problematic. Such applications typically use a single model as well, and so may not be indicative of the best approach that could be taken.
 
--   Obsessing about distributions if your primary goal is interpretation.
 
--   Assuming a bootstrap is good enough for inference.
+### Using Dated Techniques {#sec-danger-datedtech}
 
--   Being overly concerned with which optimization technique you choose. Very often, there is no single optimal solution.
+If you wanted to go on a road trip, would you prefer a [1973 Ford Pinto](https://en.wikipedia.org/wiki/Ford_Pinto) or a Tesla Model S? If you want to browse the web, would you prefer to use a computer from the 90s and 56k modem, or a modern laptop with a high-speed internet connection? In both cases, you could potentially get to your destination or browse the web, but the experience would be much different, and you would likely have a clear preference[^pintowagon]. The same goes with the models you use for your data analysis.
 
-### Data
+[^pintowagon]: Granted, if it was a Pinto wagon, the choice could be more difficult.
 
--   Forgetting to transform your features. Many models perform better when working with variables that are on the same scale.
+This is not specific to the statistical linear modeling realm, but there are many applications of statistical models that rely on outdated techniques, metrics, or other tools that solve problems that don't exist anymore. For example, using stepwise/best subset regression for feature selection is not really viable when more principled approaches like the lasso are available. Likewise, we can't really think of a case where something like MANOVA/discriminant function analysis would provide the best answer to a data problem, or where a pseudo-R^2^ would be a metric that would help us understand a model better or make a decision about it. 
 
--   Using simple imputation (like the mean, modal category) when you're missing a lot of data. While model-based imputation is always preferred (e.g., MICE), it might not work too well when you have a lot of missingness. 
+Statistical analysis has been around a long time, and many of the techniques that have been developed are still valid, useful, and very powerful. But some reflect the limitations of the time in which they were developed. Others were an attempt to take something that was straightforward for simpler settings (e.g. linear regression) and apply to settings where it doesn't make sense (nonlinear, non-gaussian, etc.). Even when still valid, there may be better alternatives available now.
 
--   Making something binary when it naturally isn't and has notable variability. This is effectively burning information about the variable.
 
--   Forgetting that large data can get small very quickly due to class imbalance, interactions, etc.
+### Simpler is Not Necessarily More Interpretable {#sec-danger-interp}
 
-### Machine Learning
+Standard linear models are often used because of their interpretability, but in many of these modeling situations, interpretability can be difficult to obtain without using the same amount of effort one would for more complex models. Many statistical/linear models employ interactions, or nonlinear feature-target relationships (e.g. GLM/GAMs). If your goal is interpretability, these settings can be as difficult to interpret as features in a random forest. They still have the added benefit of more reliable uncertainty estimation, but you should not assume you will have a result as simple as a coefficient in a linear regression just because you didn't use a deep learning model.
 
--   Using a single model without any baseline. It is hard to improve if you don't know the starting point.
+### Model Comparison {#sec-danger-compare}
 
--   Starting with a complicated model. Parsimony is always key, so create that baseline model and iterate from there.
+When comparing models, especially in the statistical modeling realm, many will use a statistical test to compare them. An example would be using an ANOVA or likelihood ratio test to compare a model with and without interactions. Unfortunately this doesn't actually tell us how the models perform under realistic settings, and it comes with the usual statistical significance issues, like using an arbitrary threshold for claiming statistical significance. You could basically claim that one terrible model is statistically better than another terrible model, but there isn't much value in that.
 
--   Using a simple .5 cutoff for binary classification. It is tempting to assume that .5 is the ideal cutpoint, but you should test a range of values out before settling on one.
+Some like to look at R^2^ to compare models[^adjr2], but it has a lot of problems. People think it's more interpretable than other options, yet there is no value of 'good' you can universally apply, even in very similar scenarios. It can arbitrarily increase with the number of features whether they are actually predictive or not, and it doesn't tell you how well the model will perform on new data. It can also simply reflect that you have time-series data, as you are just witnessing spurious correlations over time. In short, you can use it to get a sense of how your predictions *correlate* with the target, but that is fairly limited.
 
--   Splitting your target just so you can do classification. Most models will happily perform regression or classification, so try not to unnecessarily disturb your target.
+The following plot shows 250 simulations with a sample size of 500 and 250 completely meaningless features. The R^2^ values would all suggest the model is somewhat useful with an average of .5. The adjusted R^2 values average zero, which is correct, but they can only average that by being negative, which is a meaningless value. Many
 
--   Using a single metric for model assessment. Each metric has its own pros and cons, so you should evaluate your model's performance with a suite of metrics.
+:::{.content-visible when-format='html'}
+```{r}
+#| echo: false
+#| eval: true
+#| label: r2_adjr2_vis
+#| fig-cap: The problem of R^2^
 
--   Ignoring uncertainty in your predictions or metrics. There will always be uncertainty, so acknowleding that it is there will be helpful for mitigating the chance of embarrassment when your model doesn't perform as expected. 
+set.seed(123)
 
--   Comparing models on different datasets. Models and data are always tied together, so you should never expect that different models would perform better/worse on different datasets.
 
--   Letting training leak into test set. Doing this gives your model an unfair advantage when it is time for testing, leading you to believe that your model is doing better than it really is.
+calculate_r2 = function(seed = 123, p = 250, n = 500) {
+    set.seed(seed)
+    
+    X = matrix(rnorm(n*p), nrow = n, ncol = p)
+    y = rnorm(nrow(X))
+    
+    model_demo_r2 = summary(lm(y ~ X))
+    
+    r2 = model_demo_r2$r.squared
+    adj_r2 = model_demo_r2$adj.r.squared
+    
+    return(tibble(r2 = r2, adj_r2 = adj_r2))
+}
 
--   Assuming variable importance is telling you what you think it is. It doesn't mean that it is the "best" variable of your features and that it is therefore causal; it only means that the model likes using that feature the most.
+# calculate_r2(123)
 
--   Assuming that because your approach dropped a feature that it has no effect on the target
+p_dat = map(1:250, calculate_r2) |> 
+    bind_rows() |> 
+    rowid_to_column('sim') 
 
--   Using a model just because it seems popular. Popularity fades as models advance; you should focus on usability and explainability, while balancing performance.
+p_dat |> 
+    ggplot(aes(sim)) +
+    geom_hline(yintercept = 0, color = 'gray50', linewidth = 1.5) +
+    # geom_hline(yintercept = mean(p_dat$adj_r2), color = 'gray50', linewidth = 1) +
+    geom_hline(yintercept = mean(p_dat$r2), color = 'darkred', linewidth = 1.5) +
+    geom_point(aes(y = r2), color = okabe_ito[['darkblue']], size = 3) +
+    geom_point(aes(y = adj_r2), color = okabe_ito[['orange']], size = 3) +
+    annotate(
+        geom = 'text',
+        x = 230,
+        y = .6,
+        label = 'R-squared',
+        color = okabe_ito[['darkblue']],
+        size = 4,
+        hjust = 0
+    ) +
+    annotate(
+        geom = 'text',
+        x = 230,
+        y = .15,
+        label = 'Adj. R-squared',
+        color = okabe_ito[['orange']],
+        size = 4,
+        hjust = 0
+    ) +
+    # geom_point(
+    #     aes(y = adj_r2),
+    #     color = okabe_ito[['orange']],
+    #     size = 6,
+    #     alpha = 1,
+    #     data = p_dat |> arrange(desc(adj_r2)) |> head(10)
+    # ) +
+    # geom_point(
+    #     aes(y = r2),
+    #     color = okabe_ito[['darkblue']],
+    #     size = 6,
+    #     alpha = 1,
+    #     data = p_dat |> arrange(desc(adj_r2)) |> head(10)
+    # ) +
+    scale_y_continuous(breaks = seq(-.2, .6, .1)) +
+    labs(
+        title = 'R-sq and Adjusted R-sq for 250 simulations',
+        y = 'Value',
+        x = 'Sim Number',
+        # caption = 'Note: The top 10 adjusted R^2^ values are highlighted in orange.'
+    ) 
+    
+ggsave('img/danger-r2_adjr2_vis.svg', width = 8, height = 6)
+```
+:::
+:::{.content-visible when-format='pdf'}
+![The problem of R^2^](img/danger-r2_adjr2_vis.svg){#r2_adjr2_vis}
+:::
 
--   Using a model just because it's the only one you know. In the age of rapid advancement and sharing, you should seek out new solutions to problems.
+<!-- 
+This demo shows how we can get what some might think are good R^2^ values, but are actually just spurious correlations. If you change the seed, you will get wildly different results.
 
--   Using older black box methods that don't keep up with more modern techniques. Modern models, in conjunction with advances in "explainable AI", will help you make the most sense of the relationships within your model.
+:::{.panel-tabset}
 
--   Forgetting to scale your data. You don't want the scale of the data to be something that the model hones in on.
+##### R
 
--   Forgetting that the data is more important than your modeling technique. The axiom will always ring true: 90% of analytics work is on data prep.
+```{r}
+#| echo: false
+#| eval: false
+#| label: r2_example_r
 
--   Forgetting you need to be able to explain your model and code to someone else. The only good model is a useful one; if you can't explain it to someone, it probably isn't useful.
+set.seed(123)
 
--   Assuming that grid search is good enough for all or even most cases. Not only is it computationally expensive, but you very well might miss tuning parameter values that are outside of the grid; instead, you might consider Bayesian Optimization.
 
--   Ignoring temporal/spatial data structure. People will often forget about the effects of time and space on relationships; fortunately, many methods exist for exploring these important effects.
+calculate_r2 = function(seed, p = 25, n = 50) {
+    set.seed(seed)
+    
+    X = matrix(rnorm(n*p), nrow = n, ncol = p)
+    y = rnorm(nrow(X))
+    
+    model_demo_r2 = summary(lm(y ~ X))
+    
+    r2 = model_demo_r2$r.squared
+    adj_r2 = model_demo_r2$adj.r.squared
+    
+    return(tibble(r2 = r2, adj_r2 = adj_r2))
+}
 
--   Thinking deep learning will solve all your problems. If you are dealing with standard, tabular data, deep learning will just increase computational complexity, all with very little promise of increased performance.
+calculate_r2(123)
 
--   Using shap values for feature importance. They weren't meant for this and can be very misleading; they are merely there to help demonstrate direction.
+p_dat = map(1:250, calculate_r2) |> 
+    bind_rows() |> 
+    rowid_to_column('sim') 
 
-### Causal Modeling
+p_dat |> 
+    ggplot(aes(sim)) +
+    geom_hline(yintercept = 0, color = 'gray50', linewidth = 1) +
+    geom_hline(yintercept = mean(p_dat$adj_r2), color = 'gray50', linewidth = 1) +
+    geom_hline(yintercept = mean(p_dat$r2), color = 'gray50', linewidth = 1) +
+    geom_point(aes(y = r2), color = okabe_ito[['darkblue']], size = 3) +
+    geom_point(aes(y = adj_r2), color = okabe_ito[['orange']], size = 3) +
+    geom_point(
+        aes(y = adj_r2),
+        color = okabe_ito[['orange']],
+        size = 6,
+        alpha = 1,
+        data = p_dat |> arrange(desc(adj_r2)) |> head(10)
+    ) +
+    geom_point(
+        aes(y = r2),
+        color = okabe_ito[['darkblue']],
+        size = 6,
+        alpha = 1,
+        data = p_dat |> arrange(desc(adj_r2)) |> head(10)
+    ) +
+    labs(
+        title = 'R^2^ and Adjusted R^2^ for 250 simulations',
+        y = 'R^2^',
+        caption = 'Note: The top 10 adjusted R^2^ values are highlighted in orange.'
+    ) 
+    
+```
 
--   Pretending a modeling technique can prove a causal relationship. These models can certainly get you a bit closer, but they are still models at the end of the day.
+##### Python
 
--   Thinking random assignment can prove a causal relationship. While random assignment certainly is the "gold standard" for experimental design, there could be hundreds of other unmeasured variables influencing the target.
+```{python}
+#| echo: false
+#| eval: false
+#| label: r2_example_py
 
--   Ignoring potentially confounding variables. You'll want to carefully consider variables that might have an impact on the target and be sure to measure them.
+import numpy as np
+from sklearn.linear_model import LinearRegression
 
--   Ignoring the possibility of reverse causality. Reverse causality and simultaneity are both real potentials when working on causal models, so don't fall in love with a single model. 
+np.random.seed(1)
 
--   Ignoring the possibility of selection bias. You can never assume that you've gotten a truly random sample of rational people, so don't assume that your sample will be representative of the target population.
+X = np.random.randn(40, 25)
+y = np.random.randn(40)
 
--   Ignoring measurement error. Even with the tightest tolerances, everything has measurement error. 
+model_demo_r2 = LinearRegression()
+model_demo_r2.fit(X, y)
+r2 = model_demo_r2.score(X, y)
 
-## Perfect is not Possible
+n = X.shape[0]
+p = X.shape[1]
+adjusted_r2 = 1-(1-r2)*(n-1)/(n-p-1)
+r2, adjusted_r2
+```
+::: -->
 
-Your model will never be perfect. Time, money, and other constraints will conspire to make sure of that, and you will always have to make trade-offs. You're also human, and mistakes will be made. The best you can do is to be aware of these limitations and do your best to mitigate them. Modeling is about exploration and discovery, and the best models are the ones that are the most useful, not the most perfect.
+
+
+[^adjr2]: Adjusted R^2^ doesn't help, the same issues are present and it would not be any practically different than R^2^ except for very small data situations, where it might even be negative!
+
+Other commonly used metrics, like AIC, might be better in theory, but they approximate the model selection one would get through cross-validation, so why not just do the cross-validation? Furthermore, as long as you are using those metrics on the training data, you 
+
+
+:::{.callout type='info' title='Garden of Forking Paths'}
+A common issue in statistical and machine learning modeling is the **garden of forking paths**. This is the idea that there are many different ways to analyze a dataset, and that the results of these analyses can be very different. When you don't have a lot of data, or when the data is complex and the data generating process is not well understood, there can be a lot of forks that lead to many different models with varying results. In these cases, the interpretation of a single model from the many that are actually employed can be misleading, and can lead to incorrect conclusions about the data.
+:::
+
+## Estimation
+
+### What If I Just Tweak This... 
+
+
+From traditional statistical models to deep learning, the more you know about the underlying modeling process, the more apt you are to tweak some aspect of the model to try and improve performance. When you start thinking about changing optimizer options, link/activation functions, learning rates, etc., you can easily get lost in the weeds. This would be okay if you knew ahead of time it would make a big difference. However, in many, or maybe even most cases, this sort of tweaking doesn't improve model results, or there are ways to not have to make the choice in the first place. More to the point, if this sort of estimation parameter tweaking does make a notable difference, that probably means you have a bigger problem with your model architecture or data.
+
+Unless you are using a bleeding edge technique, much of the work has been done for you by folks who had a lot more time to work on these aspects of the model. As such, spending a lot of time trying to decide on ML vs. REML, which variant of an Adam optimizer to use, learning rate of 1e-3 vs. 1e-4, 5 vs. 10 fold CV, or whether you should use ReLU, GELU, or Swish activations, a dropout rate of .1 or .2, etc., a lot of these choices won't matter, or shouldn't if more important aspects of your model and data are in order.
+
+
+### Everything is Fine
+
+There is a flip side to the previous point, and that is that many assume that the default settings for complex models are good enough. We all do this when venturing into the unknown, but this is not always the case. Many of the more complex models have defaults geared toward a 'just works' setting rather than a 'production' setting. For example, the default number of boosting rounds for xgboost will rarely be adequate[^num_boost_round].
+
+[^num_boost_round]: The number is actually dependent on other parameters, like whether early stopping is used, the number of classes, etc.
+
+### Just Bootstrap It!
+
+When it comes to uncertainty estimation, many advanced modeling tools leave that to the user, and when the developers are pressed on how to get uncertainty estimates, they often will suggest to just bootstrap the result. While the bootstrap is a powerful tool for inference, it isn't appropriate just because you decide to use it. The suggestion to use it is often made in the context of a complex modeling situation where it would be very (prohibitively) computationally expensive, and in other cases the properties of the results are not well understood. Other methods of prediction inference, such as conformal prediction, may be better suited to the task. In general, if a package developer suggests you bootstrap because their package doesn't have any means of uncertainty estimation, you should be wary.
+
+
+## Machine Learning {#sec-danger-ml}
+
+### General Modeling Issues {#sec-danger-ml-general}
+
+We see a lot of issues creep up with machine learning models, and many of them are the same as those that come up with statistical models, but some are more unique to the machine learning world. A starting point is that many forget to create a baseline model, and instead jump right into a complicated model. This is a problem because it is hard to improve performance if you don't know what a good baseline score is. So create that baseline model and iterate from there.
+
+A related point is that many will jump into machine learning models without fully investigating the data. Standard exploratory data analysis (EDA) is a prerequisite for any modeling, and can go a long way toward saving time and effort in the modeling process.  It's here you'll find problematic cases and features, and can explore ways to deal with it.
+
+When choosing a model or set of models, one should have a valid reason for the choice. Some less stellar reasons include using a model just because it seems popular, or just because it's the only one you know. In addition, as mentioned with other types of models, you want to avoid using older methods that really don't perform well in most situations compared to others[^oldml].
+
+[^oldml]: As we mentioned in the statistical section, many older methods are still valid and useful, but it's not clear what would be gained by using things like a standard support vector machine or hidden markov model related to more recently developed or other techniques that have shown more flexibility.
+
+
+
+
+
+### Classification {#sec-danger-classification}
+
+
+Machine learning is not synonymous with a classification problem, but this point seems to be lost on many. As an example, many will split their target just so they can do classification, when the target is a more expressive continuous variable. This is a problem because you are unnecessarily diminishing the reliability of the target score, and losing information about it. This can lead to a well known statistical issue - **attenuation of the correlation** between variables.
+
+:::{panel-tabset}
+
+##### R
+```{r}
+#| label: simulate_binarize_r
+#| results: hide 
+simulate_binarize = function(N = 1000, correlation = .5, num_simulations = 100, bin_y_only = FALSE) {
+    correlations = list()
+    
+    for (i in 1:num_simulations) {
+        # Simulate two variables with the given correlation
+        
+        xy = MASS::mvrnorm(
+            n = N, 
+            mu = c(0, 0), 
+            Sigma = matrix(c(1, correlation, correlation, 1), 
+            nrow = 2),
+            empirical = FALSE
+        )
+
+        # binarize on median split
+        
+        if (bin_y_only) {
+            x_bin = xy[, 1]
+        } else {
+            x_bin = ifelse(xy[, 1] >= median(xy[, 1]), 1, 0)
+        }
+        
+        y_bin = ifelse(xy[, 2] >= median(xy[, 2]), 1, 0)
+        
+        raw_correlation = cor(xy[, 1], xy[, 2])
+        binarized_correlation = cor(x_bin, y_bin)
+        
+        correlations[[i]] = tibble(
+            sim = i,
+            raw_correlation,
+            binarized_correlation
+        )
+    }
+
+    cors =  bind_rows(correlations)
+    cors
+}
+
+simulate_binarize(correlation = .25, num_simulations = 5)
+```
+
+##### Python
+
+```{python}
+#| label: simulate_binarize_py
+#| eval: false
+import numpy as np
+import pandas as pd
+
+def simulate_binarize(N = 1000, correlation = .5, num_simulations = 100, bin_y_only = False):
+    correlations = []
+    
+    for i in range(num_simulations):
+        # Simulate two variables with the given correlation
+        xy = np.random.multivariate_normal(
+            mean = [0, 0], 
+            cov = [[1, correlation], [correlation, 1]], 
+            size = N
+        )
+
+        # binarize on median split
+        if bin_y_only:
+            x_bin = xy[:, 0]
+        else:
+            x_bin = np.where(xy[:, 0] >= np.median(xy[:, 0]), 1, 0)
+        y_bin = np.where(xy[:, 1] >= np.median(xy[:, 1]), 1, 0)
+        
+        raw_correlation = np.corrcoef(xy[:, 0], xy[:, 1])[0, 1]
+        binarized_correlation = np.corrcoef(x_bin, y_bin)[0, 1]
+        
+        correlations.append({
+            'sim': i,
+            'raw_correlation': raw_correlation,
+            'binarized_correlation': binarized_correlation
+        })
+
+    cors = pd.DataFrame(correlations)
+    return cors
+
+simulate_binarize(correlation = .25, num_simulations = 5)
+```
+:::
+
+The following plot shows the case where we only binarize the target variable for 500 simulations. The correlation between the raw and binarized variables is .25, .5, or .75, but the attenuated correlation  in the binarized case is still notable. This is because the binarization process has removed the correlation between the variables.
+
+```{r}
+#| label: fig-simulate_binarize_plot
+#| fig-cap: Density plots of raw and binarized correlations
+#| echo: false
+#| eval: false
+
+# do simulations for .25, .5, .75 at 100 sims each. Plot the density plots of each faceting on the baseline correlation, and color the type of correlation (raw vs. binarized)
+
+correlations = bind_rows(
+    simulate_binarize(correlation = .25, num_simulations = 1000, bin_y_only = TRUE) |> mutate(correlation = '.25'),
+    simulate_binarize(correlation = .50, num_simulations = 1000, bin_y_only = TRUE) |> mutate(correlation = '.50'),
+    simulate_binarize(correlation = .75, num_simulations = 1000, bin_y_only = TRUE) |> mutate(correlation = '.75')
+)
+
+correlations |> 
+    # select(-sim) |>
+    pivot_longer(
+        cols = c(raw_correlation, binarized_correlation), 
+        names_to = 'type', 
+        values_to = 'Correlation'
+    ) |>
+    ggplot(aes(x = Correlation)) +
+    geom_density(
+        aes(color = type, fill = type), 
+        alpha = 2/3, 
+        position = 'identity', 
+        trim = TRUE
+    ) +
+    scale_fill_manual(values = c('white', okabe_ito[['darkblue']])) +
+    scale_color_manual(values = c('gray50', okabe_ito[['darkblue']])) +
+    facet_wrap(~correlation, ncol = 1) +
+    theme(
+        axis.text.y = element_blank(),
+        axis.title.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        # legend.background = element_rect(color = NA),
+        strip.text = element_text(size = 16)
+    )
+
+ggsave('img/danger-binarize_corr.svg', width = 8, height = 6)
+```
+
+![Density plots of raw and binarized correlations](img/danger-binarize_corr.svg){width=75% #fig-simulate_binarize_plot}
+
+Common issues with ML classification don't end here however.  Another problem is that many will use a simple .5 cutoff for binary classification, when it is probably not the best choice in most classification settings. Related to this, many only focus on accuracy as a metric for performance. Others are more useful in many situations, or just add more information to assess the model. Each metric has its own pros and cons, so you should evaluate your model's performance with a suite of metrics.
+
+
+### Ignoring Uncertainty {#sec-danger-ml-uncertainty}
+
+It is very common in ML practice to ignore uncertainty in your predictions or metrics. This is a problem because there is always uncertainty, and acknowledging that it is there will be helpful for mitigating performance expectations. This is especially true when you are using a model in a production setting, where the model's performance can have real-world consequences.
+
+It is difficult, and often computationally hard to get uncertainty estimates for many of the black-box techniques that are popular in ML. Some might suggest that there is enough data such that uncertainty is not needed, but this would have to be demonstrated in some fashion, and there is always increased uncertainty for prediction on new data. In general, there are ways to get uncertainty estimates for these models, e.g., bootstrapping, conformal prediction, and it is worth the effort to do so.
+
+
+### Hyperfocus on Feature Importance {#sec-danger-ml-featimport}
+
+Researchers and businesses often have questions about which features in an ML model are important. Yet this can be a difficult question to answer, and the answer is often not practically useful. For example, most models used in ML are going to have interactions, so the importance of a feature is going to be dependent on the other features in the model. If you can't disentangle the effects of one feature from another, where either may or may not be important on their own, or maybe neither is predictive except in the presence of the other, then trying to talk about a single feature's relative worth is often a misguided endeavor, even if you use an importance metric that purports to account for the interaction.
+
+Even if we can deem a variable 'important', this doesn't imply a causal relationship, and it doesn't mean that the variable is the best of the features you have. In addition, other metrics, which might be just as valid, may provide a different rank ordering of importance.
+
+What's more, just because an importance metric may deem a feature as not important, that doesn't mean it has no effect on the target. It may be that the feature is correlated with other features that are more important, and so the importance metric is just reflecting that. It may also just mean that the importance metric is not well suited to assessing that particular feature's contribution.
+
+The reality is that multiple valid measures of importance can come to different conclusions about the relative importance of a feature, even within the same model setting. One should be very cautious in how they interpret these.
+
+:::{.callout type='info' title='SHAP for Feature Importance'}
+SHAP values are meant to assess local, i.e. observation level, feature contributions to a prediction. Although used as such, they are not meant to be a metric for assessing global feature importance. Because of this they can be misleading, and often average SHAP values will just reflect the distribution of the feature more than its importance, and could be notably inconsistent with other metrics even in simple settings.
+:::
+
+
+### Other Common Pitfalls {#sec-danger-ml-other}
+
+A few other common pitfalls in ML modeling include:
+
+- Forgetting that the data is more important than your modeling technique. You will almost always get more mileage out of improving your data than you will out of improving your model.
+
+- Data Leakage: Letting training data leak into the test set. As a simple example, consider if we use random validation splits with time-based data. This would allow the model to train with future data it will ultimately be assessed on. That may be an obvious example, but there are many more subtle ways this can happen. Data leakage gives your model an unfair advantage when it is time for testing, leading you to believe that your model is doing better than it really is.
+
+- Forgetting you will ultimately need to be able to explain your model to someone else. The only good model is a useful one; if you can't explain it to someone, you can't expect others to trust you with it or your results.
+
+- Assuming that grid search is good enough for all or even most cases. Not only is it computationally expensive, but you can easily miss valid tuning parameter values that are outside of the grid. Many other methods are available that more efficiently search the space and are as easy to implement.
+
+- Thinking deep learning will solve all your problems. If you are dealing with standard, tabular data, i.e. very noisy, deep learning will often just increase computational complexity and time, with no guarantee of increased performance. Hopefully this will change in the future, but for now, you should not expect major performance gains.
+
+- Comparing models on different datasets. If you run different models on separate data, there is no objective way to compare them. As an example, the accuracy may be higher on one dataset just because the baseline rate is much higher.
+
+<!-- - Ignoring temporal/spatial data structure. People will often forget about the effects of time and space on relationships; fortunately, many methods exist for exploring these important effects. -->
+
+The list goes on. In short, many of the pitfalls in ML modeling are the same as those in statistical modeling, but there are some unique to the ML world. The most important thing to remember is that due diligence is key when conducting any modeling exercise, and ML doesn't change that. You should always be able to explain your model and code to someone else, that you should always be able to defend your choices, and that you should always be able to defend your choices.
+
+
+## Data {#sec-danger-data}
+
+When it comes to data, plenty can go wrong before even starting with any modeling attempt. Let's take a look at some issues that can regularly arise.
+
+
+### Transformations {#sec-danger-transform}
+
+Many models will fail miserably without some sort of scaling or transformation of the data. A few techniques, like tree-based approaches, do not benefit, but practically all others do. At the very least, models will converge faster and possibly be more interpretable. You should not use transformations that would lose the expressivity of the data, because as we noted with binarization (@sec-danger-classification), some can do more harm than good. But you should always consider the need for transformations, and not just assume that the data is in a form that is ready for modeling.
+
+
+### Simple Imputation Techniques {#sec-danger-impute}
+
+Imputation may be required when you have missing data, but it can be done in ways that don't help your model. Simple imputation techniques, like using the mean or modal category, can produce faulty, or at best, noisier, results. First you should consider why you want to keep a feature that doesn't have a lot of data - do you even trust the values that are present? If you really need to impute, use an actual model to do so, but recognize that the resulting value has uncertainty associated with it. There are practical problems with implementing multiple-imputation @sec-data-missing-mi, so there is no free lunch to estimating that uncertainty. But at least having a better imputation model will provide a better guess than a mean, and still better is to use a model that would handle the missing values natively, like tree-based methods that can split on the missingness.
+
+
+### Outliers are Real {#sec-danger-outliers}
+
+One common practice in modeling is to drop or modify values considered as "outliers". However, extreme values in the target variable are often a natural part of the data.  Assuming there is no actual error in recording them, often, a simple transformation can address the issue. If extremes persist after modeling, it indicates that the model is unable to capture the underlying data structure, rather than an inherent problem with the data itself. Additionally, even values that may not appear extreme can still have large residuals, so it's important not to solely focus on the most extreme raw values.
+
+In terms of features, extreme values can cause strange effects, but often they reflect a data problem (e.g. incorrect values), or can be resolved using the transformations you should already be considering. In other cases, they don't really cause any modeling problems at all. And again, some techniques are fairly robust to feature extremes, like tree-based methods.
+
+
+### Big Data Isn't Always Big {#sec-danger-bigdata}
+
+Consider a model setting with 100,000 samples. Is this large? Let's say you have a rare outcome that occurs 1% of the time. This means you have 1000 samples of the outcome. Now consider a categorical feature (A) that has four categories, and one of those categories is relatively small, say 5% of the data, or 5000 cases, and you want to interact it with another categorical feature (B), one whose categories are all equally distributed. Assuming no particular correlation between the two, you'd be down to ~1% of the data for the least category of A across the levels of B. Now if there is an actual interaction, some of those interaction cells may have only a dozen or so positive target values. Odds are pretty good that you don't have enough data to make a reliable estimate of the interaction effect. 
+
+Oh wait, did you want to use cross-validation also?  A simple random sample approach would almost certainly result in some validation sets with no positive values at all! Don't forget that you may have already split your 100,000 samples into training and test sets, so you have even less data to start with! The following table shows the final cell count for a dataset with these properties.
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: small_data_example
+N = 1e5
+feat1 = sample(0:3, N, replace = TRUE, p = c(.5, .3, .15, .05))
+feat2 = sample(0:3, N, replace = TRUE, p = c(.25, .25, .25, .25))
+
+table(feat1, feat2)
+prop.table(table(feat1, feat2))
+
+tibble(
+    A_p = c(.5, .3, .15, .05),
+    B_p = c(.25, .25, .25, .25),
+    `5cv` = c(.2, .2, .2, .2),
+    `Final p` = A_p * B_p * .2,
+    `Cell N` = `Final p` * 1e5
+) |> 
+    tail(1) |> 
+    gt()  |> 
+    fmt_number(columns = -`Cell N`, decimals = 3) |> 
+    fmt_number(columns = `Cell N`, decimals = 0)
+
+```
+
+The point is that it's easy to forget that large data can get small very quickly due to class imbalance, interactions, etc. There is not much you can do about this, but you should not be surprised when these situations are not very revealing in terms of your model results.
+
+## Causal Inference {#sec-danger-causal}
+
+Causal inference and modeling is hard. Very hard. 
+
+### The Hard Work is Done Before Data Analysis {#sec-danger-work}
+
+The most important part of causal modeling is the conceptualization of the problem and the general design of the study to answer the specific questions related to that problem. You have to think very hard about the available data, what variables may be confounders, which effects may be indirect, and many other aspects of the process you want to measure. A causal model is the one you draw up, possibly before you even start collecting data, and it is the one you use to guide your data collection and ultimately your data modeling process.
+
+
+### Models Can't Prove Causality {#sec-danger-model-proof}
+
+
+Causal modeling focuses on addressing issues like confounding, selection bias, and measurement error, which can skew interpretations about cause and effect. While predictive accuracy is key in some scenarios, understanding these issues is crucial for making valid causal claims.
+
+A common mistake in modeling is assuming that a model can prove causality. You can have a very performant model, but the model results cannot prove that one variable causes another just because it is highly predictive. There is also nothing in the estimation process that can magically extract a causal relationship even if it exists. Reality is even more complex than our models, and no model can account for every possibility. Causal modeling attempts to account for some of these possibilities, but it is limited by our own biases in thinking about a particular problem. 
+
+Predictive features in a model might suggest a causal link, act as stand-ins for one, or merely reflect spurious associations. Conversely, true causal effects of a feature may not be large, but it doesn't mean they are unimportant. Assuming you have done the hard work of developing the causal structure beforehand, model results can provide more confidence in your ultimate causal conclusions, and that is very useful, despite lingering uncertainties.
+
+
+### Random Assignment is Not Enough {#sec-danger-random}
+
+Many believe experimental design is the gold standard for making causal claims, and it is certainly a good way to control for various aspects that can make causal claims difficult. Consider a randomized control trial (RCT) where you randomly assign people to a treatment or control group. The left panel shows the overall treatment effect, where the main effect would suggest a causal conclusion of no treatment effect. However, the right panel shows the treatment effect by another group factor, and it is clear that the treatment effect is not the same across groups. 
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: random_assignment
+#| fig-cap: Main effect vs. interaction effect of treatment group
+
+set.seed(123) # For reproducibility
+
+# Number of observations per group
+n = 500
+
+# Factor 1: Treatment group
+trt = factor(sample(c("ctrl", "trt"), n, replace = TRUE))
+
+# Factor 2: Levels a, b, c, d
+grp = factor(sample(c("a", "b", "c", "d"), n, replace = TRUE))
+
+
+# Assuming 'ctrl' and 'a' are the reference categories and thus encoded as 0
+trt_numeric = ifelse(trt == "trt", 1, 0)
+grp_numeric = as.numeric(grp) - 1  # 'a' encoded as 0, 'd' as 3
+
+# Simulate outcome data from a regression equation
+# Including an interaction effect between 'group' and 'level'
+beta0 = 0  # Intercept
+beta1 = -.75  # Effect of treatment group, assumed to be 0 for simplicity
+beta2 = 0  # Effect of grp
+beta3 = 0.5  # Interaction effect between group and level
+
+outcome = beta0 + beta1 * trt_numeric + beta2 * grp_numeric + beta3 * trt_numeric * grp_numeric + rnorm(n, mean = 0, sd = 1)
+
+# Combine into a data frame
+data = tibble(trt, grp, outcome)
+
+model = lm(outcome ~ trt *  grp , data = data)
+
+
+library(marginaleffects)
+me_trt = marginaleffects::avg_predictions(model, newdata = data, variables = c('trt'))
+me_inter = marginaleffects::avg_predictions(model, newdata = data, variables = c('trt', 'grp'))
+
+
+p_trt = me_trt |> 
+    as_tibble() |> 
+    ggplot(aes(x = trt, y = estimate, color = trt)) +
+    geom_pointrange(
+        aes(ymin = conf.low, ymax = conf.high),
+        fatten = 10,
+        linewidth = 2,
+        show.legend = FALSE
+        # size = 4
+        # position = position_dodge(width = .5)
+    ) +
+    geom_point(aes(color = trt), alpha = 1, size = 3, show.legend = FALSE) +
+    scale_color_manual(values = c('#0072B2', '#E69F00')) +
+    labs(
+        subtitle = 'Main Effect'
+    )
+
+p_inter = me_inter |> 
+    as_tibble() |> 
+    ggplot(aes(x = grp, y = estimate, color = trt)) +
+    geom_pointrange(
+        aes(ymin = conf.low, ymax = conf.high),
+        fatten = 10,
+        linewidth = 2,
+        show.legend = FALSE
+        # size = 4
+        # position = position_dodge(width = .5)
+    ) +
+    geom_point(size = 3, alpha = 1, show.legend = FALSE,) +
+    scale_color_manual(values = c('#0072B2', '#E69F00')) +
+    labs(
+        subtitle = 'Interaction Effect',
+        y = ''
+    )
+
+p_trt + p_inter &
+    scale_y_continuous(breaks = seq(-1, 1, .25), limits = c(-1.25, 1.25)) &
+    labs(
+        x = ''
+    ) &
+    theme(
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_text(size = 16),
+        plot.subtitle = element_text(size = 16, hjust = .5)
+    )
+
+ggsave('img/danger-random_assignment.svg', width = 8, height = 6)
+```
+
+![Main effect vs. interaction effect of treatment group](img/danger-random_assignment.svg){width=75% #random_assignment}
+
+So random assignment cannot save us from misunderstanding the causal mechanisms at play. Other issues to think about are that the treatment may be implemented poorly, participants may not be compliant, or the treatment may not even be well defined, and these are not uncommon situations. This comes back to having the causal structure understood as best you can before any analysis.
+
+
+### Ignoring Causal Issues {#sec-danger-causal-issues}
+
+Causal modeling is concerned with things like confounding, selection bias, measurement error, reverse causality and more. These are all issues that can lead to incorrect causal conclusions. A lot of this can be ignored when predictive performance is of primary importance, and some can be ignored when we are not interested in making causal claims. But when you are interested in making causal claims, you will have some homework to learn and revisit these topics in order for your model to help you make said claims, regardless of the modeling technique you choose to implement.
+ 
+
+## Wrapping Up {#sec-danger-conclusion}
+
+
+Though we've covered many common issues in modeling here, there are plenty more ways we can trip ourselves up. The important thing to remember is that we're all prone to making and repeating mistakes in modeling. But awareness and effort can go a long way, and we can more easily avoid these problems with practice. The main thing is to try and do better each time, and learn from any mistakes you do make.
+
+### The Common Thread
+
+Many of the issues here are model agnostic and could creep into any modeling exercise you undertake. 
+
+### Choose Your Own Adventure
+
+If you've made it through the previous chapters, there's [only one place to go](@sec-conclusion).  But you might revisit some of those in light of the common problems we've discussed here.
+
+### Additional Resources
+
+Mostly we recommend the same resources we did in the corresponding sections of the previous chapters. However, a couple others to consider are:
+
+- @shalizi_f-tests_2015 (start with the fantastic concluding comment)
