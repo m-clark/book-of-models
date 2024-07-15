@@ -121,7 +121,7 @@ plot_gp = function(
         geom_line(aes(group = variable), color = '#FF550080') +
         geom_line(aes(group = variable, y = fmean),
                     color = '#d9edf7',
-                    size = 2) +
+                    linewidth = 2) +
         geom_point(
             aes(x = X_train, y = y_train),
             size = 4,
@@ -141,7 +141,7 @@ plot_gp = function(
 
 
 walk(
-    1:12,
+    0:12,
     \(x) {
         data = generate_gp(seed = x)
         X_train = data$X_train
