@@ -2,55 +2,210 @@
 
 <!-- TODO: simplify to higher level, maybe focus on add and mult while leaving others to description -->
 <!-- TODO: Note recent dev https://arxiv.org/html/2406.02528v5 -->
+<!-- TODO: make this tabset for code as in other chapters -->
 
-Addition, subtraction, and multiplication. These are all things you already know how to do with scalars. What happens, though, if you want to multiply two different matrices together. Does that simple, scalar operation still translate if you have a $2x3$ matrix and a $3x2$ matrix? If you said, "Yes!", or if words like matrix and scalar make you break out in a sweat, then this chapter is for you! Maybe you've encountered these concepts before, possibly in the first 3 weeks of a graduate statistics course; you left that class confused, angry, and wondering why you would be subjected to such nonsense. If that sounds familiar, this chapter is for you. If you found Linear Algebra easy, then you can comfortably skip this chapter and see if Chapter 2 might be where you want to start.
+Addition, subtraction, multiplication, division. These are all things you already know how to do with single numbers. What happens, though, if you want to multiply two different matrices together. Does that simple, 'scalar' operation still translate if you have a $2x3$ matrix and a $3x2$ matrix? If words like matrix and scalar make you break out in a sweat, then this chapter is for you! If you found Linear Algebra easy, then you can comfortably skip this chapter and get back to the main content.
 
-Matrix operations, especially multiplication, are critical for understanding what comes throughout the rest of the book. Knowing the underlying mechanics of matrix operations helps to demystify several issues that you might run into with your models. You'll frequently see model output tell you how many records were deleted due to missingness. You'll then find yourself wondering why is missingness such a problem that entire rows get deleted from your model? As we progress through the next several chapters, those issues and more will become much clearer.
+Matrix operations, especially multiplication, are critical for understanding core aspects of how modeling actually produces all these cool results that help us discover so many interesting things. Knowing the underlying mechanics of matrix operations helps to demystify several issues that you might run into with your models. It can also help to get the gist of various articles and papers that you might come across.
 
 Before we get into any operations, though, let's make sure we are together on some concepts. 
 
-A *scalar* is a single value. It might help if you think about a scalar as a single block \@ref(fig:numbered_block)
+<!-- TODO: simple image of block -> vector -> matrix (e.g. just squares/tables) -->
 
 ```{r}
-scalar_example = 1
+#| echo: false
+#| label: matrix-vis
+
+base = crossing(
+    x = 1:3,
+    y = 1:3
+)  |> 
+    mutate(
+        scaler = ifelse(x == 2 & y == 2, 1, 0),
+        row_vector = ifelse(y == 2, 1, 0),
+        col_vector = ifelse(x == 2, 1, 0),
+        matrix = 1
+    )
+
+p_scalar = base |> 
+    ggplot(aes(x = 1, y = 1)) +
+    geom_tile(
+        aes(fill = factor(scaler)),
+        width=0.7, 
+        height=0.7,
+        linewidth = 3,
+        color = '#fffff8',
+        na.rm = FALSE,
+        show.legend = FALSE
+    ) +
+    scale_fill_manual(values = c(unname(okabe_ito[5]), 'white')) +
+    labs(
+      # title ='Scalar',
+    ) +
+    theme_void() +
+    theme(
+      plot.title = element_text(hjust = .5, size = 20)
+    )
+
+
+ggsave('img/app-matrix-scalar.svg', p_scalar, width = 4, height = 3, bg = 'transparent')
+
+p_row = base |> 
+    ggplot(aes(x = x, y = y)) +
+    geom_tile(
+        aes(fill = factor(row_vector)),
+        width = .8, 
+        height = 1,
+        linewidth = 3,
+        color = '#fffff8',
+        na.rm = FALSE,
+        show.legend = FALSE
+    ) +
+    scale_fill_manual(values = c('white', unname(okabe_ito[5]))) +
+    labs(
+      title = 'Row Vector',
+    ) +
+    theme_void() +
+    theme(
+      plot.title = element_text(hjust = .5, size = 20)
+    )
+
+ggsave('img/app-matrix-row.svg', p_row, width = 8, height = 6, bg = 'transparent')
+
+p_col = base |>
+    ggplot(aes(x = x, y = y)) +
+    geom_tile(
+        aes(fill = factor(col_vector)),
+        width = 1, 
+        height = .8,
+        linewidth = 3,
+        color = '#fffff8',
+        na.rm = FALSE,
+        show.legend = FALSE
+    ) +
+    scale_fill_manual(values = c('white', unname(okabe_ito[5]))) +
+    labs(
+      title = 'Column Vector',
+    ) +
+    theme_void() +
+    theme(
+      plot.title = element_text(hjust = .5, size = 20)
+    )
+
+ggsave('img/app-matrix-col.svg', p_col, width = 8, height = 8)
+
+# p_row + p_col
+
+ggsave('img/app-matrix-row-col-vector.svg', p_row + p_col, width = 8, height = 6, bg = 'transparent')
+
+p_matrix = base |> 
+    ggplot(aes(x = x, y = y)) +
+    geom_tile(
+        aes(fill = factor(matrix)),
+        width = .95, 
+        height = .95,
+        linewidth = 3,
+        color = '#fffff8',
+        na.rm = FALSE,
+        show.legend = FALSE
+    ) +
+    scale_fill_manual(values = c( unname(okabe_ito[5]))) +
+    labs(
+      # title = 'Matrix',
+    ) +
+    theme_void() +
+    theme(
+      # plot.background = element_rect(fill = 'gray98'),
+      plot.title = element_text(hjust = .5, size = 20)
+    )
+
+ggsave('img/app-matrix-matrix.svg', p_matrix, width = 8, height = 6, bg = 'transparent')
 ```
 
-```{python}
-scalar_example = 1
-```
 
-Just like we can line blocks up on the floor, we can put our scalars together to form a *vector* \@ref(fig:vector_blocks). A vector is a collection of scalars with a length of **n**. 
+A *scalar* is a single numeric value. It might help if you think about a scalar as a single 'block'. 
+
+![Scalar](img/app-matrix-scalar.svg){width=20%}
 
 ```{r}
-vector_example = 1:5
+#| eval: false
+#| label: matrix-scalar
+scalar_example = 1 # scalar value in r or python
 ```
 
-This vector containing values from 1 to 5 would have a length of 5. 
+
+And just like we can line blocks up on the floor, we can put our scalars together to form a *vector*. A vector is a collection of scalars with a length of **n**. We can also think of a vector as a single row or column of scalars.
+
+
+![Row and Column Vectors](img/app-matrix-row-col-vector.svg)
+
+
+There are many ways to create a vector in R and Python. Here are a couple ways.
+```{r}
+#| eval: false
+#| label: matrix-vector-r
+vector_example = 1:6
+vector_example = c(1, 2, 3, 4, 5, 6)
+vector_example = matrix(1:6, nrow = 1) # or ncol = 1
+```
+
 
 ```{python}
-vector_example = range(0, 5)
+#| eval: false
+#| label: matrix-vector-py
+vector_example = range(5)
+vector_example = [1, 2, 3, 4, 5] # as list
+
+import numpy as np
+row_vector = np.array([1, 2, 3])  # create a row vector
+column_vector = np.array([[1], [2], [3]])  # create a column vector
 ```
 
 Now, we can take a few of our block vectors and assemble them into a *matrix*. A matrix is a 2 dimensional collection of vectors. 
 
-\@ref(fig:matrix_blocks)
+![Matrix](img/app-matrix-matrix.svg)
+
+And here is a matrix of specific values:
 
 $$
 \begin{bmatrix}
 1 & 2 & 3\\
-4 & 5 & 6
+4 & 5 & 6\\
+7 & 8 & 9
 \end{bmatrix}
 $$
 
 If you think about most tables you've ever seen, you'll see that the simple matrix looks remarkably familiar!
 
-A matrix has 2 dimensions, rows and columns. When we talk about the dimensions of a matrix, we always make note of the rows first, followed by the columns. This matrix has 2 rows and 3 columns; therefore, we have a $2x3$ matrix.
+```{r}
+#| eval: false
+#| label: matrix-matrix-r
+
+matrix_example = matrix(1:6, nrow = 2, ncol = 3)
+dim(matrix_example)
+```
+
+```{python}
+#| eval: false
+#| label: matrix-matrix-py
+
+matrix_example = np.array([[1, 2, 3], [4, 5, 6]])
+matrix_example.shape
+```
+
+
+A matrix has 2 dimensions, rows and columns, which can be any size. When we talk about the dimensions of a matrix, we always make note of the rows first, followed by the columns. This matrix has 2 rows and 3 columns, therefore, we have a $2x3$ matrix[^majormatrix].
+
+
+[^majormatrix]: Numpy arrays/matrices are in **row major** order, while R is **column major** order. You'll note how with [numpy]{.pack} we essentially provided two rows to the array function, which automatically created the 2 x 3 matrix. The R matrix is not the same, because by default it fills in the columns. If you add `by_row = TRUE`, you'd then get the same result as the numpy example. Column major is generally more intuitive for tabular data, because that's how we think of data stored in tables, and why the [pandas]{.pack} package in python is also column major/oriented. However, both R and Python are very flexible and more generally work in arrays. If you use both it can take a bit to settle with one if you've used the other (especially for 'apply' functions). The reticulate package has [a vignette](https://cran.r-project.org/web/packages/reticulate/vignettes/arrays.html) that provides a nice overview.
+
+
 
 ## Addition
 
 Matrix addition, along with subtraction, is the easiest concept when dealing with matrices. While it is easy to grasp, you will not find it featured as prominently as matrix multiplication.
 
-There is one rule for matrix addition: the matrices need to have the same dimensions. 
+There is one rule for matrix addition: the matrices need to have the same dimensions. From a practical code perspective, if one is a scalar, addition of the scalar will be applied to every element in the matrix.
 
 Let's check out these two matrices:
 
@@ -147,12 +302,12 @@ $$
 }
 $$
 
+
+
 ## Subtraction
 
-Take everything that you just saw with addition and replace it with subtraction! 
-
-Just like addition, every matrix needs to have the same dimensions if you are going to use subtraction. 
-
+Take everything that you just saw with addition and replace it with subtraction! But just like addition, every matrix needs to have the same dimensions if you are going to use subtraction. 
+<!-- 
 Let's see those two matrices again and cast it as subtraction problem:
 
 $$
@@ -202,8 +357,9 @@ $$
 \end{bmatrix}
 }
 $$
+-->
 
-And end with this matrix:
+Here is the result:
 
 $$
 \stackrel{\mbox{Matrix A}}{
@@ -233,8 +389,8 @@ Adding and subtracting matrices in R and Python is pretty simple.
 In R, we can create a matrix a few ways: with the matrix function or by row binding numeric vectors.
 
 ```{r}
-matrix_A = rbind(1:3, 
-                  4:6)
+#| label: matrix-add-subtract-r-setup
+matrix_A = rbind(1:3, 4:6)
 
 # The following is an equivalent
 # to rbind:
@@ -242,13 +398,13 @@ matrix_A = rbind(1:3,
 #                    nrow = 2, 
 #                    ncol = 3, byrow = TRUE)
 
-matrix_B = rbind(7:9, 
-                  9:7)
+matrix_B = rbind(7:9, 9:7)
 ```
 
 Once we have those matrices created, we can use the standard `+` and `-` signs to add and subtract:
 
 ```{r}
+#| label: matrix-add-subtract-r
 matrix_A + matrix_B
 
 matrix_A - matrix_B
@@ -257,16 +413,18 @@ matrix_A - matrix_B
 The task is just as easy in Python. We will import `numpy` and then use the `matrix` method to create the matrices:
 
 ```{python}
+#| label: matrix-add-subtract-py-setup
 import numpy as np
 
-matrix_A = np.matrix('1 2 3; 4 5 6')
+matrix_A = np.array([[1, 2, 3], [4, 5, 6]])
 
-matrix_B = np.matrix('7 8 9; 9 8 7')
+matrix_B = np.array([[7, 8, 9], [9, 8, 7]])
 ```
 
 Just like R, we can use `+` and `-` on those matrices.
 
 ```{python}
+#| label: matrix-add-subtract-py
 matrix_A + matrix_B
 
 matrix_A - matrix_B
@@ -274,7 +432,7 @@ matrix_A - matrix_B
 
 ## Transpose
 
-As you progress through this book, you might see a matrix denoted as $A^T$; here the superscripted T stands for *transpose*. If we transpose a matrix, all we are doing is flipping the rows and columns along the matrix's main diagonal. A visual example is much easier:
+You might see a matrix denoted as $A^T$ or $A'$. The superscripted T stands for *transpose*. If we transpose a matrix, all we are doing is flipping the rows and columns along the matrix's main diagonal. A visual example is much easier:
 
 $$
 \stackrel{\mbox{Matrix A}}{
@@ -284,7 +442,7 @@ $$
 \end{bmatrix}
 }
 ->
-\stackrel{\mbox{Matrix A}^T}{
+\stackrel{\mbox{Matrix A transposed} }{
 \begin{bmatrix}
 1 & 4 \\
 2 & 5 \\
@@ -293,19 +451,23 @@ $$
 }
 $$
 
-Like any matrix operation, a transpose is pretty easy to do when the matrix is small; you're best bet is to rely on software to do anything beyond a few rows or columns. 
 
 In R, all we need is the `t` function:
 
 ```{r}
+#| label: matrix-transpose-r
 t(matrix_A)
 ```
 
 In Python, we can use numpy's `transpose` method:
 
 ```{python}
+#| label: matrix-transpose-py
 matrix_A.transpose()
+matrix_A.T
 ```
+
+
 
 ## Multiplication
 
@@ -494,129 +656,108 @@ Now that you know how these work, you can see how easy it is to handle these tas
 In R, we need to use a fancy operator: `%*%`. This is just R's matrix multiplication operator. We will also use the transpose function: `t`. 
 
 ```{r}
+#| label: matrix-multiply-r
 matrix_A %*% t(matrix_B)
 ```
 
 In Python, we can just use the regular multiplication operator and the transpose method:
 
 ```{python}
-matrix_A * matrix_B.transpose()
+#| label: matrix-multiply-py
+matrix_A @ matrix_B.transpose()
 ```
 
 You can see that whether we do this by hand, R, or Python, we come up with the same answer! While these small matrices can definitely be done by hand, we will always trust the computer to handle larger matrices. 
 
-## Inversion
+## Division
 
-You might want to think of *matrix inversion* as the reciprocal of the matrix, usually noted as $A^{-1}$. The biggest reason that we might invert a matrix is because there is no matrix division.
-
-Inversion can only be performed on square matrices (e.g., $2x2$, $3x3$, $4x4$) and the *determinant* of a matrix cannot be 0. Since the determinant is important for finding the inverse, we should probably have an idea about how to find the determinant.
-
-### Matrix Determinant
-
-While we've been using the matrix row/column positions in our examples, we are going to shift to letters to label the positions. We can start with a $2x2$ matrix:
+Though addition, subtraction, and multiplication are all pretty straightforward, matrix division is not. In fact, there really isn't such a thing as matrix division, we just use matrix multiplication in a particular way. This is similar to how we can divide two numbers, e.g. $a/b$, but we can also multiply by the reciprocal, $a*(1/b)$. In matrix terms this would look something like:
 
 $$
-\stackrel{\mbox{Matrix C}}{
+A * B^{-1} \\
+$$
+
+or simply
+
+$$
+AB^{-1}
+$$
+
+While that may also seem straightforward on the surface, **matrix inversion** is not. The basic idea is that we are looking for a matrix that, when multiplied by the original matrix like $B$, gives us the identity matrix. The **identity matrix** is a matrix that has 1s along the diagonal and 0s everywhere else.
+
+$$
 \begin{bmatrix}
-A & B\\
-C & D
+1 & 0 & 0\\
+0 & 1 & 0\\
+0 & 0 & 1
 \end{bmatrix}
-}
 $$
 
-To find the determinant, we would take $\mid C \mid = (A*D) - (B*C)$.
-
-Returning back to Matrix C, we have $\mid C \mid = (50_a*118_d) - (46_b*122_c) = 288$
-
-$$
-\stackrel{\mbox{Matrix C}}{
-\begin{bmatrix}
-50 & 46\\
-122 & 118
-\end{bmatrix}
-}
-$$
-
-A $3x3$ matrix doesn't pose much more of a challenge. 
-
-$$
-\stackrel{\mbox{Matrix D}}{
-\begin{bmatrix}
-A & B & C\\
-D & E & F\\
-G & H & I
-\end{bmatrix}
-}
-$$
-
-The canonical form might not be as intuitive, but it is worth seeing:
-
-$$
-\mid D \mid = A\begin{vmatrix}
-E & I\\
-F & H
-\end{vmatrix}  - 
-B\begin{vmatrix}
-D & I\\
-F & G
-\end{vmatrix} + 
-C\begin{vmatrix}
-D & H\\
-E & G
-\end{vmatrix}
-$$
-
-Breaking it down a bit further will help to see where all of the values go:
-
-$$
-\mid D \mid = A(E*I - F*H) - B(D*I - F*G) + C(D*H - E*G)
-$$
-Now we can work that out with a real matrix:
-
-$$
-\stackrel{\mbox{Matrix D}}{
-\begin{bmatrix}
-2 & 1 & 3\\
-6 & 5 & 4\\
-7 & 8 & 9
-\end{bmatrix}
-}
-$$
-
-To get our determinant:
-
-$$
-\mid D \mid = 2(5*9 - 4*8) - 1(6*9 - 4*7) + 3(6*8 - 5*7) = 39
-$$
-
-And just to confirm that our math is correct, we can check for the determinant in R and Python. 
-
-R has a handy function called `det`:
+Another caveat is that not all matrices have inverses. If the **determinant** of a matrix is 0, then it does not have an inverse. Technically, only square matrices can have inverses, but not all square matrices have inverses. We can, however, get a **pseudo-inverse** for non-square matrices.
 
 ```{r}
-matrix_D = matrix(c(2, 1, 3,
-                     6, 5, 4,
-                     7, 8, 9), 
-                   nrow = 3, 
-                   ncol = 3, 
-                   byrow = TRUE)
+#| label: matrix-inverse-r
 
-det(matrix_D)
+matrix_B_inv = MASS::ginv(matrix_B)
+round(matrix_B %*% matrix_B_inv)
 ```
-
-We can keep using `numpy`, but we will have to use `det` within the `linalg` module.
 
 ```{python}
-matrix_D = np.matrix('2 1 3; 6 5 4; 7 8 9')
+#| label: matrix-inverse-py
 
-np.linalg.det(matrix_D)
+matrix_B_inv = np.linalg.pinv(matrix_B)
+matrix_B @ matrix_B_inv
 ```
 
-Just to show you how this pattern would continue
+More to the point, when would we do this? In the world of modeling, we might use matrix inversion to solve a system of equations. This is most commonly implemented in linear regression, where we are trying to find the coefficients that minimize the error in our model. That problem has an analytical solution that involves matrix inversion.
 
-You can find a lot of examples online on how to do $2x2$ and $3x3$ matrix inversions, mostly because they are the easiest to do. 
+$$
+\beta = (X^TX)^{-1}X^Ty
+$$
 
-How do you know that you properly inverted your matrix? You multiply the original matrix by the inverse matrix and you will get an *identity* matrix. 
+Let's see this for ourselves. We will create a simple linear regression model and solve for the coefficients using matrix inversion.
 
-We have a nice figure in Figure \@ref(fig:hello), and also a table in Table \@ref(tab:iris).
+```{r}
+#| label: matrix-inverse-r-lm
+#| eval: false
 
+set.seed(123)
+x = rnorm(100)
+y = 2*x + rnorm(100)
+X = cbind(1, x)
+
+beta = MASS::ginv(t(X) %*% X) %*% t(X) %*% y
+tibble(
+  ours = beta[,1],
+  standard = coef(lm(y ~ x))
+)
+```
+
+```{python}
+#| label: matrix
+
+import statsmodels.api as sm
+import pandas as pd
+
+np.random.seed(123)
+x = np.random.normal(size = 100)
+y = 2*x + np.random.normal(size = 100)
+X = np.c_[np.ones(100), x]
+
+beta = np.linalg.pinv(X.T @ X) @ X.T @ y
+beta
+
+model_sm = sm.OLS(y, X)
+results_sm = model_sm.fit()
+coefficients_sm = results_sm.params
+
+pd.DataFrame({
+    'ours': beta,
+    'standard': coefficients_sm
+})
+```
+
+
+## Summary
+
+Matrix operations are in some ways intuitive, but not something we do everyday. However, having a grasp of the fundamentals enables an understanding of the underlying model mechanics.  Many data scientists never have to do matrix operations by hand, but knowing the mechanics demystifies the modeling process, and can greatly expand a data scientist's abilities. Whether linear regression or deep learning, matrix operations are at the core of many models.

@@ -9,25 +9,25 @@
 
 
 
-Causal inference is a very important topic in machine learning and statistics, and it is also a very difficult one to understand well, or consistently, because *not everyone agrees on how to define a cause in the first place*. Our focus here is merely practical- we just want to show some of the common model approaches used when attempt to answer causal questions. But causal modeling in general is such a rabbit hole that we won't be able to go into much detail, but we will try to give you a sense of the landscape, and some of the key ideas.
+Causal inference is a very important topic in machine learning and statistics, and it is also a very difficult one to understand well, or consistently, because *not everyone agrees on how to define a cause in the first place*. Our focus here is merely practical- we just want to show some of the common model approaches used when attempting to answer causal questions. But causal modeling in general is such a rabbit hole that we won't be able to go into much detail, but we will try to give you a sense of the landscape, and some of the key ideas.
 
 
-## Key ideas
+## Key Ideas {#sec-causal-key-ideas}
 
 - No model can tell you whether a relationship is causal or not. Causality is inferred, not proven, based on the available evidence.
 - The exact same models would be used for similar data settings to answer a causal question or a purely predictive question. The primary difference is in the interpretation of the results.
-- Experimental design, such as randomized control trials, are the gold standard for causal inference. But the gold standard is often not practical, and not without its limitation even when it is.
+- Experimental design, such as randomized control trials, are the gold standard for causal inference. But the gold standard is often not practical, and not without its limitations even when it is.
 - Causal inference is often done with observational data, which is often the only option, and that's okay.
 - Counterfactual thinking is at the heart of causal inference, but is useful for all modeling contexts.
 - Several models exist which are typically employed to answer a more causal-oriented question. These include structural equation models, graphical models, uplift modeling, and more.
 - Interactions are the norm, if not the reality. Causal inference generally regards a single effect. If the normal setting is that such an effect would always vary depending on other features, you should question why you want to aggregate your results to a single 'effect', since that effect would be potentially misleading.
 
-### Why it matters
+### Why it matters {#sec-causal-why}
 
 Often we need a precise statement about the feature-target relationship, not just whether there is some relationship. For example, we might want to know whether a drug works well, or whether showing an advertisement results in a certain amount of new sales. Whether or not random assignment was used, we generally need to know whether the effect is real, and the size of the effect, and often, the uncertainty in that estimate. Causal modeling is, like machine learning, more of an approach than a specific model, and that approach may involve the design or implementing models we've already seen in a different way to answer the key question. Without more precision in our understanding, we could miss the effect, or overstate it, and make bad decisions as a result.
 
 
-### Good to know
+### Good to know {#sec-causal-good-to-know}
 
 This section is pretty high level, and we are not going to go into much detail here so even just some understanding of correlation and modeling would likely be enough.
 
@@ -42,15 +42,15 @@ library(ggdag)
 
 #  using more R-like syntax to create the same DAG
 tidy_ggdag <- dagify(
-  target ~ x + z2 + w2 + w1,
-  x ~ z1 + w1 + w2,
-  z1 ~ w1 + v,
-  z2 ~ w2 + v,
-  w1 ~ ~w2, # bidirected path
-  exposure = 'x',
-  outcome = 'target'
+    target ~ x + z2 + w2 + w1,
+    x ~ z1 + w1 + w2,
+    z1 ~ w1 + v,
+    z2 ~ w2 + v,
+    w1 ~ ~w2, # bidirected path
+    exposure = 'x',
+    outcome = 'target'
 ) %>%
-  tidy_dagitty()
+    tidy_dagitty()
 
 # ggdag(tidy_ggdag, label_col = okabe_ito_colors[1], text_color = 'black')
 tidy_ggdag |> 
@@ -74,7 +74,7 @@ ggsave('img/causal-dag.svg', width = 8, height = 6)
 ![](img/causal-dag.svg){width=50% #fig-causal-dag}
 :::
 
-## Classic Experimental Design
+## Classic Experimental Design {#sec-causal-classic}
 
 <!-- TODO: PLACEHOLDER until we can get some sort of coin flip random assignment pic. The current one, while fine will not translate to the print/bw -->
 
@@ -187,7 +187,7 @@ Turns out, a t-test is just a linear regression model. It's a special case of li
 
 Analysis of variance, or **ANOVA**, allows the t-test to be extended to more than two groups, and multiple features, and is also commonly employed to analyze the results of experimental design settings.  But ANOVA is still just a linear regression. Even when we get into more complicated design settings such as repeated measures and mixed design, it's still just a linear regression, we'd just be using mixed models (@sec-lm-extend-mixed-models). 
 
-If using a linear regression didn't suggest any notion of causality to you before, it certainly shouldn't now either. The model is *identical* whether there was an experimental design with random assignment or not. The only difference is that the data was collected in a different way, and the theoretical assumptions and motivations are different. Even the statistical assumptions are the same whether you use random assignment or the there are one or more groups, or whether the treatment is continuous or categorical. 
+If linear regression didn't suggest any notion of causality to you before, it certainly shouldn't now either. The model is *identical* whether there was an experimental design with random assignment or not. The only difference is that the data was collected in a different way, and the theoretical assumptions and motivations are different. Even the statistical assumptions are the same whether you use random assignment or there are one or more groups, or whether the treatment is continuous or categorical. 
 
 Experimental design[^exprand] can give us more confidence in the causal explanation of model results, whatever model is used, and this is why we like to use it when we can. It helps us control for the unobserved factors that might otherwise be influencing the results. If we can be fairly certain the observations are essentially the same *except* for the treatment, then we can be more confident that the treatment is the cause of the difference, and we can be more confident in the causal interpretation of the results. But it doesn't change the model itself, and the results of a model don't prove a causal relationship by themselves. Your experimental study will also be limited by the quality of the data, and the population it generalizes to. Even with strong design and modeling, if care isn't taken in the modeling process to even assess the generalization of the results (@sec-ml-generalization), you may find they don't hold up[^explimits].
 
@@ -201,7 +201,7 @@ Experimental design[^exprand] can give us more confidence in the causal explanat
 :::
 
 
-## Natural Experiments
+## Natural Experiments {#sec-causal-natural}
 
 ```{r}
 #| eval: false
@@ -312,10 +312,10 @@ vax_derivatives |>
 
 As we noted, random assignment or a formal experiment is not always possible or practical to implement. But sometimes we get to do it anyway, or at least we can get pretty close! Sometimes, the world gives us a **natural experiment**, where the assignment to the groups is essentially random, or where there is clear break before and after some event occurs, such that we examine the change as we would in pre-post design. 
 
-For example, the covid pandemic allowed us to potentially examine vaccination effects, governmental policy effects, the effectiveness remote work, and more. This was not a tightly controlled experiment, but it's something we can treat very similar to an experiment, and we can compare the differences in various outcomes before and after the pandemic to see what changes took place. 
+For example, the covid pandemic allowed us to potentially examine vaccination effects, governmental policy effects, the effectiveness of remote work, and more. This was not a tightly controlled experiment, but it's something we can treat very similar to an experiment, and we can compare the differences in various outcomes before and after the pandemic to see what changes took place. 
 
 
-## Causal Inference
+## Causal Inference {#sec-causal-inference}
 
 Reasoning about causality is a very old topic, philosophically dating back millennia, and more formally [hundreds of years](https://plato.stanford.edu/entries/causation-medieval/). Random assignment is a relatively new idea, say [150 years old](https://plato.stanford.edu/entries/peirce/), but was posited even before Wright, Fisher, and Neyman and the 20th century rise of statistics. But with stats and random assignment we had a way to start using models to help us reason about causal relationships. [Pearl and others](https://muse.jhu.edu/pub/56/article/867087/summary) came along to provide a perspective from computer science, and things have been progressing along. We were actually using programming approaches to do causal inference back in the 1970s even! Economists got into the game too (e.g., Heckman), and eventually most scientific academic disciplines were well acquainted with causal inference in some fashion.
 
@@ -323,16 +323,16 @@ Now we can use recently developed modeling approaches to help us reason about ca
 
 
 
-## Models for Causal Inference
+## Models for Causal Inference {#sec-causal-models}
 
 Any model can be used to answer a causal question, and which one you use will depend on the data setting and the question you are asking. The following covers a few models that might be seen in various academic and professional settings.
 
 
-### Linear Regression
+### Linear regression {#sec-causal-lm}
 
 Yep, [linear regression](https://matheusfacure.github.io/python-causality-handbook/05-The-Unreasonable-Effectiveness-of-Linear-Regression.html). The old standby is possibly the mostly widely used model for causal inference, historically speaking and even today. We've seen linear regression as a graphical model @fig-graph-lm, and in that sense, it can serve as the starting point for structural equation models and related models that we'll talk about next that many consider to be true causal models. It can also be used as a baseline model for other more complex causal model approaches. Linear regression can potentially tell us for any particular feature, what that feature's relationship with the target is, holding the other features constant. This **ceteris paribus** interpretation - 'all else being equal' - already gets us into a causal mindset. 
 
-However, your standard linear model doesn't care where the data came from or what the underlying structure *should* be. It only does what you ask of it, and will tell you about group differences whether they come from a randomized experiment or not. For example, if you don't include features that would have a say in how the treatment comes about (**counfounders**), you could get a biased estimate of the effect[^biasedcause]. Basic linear regression also cannot tell you whether X is the effect of Y or vice versa. As such, linear regression by itself cannot save us from the difficulties of causal inference, nor really be considered a causal model. But it can be useful as a starting point in conjunction with other approaches.
+However, your standard linear model doesn't care where the data came from or what the underlying structure *should* be. It only does what you ask of it, and will tell you about group differences whether they come from a randomized experiment or not. For example, if you don't include features that would have a say in how the treatment comes about (**confounders**), you could get a biased estimate of the effect[^biasedcause]. Basic linear regression also cannot tell you whether X is the effect of Y or vice versa. As such, linear regression by itself cannot save us from the difficulties of causal inference, nor really be considered a causal model. But it can be useful as a starting point in conjunction with other approaches.
 
 [^biasedcause]: A reminder that a conclusion of 'no effect' is also a causal statement, and can be just as biased as any other statement. Also, you can come to the same *practical* conclusion with a biased estimate as with an unbiased one.
 
@@ -344,14 +344,14 @@ These methods are not models themselves, and potentially can be used with just a
 :::
 
 
-### Graphical Models & Structural Equation Models
+### Graphical models & structural equation models {#sec-causal-graphical-sem}
 
 
-**Graphical and Structural Equation Models (SEM)** are flexible approach to regression and classification (see @fig-causal-dag), and have one of the longest histories of formal statistical modeling, dating back over a century[^wright]. They are widely employed in the social sciences, and are often used to model both observed *and* latent variables (@sec-data-latent), with either serving as features or targets. They are also used to model causal relationships, to the point that historically they were even called 'causal graphical models' or 'causal structural models'. SEMs are a special case of **graphical models**, which are common tools in computer science and non-social science disciplines.
+**Graphical and Structural Equation Models (SEM)** are flexible approaches to regression and classification (see @fig-causal-dag), and have one of the longest histories of formal statistical modeling, dating back over a century[^wright]. They are widely employed in the social sciences, and are often used to model both observed *and* latent variables (@sec-data-latent), with either serving as features or targets. They are also used to model causal relationships, to the point that historically they were even called 'causal graphical models' or 'causal structural models'. SEMs are a special case of **graphical models**, which are common tools in computer science and non-social science disciplines.
 
 [^wright]: [Wright](https://en.wikipedia.org/wiki/Sewall_Wright) is credited with coming up with what would be called **path analysis** in the 1920s, which is a precursor to and part of SEM. 
 
-Formal graphical models like SEM provide a much richer set of tools for controlling various confounding, interaction, and indirect effects than simpler linear models. For this reason, they can very useful for causal inference. Unfortunately for those looking for causal effects, the basic input for SEM is a correlation matrix, and the basic output is a correlation matrix. Insert your favorite modeling quote here - you know which one! The point is that SEM, like linear regression, can no more tell you whether a relationship is causal than the linear regression or t-test could[^sembias].
+Formal graphical models like SEM provide a much richer set of tools for controlling various confounding, interaction, and indirect effects than simpler linear models. For this reason, they can be very useful for causal inference. Unfortunately for those looking for causal effects, the basic input for SEM is a correlation matrix, and the basic output is a correlation matrix. Insert your favorite modeling quote here - you know which one! The point is that SEM, like linear regression, can no more tell you whether a relationship is causal than the linear regression or t-test could[^sembias].
 
 [^sembias]: Your authors have to admit some bias here. We've spent a lot of our past dealing with SEMs, and almost every application we saw had too little data and too little generalization, and were grossly overfit. Many SEM programs even added multiple ways to overfit the data even further, and it is difficult to trust the results reported in many papers that used them. But that's not the fault of SEM in general- it can be a useful tool when used correctly, and it can help answer causal questions, but it is not a magic bullet, and it doesn't make anyone look fancier by using it.
 
@@ -361,13 +361,13 @@ Formal graphical models like SEM provide a much richer set of tools for controll
 It's often been suggested that we keep certain phrasing (e.g. feature X has an *effect* on target Y) only for the causal model setting. But the model we use can only tell us that the data is consistent with the effect we're trying to understand, not that it actually exists. In everyday language, we often use causal language whenever we think the relationship is or should be causal, and that's fine, and we think that's okay in a modeling context too, as long as you are clear about the limits of your generalizability.
 :::
 
-### Counterfactual Thinking
+### Counterfactual thinking {#sec-causal-counterfactual}
 
 <!-- TODO: could use some viz here -->
 
-When we think about causality, we really out to think about **counterfactuals**. What would have happened if I had done something different? What would have happened if I had done something sooner rather than later? What would have happened if I had done nothing at all? It's natural to question our own actions in this way, but we can think like this in a modeling context too. In terms of our treatment effect example, we can summarize counterfactual thinking as:
+When we think about causality, we really ought to think about **counterfactuals**. What would have happened if I had done something different? What would have happened if I had done something sooner rather than later? What would have happened if I had done nothing at all? It's natural to question our own actions in this way, but we can think like this in a modeling context too. In terms of our treatment effect example, we can summarize counterfactual thinking as:
 
-> the question is not whether there is a difference between A and B but whether there would still be a difference if A *was* B and B *was* A.
+> The question is not whether there is a difference between A and B but whether there would still be a difference if A *was* B and B *was* A.
 
 This is the essence of counterfactual thinking. It's not about whether there is a difference between two groups, but whether there would still be a difference if those in one group had actually been treated differently. In this sense, we are concerned with the **potential outcomes** of the treatment, however defined.
 
@@ -409,7 +409,7 @@ predict(model, X |> mutate(treatment = 'A')) -
 With counterfactual thinking explicitly in mind, we can see that the difference in predictions is the difference in the potential outcomes of the treatment. This is a very simple demo to illustrate how easy it is to start getting some counterfactual results from our models. But it's typically not quite that simple in practice, and there are many ways to get this estimate wrong as well. As in other circumstances, the data, or our assumptions about the problem can potentially lead us astray. Assuming those aspects of our modeling endeavor are in order, this is one way to get an estimate of the causal effect of the treatment.
 
 
-### Uplift Modeling
+### Uplift modeling {#sec-causal-uplift}
 
 The counterfactual prediction we just did provides a result that can be called the **uplift** or **gain** from the treatment, especially when compared to a baseline metric. **Uplift modeling** is a general term applied to models where counterfactual thinking is at the forefront, especially in a marketing context. Uplift modeling is not a specific model per se, but any model that is used to answer a question about the potential outcomes of a treatment. The key question is what is the gain, or uplift, in applying a treatment vs. not?  Typically any statistical model can be used to answer this question, and often the model is a classification model, whether Roy both the product or not. 
 
@@ -429,7 +429,7 @@ There are more widely used tools for uplift modeling and meta-learners in Python
 :::
 
 
-### Meta-Learning
+### Meta-Learning {#sec-causal-meta}
 
 [Meta-learners](https://arxiv.org/pdf/1706.03461.pdf) are used in machine learning contexts to assess potentially causal relationships between some treatment and outcome. The core model can actually be any kind you might want to use, but in which extra steps are taken to assess the causal relationship. The most common types of meta-learners are:
 
@@ -446,10 +446,11 @@ Some additional variants of these models exist, and they can be used in a variet
 Meta-learners are not to be confused with **meta-analysis**, which is also related to understanding causal effects. Meta-analysis attempts to combine the results of multiple *studies* to get a better estimate of the true effect. The studies are typically conducted by different researchers and in different settings.  The term **meta-learning** has also been used to refer to what is more commonly called **ensemble learning**, the approach used in random forests and boosting. It is also used by other people that don't bother to look things up before naming their technical terms.
 :::
 
-### Others Models Used for Causal Inference
+### Others models used for causal inference {#sec-causal-others}
 
 Note that there are many models that would fall under the umbrella of causal inference, and several that are discipline specific, but really are only a special application of some of the ones we've already seen. A few you might come across:
 
+- G-computation, doubly robust estimation, targeted maximum likelihood estimation[^gcomp]
 - Marginal structural models
 - Instrumental variables and two-stage least squares
 - Propensity score matching/weighting
@@ -459,10 +460,13 @@ Note that there are many models that would fall under the umbrella of causal inf
 - Bayesian networks
 
 
-In general, any modeling technique might be employed as part of a causal modeling approach. To actually makes causal statements, you'll generally need to ensure that the assumptions for those claims are tenable. 
+In general, any modeling technique might be employed as part of a causal modeling approach. To actually make causal statements, you'll generally need to ensure that the assumptions for those claims are tenable. 
+
+[^gcomp]: The G-computation approach and S-learners are essentially the same approach, but came about from different domain contexts.
 
 
-## Wrapping Up
+
+## Wrapping Up {#causal-wrap}
 
 
 We've been pretty loose in our presentation here, and glossed over many details with causal modeling. Our main goal is to give you some idea of the domain, but more so the models used and things to think about when you want to answer a causal question with your data.
@@ -475,18 +479,17 @@ Causal modeling is hard, and most of the difficulty lies outside of the realm of
 
 
 
-
-### The Common Thread
+### The common thread {#causal-common}
 
 Engaging in causal modeling may not even require you to learn any new models, but you will typically have to do more to be able to make causal statements. The key is to think about the problem in a different way, and to be more careful about the assumptions you are making. You may need to do more to ensure that your data and model are consistent with the assumptions you are making.
 
 
-### Choose Your Own Adventure
+### Choose your own adventure {#causal-adventure}
 
 From here you might revisit some of the previous models and think about how you might use them to answer a causal question. You might also look into some of the other models we've mentioned here, and see how they are used in practice via the additional resources below. 
 
 
-### Additional Resources
+### Additional resources {#causal-resources}
 
 We have only scratched the surface here, and there is a lot more to learn. Here are some resources to get you started:
 
@@ -498,6 +501,6 @@ We have only scratched the surface here, and there is a lot more to learn. Here 
 
 
 
-## Exercise
+## Exercise {#causal-exercise}
 
 If you look into causal modeling, you'll find mention of problematic covariates such as [colliders](https://en.wikipedia.org/wiki/Collider_(statistics)) or [confounders](https://en.wikipedia.org/wiki/Confounding). Can you think of a way to determine if something is a collider or confounder that would not involve a statistical approach or model?
