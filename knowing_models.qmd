@@ -13,9 +13,9 @@ TODO: cache the saving of data/models
 ```{r}
 #| label: setup-knowing-r-load-objects
 #| include: false
-load("data/models/knowing_models/model_train_reg.RData")
-load("data/models/knowing_models/model_train_class.RData")
-load("data/models/knowing_models/model_reviews_3feat.RData")
+# load("data/models/knowing_models/model_lr_train.RData")
+# load("data/models/knowing_models/model_class_train.RData")
+# load("data/models/knowing_models/model_lr_3feat.RData")
 
 load("data/models/knowing_models/knowing_model_data.RData")
 df_reviews = read_csv("data/movie_reviews.csv")
@@ -35,12 +35,12 @@ from statsmodels.iolib.smpickle import load_pickle
 np.set_printoptions(formatter={'float': lambda x: "{0:0.4f}".format(x)})
 pd.set_option('display.float_format', lambda x: '%.3f' % x)
 
-training_data = pd.read_csv("data/models/knowing_models/knowing_model_data_train.csv")
-testing_data = pd.read_csv("data/models/knowing_models/knowing_model_data_test.csv")
+df_train = pd.read_csv("data/models/knowing_models/knowing_model_data_train.csv")
+df_test = pd.read_csv("data/models/knowing_models/knowing_model_data_test.csv")
 
-model_train_reg = load_pickle("data/models/knowing_models/model_train_reg.pkl")
-model_train_class = load_pickle("data/models/knowing_models/model_train_class.pkl")
-model_reviews_3feat = load_pickle("data/models/knowing_models/model_reviews_3feat.pkl")
+# model_lr_train = load_pickle("data/models/knowing_models/model_lr_train.pkl")
+# model_class_train = load_pickle("data/models/knowing_models/model_class_train.pkl")
+# model_lr_3feat = load_pickle("data/models/knowing_models/model_lr_3feat.pkl")
 
 df_reviews = pd.read_csv("data/movie_reviews.csv")
 
@@ -58,10 +58,21 @@ features = [
 ```
 
 
+```{python}
+#| echo: false
+#| label: py-display-setup
+import numpy as np
+import pandas as pd
+np.set_printoptions(precision = 4, suppress=True, floatmode = 'maxprec') # suppress is for whether to use scientific notation for otherwise rounded to zero numbers; apparently is either ignored or quarto doesn't pass
+pd.set_option('display.precision', 4) # number of digits of precision for floating point output
+
+np.set_printoptions(formatter={'float': lambda x: "{0:0.4f}".format(x)})
+pd.set_option('display.float_format', lambda x: '%.3f' % x)
+```
 
 In addition to giving the world one of the greatest television show theme songs -- Quincy Jones' *The Streetbeater* --  *Sanford & Son* gave us an insightful quote for offering criticism: "You big dummy." While we don't advocate for swearing at or denigrating your model, how do you know if your model is performing up to your expectations? It is easy to look at your coefficients, *t*-values, and an adjusted $R^2$, and say, "Wow! Look at this great model!" Your friends will be envious of such terrific *p*-values, and all of the strangers that you see at social functions will be impressed. What happens if that model falls apart on new data, though? What if a stakeholder wants to know exactly how a prediction was made for a specific business decision? Sadly, all of the stars that you gleefully pointed towards in your console will not offer you any real answers. 
 
-Instead of falling in immediate love with your model, you should ask some hard questions of it. How does it perform on different slices of data? Do predictions make sense? Is your classification cut-point appropriate? In other words, you should criticize your model before you decide it can be used for its intended purposes. Remember that it is **data modeling**, not **data truthing**. In other words, you should always be prepared to call your model a "big dummy". 
+Instead of falling in immediate love with your model, you should ask some hard questions of it. How does it perform on different slices of data? Do predictions make sense? Is your classification cut-point appropriate? In other words, you should criticize your model before you decide it can be used for its intended purposes. Remember that it is *data modeling*, not *data truthing*. In other words, you should always be prepared to call your model a "big dummy". 
 
 
 
@@ -184,9 +195,7 @@ This basic split is the foundation of **cross-validation**. Cross-validation is 
 #| label: r-regression-import-split
 
 # all data found on github repo
-df_reviews = read.csv(
-    'https://tinyurl.com/moviereviewsdata'
-)
+df_reviews = read.csv('https://tinyurl.com/moviereviewsdata')
 
 initial_split = sample(
     x = 1:nrow(df_reviews), 
@@ -194,9 +203,9 @@ initial_split = sample(
     replace = FALSE
 )
 
-training_data = df_reviews[initial_split, ]
+df_train = df_reviews[initial_split, ]
 
-testing_data = df_reviews[-initial_split, ]
+df_test = df_reviews[-initial_split, ]
 ```
 
 ##### Python
@@ -209,11 +218,9 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 
 # all data found on github repo
-df_reviews = pd.read_csv(
-  'https://tinyurl.com/moviereviewsdata'
-)
+df_reviews = pd.read_csv('https://tinyurl.com/moviereviewsdata')
 
-training_data, testing_data = train_test_split(
+df_train, df_test = train_test_split(
     df_reviews, 
     test_size = 0.25, 
     random_state = 123
@@ -230,8 +237,8 @@ training_data, testing_data = train_test_split(
 # only run as needed
 
 save(
-    training_data, 
-    testing_data, 
+    df_train, 
+    df_test, 
     file = "data/models/knowing_models/knowing_model_data.RData"
 )
 ```
@@ -244,8 +251,8 @@ save(
 
 # only run as needed
 
-training_data.to_csv("data/models/knowing_models/knowing_model_data_train.csv", index = False)
-testing_data.to_csv("data/models/knowing_models/knowing_model_data_test.csv", index = False)
+df_train.to_csv("data/models/knowing_models/knowing_model_data_train.csv", index = False)
+df_test.to_csv("data/models/knowing_models/knowing_model_data_test.csv", index = False)
 ```
 
 You'll notice that we created training data with 75% of our data and we will use the other 25% to test our model. With training data in hand, let's produce a model to predict review rating. We'll use the standardized (scaled `_sc`) versions of several features, and use the 'year' features starting at year 0, which is the earliest year in our data. Finally, we also include the genre of the movie as a categorical feature.
@@ -256,7 +263,7 @@ You'll notice that we created training data with 75% of our data and we will use
 
 ```{r}
 #| label: r-regression-model-train
-model_train_reg = lm(
+model_lr_train = lm(
     rating ~ 
         review_year_0 
         + release_year_0 
@@ -266,7 +273,7 @@ model_train_reg = lm(
         + word_count_sc 
         + genre 
         ,
-        training_data
+        df_train
 )
 ```
 
@@ -290,10 +297,7 @@ features = [
 
 model =  'rating ~ ' + " + ".join(features)
 
-model_train_reg = smf.ols(
-    formula = model,
-    data = training_data
-).fit()
+model_lr_train = smf.ols(formula = model, data = df_train).fit()
 ```
 
 :::
@@ -305,8 +309,8 @@ model_train_reg = smf.ols(
 
 # only run as needed
 save(
-    model_train_reg, 
-    file = "data/models/knowing_models/model_train_reg.RData"
+    model_lr_train, 
+    file = "data/models/knowing_models/model_lr_train.RData"
 )
 ```
     
@@ -317,7 +321,7 @@ save(
 #| eval: false
 
 # only run as needed
-model_train_reg.save("data/models/knowing_models/model_train_reg.pkl")
+model_lr_train.save("data/models/knowing_models/model_lr_train.pkl")
 ``` 
 
 Now that we have a model on our training data, we can use it to make predictions on our test data:
@@ -329,7 +333,7 @@ Now that we have a model on our training data, we can use it to make predictions
 ```{r}
 #| label: r-regression-model-predict
 
-predictions = predict(model_train_reg, newdata = testing_data)
+predictions = predict(model_lr_train, newdata = df_test)
 ```
 
 ##### Python
@@ -337,7 +341,7 @@ predictions = predict(model_train_reg, newdata = testing_data)
 ```{python}
 #| label: python-regression-model-predict
 
-predictions = model_train_reg.predict(testing_data)
+predictions = model_lr_train.predict(df_test)
 ```
 
 :::
@@ -350,7 +354,7 @@ The goal now is to find out how close our predictions match reality. Let's look 
 #| echo: false
 
 p_dat = tibble(
-    observed = testing_data$rating, 
+    observed = df_test$rating, 
     predicted = predictions
 ) 
 
@@ -411,16 +415,17 @@ More simply, $R^2$ is the squared correlation of our predicted values and the ta
 ```{r}
 #| label: r-regression-r2
 
-residual_ss = sum((testing_data$rating - predictions)^2)
-total_ss = sum((testing_data$rating - mean(testing_data$rating))^2)
+residual_ss = sum((df_test$rating - predictions)^2)
+total_ss = sum((df_test$rating - mean(df_test$rating))^2)
 
 1 - residual_ss / total_ss
 
-yardstick::rsq_trad_vec(testing_data$rating, predictions)
+yardstick::rsq_trad_vec(df_test$rating, predictions)
 
-# conceptually identical, but slight difference due to how internal calculations are done
-cor(testing_data$rating, predictions)^2 
-yardstick::rsq_vec(testing_data$rating, predictions)
+# conceptually identical, but slight difference due
+# to how internal calculations are done (not shown)
+# cor(df_test$rating, predictions)^2 
+# yardstick::rsq_vec(df_test$rating, predictions)
 ```
 
 ##### Python
@@ -429,15 +434,16 @@ yardstick::rsq_vec(testing_data$rating, predictions)
 #| label: python-regression-r2
 from sklearn.metrics import r2_score
 
-residual_ss = np.sum((testing_data.rating - predictions)**2)
-total_ss = np.sum((testing_data.rating - np.mean(testing_data.rating))**2)
+residual_ss = np.sum((df_test.rating - predictions)**2)
+total_ss = np.sum((df_test.rating - np.mean(df_test.rating))**2)
 
 1 - residual_ss / total_ss
 
-r2_score(testing_data.rating, predictions)
+r2_score(df_test.rating, predictions)
 
-# conceptually identical, but slight difference due to how calculations are done
-np.corrcoef(testing_data.rating, predictions)[0, 1]**2
+# conceptually identical, but slight difference due to
+# how calculations are done (not shown)
+# np.corrcoef(df_test.rating, predictions)[0, 1]**2
 ```
 
 :::
@@ -464,13 +470,15 @@ $$\text{RMSE} = \sqrt{\text{MSE}}$$
 
 ```{r}
 #| label: r-regression-mse
-mean((testing_data$rating - predictions)^2)
+# mse
+mse = mean((df_test$rating - predictions)^2)
+mse
 
-yardstick::rmse_vec(testing_data$rating, predictions)^2
+yardstick::rmse_vec(df_test$rating, predictions)^2
 
-sqrt(mean((testing_data$rating - predictions)^2))
+sqrt(mse)
 
-yardstick::rmse_vec(testing_data$rating, predictions)
+yardstick::rmse_vec(df_test$rating, predictions)
 ```
 
 ##### Python
@@ -479,13 +487,14 @@ yardstick::rmse_vec(testing_data$rating, predictions)
 #| label: python-regression-mse
 from sklearn.metrics import mean_squared_error
 
-np.mean((testing_data.rating - predictions)**2)
+mse = np.mean((df_test.rating - predictions)**2)
+mse
 
-mean_squared_error(testing_data.rating, predictions)
+mean_squared_error(df_test.rating, predictions)
 
-np.sqrt(np.mean((testing_data.rating - predictions)**2))
+np.sqrt(mse)
 
-mean_squared_error(testing_data.rating, predictions, squared = False)
+mean_squared_error(df_test.rating, predictions, squared = False)
 ```
 
 :::
@@ -504,9 +513,9 @@ MAE is a great metric when all you really want to know is how far off your predi
 
 ```{r}
 #| label: r-regression-mae
-mean(abs(testing_data$rating - predictions))
+mean(abs(df_test$rating - predictions))
 
-yardstick::mae_vec(testing_data$rating, predictions)
+yardstick::mae_vec(df_test$rating, predictions)
 ```
 
 ##### Python
@@ -515,9 +524,9 @@ yardstick::mae_vec(testing_data$rating, predictions)
 #| label: python-regression-mae
 from sklearn.metrics import mean_absolute_error
 
-np.mean(abs(testing_data.rating - predictions))
+np.mean(abs(df_test.rating - predictions))
 
-mean_absolute_error(testing_data.rating, predictions)
+mean_absolute_error(df_test.rating, predictions)
 ```
 
 :::
@@ -538,11 +547,11 @@ MAPE is a great metric when you want to know how far off your predictions are fr
 ```{r}
 #| label: r-regression-mape
 mean(
-  abs(testing_data$rating - predictions) / 
-    testing_data$rating
+  abs(df_test$rating - predictions) / 
+    df_test$rating
 ) * 100
 
-yardstick::mape_vec(testing_data$rating, predictions)
+yardstick::mape_vec(df_test$rating, predictions)
 ```
 
 ##### Python
@@ -552,11 +561,11 @@ yardstick::mape_vec(testing_data$rating, predictions)
 from sklearn.metrics import mean_absolute_percentage_error
 
 np.mean(
-    abs(testing_data.rating - predictions) / 
-    testing_data.rating
+    abs(df_test.rating - predictions) / 
+    df_test.rating
 ) * 100
 
-mean_absolute_percentage_error(testing_data.rating, predictions) * 100
+mean_absolute_percentage_error(df_test.rating, predictions) * 100
 ```
 
 :::
@@ -580,7 +589,7 @@ Let's start with a model to predict whether a review is "good" or "bad". We will
 
 ```{r}
 #| label: r-classification-model-train
-model_train_class = glm(
+model_class_train = glm(
   rating_good ~ 
     genre + review_year_0 
     + release_year_0 
@@ -590,14 +599,14 @@ model_train_class = glm(
     + word_count_sc 
     + genre     
     , 
-    training_data, 
+    df_train, 
     family = binomial
 )
 
-summary(model_train_class)
+summary(model_class_train)
 
 # for later
-y_target_testing_bin = ifelse(testing_data$rating_good == "good", 1, 0)
+y_target_testing_bin = ifelse(df_test$rating_good == "good", 1, 0)
 ```
 
 
@@ -611,14 +620,14 @@ import statsmodels.formula.api as smf
 
 model =  'rating_good ~ ' + " + ".join(features)
 
-model_train_class = smf.glm(
+model_class_train = smf.glm(
     formula = model,
-    data = training_data,
+    data = df_train,
     family = sm.families.Binomial()
 ).fit()
 
 
-model_train_class.summary() 
+model_class_train.summary() 
 ```
 
 \small
@@ -627,7 +636,7 @@ model_train_class.summary()
 #| label: python-classification-model-train-show
 #| echo: false
 
-model_train_class.summary()
+model_class_train.summary()
 ```
 
 \normalsize
@@ -641,8 +650,8 @@ model_train_class.summary()
 
 # only run as needed
 save(
-    model_train_class, 
-    file = "data/models/knowing_models/model_train_class.RData"
+    model_class_train, 
+    file = "data/models/knowing_models/model_class_train.RData"
 )
 ```
 
@@ -652,7 +661,7 @@ save(
 #| eval: false
 
 # only run as needed
-model_train_class.save("data/models/knowing_models/model_train_class.pkl")
+model_class_train.save("data/models/knowing_models/model_class_train.pkl")
 ```
 
 Now that we have our model trained, we can use it to get the predicted probabilities for each observation[^predict_proba].
@@ -666,8 +675,8 @@ Now that we have our model trained, we can use it to get the predicted probabili
 ```{r}
 #| label: r-classification-model-predict
 predicted_prob = predict(
-    model_train_class,
-    newdata = testing_data,
+    model_class_train,
+    newdata = df_test,
     type = "response"
 )
 ```
@@ -676,7 +685,7 @@ predicted_prob = predict(
 
 ```{python}
 #| label: python-classification-model-predict
-predicted_prob = model_train_class.predict(testing_data)
+predicted_prob = model_class_train.predict(df_test)
 ```
 
 :::
@@ -717,7 +726,7 @@ The confusion matrix is a table that shows the number of correct and incorrect p
 #| label: r-classification-confusion-matrix
 
 rating_cm = mlr3measures::confusion_matrix(
-    factor(testing_data$rating_good),
+    factor(df_test$rating_good),
     factor(predicted_class),
     positive = "1"
 )
@@ -730,7 +739,7 @@ rating_cm = mlr3measures::confusion_matrix(
 #| label: python-classification-confusion-matrix
 from sklearn.metrics import confusion_matrix
 
-rating_cm = confusion_matrix(testing_data.rating_good, predicted_class)
+rating_cm = confusion_matrix(df_test.rating_good, predicted_class)
 ```
 
 :::
@@ -809,7 +818,7 @@ Let's see how we'd do this ourselves. We'll create a basic confusion matrix then
 
 confusion_matrix = table(
     predicted_class,
-    testing_data$rating_good
+    df_test$rating_good
 )
 
 TN = confusion_matrix[1, 1]
@@ -831,7 +840,7 @@ npv = TN / (TN + FN)  # negative predictive value
 
 confusion_matrix = pd.crosstab(
     predicted_class,
-    testing_data.rating_good.reset_index(drop=True), 
+    df_test.rating_good.reset_index(drop=True), 
 ).to_numpy()
 
 TN = confusion_matrix[0, 0]
@@ -861,7 +870,7 @@ We use [mlr3verse]{.pack} in the ML chapters, so we'll use it here too. Though o
 #| label: r-cm-summary
 # note the columns and rows are reversed from our previous confusion matrix
 cm = mlr3measures::confusion_matrix(
-    factor(testing_data$rating_good),  # requires a factor
+    factor(df_test$rating_good),  # requires a factor
     factor(predicted_class),
     positive = "1"  # class 1 is 'good'
 )
@@ -883,7 +892,7 @@ We find [pycm]{.pack} to be a great package for this purpose, practically every 
 from pycm import ConfusionMatrix
 
 cm = ConfusionMatrix(
-    testing_data.rating_good.to_numpy(), 
+    df_test.rating_good.to_numpy(), 
     predicted_class.to_numpy(), 
     digit = 3
 )
@@ -938,7 +947,7 @@ To help us with the task of choosing a threshold, we will start by creating what
 #| results: hide
 #| label: r-roc-auc
 #| fig-show: 'hide'
-roc = performance::performance_roc(model_train_class, new_data = testing_data)
+roc = performance::performance_roc(model_class_train, new_data = df_test)
 roc
 
 # requires the 'see' package
@@ -954,7 +963,7 @@ plot(roc)
 from sklearn.metrics import roc_curve, auc, RocCurveDisplay
 
 fpr, tpr, thresholds = roc_curve(
-    testing_data.rating_good, 
+    df_test.rating_good, 
     predicted_prob
 )
 
@@ -1013,17 +1022,17 @@ roc_$thresholds[which.max(roc_$sensitivities - (1-roc_$specificities))] and it g
 #| label: r-ideal-cut-point
 
 # produces the same value as before
-roc_ = pROC::roc(testing_data$rating_good, predicted_prob)
+roc_ = pROC::roc(df_test$rating_good, predicted_prob)
 threshold = pROC::coords(roc_, "best", ret = "threshold")
 
 predictions = ifelse(
-    predict(model_train_class, testing_data, type='response') >= threshold$threshold, 
+    predict(model_class_train, df_test, type='response') >= threshold$threshold, 
     1, 
     0
 )
 
 cm_new = mlr3measures::confusion_matrix(
-    factor(testing_data$rating_good), 
+    factor(df_test$rating_good), 
     factor(predictions), 
     positive = "1"
 )
@@ -1072,15 +1081,15 @@ Another important way to understand our model is by looking at how it compares t
 # create the models
 model_3 = lm(
     rating ~ review_year_0 + release_year_0 + age_sc,
-    training_data
+    df_train
 )
 
 model_3_int = lm(
     rating ~ review_year_0 * genre + release_year_0 * genre + age_sc * genre, 
-    training_data
+    df_train
 )
 
-model_train_reg = lm(
+model_lr_train = lm(
     rating ~ 
         review_year_0 
         + release_year_0 
@@ -1090,16 +1099,16 @@ model_train_reg = lm(
         + word_count_sc 
         + genre 
         , 
-        training_data
+        df_train
 )
 
 # get the predictions, calculate RMSE
 result = map(
-  list(model_3, model_train_reg, model_3_int), 
-  ~ predict(.x, newdata = testing_data)
+  list(model_3, model_lr_train, model_3_int), 
+  ~ predict(.x, newdata = df_test)
 ) |> 
   map_dbl(
-    ~ yardstick::rmse_vec(testing_data$rating, .)
+    ~ yardstick::rmse_vec(df_test$rating, .)
   )
 ```
 
@@ -1115,15 +1124,15 @@ from sklearn.metrics import root_mean_squared_error
 # create the models
 model_3 = smf.ols(
     formula='rating ~ review_year_0 + release_year_0 + age_sc',
-    data=training_data
+    data=df_train
 ).fit()
 
 model_3_int = smf.ols(
     formula='rating ~ review_year_0 * genre + release_year_0 * genre + age_sc * genre',
-    data=training_data
+    data=df_train
 ).fit()
 
-model_train_reg = smf.ols(
+model_lr_train = smf.ols(
     formula=
     '''
     rating ~ 
@@ -1136,16 +1145,16 @@ model_train_reg = smf.ols(
     + genre
     ''' 
     ,
-    data=training_data
+    data=df_train
 ).fit()
 
 # get the predictions, calculate RMSE
-models = [model_3, model_train_reg, model_3_int]
+models = [model_3, model_lr_train, model_3_int]
 
 result = [
     root_mean_squared_error(
-        testing_data.rating, 
-        model.predict(testing_data[features])
+        df_test.rating, 
+        model.predict(df_test[features])
     )
     for model in models
 ]
@@ -1182,7 +1191,7 @@ A key method for understanding how our model is performing is through visualizat
 
 # ?see:::plot.see_performance_pp_check
 p_pp = plot(
-    performance::check_predictions(model_train_reg), 
+    performance::check_predictions(model_lr_train), 
     # colors = okabe_ito,
     use_theme = FALSE,
     size_line = c(1),
@@ -1203,7 +1212,7 @@ p_pp = plot(
     )
 
 p_res = plot(
-        performance::check_heteroscedasticity(model_train_reg), 
+        performance::check_heteroscedasticity(model_lr_train), 
         color=c(okabe_ito[['darkblue']], scales::alpha(okabe_ito[['orange']], .15)), # ignores alpha somehow 
         alpha = 0.1
     ) + 
@@ -1260,7 +1269,7 @@ ggsave("img/knowing-model-select-residuals.svg", width = 8, height = 6)
 
 from sklearn.neural_network import MLPRegressor
 
-X_train = training_data[
+X_train = df_train[
     [
         'review_year_0',
         'release_year_0',
@@ -1270,7 +1279,7 @@ X_train = training_data[
         'word_count_sc',
     ]
 ]
-X_test = testing_data[
+X_test = df_test[
     [
         'review_year_0',
         'release_year_0',
@@ -1280,8 +1289,8 @@ X_test = testing_data[
         'word_count_sc',
     ]
 ]
-y_train = training_data['rating'].to_numpy()
-y_test = testing_data['rating'].to_numpy()
+y_train = df_train['rating'].to_numpy()
+y_test = df_test['rating'].to_numpy()
 
 mlp = MLPRegressor(
     hidden_layer_sizes=(100,),
@@ -1369,7 +1378,7 @@ The following shows how to get a residuals vs. fitted plot and a posterior predi
 #| eval: false
 #| label: r-regression-visualize
 
-performance::check_model(model_train_reg, check = c('linearity', 'pp_check'))
+performance::check_model(model_lr_train, check = c('linearity', 'pp_check'))
 ```
 
 ##### Python
@@ -1382,8 +1391,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 sns.residplot(
-    x = model_train_reg.fittedvalues, 
-    y = training_data.rating, 
+    x = model_lr_train.fittedvalues, 
+    y = df_train.rating, 
     lowess = True, 
     line_kws={'color': 'red', 'lw': 1}
 )
@@ -1394,10 +1403,10 @@ plt.show()
 
 
 # get the model parameters
-pp = model_train_reg.model.get_distribution(
-    params = model_train_reg.params, 
-    scale  = model_train_reg.scale, 
-    exog   = model_train_reg.model.exog
+pp = model_lr_train.model.get_distribution(
+    params = model_lr_train.params, 
+    scale  = model_lr_train.scale, 
+    exog   = model_lr_train.model.exog
 )
 
 # Generate 10 simulated predictive distributions
@@ -1407,10 +1416,10 @@ pp_samples = [pp.rvs() for _ in range(10)]
 for sample in pp_samples:
     sns.kdeplot(sample, label='pp.rvs()', alpha=0.25)
 
-# Overlay the density plot of training_data.rating
+# Overlay the density plot of df_train.rating
 sns.kdeplot(
-    training_data.rating.to_numpy(), 
-    label='training_data.rating', 
+    df_train.rating.to_numpy(), 
+    label='df_train.rating', 
     linewidth=2
 )
 
@@ -1447,7 +1456,7 @@ We saw in the linear model chapter ([-@sec-lm-interpretation-feature]) that we c
 #| label: r-regression-coefs-tbl
 #| tbl-cap: Coefficients for our regression model
 
-broom::tidy(model_train_reg, conf.int = TRUE) |>
+broom::tidy(model_lr_train, conf.int = TRUE) |>
     janitor::clean_names() |>
     rename(feature = term) |>
     mutate(feature = ifelse(feature == "(Intercept)", "intercept", feature)) |>
@@ -1496,7 +1505,7 @@ First let's think about an average slope. This is the average of the slopes acro
 #| label: fig-r-mem-vs-pdp
 #| fig-cap: Marginal Effect at the Mean vs. Partial Dependence Plot
 
-p_dat = ggeffects::ggpredict(model_train_class, terms = "word_count_sc")
+p_dat = ggeffects::ggpredict(model_class_train, terms = "word_count_sc")
 pred_0 = p_dat |> filter(x == 0) |> pull(predicted)
 
 p_mem = plot(p_dat, colors = c(okabe_ito[['darkblue']])) +
@@ -1516,16 +1525,16 @@ p_mem = plot(p_dat, colors = c(okabe_ito[['darkblue']])) +
     coord_cartesian(xlim = c(-2, 2)) +
     theme_clean()
 
-# autoplot(pdp::partial(model_train_class, pred.var='word_count_sc', type = 'classification', plot.engine='ggplot2'))
+# autoplot(pdp::partial(model_class_train, pred.var='word_count_sc', type = 'classification', plot.engine='ggplot2'))
 df_pdp = plot(
     DALEX::model_profile(
-        explainer = DALEX::explain(model_train_class, verbose=FALSE), 
+        explainer = DALEX::explain(model_class_train, verbose=FALSE), 
         N = NULL,
         variables = 'word_count_sc'
         )
     )$data
 
-avg_pred_0 = predict(model_train_class, newdata=training_data |> 
+avg_pred_0 = predict(model_class_train, newdata=df_train |> 
     mutate(word_count_sc=0), type = 'response') |> 
     mean()
 
@@ -1592,10 +1601,10 @@ Yes! We can look at what's called the **average marginal effect** of word count.
 
 library(marginaleffects)
 
-model_word_ct_by_genre = update(model_train_reg, . ~ . + word_count_sc:genre)
+model_word_ct_by_genre = update(model_lr_train, . ~ . + word_count_sc:genre)
 
 # average slope
-p1 = plot_slopes(model_train_reg, variables = "word_count_sc", by = 'genre') + 
+p1 = plot_slopes(model_lr_train, variables = "word_count_sc", by = 'genre') + 
     labs(
         title = 'Average Slope of Word Count (standardized) by Genre',
         subtitle = 'No interaction'
@@ -1610,7 +1619,7 @@ p2 = plot_slopes(model_word_ct_by_genre, variables = "word_count_sc", by = 'genr
 
 
 # our average
-model_word_ct_by_genre = update(model_train_reg, . ~ . + word_count_sc:genre)
+model_word_ct_by_genre = update(model_lr_train, . ~ . + word_count_sc:genre)
 # slopes(model_word_ct_by_genre, variables = "word_count_sc") 
 
 ```
@@ -1624,14 +1633,14 @@ model_word_ct_by_genre = update(model_train_reg, . ~ . + word_count_sc:genre)
 fudge_factor = 1e-3
 
 fudge_plus = predict(
-    model_train_class, 
-    newdata = training_data |> mutate(word_count_sc = word_count_sc + fudge_factor/2),
+    model_class_train, 
+    newdata = df_train |> mutate(word_count_sc = word_count_sc + fudge_factor/2),
     type = "response"
 )
 
 fudge_minus = predict(
-    model_train_class, 
-    newdata = training_data |> mutate(word_count_sc = word_count_sc - fudge_factor/2),
+    model_class_train, 
+    newdata = df_train |> mutate(word_count_sc = word_count_sc - fudge_factor/2),
     type = "response"
 )
 
@@ -1639,7 +1648,7 @@ fudge_minus = predict(
 # mean(fudge_plus - fudge_minus) / fudge_factor
 
 marginaleffects::avg_slopes(
-    model_train_class, 
+    model_class_train, 
     variables = "word_count_sc", 
     type = 'response'
 )
@@ -1651,15 +1660,15 @@ marginaleffects::avg_slopes(
 
 fudge_factor = 1e-3
 
-fudge_plus = model_train_class.predict(
-    training_data.assign(
-        word_count_sc = training_data.word_count_sc + fudge_factor/2
+fudge_plus = model_class_train.predict(
+    df_train.assign(
+        word_count_sc = df_train.word_count_sc + fudge_factor/2
     )
 )
 
-fudge_minus = model_train_class.predict(
-    training_data.assign(
-        word_count_sc = training_data.word_count_sc - fudge_factor/2
+fudge_minus = model_class_train.predict(
+    df_train.assign(
+        word_count_sc = df_train.word_count_sc - fudge_factor/2
     )
 )
 
@@ -1670,7 +1679,7 @@ np.mean(fudge_plus - fudge_minus) / fudge_factor
 # with categoricals right now.
 
 # import marginaleffects as me
-# me.avg_slopes(model_train_class, variables = "word_count_sc")
+# me.avg_slopes(model_class_train, variables = "word_count_sc")
 ```
 
 :::
@@ -1692,12 +1701,12 @@ Marginal means are just about getting an average prediction for the levels of *c
 #| results: hide
 
 mm = map_df(
-    unique(training_data$genre), 
+    unique(df_train$genre), 
     ~ tibble(
         genre = .x,
         avg_pred = predict(
-            model_train_reg, 
-            newdata = training_data |> 
+            model_lr_train, 
+            newdata = df_train |> 
                 mutate(genre = .x), 
             type = "response"
         ) |> 
@@ -1706,7 +1715,7 @@ mm = map_df(
 )
 
 # mm 
-marginaleffects::avg_predictions(model_train_reg, variables = "genre")
+marginaleffects::avg_predictions(model_lr_train, variables = "genre")
 ```
 
 ##### Python
@@ -1716,12 +1725,12 @@ marginaleffects::avg_predictions(model_train_reg, variables = "genre")
 #| eval: false
 
 mm = pd.DataFrame({
-    "genre": training_data.genre.unique(),
+    "genre": df_train.genre.unique(),
     "avg_pred": [
-        model_train_reg.predict(
-            training_data.assign(genre = g)
+        model_lr_train.predict(
+            df_train.assign(genre = g)
         ).mean()
-        for g in training_data.genre.unique()
+        for g in df_train.genre.unique()
     ]
 })
 
@@ -1735,7 +1744,7 @@ mm
 #| label: tbl-marginal-means-genre
 #| tbl-cap: Average Predicted Probability of a Good Review by Genre
 
-marginaleffects::avg_predictions(model_train_reg, variables = "genre") |> 
+marginaleffects::avg_predictions(model_lr_train, variables = "genre") |> 
     select(-(std.error:s.value)) |>
     gt() |> 
     tab_footnote(
@@ -1916,7 +1925,7 @@ While the actual computations behind the scenes can be tedious, the basic idea i
 ```{r}
 #| label: lm-extra-features-r
 
-model_reviews_3feat = lm(
+model_lr_3feat = lm(
     rating ~
      age
     + release_year
@@ -1925,7 +1934,7 @@ model_reviews_3feat = lm(
 )
 
 # inspect if desired
-# summary(model_reviews_3feat)
+# summary(model_lr_3feat)
 ```
 
 
@@ -1941,7 +1950,7 @@ df_reviews = pd.read_csv(
   'https://tinyurl.com/moviereviewsraw'
   )
 
-model_reviews_3feat = smf.ols(
+model_lr_3feat = smf.ols(
     formula = 'rating ~ \
      age \
     + release_year \
@@ -1950,7 +1959,7 @@ model_reviews_3feat = smf.ols(
 ).fit()
 
 # inspect if desired
-# model_reviews_3feat.summary(slim = True)
+# model_lr_3feat.summary(slim = True)
 ```
 
 :::
@@ -1961,14 +1970,14 @@ model_reviews_3feat = smf.ols(
 #| label: save-shap-model-r
 
 # save the model for use in the next section
-save(model_reviews_3feat, file = "data/models/knowing_models/model_reviews_3feat.RData")
+save(model_lr_3feat, file = "data/models/knowing_models/model_lr_3feat.RData")
 ```
 
 ```{python}
 #| echo: false
 #| label: save-shap-model-py
 
-model_reviews_3feat.save("data/models/knowing_models/model_reviews_3feat.pkl")
+model_lr_3feat.save("data/models/knowing_models/model_lr_3feat.pkl")
 ```
 
 
@@ -1990,7 +1999,7 @@ Note that this approach only works for our simple linear regression case, and we
 #| label: shap-values-r
 
 # first we need to get the average prediction
-avg_pred = mean(predict(model_reviews_3feat))
+avg_pred = mean(predict(model_lr_3feat))
 
 # observation of interest we want shap values for
 obs_of_interest = tibble(
@@ -2002,17 +2011,17 @@ obs_of_interest = tibble(
 # then we need to get the prediction for the feature value of interest
 # for all observations, and average them
 pred_age_30 = predict(
-    model_reviews_3feat,
+    model_lr_3feat,
     newdata = df_reviews |> mutate(age = obs_of_interest$age) 
 )
 
 pred_year_2022 = predict(
-    model_reviews_3feat,
+    model_lr_3feat,
     newdata = df_reviews |> mutate(release_year = obs_of_interest$release_year) 
 )
 
 pred_length_110 = predict(
-    model_reviews_3feat,
+    model_lr_3feat,
     newdata = df_reviews |> mutate(length_minutes = obs_of_interest$length_minutes) 
 )
 
@@ -2025,7 +2034,7 @@ shap_value_ours = tibble(
 )
 
 # we can also use the DALEX package to do this for us
-explainer = DALEX::explain(model_reviews_3feat, verbose = FALSE)
+explainer = DALEX::explain(model_lr_3feat, verbose = FALSE)
 
 shap_value_package = DALEX::predict_parts(
     explainer,
@@ -2047,24 +2056,24 @@ rbind(
 #| label: shap-values-py
 
 # first we need to get the average prediction
-avg_pred = model_reviews_3feat.predict(df_reviews).mean()
+avg_pred = model_lr_3feat.predict(df_reviews).mean()
 
 # then we need to get the prediction for the feature value of interest
 # for all observations, and average them
 
-pred_age_30 = model_reviews_3feat.predict(
+pred_age_30 = model_lr_3feat.predict(
     df_reviews.assign(
         age = 30
     )
 )
 
-pred_year_2022 = model_reviews_3feat.predict(
+pred_year_2022 = model_lr_3feat.predict(
     df_reviews.assign(
         release_year = 2020
     )
 )
 
-pred_length_110 = model_reviews_3feat.predict(
+pred_length_110 = model_lr_3feat.predict(
     df_reviews.assign(
         length_minutes = 110
     )
@@ -2145,7 +2154,7 @@ fnames = [
 ]
 
 explainer = dx.Explainer(
-    model_reviews_3feat, 
+    model_lr_3feat, 
     data = df_reviews[fnames], 
     y = df_reviews['rating'],
     verbose = False
@@ -2190,7 +2199,7 @@ rbind(
     gt(decimals = 3)
 ```
 
-These values are useful because they tell us how much each feature contributes to the prediction for the observation under consideration. We can visualize these as well, via a **force plot** or **waterfall plot**, the latter of which is shown below. The dotted line at *E[f(x)]* represents the average prediction from our model (~`r round(mean(fitted(model_reviews_3feat)), 2)`), and the prediction we have for the observation at *f(x)*, which is about `r round(mean(predict(model_reviews_3feat, obs_of_interest)), 2)`.
+These values are useful because they tell us how much each feature contributes to the prediction for the observation under consideration. We can visualize these as well, via a **force plot** or **waterfall plot**, the latter of which is shown below. The dotted line at *E[f(x)]* represents the average prediction from our model (~`r round(mean(fitted(model_lr_3feat)), 2)`), and the prediction we have for the observation at *f(x)*, which is about `r round(mean(predict(model_lr_3feat, obs_of_interest)), 2)`.
 
 With the average prediction as our starting point, we add the SHAP values for each feature to get the prediction for the observation. First we add the SHAP value for age, which bumps the value by `r round(shap_value_ours['age'], 3)`, then the SHAP value for movie length, which `r word_sign(shap_value_ours['length_minutes'], c('increases', 'decreases'))` the prediction `r round(shap_value_ours['length_minutes'], 3)`, and finally the SHAP value for release year, which brings us to the final predicted value by `r word_sign(shap_value_ours['release_year'], c('increasing', 'decreasing'))` the prediction `r round(shap_value_ours['release_year'], 3)`.
 
@@ -2294,7 +2303,7 @@ layout = '
     BBCC
 '
 
-p_init = Predictor$new(model_reviews_3feat, df_reviews)
+p_init = Predictor$new(model_lr_3feat, df_reviews)
 
 
 # might need to extract $data to be able to manipulate the plots
@@ -2316,7 +2325,7 @@ pdp = FeatureEffect$new(p_init, 'length_minutes', method = "pdp")$plot() +
     ) +
     geom_point(
         data = obs_of_interest, 
-        aes(x = length_minutes, y =  mean(predict(model_reviews_3feat)) ), 
+        aes(x = length_minutes, y =  mean(predict(model_lr_3feat)) ), 
         color =okabe_ito[6], 
         alpha = 1,
         size = 3
@@ -2428,7 +2437,7 @@ p_init +
     ) +
     geom_point(
         data = obs_of_interest, 
-        aes(x = length_minutes, y =  mean(predict(model_reviews_3feat)) ), 
+        aes(x = length_minutes, y =  mean(predict(model_lr_3feat)) ), 
         color =okabe_ito[6], 
         alpha = 1,
         size = 3
