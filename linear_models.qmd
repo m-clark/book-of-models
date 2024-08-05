@@ -20,6 +20,7 @@
 import numpy as np
 import pandas as pd
 np.set_printoptions(precision = 4, suppress=True, floatmode = 'maxprec') # suppress is for whether to use scientific notation for otherwise rounded to zero numbers; apparently is either ignored or quarto doesn't pass
+# https://github.com/numpy/numpy/issues/11048 # seriously wtf
 pd.set_option('display.precision', 4) # number of digits of precision for floating point output
 
 np.set_printoptions(formatter={'float': lambda x: "{0:0.4f}".format(x)})
@@ -166,7 +167,7 @@ ggsave("img/lm-corr_plot.svg", width = 8, height = 6)
 ```
 :::
 
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![Correlation](img/lm-corr_plot.svg)
 :::
 
@@ -471,7 +472,7 @@ broom::tidy(model_lr_rating, conf.int = TRUE) |>
 The table shows the **coefficient** for each feature including the intercept, which is our starting point.  In this case, the coefficient for word count is `r wc_coef`, which means that for every additional word in the review, the rating goes `r ifelse(sign(wc_coef) == 1, 'up', 'down')` by `r wc_coef` stars.  So if we had a review that was `r n_words` words long, we would *predict* a rating of `r paste(intercept)` + `r glue("{n_words}*{wc_coef}")` = `r round(predict(model_lr_rating, newdata = data.frame(word_count = n_words)), 1)` stars.  
 
 
-When we're talking about predictions for a linear model, we usually will see this as the following mathematically:
+When we're talking about the predictions (or outputs) for a linear model, we usually will see this as the following mathematically:
 
 $$
 \hat{y} = b_0 + b_1x_1 + b_2x_2 + ... + b_nx_n
@@ -480,11 +481,8 @@ $$ {#eq-lm-prediction}
 
 What is $\hat{y}$? The hat over the $y$ just means that it's a predicted value of the model, rather than the target value we actually observe in the data. Our first equations that just used $y$ implicitly suggested that we would get a perfect rating value given the model, but that's not the case. We can only get an estimate. The $\hat{y}$ is also the linear predictor in our graphical version (@fig-graph-lm), which makes clear it is not the actual target, but a combination of the features that is related to the target.
 
-:::{.callout-tip}
-You'll often see predictions referred to as **fitted values**, but these imply we are only talking about the data the model was trained on or fit to. Predictions can also be referred to as **expected values**, **estimates**, or **forecasts**, the latter is especially common in time series analysis.
-:::
 
-To make our first equation -@eq-lm-basic accurately reflect the relationship between the target and our features, we need to add what is usually referred to as an **error term**, $\epsilon$, to account for the fact that our predictions will not be perfect[^perfect_prediction].  So the full linear (regression) model is:
+To make our first equation (@eq-lm-basic) accurately reflect the relationship between the target and our features, we need to add what is usually referred to as an **error term**, $\epsilon$, to account for the fact that our predictions will not be perfect[^perfect_prediction].  So the full linear (regression) model is:
 
 [^perfect_prediction]: In most circumstances, if you ever have perfect prediction, or even near perfect prediction, the usual issues are that you have either asked a rather obvious/easy question of your data (e.g., predicting whether an image is of a human or a car), or have accidentally included the target in your features (or a combination of them) in some way.
 
@@ -495,6 +493,9 @@ $$ {#eq-lm-observed}
 The error term is a random variable that represents the difference between the actual value and the predicted value, which comes from the weighted combination of features. We can't know what the error term is, but we can estimate it, just like we can the coefficients.  We'll talk more about that in the section on estimation (@sec-estimation).
 
 
+:::{.callout type='note' title='Predictions by any other name...' collapse='true'}
+You'll often see predictions referred to as **fitted values**, but these imply we are only talking about the data the model was trained on or 'fit' to. Predictions can also be referred to as **expected values**, **estimates**, **outputs**, or **forecasts**, the latter is especially common in time series analysis. Within generalized linear models and others where there may ultimately be a transformation of the output, you may see it referred to as a **linear predictor**.
+:::
 
 ### What kinds of predictions can we get? {#sec-lm-prediction-types}
 
@@ -571,7 +572,7 @@ ggsave("img/lm-my-first-model-predictions-plot.svg", width = 8, height = 6)
 ```
 :::
 
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![Predicted vs. Observed Ratings](img/lm-my-first-model-predictions-plot.svg){width=50% #fig-my-first-model-predictions-plot}
 :::
 
@@ -655,7 +656,7 @@ ggsave("img/lm-my-first-model-error-plot.svg", width = 8, height = 6)
 
 :::
 
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![Distribution of Prediction Errors](img/lm-my-first-model-error-plot.svg){width=50% #fig-my-first-model-error-plot}
 :::
 
@@ -795,7 +796,7 @@ Let's try and use some context to help us. While a drop of `r round(wc_coef, 2)`
 
 [^effectsize]: Historically, people cite @cohen_statistical_2009 for effect size guidelines for simple models, but such guidelines are notoriously problematic. Rely on your own knowledge of the data, provide reasons for your conclusions, and let others draw their own.  If you cannot tell what would constitute a notable change in your outcome of interest, you don't know it well enough to interpret any model regarding it.
 
-::: {.callout-tip title='Standardized Coefficients' collapse="true"}
+::: {.callout type='note' title='Standardized Coefficients' collapse='true'}
 The calculation we just did results in what's often called a **standardized** or 'normalized' coefficient. In the case of the simplest model with only one feature like this, it is identical to the Pearson r correlation metric, which we invite you to check and confirm on your own, which should roughly equal our calculation using rounded values. In the case of multiple features, it represents a (partial) correlation between the target and the feature, after adjusting for the other features. But before you start thinking of it as a measure of *importance*, it is not. It provides some measure of the feature-target linear relationship, but that does not entail *practical* importance, nor is it useful in the presence of nonlinear relationships, interactions, and a host of other interesting things that are typical to data and models.
 :::
 
@@ -805,7 +806,7 @@ After assessing the coefficients, next up in our table is the **standard error**
 
 <!-- tab_style is ignored for pdf so put a conditional to only display for html -->
 
-::: {.content-hidden when-format="pdf"}
+::: {.content-hidden when-format='pdf'}
 ```{r}
 #| echo: false
 #| label: my-first-model-output-se
@@ -831,7 +832,7 @@ The statistic, here a t-statistic from the student t distribution[^coefstats], i
 
 Aside from the coefficients, the most important output is the **confidence interval** (CI). The CI is a range of values that encapsulates the uncertainty we have in our guess about the coefficients.  While our best guess for the effect of word count on rating is `r round(wc_coef, 2)`, we know it's not *exactly* that, and the CI gives us a range of reasonable values we might expect the effect to be based on the data at hand and the model we've employed.
 
-:::{.content-hidden when-format="pdf"}
+:::{.content-hidden when-format='pdf'}
 ```{r}
 #| echo: false
 #| label: my-first-model-output-ci
@@ -863,7 +864,7 @@ In this case, the default is a 95% confidence interval, and we can think of this
 ```
 
 
-:::{.content-hidden when-format="pdf"}
+:::{.content-hidden when-format='pdf'}
 ![](img/horseshoes.jpeg){width='40%'}
 :::
 
@@ -871,7 +872,7 @@ In this case, the default is a 95% confidence interval, and we can think of this
 Keep in mind that your chosen model has a great influence on what you'll be able to say at the feature level. As an example, as we get into machine learning models, you won't have as easy a time with coefficients and their confidence intervals, but you still may be able to say something about how your features relate to the target, and we'll continue to return to the topic. But first, let's take a look at interpreting things in another way.
 
 
-::: {.callout-tip title='Hypothesis Testing' collapse="true"}
+::: {.callout type='note' title='Hypothesis Testing' collapse='true'}
 The confidence interval and p-value will for coefficients in typical statistical linear models will coincide with one another in that, if for a given alpha significance level, if a 1-alpha% CI includes zero, then your p-value will be greater than alpha, and vice versa. This is because the same standard error is used to calculate both. However, the framework of using a CI vs. using the p-value for claiming statistical significance actually came from individuals that were philosophically opposed.  Modern day usage of both is a bit of a mess that would upset both Fisher (p-value guy) and Neyman (CI guy), but your authors find that this incorrect practical usage doesn't make much practical difference in the end.
 :::
 
@@ -1050,7 +1051,7 @@ where $y$ is the target, $X$ is a 2-d matrix of features[^interceptones], where 
 
 
 
-::: {.callout-note title='Matrix Representation of a Linear Model' collapse="true"}
+::: {.callout-note title='Matrix Representation of a Linear Model' collapse='true'}
 
 Here we'll show the matrix representation form of the linear model in more detail. In the following, $y$ is a vector of all target observations, and $X$ is a matrix of features.  The $\beta$ vector is the vector of coefficients. The column of 1s serves as a means to incorporate the intercept, as it's just multiplied by whatever the estimated intercept value is.  The matrix multiplication form is just a compact way of expressing the sum of the features multiplied by their coefficients.  
 
@@ -1198,7 +1199,7 @@ mre_metrics = round(performance::performance(model_lr_rating_extra), 2)
 mre_mae = round(performance::performance_mae(model_lr_rating_extra), 2)
 ```
 
-There is definitely more to unpack here than our simpler model, but it's important to note that it's just *more* stuff, not *different* stuff.  The model-level components are the same in that we still see R^2^ etc., although they are all 'better' (higher R^2^, lower error) because we have a more predictive model. Our coefficients look the same also, and we'd interpret them in the same way.  Starting with word count, we see that it's still statistically significant, but it has been reduced just slightly from our previous model where it was the only feature (`r wc_coef` vs. `r mre_coef['word_count']`).  Why? This suggests that word count has some non-zero correlation, sometimes called **collinearity**, with other features that are also explaining the target to some extent. Our linear model shows the effect of each feature *controlling for other features*, or, *holding other features constant*[^controllingfor]. Conceptually this means that the effect of word count is the effect of word count *after* we've accounted for the other features in the model. In this case, an increase of a single word results in a `r round(mre_coef['word_count'], 2)` `r word_sign(mre_coef['word_count'], c('increase', 'drop'))`, even after adjusting for the effect of other features. Looking at another feature, the addition of a child to the home is associated with `r mre_coef['children_in_home']` `r word_sign(mre_coef['children_in_home'], c('increase', 'drop'))` in rating, accounting for the other features.
+There is definitely more to unpack here than our simpler model, but it's important to note that it's just *more* stuff, not *different* stuff.  The model-level components are the same in that we still see R^2^ etc., although they are all 'better' (higher R^2^, lower error) because we have a more predictive model. Our coefficients look the same also, and we'd interpret them in the same way.  Starting with word count, we see that it's still statistically significant, but it has been reduced just slightly from our previous model where it was the only feature (`r wc_coef` vs. `r mre_coef[['word_count']]`).  Why? This suggests that word count has some non-zero correlation, sometimes called **collinearity**, with other features that are also explaining the target to some extent. Our linear model shows the effect of each feature *controlling for other features*, or, *holding other features constant*[^controllingfor]. Conceptually this means that the effect of word count is the effect of word count *after* we've accounted for the other features in the model. In this case, an increase of a single word results in a `r round(mre_coef[['word_count']], 2)` `r word_sign(mre_coef[['word_count']], c('increase', 'drop'))`, even after adjusting for the effect of other features. Looking at another feature, the addition of a child to the home is associated with `r mre_coef[['children_in_home']]` `r word_sign(mre_coef[['children_in_home']], c('increase', 'drop'))` in rating, accounting for the other features.
 
 [^controllingfor]: A lot of statisticians and causal modeling folks get very hung up on the terminology here, but we'll leave that to them as we'd like to get on with things. For our purposes, we'll just say that we're interested in the effect of a feature *after* we've accounted for the other features in the model. 
 
@@ -1435,7 +1436,7 @@ ggsave("img/lm-marginal_means.svg", width = 8, height = 6)
 ```
 :::
 
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![Marginal Effects of Season on Rating](img/lm-marginal_means.svg)
 :::
 
