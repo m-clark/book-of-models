@@ -370,24 +370,40 @@ write_csv(
 ```{r}
 df_happiness = read_csv("data/world_happiness_data_all_years_raw.csv") |> 
     janitor::clean_names() |>
-    janitor::remove_empty() 
+    janitor::remove_empty()
 
-skimr::skim(df_happiness)
+# skimr::skim(df_happiness)
 
+# library(countrycode)
+
+# df_happiness |>
+#     filter(str_detect(country_name, 'Somali'))
 df_happiness = df_happiness |> 
+    mutate(country_name = ifelse(country_name == 'Somaliland region', 'Somalia', country_name)) |>
     rename(
         country = country_name,
         happiness_score = life_ladder,
-        life_exp = healthy_life_expectancy_at_birth,
-        log_gpd_pc = log_gdp_per_capita,
+        # life_exp = healthy_life_expectancy_at_birth,
+        # log_gpd_pc = log_gdp_per_capita,
+    ) |>
+    mutate(
+        cntry_code = countrycode::countrycode(country, 'country.name', 'iso3c'),
+        cntry_code = ifelse(country == 'Kosovo', 'XKX', cntry_code)
     ) 
 
+df_happiness |>
+    select(matches('c(.)*ntry')) |> 
+    distinct() |> 
+    filter(str_detect(country, 'Kosovo|Somali'))
+
 df_happiness = df_happiness |> 
+    select(country, cntry_code, everything()) |>
     left_join(
         df_happiness |> 
         mutate(across(where(is.numeric) & !(year), \(x) scale(x)[, 1])) |> 
-        rename_with(\(x) str_c(x, "_sc"), .cols = -c(year, country))
+        rename_with(\(x) str_c(x, "_sc"), .cols = -c(year, country, cntry_code))
     )
+
 
 write_csv(
     df_happiness, 
@@ -395,6 +411,40 @@ write_csv(
 )   
 ```
 
+
+### 2018
+
+```{r}
+# just add scaled values for key features
+df_happiness_2018 = read_csv('data/world_happiness_2018_raw.csv') 
+
+df_happiness_2018_sc = df_happiness_2018 |>
+    select(
+        country,
+        happiness_score,
+        healthy_life_expectancy_at_birth,
+        log_gdp_per_capita,
+        perceptions_of_corruption
+    ) |>
+    rename(
+        happiness  = happiness_score,
+        life_exp   = healthy_life_expectancy_at_birth,
+        log_gdp_pc = log_gdp_per_capita,
+        corrupt    = perceptions_of_corruption
+    ) |>
+    # put gdp back on original scale before scaling
+    mutate(
+        gdp_pc = exp(log_gdp_pc), 
+        across(life_exp:gdp_pc, \(x) scale(x)[,1])
+    ) |>
+    select(-log_gdp_pc) |>  # drop the log version
+    rename_with(\(x) glue('{x}_sc'), -c(happiness, country))
+
+df_happiness_2018 |> 
+    left_join(df_happiness_2018_sc |> select(-happiness), by = 'country') |> 
+    write_csv('data/world_happiness_2018.csv')
+
+```
 
 ## Heart Disease
 

@@ -10,7 +10,7 @@ df_reviews = read_csv('data/movie_reviews.csv')
 df_happiness = read_csv('data/world_happiness_2018.csv')
 df_happiness_all = read_csv('data/world_happiness_all_years.csv')
 
-model_base = lm(rating ~ children_in_home + genre, data = df_reviews)
+model_baseline = lm(rating ~ children_in_home + genre, data = df_reviews)
 model_interaction = lm(rating ~ children_in_home * genre, data = df_reviews)
 ```
 
@@ -57,7 +57,7 @@ Things can be quite complex in a typical model with multiple features, but just 
 
 As a conceptual example, we might expect a movie's rating is different for movies from different genres (much higher for kids movies, maybe lower for horror movies), or that genre and season work together in some way to affect rating (e.g. action movies get higher ratings in summer), or having kids in the home number might also interact with genre ratings. We might also consider that the length of a movie might plateau or even have a negative effect on rating after a certain point, i.e., it would have a **curvilinear** effect. All of these are types of interactions we can explore. Interactions allow us to incorporate nonlinear relationships into the model, and so greatly extend the linear model's capabilities - we basically get to use a linear model in a nonlinear way!  
 
-With that in mind, let's explore how we can add interactions to our models. Going with our first example, let's see how having kids impacts the relationship between genre and rating. We'll start with a standard linear model, and then add an interaction term. Using a formula approach makes it very straightforward to add an interaction term. We just need to add a `:` between the two features we want to interact, or a `*` to denote both main effects and the interaction.
+With that in mind, let's explore how we can add interactions to our models. Going with our first example, let's see how having kids impacts the relationship between genre and rating. We'll start with a standard linear model, and then add an interaction term. Using a formula approach makes it very straightforward to add an interaction term. We just need to add a `:` between the two features we want to interact, or a `*` to denote both main effects and the interaction. As elsewhere, we present simplified results in the next table.
 
 :::{.panel-tabset}
 
@@ -65,14 +65,13 @@ With that in mind, let's explore how we can add interactions to our models. Goin
 
 ```{r}
 #| label: model-interaction-r
-df_reviews = read_csv(
-  'https://tinyurl.com/moviereviewsdata'
-)
+#| output: false
+df_reviews = read_csv('https://tinyurl.com/moviereviewsdata')
 
-model_base = lm(rating ~ children_in_home + genre, data = df_reviews)
+model_baseline = lm(rating ~ children_in_home + genre, data = df_reviews)
 model_interaction = lm(rating ~ children_in_home * genre, data = df_reviews)
 
-# summary(model_interaction)
+summary(model_interaction)
 ```
 
 ##### Python
@@ -85,18 +84,16 @@ model_interaction = lm(rating ~ children_in_home * genre, data = df_reviews)
 import pandas as pd
 import statsmodels.formula.api as smf
 
-df_reviews = pd.read_csv(
-  'https://tinyurl.com/moviereviewsdata'
-)
+df_reviews = pd.read_csv('https://tinyurl.com/moviereviewsdata')
 
-model_base = smf.ols(
-  formula = 'rating ~ children_in_home + genre', 
-  data = df_reviews
+model_baseline = smf.ols(
+    formula = 'rating ~ children_in_home + genre', 
+    data = df_reviews
 ).fit()
 
 model_interaction = smf.ols(
-  formula = 'rating ~ children_in_home * genre', 
-  data = df_reviews
+    formula = 'rating ~ children_in_home * genre', 
+    data = df_reviews
 ).fit()
 
 model_interaction.summary()
@@ -108,10 +105,10 @@ model_interaction.summary()
 ```{r}
 #| echo: false
 #| label: model-interaction-get-reference-group
-ref = model_base$xlevels$genre[1]
+ref = model_baseline$xlevels$genre[1]
 ```
 
-Here is a quick look at the model output for the interaction vs. no interaction interaction model. Starting with the base model, the coefficients look like what we've seen before, but we have several coefficients for genre. The reason is that genre is composed of several categories, and converted to a set of dummy variables (refer to @sec-lm-categorical-features and @sec-data-cat). In the base model, the intercept tells us what the mean is for the reference group, in this case `r ref`, and the genre coefficients tell us the difference between the mean for that genre and the reference. For example, the mean rating for `r ref` is `r round(coef(model_base)['(Intercept)'], 2)`, and the difference between that genre rating for the drama genre is `r round(coef(model_base)['genreDrama'], 2)`. Adding the two gives us the mean for drama movies `r round(coef(model_base)['(Intercept)'], 2)` + `r round(coef(model_base)['genreDrama'], 2)` = `r round(coef(model_base)['(Intercept)'] + coef(model_base)['genreDrama'], 2)`. We also have the coefficient for the number of children in the home, and this does not vary by genre in the base model.
+Here is a quick look at the model output for the interaction vs. no interaction interaction model. Starting with the baseline model, the coefficients look like what we've seen before, but we have several coefficients for genre. The reason is that genre is composed of several categories, and converted to a set of dummy variables (refer to @sec-lm-categorical-features and @sec-data-cat). In the baseline model, the intercept tells us what the mean is for the reference group, in this case `r ref`, and the genre coefficients tell us the difference between the mean for that genre and the reference. For example, the mean rating for `r ref` is `r round(coef(model_baseline)['(Intercept)'], 2)`, and the difference between that genre rating for the drama genre is `r round(coef(model_baseline)['genreDrama'], 2)`. Adding the two gives us the mean for drama movies `r round(coef(model_baseline)['(Intercept)'], 2)` + `r round(coef(model_baseline)['genreDrama'], 2)` = `r round(coef(model_baseline)['(Intercept)'] + coef(model_baseline)['genreDrama'], 2)`. We also have the coefficient for the number of children in the home, and this does not vary by genre in the baseline model.
 
 ```{r}
 #| echo: false
@@ -121,7 +118,7 @@ Here is a quick look at the model output for the interaction vs. no interaction 
 library(broom)
 library(gt)
 
-tidy_base = tidy(model_base) |> 
+tidy_base = tidy(model_baseline) |> 
   rename(
     feature = term,
     coef = estimate,
@@ -150,24 +147,24 @@ sign_nkids_kids_coef = sign(nkids_kids_coef)
 # Create a gt table from the tidy coefficients
 # COLOR CODING WON'T WORK IN LATEX BECAUSE IT SUCKS
 tidy_base |> 
-  full_join(tidy_interaction, by = 'feature', suffix = c('_base', '_inter')) |>
-  select(feature, starts_with('coef')) |>
-  gt(decimals = 3) |> 
-  sub_missing(
-    missing_text = "",
-  ) |> 
-  # gt_highlight_rows(
-  #   columns = vars(coef_base, coef_inter),
-  #   rows = str_detect(feature, 'children_in_home$|children.*Kids'),
-  #   fill = okabe_ito[5],
-  #   alpha = .1
-  # ) |>
-  tab_caption('Model coefficients with and without an interaction') 
+    full_join(tidy_interaction, by = 'feature', suffix = c('_base', '_inter')) |>
+    select(feature, starts_with('coef')) |>
+    gt(decimals = 3) |> 
+    sub_missing(
+        missing_text = "",
+    ) |> 
+    # gt_highlight_rows(
+    #   columns = vars(coef_base, coef_inter),
+    #   rows = str_detect(feature, 'children_in_home$|children.*Kids'),
+    #   fill = okabe_ito[5],
+    #   alpha = .1
+    # ) |>
+    tab_caption('Model coefficients with and without an interaction') 
 ```
 
 But in our other model we have an interaction between two features: 'children in the home' and 'genre'. So let's start with the coefficient for children. It is `r nkids_coef`, which means that for every additional child, the rating `r ifelse(sign_nkids_coef, 'increases', 'decreases')` by that amount. But because of the interaction, we now interpret that as the *effect of children when genre is the reference group `r ref`*. 
 
-Now let's look at the interaction effect for children and the kids genre. It is `r nkids_kids_coef`, which means that for the kids genre, the *effect of having children in the home `r ifelse(sign_nkids_kids_coef, 'increases', 'decreases')`* by that amount. So our actual effect for an additional child  for the kids genre is  `r nkids_coef` + `r nkids_kids_coef` = `r round(nkids_coef + nkids_kids_coef, 2)` `r ifelse(sign_nkids_coef + sign_nkids_kids_coef, 'increase', 'decrease')` in the review rating.  It is also correct to say that the difference in rating between the kids genre and the reference group `r ref` is `r nkids_kids_coef`, but, when with an increase in children , the difference in rating between the kids genre and `r ref` `r ifelse(sign_nkids_kids_coef, 'increases', 'decreases')` by `r abs(nkids_kids_coef)`. In other words, it is a **difference in differences**[^diffindiff].
+Now let's look at the interaction effect for children and the kids genre. It is `r nkids_kids_coef`, which means that for the kids genre, the *effect of having children in the home `r ifelse(sign_nkids_kids_coef, 'increases', 'decreases')`* by that amount. So our actual effect for an additional child for the kids genre is  `r nkids_coef` + `r nkids_kids_coef` = `r round(nkids_coef + nkids_kids_coef, 2)` `r ifelse(sign_nkids_coef + sign_nkids_kids_coef, 'increase', 'decrease')` in the expected review rating.  It is also correct to say that the difference in rating between the kids genre and the reference group `r ref` is `r nkids_kids_coef`, but, with an increase in children, the difference in rating between the kids genre and `r ref` `r ifelse(sign_nkids_kids_coef, 'increases', 'decreases')` by `r abs(nkids_kids_coef)`. In other words, it is a **difference in differences**[^diffindiff].
 
 [^diffindiff]: Some models that employ an interaction that investigates categorical group differences like this actually call their model a difference-in-difference model.
 
@@ -183,38 +180,49 @@ When we talk about differences in coefficients across values of features, it can
 library(ggeffects)
 
 p_init = plot(
-  ggpredict(model_interaction, terms = c('children_in_home', 'genre')), 
-  alpha = .05, 
-  # line_size = I(rep(c(rep(.10, 7), 2), 4)) # values of children in home = 0:3, kids is last genre, but it's ignored anyway
-  line_size = 1
-  )$data |>
-  as_tibble()
+    ggpredict(model_interaction, terms = c('children_in_home', 'genre')), 
+    alpha = .05, 
+    # line_size = I(rep(c(rep(.10, 7), 2), 4)) # values of children in home = 0:3, kids is last genre, but it's ignored anyway
+    line_size = 1
+    )$data |>
+    as_tibble()
 
 p_init |> 
-  ggplot(aes(x = x, y = predicted, color = group, fill = group)) +
-  geom_line(linewidth = 1) +
-  # geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .1, color = NA) +
-  geom_borderline(linewidth = 2.5, data = p_init |> filter(group == 'Kids') ) +
-  scale_color_manual(values = unname(okabe_ito), aesthetics = c('color', 'fill')) +
-  # scale_color_brewer(palette = 'Set1', aesthetics = c('color', 'fill')) +
-  scale_y_continuous(breaks = seq(0, 5, .25)) +
-  labs(x = 'Children in home', y = 'Predicted\nrating') +
-  theme_clean() +
-  theme(
-    panel.grid.major = element_line(color = alpha('black', .05)),    
-  )
+    ggplot(aes(x = x, y = predicted, color = group, fill = group)) +
+    geom_line(linewidth = 1) +
+    # geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .1, color = NA) +
+    geom_borderline(linewidth = 2.5, data = p_init |> filter(group == 'Kids') ) +
+    scale_color_manual(values = unname(okabe_ito), aesthetics = c('color', 'fill')) +
+    # scale_color_brewer(palette = 'Set1', aesthetics = c('color', 'fill')) +
+    scale_y_continuous(breaks = seq(0, 5, .25)) +
+    labs(x = 'Children in home', y = 'Predicted\nrating') +
+    theme_clean() +
+    theme(
+        panel.grid.major = element_line(color = alpha('black', .05)),    
+    )
 
 
-p_print = p_init |> 
-  ggplot(aes(x = x, y = predicted)) +
-  geom_line(aes(linetype = group), linewidth = 1) +
-  geom_borderline(linewidth = 2.5, data = p_init |> filter(group == 'Kids') ) +
-  scale_y_continuous(breaks = seq(0, 5, .25)) +
-  labs(x = 'Children in home', y = 'Predicted\nrating') +
-  theme(
-    legend.key.size = unit(1.25, 'cm'),
-    panel.grid.major = element_line(color = alpha('black', .05)),    
-  )
+p_print = p_init |>     
+    filter(group != 'Kids') |> 
+    ggplot(aes(x = x, y = predicted)) +
+    geom_line(aes(linetype = group), linewidth = 1) +
+    geom_line(
+        aes(linetype=group),
+        linewidth = 3, 
+        linetype = 'solid',
+        data = p_init |> filter(group == 'Kids') |> droplevels()
+    ) +
+    scale_y_continuous(breaks = seq(0, 5, .25)) +
+    labs(
+        x = 'Children in home', 
+        y = 'Predicted\nrating',
+        caption = 'Bold line is the Kids genre'
+    ) +
+    theme(
+        legend.key.size = unit(1.5, 'cm'),
+        panel.grid.major = element_line(color = alpha('black', .05)),    
+    )
+
 # plot(modelbased::estimate_expectation(model_interaction), si_alpha = .01)
 ggsave('img/lm-extend-interaction_plot.svg', p_print, width = 8, height = 6)
 ```
@@ -231,7 +239,7 @@ So, when we have interactions, we can't talk about a feature's effect without co
 
 ### Average effects {#sec-lm-extend-avgeffect}
 
-So what *is* the effect of children in the home? Or a particular genre, for that matter? We can't really say, because the effect of one feature depends on the setting of the other feature. We can say what the effect of a feature is *on average* across the settings of the other features. This is called the **average marginal effect**[^ME], something we've talked about in @sec-avg-marginal-effects. We can compute this by averaging the effect of a feature across the values of the other features. 
+So what *is* the effect of children in the home? Or a particular genre, for that matter? This is a problematic question, because the effect of one feature depends on the setting of the other feature. We can say what the effect of a feature is *on average* across the settings of the other features. This is called the **average marginal effect**[^ME], something we've talked about in @sec-avg-marginal-effects. We can compute this by averaging the effect of a feature across the values of the other features. 
 
 [^ME]: These results are provided by the [marginaleffects]{.pack} R package, which is a great tool.
 
@@ -245,29 +253,29 @@ library(marginaleffects)
 me_children = marginaleffects::avg_slopes(model_interaction, variables = c("children_in_home"))
 
 me_children |> 
-  as_tibble() |> 
-  select(-s.value) |> 
-  gt() |> 
-  tab_header(
-    title = "", 
-    # subtitle = "Average coefficient for children in home averaged over genre"
-  ) |> 
-  fmt_number(
-    columns = vars(estimate), 
-    decimals = 3
-  )
+    as_tibble() |> 
+    select(-s.value) |> 
+    gt() |> 
+    tab_header(
+        title = "", 
+      # subtitle = "Average coefficient for children in home averaged over genre"
+    ) |> 
+    fmt_number(
+      columns = vars(estimate), 
+      decimals = 3
+    )
 ```
 \normalsize
 
 
-So-called **marginal effects** and related approaches such as SHAP values (see @sec-knowing-shap-values) attempt to boil down the effect of a feature to a single number, but this is difficult even in the simpler GLM settings, and downright misleading in more complex settings like our interaction model. Here we see the average coefficient for children in the home is `r round(me_children$estimate, 2)`, but we saw in @tbl-model-interaction-output that this is slightly larger than what we would estimate in the non-interaction model, and we saw in @fig-model-interaction-plot it's actually near zero (flat) for some genres. So what is the average effect really telling us? Consider a more serious case of drug effects across demographic groups, where the effect of the drug is much stronger for some groups than others. Would you want your doctor to prescribe you a drug based on the average effect across all groups or the specific group to which you belong?
+So-called **marginal effects**, and related approaches such as SHAP values (see @sec-knowing-shap-values), attempt to boil down the effect of a feature to a single number, but this is difficult even in the simpler GLM settings, and can be downright misleading in more complex settings like our interaction model. Here we see the average coefficient for children in the home is `r round(me_children$estimate, 2)`, but we saw in @tbl-model-interaction-output that this is slightly larger than what we would estimate in the non-interaction model, and we saw in @fig-model-interaction-plot it's actually near zero (flat) for some genres. So what is the average effect really telling us? Consider a more serious case of drug effects across demographic groups, where the effect of the drug is much stronger for some groups than others. Would you want your doctor to prescribe you a drug based on the average effect across all groups, or the specific group to which you belong?
 
 When dealing with interactions in a model, it's best to consider how a feature's effect changes based on the values of other features it interacts with. Visualizing these effects can help us understand how the relationships change. It's also helpful to consider what the predicted outcome is at important feature values, and how this changes with different feature values. This is the approach we've used with interactions, and it's a good strategy overall.
 
 
 ### ANOVA {#sec-lm-extend-anova}
 
-A common method for summarizing categorical effects in linear models is through **analysis of variance** or ANOVA. ANOVA breaks down the variance in a target attributable to different features or their related effects such as interactions. It's a bit beyond the scope here to get into all the details, but both base R and [statsmodels]{.pack} have functions for this as demonstrated here.
+A common method for summarizing categorical effects in linear models is through **analysis of variance** or ANOVA, something we briefly mentioned in our chapter introducing the linear model @sec-lm-categorical-anova. ANOVA breaks down the variance in a target attributable to different features or their related effects such as interactions. It's a bit beyond the scope here to get into all the details, but we demonstrate it here.
 
 :::{.panel-tabset}
 
@@ -278,7 +286,7 @@ A common method for summarizing categorical effects in linear models is through 
 #| label: anova-r
 #| eval: false
 
-anova(model_base)
+anova(model_interaction)
 ```
 
 ##### Python
@@ -286,7 +294,7 @@ anova(model_base)
 ```{python}
 #| label: anova-py
 #| eval: false
-smf.stats.anova_lm(model_base)
+smf.stats.anova_lm(model_interaction)
 ```
 
 :::
@@ -300,23 +308,22 @@ smf.stats.anova_lm(model_base)
 anova(model_interaction) |> 
   tidy() |> 
   rename(
-    feature = term,
-    df = df,
-    sum_sq = sumsq,
-    mean_sq = meansq,
-    f = statistic,
-    p = p.value
+      feature = term,
+      df = df,
+      sum_sq = sumsq,
+      mean_sq = meansq,
+      f = statistic,
+      p = p.value
   ) |>
   gt() |> 
   sub_missing(
-    missing_text = "",
+      missing_text = "",
   )
 ```
 
 In this case, it doesn't appear that the interaction effect is statistically significant if we use the typical .05 cut-off. We know the effect of children in the home varies across genres, but this result suggests maybe it's not as much as we might think. However, we also saw that the estimate for the children effect more than doubled for the kids genre, so maybe we don't want to ignore it. That's for you to decide.
 
-The ANOVA approach can be generalized to provide a statistical test to compare models. For example, we can compare the base model to the interaction model to see if the interaction model is a better fit. However, it's entirely consistent with just looking at the interaction result in the ANOVA for the interaction model, so doesn't provide additional information, and the only models that can be compared this way must be *nested*, i.e., one model is a subset of the other.
-
+The ANOVA approach can be generalized to provide a statistical test to compare models. For example, we can compare the baseline model to the interaction model to see if the interaction model is a better fit. However, it's entirely consistent with just looking at the interaction's statistical result in the ANOVA for the interaction model alone, so it doesn't provide any additional information in this case. Note that the only models that can be compared with ANOVA must be *nested*, i.e., one model is an explicit subset of the other.
 
 It's worth noting that ANOVA is often confused with being a model itself. When people use it this way, it is just a linear regression with only categorical features, something that is usually only seen within strict experimental designs that do not have interactions with continuous features. It's pretty difficult to think of a linear regression setting where no continuous features would be of interest, but back when people were doing this stuff by hand, they just categorized everything to enable doing an ANOVA, which was tedious arithmetic but manageable. It's a bit of a historical artifact, but might be useful for exploratory purposes. Other approaches are a little more general or not confined to nested models -- ones that can be seen as subsets of another. An example is using AIC or the other methods employed in machine learning.
 
@@ -336,13 +343,13 @@ As much fun as modeling is, knowing your data is far more important. You can thr
 #| label: fig-length-release-rating
 #| fig-cap: Linear relationship between length of movie and rating.
 ggplot(df_reviews, aes(length_minutes, rating)) +
-  geom_point() +
-  geom_smooth(method="lm", se = FALSE)
+    geom_point() +
+    geom_smooth(method="lm", se = FALSE)
 
 ggsave("img/lm-extend-length_release_rating.svg", width = 8, height = 6)
 ```
 :::
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![Linear relationship between length of movie and rating](img/lm-extend-length_release_rating.svg){#fig-length-release-rating}
 :::
 
@@ -367,64 +374,64 @@ We could probably just stop there, but given what we just saw, we might think to
 #   theme_clean()
 
 mods = df_reviews |> 
-  nest_by(genre) |>
-  mutate(model = list(lm(rating ~ length_minutes, data = data))) |>
-  reframe(broom::augment(model))
+    nest_by(genre) |>
+    mutate(model = list(lm(rating ~ length_minutes, data = data))) |>
+    reframe(broom::augment(model))
 
 p_slopes = ggplot(mods, aes(length_minutes, .fitted, color = genre)) +
-  geom_line(aes(linetype = genre), lwd = .5) +
-  scale_y_continuous(limits = c(1, 5)) +
-  labs(title = '', y = '', x = '') 
+    geom_line(aes(linetype = genre), lwd = .5) +
+    scale_y_continuous(limits = c(1, 5)) +
+    labs(title = '', y = '', x = '') 
 
 p_mod = lm(rating ~ genre, df_reviews |> mutate(genre = recode(genre, "Action/Adventure" = "Act/Adv")))
 
 p_dat = plot(modelbased::estimate_means(p_mod))$data
 
 p_group_means = p_dat |> 
-  ggplot(aes(x = genre, y = Mean)) +
-  geom_dotplot(
-    aes(x = genre, y= rating),
-    binaxis='y', 
-    stackdir='center',
-    dotsize=.1,
-    color = 'black',
-    data = df_reviews |> 
-    mutate(genre = recode(genre, "Action/Adventure" = "Act/Adv")), 
-    position = position_jitter(width = .0, height = .15),
-    alpha = .25
-  ) +
-  geom_pointrange(
-    aes(ymin = CI_low, ymax = CI_high, color = genre),
-    fatten = 5,
-    alpha = 1,
-    show.legend = FALSE
-  ) +
-  scale_x_discrete(guide = guide_axis(n.dodge=2)) +
-  labs(title = '', y = '', x = '') +
-  scale_y_continuous(limits = c(1, 5))
+    ggplot(aes(x = genre, y = Mean)) +
+    geom_dotplot(
+        aes(x = genre, y= rating),
+        binaxis='y', 
+        stackdir='center',
+        dotsize=.1,
+        color = 'black',
+        data = df_reviews |> 
+        mutate(genre = recode(genre, "Action/Adventure" = "Act/Adv")), 
+        position = position_jitter(width = .0, height = .15),
+        alpha = .25
+    ) +
+    geom_pointrange(
+        aes(ymin = CI_low, ymax = CI_high, color = genre),
+        fatten = 5,
+        alpha = 1,
+        show.legend = FALSE
+    ) +
+    scale_x_discrete(guide = guide_axis(n.dodge=2)) +
+    labs(title = '', y = '', x = '') +
+    scale_y_continuous(limits = c(1, 5))
   
 see::plots(
-  p_slopes,
-  p_group_means
+    p_slopes,
+    p_group_means
 ) + 
-  plot_layout(guides = 'collect') &
-  # scale_color_brewer(palette = 'Set1') &
-  theme(
-    panel.grid.major.y = element_line(color = scales::alpha('black', .1)),
-    legend.key.size = unit(1.25, "cm"),
-  )
+    plot_layout(guides = 'collect') &
+    # scale_color_brewer(palette = 'Set1') &
+    theme(
+      panel.grid.major.y = element_line(color = scales::alpha('black', .1)),
+      legend.key.size = unit(1.25, "cm"),
+    )
 
 ggsave("img/lm-extend-length_genre_rating.svg", width = 8, height = 6)
 ```
 
 :::
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![Genre Effects on Length and Rating](img/lm-extend-length_genre_rating.svg){#fig-length-genre-rating}
 :::
 
 A very quick examination of @fig-length-genre-rating might suggest that the rating varies by genre, and that the relationship between length and rating varies significantly over the different genres. The group means in the right panel show variability across genre. In addition, on the left panel, some genres show a strong positive relationship, some show less of a positive relationship, a couple even show a negative relationship, and one even looks flat. We can also see that they would have different intercepts. This is a very important thing to know about your data! If we had just run a model with length as a feature and nothing else, we would have missed this important information.
 
-Now consider something a bit more complicated. Here is a plot of the relationship between the length of a movie and the rating, but across release year.  Again we might think there is notable variability in the effect across years.  How can we account for this? 
+Now consider something a bit more complicated. Here is a plot of the relationship between the length of a movie and the rating, but across release year.  Again we might think there is notable variability in the effect across years, as some slopes are positive, some very strongly positive, and some are even negative.  How can we account for this? 
 
 :::{.content-visible when-format="html"}
 ```{r}
@@ -434,44 +441,45 @@ Now consider something a bit more complicated. Here is a plot of the relationshi
 
 # glimpse(df_reviews)
 mods_release = df_reviews |> 
-  nest_by(release_year) |>
-  mutate(model = list(lm(rating ~ length_minutes, data = data))) |>
-  reframe(broom::augment(model))
+    nest_by(release_year) |>
+    mutate(model = list(lm(rating ~ length_minutes, data = data))) |>
+    reframe(broom::augment(model))
 
 p_slopes_release = ggplot(mods_release, aes(length_minutes, .fitted, color = release_year)) +
-  geom_line(aes(group= release_year), lwd = 1) +
-  scale_color_scico(palette = 'oslo', end = .85, breaks = seq(1985, 2020, 10)) +
-  scale_y_continuous(limits = c(1, 5)) +
-  labs(title = '', y = '', x = '') 
+    geom_line(aes(group= release_year), lwd = 1) +
+    scale_color_scico(palette = 'oslo', end = .85, breaks = seq(1985, 2020, 10)) +
+    scale_y_continuous(limits = c(1, 5)) +
+    labs(title = '', y = '', x = '') 
 
 p_slopes_release
 
 ggsave("img/lm-extend-length_release_rating_year.svg", width = 8, height = 6)
 ```
 :::
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![Release Year Effects on Length and Rating](img/lm-extend-length_release_rating_year.svg){#fig-length-release-rating-year}
 :::
 
 
 ### Overview of mixed models {#sec-mixed-models-overview}
 
-What we've just seen might initially bring to mind an effect, and that's the right way to think about it! A **mixed model** can be used to get at that type of relationship into our model, which we can think of as a group interaction, without much hassle and additional explainability. But it's actually a quite flexible class that can also allow for more complicated but related types.
+What we've just seen might initially bring to mind an interaction effect, and that's the right way to think about it! A **mixed model** can be used to get at that type of relationship into our model, which we can think of as a group interaction, without much hassle and additional explainability. But it's actually a quite flexible class that can also allow for more complicated but related types.
 
 Before going too much further, the term *mixed model* is as vanilla as we can possibly make it, but you might have heard of different names such as *hierarchical linear models*, or *multilevel models*, or maybe *mixed-effects models* tossed around before. Maybe you've even been exposed to ideas like *random effects* or *random slopes*. These are in fact all instances of what we're calling a *mixed model*. 
 
-What makes a model a *mixed* model? The mixed model is characterized by the idea that a model can have **fixed effects** and **random effects**. Fortunately, you've already encountered *fixed* effects -- those are the features that we have been using in all of our models so far! We are assuming a single true parameter (coefficient/weight) for each of those features to estimate, and that parameter is *fixed*.
+What makes a model a *mixed* model? The mixed model is characterized by the idea that a model can have **fixed effects** and **random effects**. Fortunately, you've already encountered *fixed* effects -- those are the features that we have been using in all of our models so far! We are assuming a single true parameter (e.g. coefficient/weight) for each of those features to estimate, and that parameter is *fixed*.
 
 In mixed models, a *random effect* typically comes from a specific distribution, almost always a normal distribution, that adds a unique source of variance in the target variable. This distribution of effects can be based on a grouping variable (such as genre), where we let those parameters, i.e. coefficients (or weights), vary across the groups, creating a distribution of values.
 
 Let's take our initial example with movie length and genre. Formally, we might specify something like this:
 
 $$
-\text{rating} = b_{\text{int[genre]}} + b_\text{length}*\text{length}
+\text{rating} = b_{\text{int[genre]}} + b_\text{length}*\text{length} + \epsilon
 $$
 
-In this formula, we are saying that genre has its own unique effect for this model in the form of specific intercepts for each genre. This means that whenever an observation belongs to a specific genre, it will have an intercept that reflects that genre, and that means that two observations with the same length but from different genres would have different predictions.
+In this formula, we are saying that genre has its own unique effect for this model in the form of specific intercepts for each genre[^mixedeps]. This means that whenever an observation belongs to a specific genre, it will have an intercept that reflects that genre, and that means that two observations with the same movie length but from different genres would have different predictions.
 
+[^mixedeps]: The error term $\epsilon$ is still assumed normal with mean zero and variance $\sigma^2$. 
 
 We also posit that those come from a *random* distribution. We can specify that as:
 
@@ -494,7 +502,7 @@ A simple random intercept and slope is just the start. As an example, we can let
 
 One of the key advantages of a mixed is that we can use it when the observations within a group are not independent. This is a very common situation in many fields, and it's a good idea to consider this when you have grouped data. As an example we'll use the happiness data for all available years, and we'll consider the country as a grouping variable. In this case, observations within a country are likely to be more similar to each other than to observations from other countries. This is a classic example of when to use a mixed model. This is also a case where we wouldn't just throw in country as a feature like any other factor, since there are `r n_distinct(df_happiness_all$country)` countries in the data.
 
-In general, to use mixed models we have to specify a group effect for the model, but that's the primary difference from our previous approaches used for linear or generalized linear models. For our example, we'll look at a model with a random intercept regarding country, and one that adds a random slope of for the yearly trend per capita. This means that we are allowing the intercepts and slopes to vary across countries. Furthermore, by recoding year to start at zero, we're allowing the starting point for country (the intercept) to vary across countries along with the yearly trend. For a larger effect, we also divide the yearly trend by 10, so the coefficient provides the change in happiness score per decade.
+In general, to use mixed models we have to specify a group effect for the categorical feature of focus, but that's the primary difference from our previous approaches used for linear or generalized linear models. For our example, we'll look at a model with a random intercept for country, and one that adds a random slope for the yearly trend across countries. This means that we are allowing the intercepts and slopes to vary across countries, and the intercepts and slopes can correlate with one another. Furthermore, by recoding year to start at zero, the intercept will represent the happiness score at the start of the data. In addition, to see a more reasonable effect, we also divide the yearly trend by 10, so the coefficient provides the change in happiness score per decade.
 
 
 :::{.panel-tabset}
@@ -512,59 +520,61 @@ library(lme4)
 df_happiness_all = read_csv("https://tinyurl.com/worldhappinessallyears")
 
 df_happiness_all = df_happiness_all |> 
-  mutate(year_0 = (year - min(year))/10)
+    mutate(year_0 = (year - min(year))/10)
 
 # random intercepts are specified by a 1
-fit_ran_int = lmer(
-  happiness_score ~ year_0 + (1| country), 
-  df_happiness_all
+model_ran_int = lmer(
+    happiness_score ~ year_0 + (1| country), 
+    df_happiness_all
 )
 
-fit_ran_slope = lmer(
-  happiness_score ~ year_0 + (1 + year_0 | country), 
-  df_happiness_all
+model_ran_slope = lmer(
+    happiness_score ~ year_0 + (1 + year_0 | country), 
+    df_happiness_all
 )
 
-summary(fit_ran_int)
-summary(fit_ran_slope)
+# not shown
+summary(model_ran_int)
+summary(model_ran_slope)
 ```
 
 ##### Python
 
-As with our recommendation with GAMs later, R is the better tool for mixed models, as the functionality is overwhelmingly better there for modeling and post-processing. However, you can use [statsmodels]{.pack} in Python to fit them as well[^mixedpy]. But as an example, this doesn't even converge with default settings even after scaling the data, so we had to switch the optimization method. These results correspond with the R results.
+As with our recommendation with GAMs later, R is the better tool for mixed models, as the functionality is overwhelmingly better there for modeling and post-processing. However, you can use [statsmodels]{.pack} in Python to fit them as well[^mixedpy].
 
-[^mixedpy]: One of your authors worked for several years with the key developer of the mixed models functionality in [statsmodels]{.pack}. As such, we can say there is zero doubt about the expertise going into its development, as there are few in the world with such knowledge. Even so, the functionality is not as mature or as expansive as what you get in R.
+[^mixedpy]: One of your authors worked for several years with the key developer of the mixed models functionality in [statsmodels]{.pack}. As such, we can say there is zero doubt about the expertise going into its development, as there are few in the world with such knowledge. Even so, you probably won't find the functionality is not as mature or as expansive as what you get in R.
 
 
 ```{python}
-#| eval: false
+#| eval: true
 #| label: python_mixed_model
+#| output: false
 import statsmodels.api as sm
 
 df_happiness_all = pd.read_csv("https://tinyurl.com/worldhappinessallyears")
 
 df_happiness_all = (
-  df_happiness_all
-  .assign(year_0 = lambda x: (x['year']- x['year'].min())/10)
+    df_happiness_all
+    .assign(year_0 = lambda x: (x['year']- x['year'].min())/10)
 )
 
-fit_ran_int = sm.MixedLM.from_formula(
-  "happiness_score ~ year_0", 
-  df_happiness_all, 
-  re_formula='1',
-  groups=df_happiness_all["country"]  
+model_ran_int = sm.MixedLM.from_formula(
+    "happiness_score ~ year_0", 
+    df_happiness_all, 
+    re_formula='1',
+    groups=df_happiness_all["country"]  
 ).fit()
 
-fit_ran_slope = sm.MixedLM.from_formula(
-  "happiness_score ~ year_0", 
-  df_happiness_all, 
-  re_formula='1 + year_0',
-  groups=df_happiness_all["country"]  
+model_ran_slope = sm.MixedLM.from_formula(
+    "happiness_score ~ year_0", 
+    df_happiness_all, 
+    re_formula='1 + year_0',
+    groups=df_happiness_all["country"]  
 ).fit()
 
-
-fit_ran_int.summary()
-fit_ran_slope.summary()
+# not shown
+# model_ran_int.summary()
+# model_ran_slope.summary()
 ```
 
 :::
@@ -580,35 +590,29 @@ fit_ran_slope.summary()
 
 library(lme4)
 
-library(countrycode)
-
+df_happiness_all = read_csv("data/world_happiness_all_years.csv")
 df_happiness_all_show = df_happiness_all |> 
-  mutate(
-    country2 = countrycode::countrycode(country, 'country.name', 'iso3c'),
-    country2 = ifelse(is.na(country2), str_sub(country, end = 3), country2),
-    country = country2,
-    year_0 = (year - min(year))/10
-  )
+  mutate(year_0 = (year - min(year))/10)
   
 
-fit_ran_int = lmer(
-  happiness_score ~ year_0 + (1| country), 
-  df_happiness_all_show
+model_ran_int = lmer(
+    happiness_score ~ year_0 + (1| country), 
+    df_happiness_all_show
 )
 
-fit_ran_slope = lmer(
-  happiness_score ~ year_0 + (1 + year_0 | country), 
-  df_happiness_all_show
+model_ran_slope = lmer(
+    happiness_score ~ year_0 + (1 + year_0 | country), 
+    df_happiness_all_show
 )
 
-vc = fit_ran_slope |> mixedup::extract_vc(ci_level = 0)
-vcor = fit_ran_slope |> mixedup::extract_vc(ci_level = 0, show_cor = TRUE)
+vc = model_ran_slope |> mixedup::extract_vc(ci_level = 0)
+vcor = model_ran_slope |> mixedup::extract_vc(ci_level = 0, show_cor = TRUE)
 vcor = vcor$Cor$country
 cor_sign = ifelse(sign(vcor[2]) > 0, 'positive', 'negative')
 
 
-# gtsummary::tbl_regression(fit_ran_slope, tidy_fun = broom.mixed::tidy) # doesn't include intercept and default is 'include everything'.
-# broom.mixed::tidy(fit_ran_slope) |>
+# gtsummary::tbl_regression(model_ran_slope, tidy_fun = broom.mixed::tidy) # doesn't include intercept and default is 'include everything'.
+# broom.mixed::tidy(model_ran_slope) |>
 #     mutate(
 #       effect = ifelse(str_detect(effect, 'ran_pars'), 'Random', 'Fixed'),
 #       term = ifelse(str_detect(term, 'Observation'), '', term),
@@ -619,16 +623,18 @@ cor_sign = ifelse(sign(vcor[2]) > 0, 'positive', 'negative')
 #     sub_missing(
 #       missing_text = "",
 #     )
-parameters::parameters(fit_ran_slope) |> 
+parameters::parameters(model_ran_slope) |> 
+    as_tibble() |>
+    select(-CI) |> 
     mutate(
-      across(where(is.numeric), \(x) as.character(round(x, 2))),
-      Effects = str_to_title(Effects)
+        across(where(is.numeric), \(x) as.character(round(x, 2))),
+        Effects = str_to_title(Effects)
     ) |>
     select(-c(t:p)) |> 
     group_by(Effects) |>
     gt() |> 
     sub_missing(
-      missing_text = "",
+        missing_text = "",
     )
 ```
 \normalsize
@@ -639,7 +645,7 @@ parameters::parameters(fit_ran_slope) |>
 happy_range = round(range(df_happiness_all$happiness_score))
 ```
 
-In this case, we can see notable variability attributable to the random effects. How do we know? Well, if our happiness score is on a roughly `r happy_range[1]` - `r happy_range[2]`  scale, and we naturally have a standard deviation of `r round(sd(df_happiness_all$happiness_score), 2)` for it before accounting for anything else, we might surmise that having an effect of that size for just the country effect (roughly `r round(vc$sd[1], 2)`)  is a relatively notable amount. We can also see that the correlation between the random intercepts and random slopes is  `r cor_sign`, which means that the groups with higher starting points have `r ifelse(cor_sign == 'positive', 'more positive', 'more negative')` slopes. Now let's look at the estimates for the random effects for the model with both intercepts and slopes[^mixedup].
+In this case, we can see notable variability attributable to the random effects. How do we know this? Well, if our happiness score is on a `r happy_range[1]` - `r happy_range[2]`  scale, and we have a standard deviation of `r round(sd(df_happiness_all$happiness_score), 2)` for it before accounting for anything else, we might surmise that having an effect of that size for just the country effect is a relatively notable amount (roughly `r round(vc$sd[1], 2)`). We can also see that the correlation between the random intercepts and random slopes is  `r cor_sign`, which means that the groups with higher starting points have `r ifelse(cor_sign == 'positive', 'more positive', 'more negative')` slopes. Now let's look at the estimates for the random effects for the model with both intercepts and slopes[^mixedup].
 
 [^mixedup]: One of your authors provides a package for mixed models in R called [mixedup]{.pack}. It provides a nice way to extract random effects and summarize such models ([link](https://github.com/m-clark/mixedup)).
 
@@ -649,18 +655,18 @@ In this case, we can see notable variability attributable to the random effects.
 ##### R
 
 ```{r}
-#| eval: false
+#| eval: true
 #| label: r_mixed_model_random_effects
-ranef = ranef(fit_ran_slope)
-# mixedup::extract_random_effects(fit_ran_slope) # prettier version
+estimated_RE = ranef(model_ran_slope)
+# mixedup::extract_random_effects(model_ran_slope) # prettier version
 ```
 
 ##### Python
 
 ```{python}
-#| eval: false
+#| eval: true
 #| label: python_mixed_model_random_effects
-ranef = pd.DataFrame(fit_ran_slope.random_effects).T
+estimated_RE = pd.DataFrame(model_ran_slope.random_effects)
 ```
 
 :::
@@ -672,13 +678,27 @@ ranef = pd.DataFrame(fit_ran_slope.random_effects).T
 #| fig-cap: Estimated random effects
 #| out-width: 100%
 #| fig-height: 8
-x = visibly::plot_coefficients(fit_ran_slope, ranef = TRUE, which_ranef = 'country') 
 
-all_re = mixedup::extract_random_effects(fit_ran_slope)
+model_ran_int_code = lmer(
+    happiness_score ~ year_0 + (1| cntry_code), 
+    df_happiness_all_show
+)
+
+model_ran_slope_code = lmer(
+    happiness_score ~ year_0 + (1 + year_0 | cntry_code), 
+    df_happiness_all_show
+)
+
+x = visibly::plot_coefficients(model_ran_slope_code, ranef = TRUE, which_ranef = 'cntry_code') 
+
+all_re = mixedup::extract_random_effects(model_ran_slope_code)
+
 re_usa = all_re  |> 
     filter(group == 'USA')
-ran_coef_usa = mixedup::extract_random_coefficients(fit_ran_slope)  |> 
+
+ran_coef_usa = mixedup::extract_random_coefficients(model_ran_slope_code)  |> 
     filter(group == 'USA')
+    
 ran_ef_extreme_pos =  all_re |>
     arrange(desc(value)) |> 
     group_by(effect) |> 
@@ -690,42 +710,72 @@ ran_ef_extreme_neg =  all_re |>
 
 
 p = (
-  (x[[1]] + labs(x = '', y = 'Intercept')) /
-  (x[[2]] + labs(x = 'Country', y = 'Decade\nTrend')) + scale_linewidth_manual(values = rep(10, 1000)) 
+    (x[[1]] + labs(x = '', y = 'Intercept')) /
+    (x[[2]] + labs(x = 'Country', y = 'Decade\nTrend')) + scale_linewidth_manual(values = rep(10, 1000)) 
 ) &
-  scale_x_discrete(guide = guide_axis(n.dodge=2)) &
-  plot_layout(guides = 'collect') &
-  plot_annotation(
-    subtitle = 'Estimated random effects for country',
-  ) &
-  theme(
-    axis.ticks.x = element_line(linewidth = .5),
-    axis.text.x = element_text(size = 4, angle = 90, hjust = 1, vjust = .5),
-    panel.grid.major = element_blank()
-    # axis.text.x = element_blank(),
-  )
+    scale_x_discrete(guide = guide_axis(n.dodge=2)) &
+    plot_layout(guides = 'collect') &
+    plot_annotation(
+        subtitle = 'Estimated random effects for country',
+    ) &
+    theme(
+        axis.ticks.x = element_line(linewidth = .5),
+        axis.text.x = element_text(size = 4, angle = 90, hjust = 1, vjust = .5),
+        panel.grid.major = element_blank()
+        # axis.text.x = element_blank(),
+    )
 
 p
 
 ggsave("img/lm-extend-random_effects.svg", width = 8, height = 8)
 ```
 :::
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![Estimated random effects](img/lm-extend-random_effects.svg){#fig-random-effects}
 :::
 
 
-How do we interpret these *deviations*? For starters, they are deviations from the fixed effect for the intercept and year trend coefficient. So here that means anything negative is an intercept or slope below the corresponding fixed effect value, and anything positive is above that value. If we want the specific effect for a country, we just add the random effect value to the fixed effect value, and we can refer to those as random coefficients. So, for example, if we wanted to know the effects for the US, we would add its random effects to the fixed effect. This is exactly what we did in the previous section with the interaction model.
+How do we interpret these *deviations*? For starters, they are deviations from the fixed effect for the intercept and year trend coefficient. So here that means anything negative is an intercept or slope below the corresponding fixed effect value, and anything positive is above that value. If we want the specific effect for a country, we just add the random effect value to the fixed effect value, and we can refer to those as **random coefficients**. So, for example, if we wanted to know the effects for the US, we would add its random effects to the fixed effects. This is exactly what we did in the previous section with the interaction model. However, you can typically get these from the package functionality directly. The results shows that the US starts at a very high happiness score, and actually has a slightly negative trend over time[^lifeexpusa].
 
+[^lifeexpusa]: Life expectancy in the US has actually [declined recently](https://www.hsph.harvard.edu/news/hsph-in-the-news/whats-behind-shocking-u-s-life-expectancy-decline-and-what-to-do-about-it/).
 
-So let's plot those random coefficients together to see how they relate to each other. 
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| eval: true
+#| label: r_mixed_model_random_effects_usa
+
+# coef(model_ran_slope) stored here
+ranef_usa = estimated_RE$country
+ranef_usa = ranef_usa |> 
+    rownames_to_column('country') |> 
+    filter(country == 'United States') 
+
+ranef_usa[1, c('(Intercept)',  'year_0')] + fixef(model_ran_slope) 
+```
+
+##### Python
+
+```{python}
+#| eval: true
+#| label: python_mixed_model_random_effects_usa
+
+ranef_usa = estimated_RE['United States'].rename({'Group': 'Intercept'})
+ranef_usa + model_ran_slope.fe_params
+```
+:::
+
+Let's plot those random coefficients together to see how they relate to each other. 
 
 :::{.content-visible when-format="html"}
 ```{r}
 #| echo: false
 #| label: fig-random-effects-cor-plot
 #| fig-cap: Random effects for mixed model
-all_re_wide =  mixedup::extract_random_coefficients(fit_ran_slope)  |> 
+#| out-width: 100%
+all_re_wide =  mixedup::extract_random_coefficients(model_ran_slope_code)  |> 
     select(group, effect, value) |>
     pivot_wider(names_from = effect, values_from = value)
 
@@ -739,29 +789,30 @@ p_re_cor = all_re_wide |>
     ) +
     geom_point(aes()) +
     geom_text_repel(
-      aes(label = group, x = Intercept, y = `year_0`), 
-      segment.color = 'gray75',
-      size = 2,
-      max.overlaps = 20
-  ) +
-  labs(
-    x = 'Intercept', 
-    y = 'Decade\nTrend',
-    subtitle = 'Estimated random effects for country',
-  )
+        aes(label = group, x = Intercept, y = `year_0`), 
+        segment.color = 'gray75',
+        size = 2,
+        max.overlaps = 20
+    ) +
+    labs(
+        x = 'Intercept', 
+        y = 'Decade\nTrend',
+        subtitle = 'Estimated random effects for country',
+    )
 
 p_re_cor
 
 ggsave("img/lm-extend-random_effects_cor_plot.svg", width = 8, height = 6)
 ```
 :::
-:::{.content-visible when-format="pdf"}
+
+:::{.content-visible when-format='pdf'}
 ![ Random effects for mixed model](img/lm-extend-random_effects_cor_plot.svg){#fig-random-effects-cor-plot}
 :::
 
 From this plot, we can sense why the estimated random effect correlation was negative. For individual country results, we can see that recently war-torn regions like Syria and Afghanistan have declined over time even while they started poorly as well. Some like Guinea and Togo started poorly but have improved remarkably over time.  Many western countries started high and mostly stayed that way, though generally with a slight decline. Perhaps there's only one direction to go when you're already starting off well!
 
-:::{.callout-tip title='Always scale features for mixed models' collapse="true"}
+:::{.callout type='note' title='Always scale features for mixed models' collapse='true'}
 
 Your authors have run a lot of these models. Save yourself some trouble and standardize or otherwise scale your features before fitting the model. Just trust us, or at least, don't be surprised when your model doesn't converge.
 
@@ -791,11 +842,11 @@ In short, mixed models are a fun way to incorporate additional interpretive colo
 
 ## Generalized Additive Models {#sec-gam}
 
-:::{.content-visible when-format="html"}
+<!-- :::{.content-visible when-format="html"}
 > Wiggle, wiggle, wiggle, yeah!
 > -- LMFAO
 :::
-
+ -->
 
 
 ### When straight lines aren't enough {#sec-gam-curve}
@@ -811,16 +862,17 @@ In other words, we can go from the straight line here:
 #| label: fig-regular-linear-effect
 #| fig-cap: A standard linear effect
 df_happiness |> 
-  ggplot(aes(healthy_life_expectancy_at_birth, happiness_score)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = FALSE) +
-  labs(x = 'Life Expectancy', y = 'Happiness\nScore')
+    filter(year == 2018) |>
+    ggplot(aes(healthy_life_expectancy_at_birth, happiness_score)) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE) +
+    labs(x = 'Life Expectancy', y = 'Happiness\nScore')
 
 ggsave("img/lm-extend-linear_effect.svg", width = 8, height = 6)
 ```
 :::
 
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![A standard linear effect](img/lm-extend-linear_effect.svg){#fig-regular-linear-effect}
 :::
 
@@ -829,28 +881,29 @@ ggsave("img/lm-extend-linear_effect.svg", width = 8, height = 6)
 To the curve seen here:
 
 :::{.content-visible when-format="html"}  
-```{r, gam_model_line}
+```{r}
 #| echo: false
 #| label: fig-gam-model-effect
 #| fig-cap: A curvilinear effect
 
-df_happiness |> 
-  ggplot(aes(healthy_life_expectancy_at_birth, happiness_score)) +
-  geom_point() +
-  geom_smooth(method = 'gam', se = FALSE) +
-  labs(x = 'Life Expectancy', y = 'Happiness\nScore')
+# df_happiness |> 
+    read_csv('https://tinyurl.com/worldhappiness2018') |> 
+    ggplot(aes(healthy_life_expectancy_at_birth, happiness_score)) +
+    geom_point() +
+    geom_smooth(method = 'gam', se = FALSE) +
+    labs(x = 'Life Expectancy', y = 'Happiness\nScore')
 
 ggsave("img/lm-extend-nonlinear_effect.svg", width = 8, height = 6)
 ```
 :::
 
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![A curvilinear effect](img/lm-extend-nonlinear_effect.svg){#fig-gam-model-effect}
 :::
 
 
 
-That curved line in @fig-gam-model-effect is called a **spline**. It is created by a feature and expanding it to multiple columns, each of which is a function of the original feature. We then fit a model to that data as usual. Oddly enough, the result is that we can use a linear model to fit a curve through the data. While this might not give us the same tidy explanation that a typical line would offer, we will certainly get better predictions if it's appropriate, and a better understanding of the reality and complexity of the true relationship. But often it's useful for exploratory purposes, and visualization tools like [ggplot]{.pack}, [plotly]{.pack}[^ggplotly] and others make it easy.
+That curved line in @fig-gam-model-effect is called a **spline**. It is created by a feature and expanding it to multiple columns, each of which is a function of the original feature. We then fit a model to that data as usual. What this ultimately means is that we can use a linear model to fit a curve through the data. While this might not give us the same tidy explanation that a typical line would offer, we will certainly get better predictions if it's appropriate, and a better understanding of the reality and complexity of the true relationship. But often it's useful for exploratory purposes, and visualization tools like [ggplot]{.pack}, [plotly]{.pack}[^ggplotly] and others make it easy. Here is some demonstration code (result not shown).
 
 [^ggplotly]: [Plotly]{.pack} is directly available in R and Python, and [plotnine]{.pack} is the [ggplot]{.pack} equivalent in Python.
 
@@ -867,15 +920,15 @@ x = rnorm(1000)
 y = sin(x)
 
 tibble(x, y) |> 
-  ggplot(aes(x = x, y = y)) +
-  geom_smooth(method = 'gam', se = FALSE) 
+    ggplot(aes(x = x, y = y)) +
+    geom_smooth(method = 'gam', se = FALSE) 
 ```
 
 ##### Python
 
 ```{python}
 #| eval: false
-#| label: python_gam_model
+#| label: python_model_gam
 
 import plotly.graph_objects as go
 import numpy as np
@@ -885,11 +938,11 @@ y = np.sin(x)
 
 fig = go.Figure()
 fig.add_trace(
-  go.Scatter(
-    x = x, 
-    y = y,
-    line_shape = 'spline'
-  )
+    go.Scatter(
+        x = x, 
+        y = y,
+        line_shape = 'spline'
+    )
 )
 ```
 
@@ -901,14 +954,15 @@ $$
 y = f(x) + \epsilon
 $$
 
-This isn't actually any different than what you've seen - it really isn't! It's just shorthand for the input $x$ being fed into a function $f()$  of some kind. The difference is that we are going to expand the feature $x$ in some way, and so it will actually become multiple columns of input. Some approaches can be quite complex, tackling spatial, temporal, or other aspects of the data.  But practically, it's just extra columns in the **model matrix** that go into the model fitting function like any other feature. This helps us capture non-linear patterns in our data.
+This isn't actually any different than what you've seen - it really isn't! It's just shorthand for the input $x$ being fed into a function $f()$  of some kind. That function is very flexible, and can be anything you want, and up until now we just used to to create a simple sum of the inputs.
 
+The difference now is that we are going to expand the feature $x$ in some way, and so it will actually become multiple columns of input. Some approaches can be quite complex, tackling spatial, temporal, or other aspects of the data. But practically, it's just extra columns in the **model matrix** that go into the model fitting function like any other feature. This helps us capture non-linear patterns in our data.
 
-At this point, you might be asking yourself, "Why couldn't I just use some type of polynomial regression or even a nonlinear regression?". Of course you could, but both have limitations relative to a GAM. If you are familiar with polynomial regression, where we add columns that are squares, cubes, etc. of the original feature, you can think of GAMs as a more general approach, and very similar in spirit. But that polynomial approach assumes a specific form of nonlinearity, and has no regularization. This means that it tends to overfit the data you currently have, and **you** are forcing curves to fit through the data. 
+At this point, you might be asking yourself, "Why couldn't I just use some type of polynomial regression or even a nonlinear regression?". Of course you could, but both have limitations relative to a GAM. If you are familiar with polynomial regression, where we add columns that are squares, cubes, etc. of the original feature, you can think of GAMs as a more general approach, and very similar in spirit. But that polynomial approach assumes a specific form of nonlinearity, and has no regularization. This means that it tends to overfit the data you currently have, and *you* are forcing curves to fit through the data.
 
-To use a **nonlinear regression model**, you need to know what the underlying nonlinear form is. Without taking extra steps, such models can also overfit. Furthermore, outside of well-known physical, chemical, or biological processes, it's rarely clear what the underlying functional form should be. At the very least, we wouldn't know a formula for life expectancy and happiness!
+Another approach besides polynomials is to use a **nonlinear regression model**. In this setting, you need to know what the underlying functional form is. An example is a [logistic growth curve model for population growth](https://en.wikipedia.org/wiki/Population_growth#Logistic_equation). Without taking extra steps, such models can also overfit. Furthermore, outside of well-known physical, chemical, or biological processes, it's rarely clear what the underlying functional form should be. At the very least, we wouldn't know a formula for life expectancy and happiness!
 
-GAMs are better because they fit the data well without needing to know the underlying form.  They also prevent overfitting in smaller data and/or more complex settings. We can use them for multiple features at once, and even include interactions between features. We also can use different types of splines to capture different types of nonlinearities.  Here is another formal definition of a GAM that makes more clear we can deal with multiple features.
+GAMs are better in such settings because they fit the data well without needing to know the underlying form. They also prevent overfitting in smaller data and/or more complex settings by using a penalized estimation approach. We can use them for multiple features at once, and even include interactions between features.  We also can use different types of splines to capture different types of nonlinearities. Here is another formal definition of a GAM that makes more clear we can deal with multiple features.
 
 $$
 \hat{y} = \sum \mathbf{X_j}\beta_j
@@ -921,7 +975,7 @@ The nice thing is that you don't have to worry about the details of the basis ex
 
 ### A standard GAM {#sec-gam-standard}
 
-Now that you have some background, let's give this a shot! In most respects, we can use the same sort of approach as we did with our other linear model examples. For our example here, we'll use the model that was depicted in @fig-gam-model-effect, which looks at the relationship between life expectancy and happiness score from the world happiness data (2018).
+Now that you have some background, let's give this a shot! In most respects, we can use the same sort of approach as we did with our other linear model examples. For our example here, we'll use the model that was depicted in @fig-gam-model-effect, which looks at the relationship between life expectancy and happiness score from the world happiness data (2018). Results are simplified in the subsequent table.
 
 :::{.panel-tabset}
 
@@ -929,46 +983,42 @@ Now that you have some background, let's give this a shot! In most respects, we 
 
 We'll use the very powerful `mgcv` package in R. The `s` function will allow us to use a spline approach to capture the nonlinearity.
 
-```{r, r_gam_demo}
+```{r}
 #| eval: false
 #| label: r_gam_demo
 library(mgcv)
 
-df_happiness = read_csv('https://tinyurl.com/worldhappiness2018')
+df_happiness_2018 = read_csv('https://tinyurl.com/worldhappiness2018')
 
-gam_model = gam(
-  happiness_score ~ s(healthy_life_expectancy_at_birth, bs = 'bs'), 
-  data = df_happiness
+model_gam = gam(
+    happiness_score ~ s(healthy_life_expectancy_at_birth, bs = 'bs'), 
+    data = df_happiness_2018
 )
 
-summary(gam_model)
+summary(model_gam)
 ```
 
 ##### Python
 
-We can use the [statsmodels]{.pack} package in Python to fit a GAM, or alternatively, [pygam]{.pack}, and for consistency with previous models we'll choose the former. Honestly though, you should use R's [mgcv]{.pack}, as these require notably more work without having even much of basic functionality. In addition, there is an ecosystem of R packages to further extend [mgcv]{.pack}'s capabilities.
+We can use the [statsmodels]{.pack} package in Python to fit a GAM, or alternatively, [pygam]{.pack}, and for consistency with previous models, we'll choose the former. Honestly though, you should use R's [mgcv]{.pack}, as these require notably more work without having even much of basic functionality. In addition, there is an ecosystem of R packages to further extend [mgcv]{.pack}'s capabilities.
 
 ```{python, python_gam_demo}  
 #| eval: false
 #| label: python_gam_demo
-
-import statsmodels.api as sm
-
 from statsmodels.gam.api import GLMGam, BSplines
-import pandas as pd
 
-df_happiness = pd.read_csv('https://tinyurl.com/worldhappiness2018')
+df_happiness_2018 = pd.read_csv('https://tinyurl.com/worldhappiness2018')
 
 bs = BSplines(
-  df_happiness['healthy_life_expectancy_at_birth'],
-  df=9,
-  degree=3
+    df_happiness_2018['healthy_life_expectancy_at_birth'],
+    df = 9,
+    degree = 3
 )
 
 gam_happiness = GLMGam.from_formula(
-  'happiness_score ~ healthy_life_expectancy_at_birth', 
-  smoother = bs,
-  data = df_happiness
+    'happiness_score ~ healthy_life_expectancy_at_birth', 
+    smoother = bs,
+    data = df_happiness_2018
 )
   
 gam_happiness_result = gam_happiness.fit()
@@ -988,18 +1038,18 @@ gam_happiness_result.summary()
 
 library(mgcv)
 
-df_happiness = read_csv('data/world_happiness_2018.csv')
+df_happiness_2018 = read_csv('data/world_happiness_2018.csv')
 
-gam_model = gam(
+model_gam = gam(
   happiness_score ~ s(healthy_life_expectancy_at_birth, bs = "bs"), 
-  data = df_happiness
+  data = df_happiness_2018
 )
 
 # library(flextable)
 # looks best but not easy to manipulate at all, docs for models are non-existent, the only thing it says about signif is to remove the R global option which then proceeds to f up the footer
 # this is awful to have to do and not at all generalizable, but it works for now.
 
-d_0 = flextable::as_flextable(gam_model)$body$dataset  |>
+d_0 = flextable::as_flextable(model_gam)$body$dataset  |>
     mutate(
       Term = ifelse(Term == '(Intercept)', 'Intercept', Term),
       Term = ifelse(Term == 's(healthy_life_expectancy_at_birth)', 's(Life Exp.)', Term),
@@ -1039,7 +1089,7 @@ Far more important than any of these is the visual interpretation, and we can ge
 #| eval: false
 #| label: r_gam_plot
 # not shown
-plot(gam_model)
+plot(model_gam)
 ```
 
 ##### Python
@@ -1063,33 +1113,34 @@ Unfortunately the default package plots are not pretty, and sadly aren't provide
 #| echo: false
 #| label: fig-gam-plot
 #| fig-cap: Visualizing a GAM
-gam_model = mgcv::gam(
+#| out.width: 100%
+model_gam = mgcv::gam(
   happiness_score ~ s(healthy_life_expectancy_at_birth, bs = "bs"), 
   data = df_happiness
 )
 
 library(see)
-# can't change alpha?
+
 plot(
   modelbased::visualisation_recipe(
-    modelbased::estimate_expectation(gam_model),
-    ribbon = list(alpha = 0.1),
-    point  = list(color = "#E69F00"),
-    line   = list(color = "#56B4E9")
+      modelbased::estimate_expectation(model_gam),
+      ribbon = list(alpha = 0.1),
+      point  = list(color = okabe_ito[['orange']]),
+      line   = list(color = okabe_ito[['darkblue']])
   ),
-  alpha = 0.5
+    alpha = 0.5
 ) +
-  labs(
-    x = 'Life Expectancy',
-    y = 'Happiness\nScore',
-    title = 'GAM Results'
-  )
+    labs(
+        x = 'Life Expectancy',
+        y = 'Happiness\nScore',
+        title = 'GAM Results'
+    )
 
 ggsave("img/lm-extend-gam_plot.svg", width = 8, height = 6)
 ```
 :::
 
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![Visualizing a GAM](img/lm-extend-gam_plot.svg){#fig-gam-plot}
 :::
 
@@ -1098,7 +1149,7 @@ To summarize, we can use a GAM to model nonlinear relationships with a linear mo
 
 GAMs are a very powerful modeling tool that take us a step toward more complex models, but without the need to go all the way to a neural network or similar. Plus they still provide standard statistical inference information. In short, they're a great tool for modeling!
 
-:::{.callout-tip title='GAMs are random effects models' collapse="true"}
+:::{.callout type='note' title='GAMs are random effects models' collapse='true'}
 
 It turns out that [GAMs have a very close relationship to mixed models](https://m-clark.github.io/generalized-additive-models/appendix.html#a-comparison-to-mixed-models), [where splines can be thought of as random effects](https://tjmahr.github.io/random-effects-penalized-splines-same-thing/) (see [Gavin Simpson's post also](https://fromthebottomoftheheap.net/2021/02/02/random-effects-in-gams/)), and GAMs can even incorporate the usual random effects for categorical variables. So you can think of GAMMs, or generalized additive mixed models, as a way to combine the best of both worlds into one extremely powerful modeling that covers a lot of ground. It's also a great baseline and sanity check model for when you're trying boosting or deep learning models, where a well-specified GAMM can be hard to beat for tabular data and still be highly interpretable, while coming with built-in uncertainty estimates.
 
@@ -1106,10 +1157,10 @@ It turns out that [GAMs have a very close relationship to mixed models](https://
 
 ## Quantile Regression {#sec-lm-extend-quantile}
 
-:::{.content-visible when-format="html"}
+<!-- :::{.content-visible when-format="html"}
 > Oh, you think the median is your ally. But you merely adopted the median. I was born in it, molded by it. I didn't see the mean until I was already a data scientist, and by then it was nothing to me but misleading.
 ~ Bane (probably)
-:::
+::: -->
 
 
 People generally understand the concept of the arithmetic mean, or 'average'. You see it some time during elementary school, it gets tossed around in daily language, and it is statistically important. After all, so many distributions depend on it! Why, though, do we feel so tied to it from a regression modeling perspective? Yes, it has handy features, but  it can limit the relationships we can otherwise model effectively. Here we'll show you what to do when the mean betrays you -- and trust us, the mean will betray you at some point!
@@ -1140,9 +1191,6 @@ Consider the following regression line:
 #| echo: false
 #| label: fig-linear-line-no-extremes
 #| fig-cap: Linear line without extreme scores
-
-library(ggplot2)
-
 set.seed(123)
 N = 1000 
 k = 2   
@@ -1152,15 +1200,15 @@ y = -.5 + .2*X[, 1] + .1*X[, 2] + rnorm(N, sd = .5)
 dfXy = data.frame(X, y)
 
 ggplot(dfXy, aes(x = X1, y = y)) +
-  geom_point(alpha = .25) +
-  geom_smooth(method = "lm", se = FALSE) +
-  labs(x = "x", y = "y")
+    geom_point(alpha = .25) +
+    geom_smooth(method = "lm", se = FALSE) +
+    labs(x = "x", y = "y")
 
 ggsave("img/lm-extend-linear_line_no_extremes.svg", width = 8, height = 6)
 ```
 :::
 
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![Linear line without extreme scores](img/lm-extend-linear_line_no_extremes.svg){#fig-linear-line-no-extremes}
 :::
 
@@ -1174,29 +1222,27 @@ Now, what would happen if we replaced a few of our observations with extreme sco
 #| fig-cap: Linear line with extreme scores
 new_df = dfXy
 
-new_df$y[dfXy$y > quantile(dfXy$y, .95) & 
-           dfXy$X1 > quantile(dfXy$X1, .95)] = rnorm(10, 2.5, .1)
+new_df$y[dfXy$y > quantile(dfXy$y, .95) & dfXy$X1 > quantile(dfXy$X1, .95)] = rnorm(10, 2.5, .1)
 
-new_df$X1[dfXy$y > quantile(dfXy$y, .95) & 
-            dfXy$X1 > quantile(dfXy$X1, .95)] = rnorm(10, 2.5, .1)
+new_df$X1[dfXy$y > quantile(dfXy$y, .95) & dfXy$X1 > quantile(dfXy$X1, .95)] = rnorm(10, 2.5, .1)
 
 new_df = new_df |> mutate(extreme = X1 != dfXy$X1 | y != dfXy$y)
 
 ggplot(new_df, aes(x = X1, y = y)) +
-  geom_point(aes(
-    # color = extreme, 
-    size = I(extreme + 2), 
-    alpha = I(extreme + .25))
-  ) +
-  geom_smooth(method = "lm", se = FALSE) +
-  labs(x = "x", y = "y") +
-  theme_clean()
+    geom_point(aes(
+        # color = extreme, 
+        size = I(extreme + 2), 
+        alpha = I(extreme + .25))
+    ) +
+    geom_smooth(method = "lm", se = FALSE) +
+    labs(x = "x", y = "y") +
+    theme_clean()
 
 ggsave("img/lm-extend-linear_line_extremes.svg", width = 8, height = 6)
 ```
 :::
 
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![Linear line with extreme scores](img/lm-extend-linear_line_extremes.svg){#fig-linear-line-extremes}
 :::
 
@@ -1213,29 +1259,29 @@ dfXy |>
     mutate(extreme = 'No extreme scores') |>
     bind_rows(new_df |> mutate(extreme = 'Extreme scores')) |>
     ggplot() +
-      geom_smooth(
+    geom_smooth(
         aes(
-          X1, 
-          y, 
-          color = extreme,
-          linetype = extreme,
+            X1, 
+            y, 
+            color = extreme,
+            linetype = extreme,
         ), 
         method = 'lm',
         se = FALSE
-      ) +
-      see::scale_color_okabeito(order = 5:6) +
-      scale_linetype() +
-      labs(x = "x", y = "y") +
-      theme(
-        panel.grid.major = element_line(color = alpha('black', .1)),
-        # panel.grid.minor = element_line(color = alpha('black', .1)),
-      )
+    ) +
+    see::scale_color_okabeito(order = 5:6) +
+    scale_linetype() +
+    labs(x = "x", y = "y") +
+    theme(
+      panel.grid.major = element_line(color = alpha('black', .1)),
+      # panel.grid.minor = element_line(color = alpha('black', .1)),
+    )
 
 ggsave("img/lm-extend-both_linear_lines.svg", width = 8, height = 6)
 ```
 :::
 
-:::{.content-visible when-format="pdf"}
+:::{.content-visible when-format='pdf'}
 ![Line lines with and without extreme scores](img/lm-extend-both_linear_lines.svg){#fig-both-linear-lines}
 :::
 
@@ -1253,8 +1299,7 @@ $${#eq-quantile-objective}
 
 With quantile regression, we are given an extra parameter for the model: $\tau$ or *tau*. It's a  number between 0 and 1 representing the desired quantile (e.g., 0.5 for the median). The objective function also treats positive residuals differently than negative residuals. If the residual is positive, then we multiply it by the tau value. If the residual is negative, then we multiply it by -1 plus the tau value.
 
-To demonstrate this type of model, let's use our movie reviews data. Let's say that we are curious about the relationship between the `word_count` variable and the `rating` variable to keep things simple. To make it even more straightforward, we will use the standardized (scaled) version of the variable. In our default approach, we will start with a median regression, in other words, a quantile of .5.
-
+To demonstrate this type of model, let's use our movie reviews data. Let's say that we are curious about the relationship between the `word_count` variable and the `rating` variable to keep things simple. To make it even more straightforward, we will use the standardized (scaled) version of the variable. In our default approach, we will start with a median regression, in other words, a quantile associated with a tau of .5.
 
 
 :::{.panel-tabset}
@@ -1293,19 +1338,21 @@ model_median.summary()
 #| tbl-cap: Quantile regression model output
 
 broom::tidy(model_median) |> 
-  rename(
-    feature = term,
-    coef = estimate
-  ) |> 
-  select(-tau) |> 
-  gt()
+    rename(
+        feature = term,
+        coef = estimate
+    ) |> 
+    select(-tau) |> 
+    gt()
 ```
 
 Fortunately, our interpretation of this result isn't all that different from a standard linear model -- the rating should decrease by `r round(coef(model_median)['word_count_sc'],2)` for every bump in a standard deviation for the number of words, which in this case is about `r round(sd(df_reviews$word_count))` words. However, this concerns the median rating, not the mean, as would be the case with standard linear regression. 
 
 Quantile regression is not a one-trick-pony though. Remember, it is called quantile regression -- not median regression. Being able to compute a median regression is just the default. What we can do also is to model different quantiles of the same data. It gives us the ability to answer brand new questions -- does the relationship between user age and their ratings change at different quantiles of rating? Very cool!
 
-We can now examine the trends within 5 different quantiles of the data - .1, .3 .5, .7, and .9.  We aren't limited to just those quantiles though, and you can examine any of them that you might find interesting.  Here is a plot of the results of these models.
+We can now examine the trends within 5 different quantiles of the data - .1, .3 .5, .7, and .9[^morequants].  We aren't limited to just those quantiles though, and you can examine any of them that you might find interesting.  Here is a plot of the results of these models.
+
+[^morequants]: The R function can take a vector of quantiles, while the Python function can only take a single quantile, so you would need to loop through the quantiles.
 
 :::{.content-visible when-format='html'}
 ```{r}
@@ -1314,12 +1361,14 @@ We can now examine the trends within 5 different quantiles of the data - .1, .3 
 #| fig-cap: Quantile regression lines
 tau_values = c(.1, .3, .5, .7, .9)
 
-quant_values = purrr::map_df(tau_values, ~{
-  result = coef(rq(rating ~ word_count_sc, tau = .x, 
-                    data = df_reviews))
-  result$tau = .x
-  result
-})
+quant_values = purrr::map_df(
+    tau_values, 
+    ~{
+        result = coef(rq(rating ~ word_count_sc, tau = .x, data = df_reviews))
+        result$tau = .x
+        result
+    }
+)
 
 colnames(quant_values) = c('intercept', 'word_count_sc', 'tau')
 
@@ -1327,25 +1376,25 @@ quant_values$tau = as.factor(quant_values$tau)
 
 ggplot() +
     geom_point(
-      data = df_reviews, 
-      mapping = aes(word_count_sc, rating), 
-      position = position_jitter(width = .05),
-      alpha = .25
+        data = df_reviews, 
+        mapping = aes(word_count_sc, rating), 
+        position = position_jitter(width = .05),
+        alpha = .25
     ) +
     geom_abline(
-      aes(
-        slope = word_count_sc, 
-        intercept = intercept, 
-        color = tau,
-        linetype = tau
-      ),
-      linewidth = 1,
-      data = quant_values
+        aes(
+            slope = word_count_sc, 
+            intercept = intercept, 
+            color = tau,
+            linetype = tau
+        ),
+        linewidth = 1,
+        data = quant_values
     ) +
     labs(
-      x = 'Word Count (Standardized)',
-      y = 'Rating',
-      caption = 'Points jittered for visibility'
+        x = 'Word Count (Standardized)',
+        y = 'Rating',
+        caption = 'Points jittered for visibility'
     ) +
     scale_color_manual(values = unname(okabe_ito)[c(-1,-4)]) +
     theme(
@@ -1362,7 +1411,7 @@ ggsave('img/lm-extend-quantile_lines.svg', width = 8, height = 6)
 :::
 
 
-To interpret our visualization, we could say that all of the quantiles show a negative relationship. The 10th and 90th quantiles seem weakest, while those in the middle show a notably stronger relationship. We can also see that the 90th percentile model is better able to capture those values that would otherwise be deemed as outliers using other standard techniques. The following table shows the estimated coefficients for each of the quantiles.
+To interpret our visualization, we could say that all of the quantiles show a negative relationship. The 10th and 90th quantiles seem weakest, while those in the middle show a notably stronger relationship. We can also see that the 90th percentile model is better able to capture those values that would otherwise be deemed as outliers using other standard techniques. The following table shows the estimated coefficients for each of the quantiles, and suggests that all word count relationships are statistically significant, since the confidence intervals do not include zero.
 
 \small
 ```{r}
@@ -1413,9 +1462,9 @@ quantile_loss = function(par, X, y, tau) {
     residual = y - q
     
     loss = ifelse(
-      residual < 0, 
-      (tau - 1)*residual, 
-      tau*residual
+        residual < 0, 
+        (tau - 1)*residual, 
+        tau*residual
     )
     
     sum(loss)
@@ -1433,9 +1482,9 @@ def quantile_loss(par, X, y, tau):
     residual = y - linear_predictor
     
     loss = np.where(
-      residual < 0, 
-      (tau-1)*residual, 
-      tau*residual
+        residual < 0, 
+        (tau-1)*residual, 
+        tau*residual
     )
     
     return sum(loss)
@@ -1495,26 +1544,28 @@ Let's compare this to our previous result, and the OLS results as well. As usual
 #| tbl-cap: Comparison of quantile regression models
 
 main_mod = coef(model_median)
+
 our_mod = optim(
-  par = c(intercept = 0, word_count_sc = 0),
-  fn  = quantile_loss,
-  X   = X,
-  y   = y,
-  tau = .5
+    par = c(intercept = 0, word_count_sc = 0),
+    fn  = quantile_loss,
+    X   = X,
+    y   = y,
+    tau = .5
 )$par
+
 ols_mod = coef(lm(rating ~ word_count_sc, data = df_reviews))
 
 tibble(
-  model = c("OLS", "Median", "Ours"),
-  intercept = c(ols_mod[1], main_mod[1], our_mod[1]),
-  word_count_sc = c(ols_mod[2], main_mod[2], our_mod[2])
+    model = c("OLS", "Median", "Ours"),
+    intercept = c(ols_mod[1], main_mod[1], our_mod[1]),
+    word_count_sc = c(ols_mod[2], main_mod[2], our_mod[2])
 ) |> 
-  gt(decimals = 3)
+    gt(decimals = 3)
 ```
 
 
-::: {.callout-tip title='Yet Another Interaction' collapse="true"}
-One way to interpret this result is that we have a nonlinear relationship between the word count and the rating, in the same we we had an interaction previously. In this case, our effect of number of reviews interacts with the target! In other words, we have a different word count effect for different ratings. This is a bit of a mind bender, but it's a good example of how a linear approach can be used to model quirky relationships!
+::: {.callout type='note' title='Yet Another Interaction' collapse='true'}
+One way to interpret this result is that we have a nonlinear relationship between the word count and the rating, in the same way we had an interaction previously. In this case, our effect of number of reviews interacts with the target! In other words, we have a different word count effect for different ratings. This is a bit of a mind bender to process, but it's another good example of how a linear approach can be used to model quirky relationships!
 :::
 
 
