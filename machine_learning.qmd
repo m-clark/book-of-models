@@ -273,11 +273,11 @@ X_train, X_test, y_train, y_test = train_test_split(
     random_state=123
 )
 
-model = LinearRegression().fit(X_train, y_train)
+model_linreg_train = LinearRegression().fit(X_train, y_train)
 
 # get predictions
-y_pred_train = model.predict(X_train)
-y_pred_test = model.predict(X_test)
+y_pred_train = model_linreg_train.predict(X_train)
+y_pred_test = model_linreg_train.predict(X_test)
 
 # get RMSE
 rmse_train = root_mean_squared_error(y_train, y_pred_train)
@@ -308,7 +308,7 @@ split = initial_split(df_reviews, prop = .75)
 X_train = training(split)
 X_test  = testing(split)
 
-model_reviews_extra = lm(
+model_linreg_train = lm(
     rating ~
         word_count
         + age
@@ -321,8 +321,8 @@ model_reviews_extra = lm(
 )
 
 # get predictions
-y_train_pred = predict(model_reviews_extra, newdata = X_train)
-y_test_pred  = predict(model_reviews_extra, newdata = X_test)
+y_train_pred = predict(model_linreg_train, newdata = X_train)
+y_test_pred  = predict(model_linreg_train, newdata = X_test)
 
 # get RMSE
 rmse_train = rmse(X_train$rating, y_train_pred)
@@ -883,9 +883,7 @@ ggsave('img/ml-core-kfold_new.svg')
 ```
 :::
 
-:::{.content-visible when-format='pdf'}
 ![3-fold Cross Validation](img/ml-core-kfold_new.svg){#fig-kfold}
-:::
 
 
 The idea is that we are trying to get a better estimate of the error by averaging over many different validation sets. The number of folds, or splits, is denoted by $K$. The value of $K$ can be any number, but typically is 10 or less. The larger the value of $K$, the more accurate the estimate of the metric, but the more computationally expensive it is, and in application, you generally don't need much to get a good estimate. However, with smaller datasets, one can even employ a **leave-one-out** approach, where $K$ is equal to the number of observations in the data. 
@@ -947,8 +945,8 @@ learner_lr_l2$param_set$values$lambda = c(.1, .2)
 
 # Define resampling strategy
 model_logistic_l2 = resample(
-    task       = task_lr_l2,
-    learner    = learner_lr_l2,
+    task = task_lr_l2,
+    learner = learner_lr_l2,
     resampling = rsmp('cv', folds = 5),
     store_models = TRUE
 )
@@ -1011,9 +1009,9 @@ Another potential point of concern is that we are using the same data to both se
 
 :::{#fig-tuning layout-ncol=2}
 
-![Train-Validation-Test Workflow](img/sklearn_k_fold_images/grid_search_workflow.png){width='100%'}
+![Train-Validation-Test Workflow](img/sklearn_k_fold_images/model_logistic_grid_workflow.png){width='100%'}
 
-![5-fold Cross-Validation](img/sklearn_k_fold_images/grid_search_cross_validation.png){width='100%'}
+![5-fold Cross-Validation](img/sklearn_k_fold_images/model_logistic_grid_cross_validation.png){width='100%'}
 
 A tuning workflow.
 :::
@@ -1061,7 +1059,7 @@ param_grid = {
 
 # perform k-fold cross-validation to select the best penalty parameter
 # Note that LogisticRegression by default is ridge regression for scikit-learn
-grid_search = GridSearchCV(
+model_logistic_grid = GridSearchCV(
     LogisticRegression(), 
     param_grid=param_grid, 
     cv=5, 
@@ -1069,12 +1067,12 @@ grid_search = GridSearchCV(
 ).fit(X_train, y_train)
 
 # if you want to inspect
-best_model = grid_search.best_estimator_  
-best_param = grid_search.best_params_['C']
+best_model = model_logistic_grid.best_estimator_  
+best_param = model_logistic_grid.best_params_['C']
 
 # apply the best model to the test set and calculate accuracy
-acc_train = grid_search.score(X_train, y_train)
-acc_test  = grid_search.score(X_test, y_test)
+acc_train = model_logistic_grid.score(X_train, y_train)
+acc_test  = model_logistic_grid.score(X_test, y_test)
 ```
 
 
@@ -1083,18 +1081,16 @@ acc_test  = grid_search.score(X_test, y_test)
 #| tbl-cap: Results of hyperparameter tuning
 #| echo: false
 # print the best penalty parameter and its corresponding score
-# print(f'Best penalty parameter: {grid_search.best_params_['Cs']}')
-# print(f'Best score: {grid_search.best_score_}')
-
+# print(f'Best penalty parameter: {model_logistic_grid.best_params_['Cs']}')
+# print(f'Best score: {model_logistic_grid.best_score_}')
 import numpy as np
-import pandas as pd
 
-# pd.DataFrame(grid_search.cv_results_).filter(regex = 'param_C|test_score')
+# pd.DataFrame(model_logistic_grid.cv_results_).filter(regex = 'param_C|test_score')
 
-best_param = grid_search.best_params_['C']
+best_param = model_logistic_grid.best_params_['C']
 
 # apply the best model to the test set and calculate accuracy
-best_model = grid_search.best_estimator_
+best_model = model_logistic_grid.best_estimator_
 
 # f1_score(y_test, best_model.predict(X_test))
 acc_train = np.round(best_model.score(X_train, y_train), 3)
@@ -1115,7 +1111,6 @@ print(
 ##### R
 
 We use the `AutoTuner` function to perform k-fold cross-validation to select the best penalty parameter.
-
 ```{r}
 #| label: r-tune
 #| results: 'hide'
@@ -1139,7 +1134,7 @@ splits = partition(task, ratio = 0.75)
 learner = lrn('classif.glmnet', alpha = 0, predict_type = 'response')
 
 # Define resampling strategy
-resampling = rsmp('cv', folds = 5)
+cv_k5 = rsmp('cv', folds = 5)
 
 # Define measure
 measure = msr('classif.acc')
@@ -1150,9 +1145,9 @@ param_set = ParamSet$new(list(
 ))
 
 # Define tuner
-tuner = AutoTuner$new(
+model_logistic_grid = AutoTuner$new(
     learner = learner,
-    resampling = resampling,
+    resampling = cv_k5,
     measure = measure,
     search_space = param_set,
     tuner = tnr('grid_search', resolution = 10),
@@ -1160,14 +1155,14 @@ tuner = AutoTuner$new(
 )
 
 # Tune hyperparameters
-tuner$train(task, row_ids = splits$train)
+model_logistic_grid$train(task, row_ids = splits$train)
 
 # Get best hyperparameters
-best_param = tuner$model$learner$param_set$values
+best_param = model_logistic_grid$model$learner$param_set$values
 
 # Use the best model to predict and get metrics
-acc_train = tuner$predict(task, row_ids=splits$train)$score(measure)
-acc_test  = tuner$predict(task, row_ids=splits$test)$score(measure)
+acc_train = model_logistic_grid$predict(task, row_ids=splits$train)$score(measure)
+acc_test  = model_logistic_grid$predict(task, row_ids=splits$test)$score(measure)
 ```
 
 ```{r}
@@ -1196,7 +1191,7 @@ glue::glue(
 
 :::
 
-So there you have it. We searched the parameter space, chose the best set of parameters via k-fold cross validation, and got an assessment of generalization error in just a couple lines of code. Neat!
+So there you have it. We searched the parameter space, chose the best set of parameters via k-fold cross validation, and got an assessment of generalization error. Neat!
 
 
 
@@ -1238,7 +1233,6 @@ While pipelines are useful for any modeling work, they are especially useful for
 
 
 
-
 :::{.panel-tabset}
 
 ##### Python
@@ -1248,70 +1242,101 @@ Here is an example of a pipeline in Python.  We use the `make_pipeline` function
 ```{python}
 #| label: py-pipeline
 #| eval: false
-#| results: 'hide'
 from sklearn.pipeline import make_pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 
 # create pipeline
-pipeline = make_pipeline(
+logistic_cv_pipeline = make_pipeline(
     SimpleImputer(strategy='mean'),
     StandardScaler(),
     LogisticRegressionCV(penalty='l2', Cs=[1], cv=5, max_iter=1000),
 )
 
-# fit the pipeline
-pipeline.fit(X_train, y_train)
+# Fit the pipeline
+logistic_cv_pipeline.fit(X_train, y_train)
 
-# assess the pipeline
-y_pred = pipeline.predict(X_test)
+# Assess the pipeline on test
+y_pred = logistic_cv_pipeline.predict(X_test)
 accuracy_score(y_test, y_pred)
 
-# save the pipeline
+# Save the pipeline
 # from joblib import dump, load
-# dump(pipeline, 'pipeline.joblib')
+# dump(logistic_cv_pipeline, 'logistic_cv_pipeline.joblib')
 ```
+
+```{python}
+#| label: py-pipeline-show
+#| echo: false
+from sklearn.pipeline import make_pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+
+# create pipeline
+logistic_cv_pipeline = make_pipeline(
+    SimpleImputer(strategy='mean'),
+    StandardScaler(),
+    LogisticRegressionCV(penalty='l2', Cs=[1], cv=5, max_iter=1000),
+)
+
+# Fit the pipeline
+sigh = logistic_cv_pipeline.fit(X_train, y_train)
+
+# Assess the pipeline on test
+y_pred = sigh.predict(X_test)
+accuracy_score(y_test, y_pred)
+```
+
 
 ##### R
 
-With R, [mlr3]{.pack} works in a very similar fashion to [scikit-learn]{.pack}. We create a pipeline with the `po`, or pipe operator function, which takes a series of steps as arguments, and then performs them in sequence. 
+
+With R, [mlr3]{.pack} works in a similar fashion to [scikit-learn]{.pack}. We create a pipeline with the `po`, or pipe operator function, which takes a series of steps as arguments, and then performs them in sequence. 
 
 ```{r}
 #| label: r-pipeline
-#| eval: false
+#| eval: true
 #| results: 'hide'
 
-# Load necessary libraries, includes mlr3learners and mlr3pipelines
-library(mlr3verse)
-
-# Define task
-task = TaskClassif$new('movie_reviews', df_reviews, target = 'rating_good')
-
-# Define learner
-learner = lrn('classif.cv_glmnet', predict_type = 'response')
+# Using task/splits/resampling from tuning section
 
 # Define pipeline
-pipeline =  po('imputemean') %>>%
+logistic_cv_pipeline =  po('imputemean') %>>%
     po('scale') %>>%
-    po('learner', learner)
+    po(
+        'learner', 
+        lrn('classif.cv_glmnet', predict_type = 'response'), 
+        alpha = to_tune(1e-04, 1e-1, logscale = TRUE)
+    )
+
+model_logistic_cv_pipeline = AutoTuner$new(
+    learner = logistic_cv_pipeline,
+    resampling = cv_k5, # defined earlier 5-fold cv
+    measure = measure,
+    tuner = tnr('grid_search', resolution = 10),
+    terminator = trm('evals', n_evals = 10)
+)
 
 # Fit pipeline
-pipeline$train(task)
+model_logistic_cv_pipeline$train(task, row_ids = splits$train)
 
-# Assess pipeline
-pipeline$predict(task)[['classif.cv_glmnet.output']]$score(msr('classif.acc'))
+# Assess pipeline on test
+preds = model_logistic_cv_pipeline$predict(task, row_ids = splits$test)
+preds$score(msr('classif.acc'))
 
 # Save pipeline
-# saveRDS(pipeline, 'pipeline.rds')
+# saveRDS(logistic_cv_pipeline, 'pipeline.rds')
+```
+
+```{r}
+#| label: r-pipeline-show
+#| echo: false
+preds$score(msr('classif.acc'))
 ```
 
 :::
 
 Development and deployment of pipelines will depend on your specific use case, and can get notably complicated. Think of a case where your model is the culmination of features drawn from dozens of wildly different databases, and the model itself being a complex ensemble of models, each with their own hyperparameters. You can imagine the complexity of the pipeline that would be required to handle all of that, but it is possible. Even then the basic approach is the same, and pipelines are a great way to organize your modeling work.
-
-
-
-
 
 
 
