@@ -81,25 +81,6 @@ As we go along in this chapter, we'll see most of this in action. So let's get t
 #| eval: true
 #| echo: false
 #| label: load-heart-disease-data
-library(tidyverse)
-# df_adult = read_csv("data/adult.csv") # almost all cat vars
-# df_spam  # too few vars
-# df_heart = read_csv("data/heart_failure.csv") 
-
-
-
-# df_heart_labeled = df_heart %>%
-#   mutate(
-#     anaemia = ifelse(anaemia == 1, "yes", "no"),
-#     diabetes = ifelse(diabetes == 1, "yes", "no"),
-#     high_blood_pressure = ifelse(high_blood_pressure == 1, "yes", "no"),
-#     male = ifelse(male == 1, "yes", "no"),
-#     smoking = ifelse(smoking == 1, "yes", "no"),
-#     death = ifelse(death == 1, "yes", "no")
-#   )
-
-# write_csv(df_heart_labeled, "data/heart_failure_labeled.csv")
-
 
 # df_income = read_csv("data/census_income.csv", na = c("", "NA", '?'))
 df_heart = read_csv("data/heart_disease_processed.csv") |> 
@@ -119,7 +100,7 @@ For our demonstration here, we'll use the heart disease dataset. This is a popul
 
 *There are two forms of the data* - one which is mostly in raw form, and one that is purely numeric, where the categorical features are dummy coded and where numeric variables have been standardized (@sec-data-transformations). The purely numeric version will allow us to forgo any additional data processing for some model/package implementations. We have also dropped the handful of rows with missing values. This form of the data will allow us to use any model and make direct comparisons later.
 
-In this data, roughly `r scales::percent(prevalence)` suffered from heart disease, so that is an initial baseline if we're interested in accuracy- we could get `r scales::percent(majority)` correct by just guessing the majority class of no disease. 
+In this data, roughly `r scales::percent(prevalence)` suffered from heart disease, so that is an initial baseline if we're interested in accuracy- we could get `r scales::percent(majority)` correct by just guessing the majority class of no disease. Hopefully we can do better than that!
 
 
 :::{.panel-tabset}
@@ -142,13 +123,11 @@ for col in df_heart.select_dtypes(include='object').columns:
 
 X = df_heart_num.drop(columns=['heart_disease']).to_numpy()
 y = df_heart_num['heart_disease'].to_numpy()
-```
 
-```{python}
-#| label: setup-data-py-prev-majority
 prevalence = np.mean(y)
 majority = np.max([prevalence, 1 - prevalence])
 ```
+
 
 
 ##### R
@@ -163,7 +142,7 @@ df_heart = read_csv("https://tinyurl.com/heartdiseaseprocessed") |>
 df_heart_num = read_csv("https://tinyurl.com/heartdiseaseprocessednumeric")
 
 # for use with for mlr3
-X_num_df = df_heart_num %>%
+X_num_df = df_heart_num |> 
     as_tibble() |> 
     mutate(heart_disease = factor(heart_disease)) |> 
     janitor::clean_names() # remove some symbols
@@ -178,9 +157,10 @@ X_num_df = df_heart_num %>%
 
 Before getting carried away with models, we should have a good reference point for performance - a **baseline** model. The baseline model should serve as a way to gauge how much better your model performs over one that is simpler, probably more computationally efficient, more interpretable, and is still *viable*. It could also be a model that is sufficiently complex to capture something about the data you are exploring, but not as complex as the models you're also interested in. Take a classification model for example, where we often use a logistic regression as a baseline. It is a viable model to begin answering some questions, but is often too simple to be adequately performant for many situations. We should be able to get better performance with more complex models, or there is little justification for using them.
 
+
 ### Why do we do this? {#sec-ml-common-baseline-why}
 
-Having a baseline model can help you avoid wasting time and resources implementing more complex tools, and to avoid mistakenly thinking performance is better than expected. It is probably rare, but sometimes relationships for the chosen features and target are mostly or nearly linear and have little interaction. In this case, no amount of fancy modeling will make complex feature targets exist if they don't already. Furthermore, if our baseline is a more complex model that actually incorporates nonlinear relationships and interactions (e.g. a GAMM), you'll often find that the more complex models don't significantly improve on the baseline. As a last example, in time series settings, a moving average can often be a difficult baseline to beat, and so can be a good starting point. 
+Having a baseline model can help you avoid wasting time and resources implementing more complex tools, and to avoid mistakenly thinking performance is better than expected. It is probably rare, but sometimes relationships for the chosen features and target are mostly or nearly linear and have little interaction. In this case, no amount of fancy modeling will make complex feature targets exist if they don't already. Furthermore, if our baseline is a more complex model that actually incorporates nonlinear relationships and interactions (e.g. a GAMM), you'll often find that the more complex models often don't significantly improve on it. As a last example, in time series settings, a *moving average* can often be a difficult baseline to beat, and so can be a good starting point. 
 
 So in general, you may find that the initial baseline model is good enough for present purposes, and you can then move on to other problems to solve, like acquiring data that is more predictive. This is especially true if you are working in a business setting where you have limited time and resources, but should be of mind in many other settings as well
 
@@ -188,7 +168,7 @@ So in general, you may find that the initial baseline model is good enough for p
 
 In many settings, it often isn't enough to merely beat the baseline model. Your model should perform *statistically* better. For instance, if your advanced model accuracy is 75% and your baseline model's accuracy is 73%, that's great. But, it's good  to check if this 2% difference is statistically significant. Remember, accuracy and other metrics are *estimates* and come with uncertainty[^ifonlystatdiff]. This means you can get a ranged estimate for them, as well as test whether they are different from one another (see @tbl-prop-test-r). If the difference is not statistically significant, then it's possible that there is no difference, and you should probably stick with the baseline model, or maybe try a different approach.  Such a result means that the next time you run the model, the baseline may actually perform better, or at least you can't be sure that it won't.
 
-[^ifonlystatdiff]: There would be far less hype and wasted time if those in ML and DL research simply did this rather than just reporting the chosen metric of their model 'winning' against other models. It's not that hard to do, yet most do not provide any ranged estimate for their metric, let alone test statistical differences from other models. You don't even have to bootstrap many common metric estimates for binary classification since they are just proportions!  It'd also be nice if they used a more meaningful baseline than logistic regression, but that's a different story.
+[^ifonlystatdiff]: There would be far less hype and wasted time if those in ML and DL research simply did this rather than just reporting the chosen metric of their model 'winning' against other models. It's not that hard to do, yet most do not provide any ranged estimate for their metric, let alone test statistical differences from other models. You don't even have to bootstrap many common metric estimates for binary classification since they are just proportions. It'd also be nice if they used a more meaningful baseline than logistic regression, but that's a different story. And one more thing, ranks also have uncertainty. So just saying you're #1 isn't enough to prove it.
 
 
 ```{r}
@@ -225,16 +205,19 @@ tibble(
     )
 ```
 
-That said, in some situations *any* performance increase is worth it, and even if we can't be certain a result is statistically better, any sign of improvement is worth pursuing. For example, if you are trying to predict the next word in a sentence, and your baseline is 10% accurate, and your complex model is 12% accurate, that's a 20% increase over the baseline, and which may be significant in terms of user experience. You should still try and show that this is a consistent increase and not a fluke.
+That said, in some situations *any* performance increase is worth it, and even if we can't be certain a result is statistically better, any sign of improvement is worth pursuing. For example, if you are trying to predict the next word in a sentence, and your baseline is 10% accurate, and your complex model is 12% accurate, that's a 20% increase over the baseline, and which may be significant in terms of user experience. You should still try and show that this is a consistent increase and not a fluke. 
+
+In other settings, you'll need to make sure the cost is worth it. Is 2% worth millions of dollars? Six months of research? These are among many of the practical considerations you may have to make as well.
+
 
 ## Penalized Linear Models {#sec-ml-common-penalized}
 
+So let's get on with some models already! Let's use the classic linear model as our starting point for ML. We show explicitly how to estimate models like lasso and ridge regression in @sec-estim-penalty. Those work well as a baseline, and so should be in your ML modeling toolbox. 
 
-So let's get on with some models already! Let's use the classic linear model as our starting point for ML, just because we can. We show explicitly how to estimate models like lasso and ridge regression in @sec-estim-penalty. Those work well as a baseline, and so should be in your ML modeling toolbox. 
 
 ### Elastic Net {#sec-ml-common-elasticnet}
 
-Another common linear model approach is **elastic net**. It combines two techniques: lasso and ridge regression.  We will not show how to estimate elastic net by hand here, but all you have to know is that it combines the two penalties- one for lasso and one for ridge, along with a standard objective function for a numeric or categorical target. The relative proportion of the two penalties is controlled by a mixing parameter, and the optimal value for it is determined by cross-validation.  So for example, you might end up with a 75% lasso penalty and 25% ridge penalty.  In the end though, we're just going to do a slightly fancier logistic regression!
+Another common linear model approach is **elastic net**, which we also saw in @sec-ml-core-concepts. It combines two techniques: lasso and ridge regression.  We will not show how to estimate elastic net by hand here, but all you have to know is that it combines the two penalties- one for lasso and one for ridge, along with a standard objective function for a numeric or categorical target. The relative proportion of the two penalties is controlled by a mixing parameter, and the optimal value for it is determined by cross-validation.  So for example, you might end up with a 75% lasso penalty and 25% ridge penalty.  In the end though, we're just going to do a slightly fancier logistic regression!
 
 Let's apply this to the heart disease data. We are only doing simple cross-validation here to get a better performance assessment, but you are more than welcome to tune both the penalty parameter and the mixing ratio as we have demonstrated before (@sec-ml-tuning). We'll revisit hyperparameter tuning towards the end of this chapter.
 
@@ -252,24 +235,24 @@ from sklearn.metrics import accuracy_score
 
 
 model_elastic = LogisticRegression(
-    penalty='elasticnet',
-    solver='saga',
-    l1_ratio=0.5,
-    random_state=42,
-    max_iter=10000,
-    verbose=False,
+    penalty = 'elasticnet',
+    solver = 'saga',
+    l1_ratio = 0.5,
+    random_state = 42,
+    max_iter = 10000,
+    verbose = False,
 )
 
- # use cross-validation to estimate performance
-cv_elastic = cross_validate(
+# use cross-validation to estimate performance
+model_cv_elastic = cross_validate(
     model_elastic,
     X,
     y,
-    cv=5,
-    scoring='accuracy',
+    cv = 5,
+    scoring = 'accuracy',
 )
 
-# pd.DataFrame(cv_elastic) # default output
+# pd.DataFrame(model_cv_elastic) # default output
 ```
 
 ```{python}
@@ -277,7 +260,7 @@ cv_elastic = cross_validate(
 #| echo: false
 #| eval: false
 
-pd.DataFrame(cv_elastic).to_csv('ml/data/elasticnet-py-results.csv', index=False)
+pd.DataFrame(model_cv_elastic).to_csv('ml/data/elasticnet-py-results.csv', index=False)
 ```
 
 
@@ -285,11 +268,11 @@ pd.DataFrame(cv_elastic).to_csv('ml/data/elasticnet-py-results.csv', index=False
 #| label: elasticnet-py-print-results
 #| echo: false
 
-cv_elastic = pd.read_csv('ml/data/elasticnet-py-results.csv')
+model_cv_elastic = pd.read_csv('ml/data/elasticnet-py-results.csv')
 
 print(
     'Training accuracy: ',
-    np.round(cv_elastic['test_score'].mean(), 3),
+    np.round(model_cv_elastic['test_score'].mean(), 3),
     '\nGuessing: ',
     np.round(majority, 3),
 )
@@ -315,13 +298,13 @@ model_elastic = lrn(
     alpha = 0.5
 )
 
-cv_elastic = resample(
+model_cv_elastic = resample(
     task       = tsk_elastic,
     learner    = model_elastic,
     resampling = rsmp("cv", folds = 5)
 )
 
-# cv_elastic$aggregate(msr('classif.acc')) # default output
+# model_cv_elastic$aggregate(msr('classif.acc')) # default output
 ```
 
 ```{r}
@@ -329,7 +312,7 @@ cv_elastic = resample(
 #| echo: false
 #| eval: false
 
-saveRDS(cv_elastic, 'ml/data/elasticnet-r-results.rds')
+saveRDS(model_cv_elastic, 'ml/data/elasticnet-r-results.rds')
 ```
 
 
@@ -340,12 +323,12 @@ saveRDS(cv_elastic, 'ml/data/elasticnet-r-results.rds')
 library(mlr3verse)
 library(glue)
 
-cv_elastic = readRDS('ml/data/elasticnet-r-results.rds')
+model_cv_elastic = readRDS('ml/data/elasticnet-r-results.rds')
 
 # Evaluate
-acc_inc = round(cv_elastic$aggregate(msr('classif.acc')) / prevalence - 1, 3)
+acc_inc = round(model_cv_elastic$aggregate(msr('classif.acc')) / prevalence - 1, 3)
 
-glue("Training Accuracy: {round(cv_elastic$aggregate(msr('classif.acc')), 3)}\nGuessing: {round(majority, 3)}")
+glue("Training Accuracy: {round(model_cv_elastic$aggregate(msr('classif.acc')), 3)}\nGuessing: {round(majority, 3)}")
 ```
 
 :::
@@ -370,7 +353,7 @@ So we're starting off with what seems to be a good model. Our average accuracy a
 
 ### Additional thoughts {#sec-ml-common-penalized-additional}
 
-Using penalized regression is a very good default linear model method, and is something to strongly consider for even more interpretative model settings. These approaches predict better on new data than their standard, non-regularized complements, so they provide a nice balance between interpretability and predictive power. However, in general they are not going to be as strong of a method as others typically used in the machine learning world, and may not even be competitive without a lot of feature engineering. If prediction is all you care about, you'll likely want to try something else.
+Using penalized regression is a very good default method in the tabular data setting, and is something to strongly consider for more interpretative model settings like determining causal effects. These approaches predict better on new data than their standard, non-regularized complements, so they provide a nice balance between interpretability and predictive power. However, in general they are not going to be as strong of a method as others typically used in the machine learning world, and may not even be competitive without a lot of feature engineering. If prediction is all you care about, you'll likely want to try something else.
 
 
 ## Tree-based Models {#sec-ml-common-trees}
@@ -383,9 +366,9 @@ Let's move beyond standard linear models and get into a notably different type o
 #| label: tree-graph-setup
 g = DiagrammeR::grViz('img/tree.dot')
 
-g %>%
-    DiagrammeRsvg::export_svg() %>% 
-    charToRaw() %>% 
+g |> 
+    DiagrammeRsvg::export_svg() |>  
+    charToRaw() |>  
     rsvg::rsvg_svg("img/tree.svg")
 ```
 
@@ -583,8 +566,10 @@ Random forests and boosting methods, though not new, are still 'state of the art
 
 g = DiagrammeR::grViz('img/nn_basic.dot')
 
-g %>%
-    DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_svg("img/nn_basic.svg")
+g |> 
+    DiagrammeRsvg::export_svg() |>
+    charToRaw() |>
+    rsvg::rsvg_svg("img/nn_basic.svg")
 ```
 
 
@@ -619,8 +604,10 @@ One notable difference from models we've been seeing is that neural networks imp
 
 g = DiagrammeR::grViz('img/nn_first_hidden_layer.dot')
 
-g %>%
-    DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_svg("img/nn_first_hidden_layer.svg")
+g |> 
+    DiagrammeRsvg::export_svg() |>
+    charToRaw() |>
+    rsvg::rsvg_svg("img/nn_first_hidden_layer.svg")
 ```
 
 
@@ -641,8 +628,10 @@ But we can go even further! We can add more layers, and more nodes in each layer
 
 g = DiagrammeR::grViz('img/nn_deep2.dot')
 
-g %>%
-    DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_svg("img/nn_deep.svg")
+g |>
+    DiagrammeRsvg::export_svg() |>
+    charToRaw() |>
+    rsvg::rsvg_svg("img/nn_deep.svg")
 ```
 
 ![A more complex neural network](img/nn_deep.svg){width=75%}
@@ -658,8 +647,10 @@ g %>%
 #| label: nn-act-graph-setup
 g = DiagrammeR::grViz('img/nn_activation2.dot')
 
-g %>%
-    DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_svg("img/nn_activation2.svg")
+g |>
+    DiagrammeRsvg::export_svg() |>
+    charToRaw() |>
+    rsvg::rsvg_svg("img/nn_activation2.svg")
 ```
 
 
@@ -676,8 +667,10 @@ We can revisit a plot we saw earlier (@fig-graph-logistic) to make things more c
 
 g = DiagrammeR::grViz('img/nn_logreg.dot')
 
-g %>%
-    DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_svg("img/nn_logreg.svg")
+g |> 
+    DiagrammeRsvg::export_svg() |> 
+    charToRaw() |> 
+    rsvg::rsvg_svg("img/nn_logreg.svg")
 ```
 
 ![A logistic regression as a neural network with one hidden layer, one hidden node, and sigmoid activation](img/nn_logreg.svg){width=50%}
@@ -922,12 +915,12 @@ joblib.dump(cv_boost_tune.best_estimator_, 'ml/data/tune-boost-py-model.pkl')
 test_predictions = cv_boost_tune.predict(X_test)
 
 pd.DataFrame(cv_boost_tune.cv_results_).to_csv(
-  'ml/data/tune-boost-py-results.csv', 
-  index=False
+    'ml/data/tune-boost-py-results.csv', 
+    index=False
 )
 pd.DataFrame(test_predictions).to_csv(
-  'ml/data/tune-boost-py-predictions.csv', 
-  index=False
+    'ml/data/tune-boost-py-predictions.csv', 
+    index=False
 )
 ```
 
@@ -982,7 +975,7 @@ param_grid = {
 }
 
 # this will take a few seconds
-cv_elasticnet_tune = RandomizedSearchCV(
+model_cv_elastic_tune = RandomizedSearchCV(
     model_elasticnet, 
     param_grid, 
     n_iter=10,
@@ -991,11 +984,11 @@ cv_elasticnet_tune = RandomizedSearchCV(
     n_jobs=-1
 )
 
-cv_elasticnet_tune.fit(X_train, y_train)
+model_cv_elastic_tune.fit(X_train, y_train)
 
 # show the results
 
-df_cv_elasticnet_tune = pd.DataFrame(cv_elasticnet_tune.cv_results_)
+df_model_cv_elastic_tune = pd.DataFrame(model_cv_elastic_tune.cv_results_)
 
 import lightgbm as lgb
 
@@ -1054,7 +1047,7 @@ cv_mlp_tune.fit(X_train, y_train)
 # Save the results
 df_cv_mlp_tune = pd.DataFrame(cv_mlp_tune.cv_results_)
 
-cv_elasticnet_tune.best_score_
+model_cv_elastic_tune.best_score_
 
 ```
 
@@ -1465,7 +1458,7 @@ df_metrics_cv |>
 
 
 :::{.callout type='note' title='Test metrics better than training?' collapse='true'}
- Some may wonder how the holdout results can be better than the cross-validation results, as they are for the elastic net model. This can definitely happen, and at least in this case probably just reflects the small sample size. The holdout set is a random sample of 20% of the complete data, which is `r nrow(df_test)` examples. Just a couple different predictions could result in a several percentage point difference in accuracy. Also, this could happen just by chance. In general though, you'd expect the holdout results to be a bit, or even significantly, worse than the cross-validation results.
+Some may wonder how the holdout results can be better than the cross-validation results, as they are for the elastic net model. This can definitely happen, and at least in this case probably just reflects the small sample size. The holdout set is a random sample of 20% of the complete data, which is `r nrow(df_test)` examples. Just a couple different predictions could result in a several percentage point difference in accuracy. Also, this could happen just by chance. In general though, you'd expect the holdout results to be a bit, or even significantly, worse than the cross-validation results.
 :::
 
 
