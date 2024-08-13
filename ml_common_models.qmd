@@ -107,13 +107,22 @@ In this data, roughly `r scales::percent(prevalence)` suffered from heart diseas
 
 ##### Python
 
-
 ```{python}
-#| label: setup-data-py
-
+#| label: setup-imports-py
 import pandas as pd
 import numpy as np
 
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_validate, RandomizedSearchCV, train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.inspection import PartialDependenceDisplay
+from sklearn.neural_network import MLPClassifier
+
+from lightgbm import LGBMClassifier
+```
+
+```{python}
+#| label: setup-data-py
 df_heart = pd.read_csv('https://tinyurl.com/heartdiseaseprocessed')
 df_heart_num = pd.read_csv('https://tinyurl.com/heartdiseaseprocessednumeric')
 
@@ -127,7 +136,6 @@ y = df_heart_num['heart_disease'].to_numpy()
 prevalence = np.mean(y)
 majority = np.max([prevalence, 1 - prevalence])
 ```
-
 
 
 ##### R
@@ -231,11 +239,6 @@ Let's apply this to the heart disease data. We are only doing simple cross-valid
 ```{python}
 #| label: elasticnet-py
 #| eval: false
-from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
-from sklearn.model_selection import cross_validate, KFold, cross_val_score
-from sklearn.metrics import accuracy_score
-
-
 model_elastic = LogisticRegression(
     penalty = 'elasticnet',
     solver = 'saga',
@@ -421,9 +424,6 @@ Here is an example of gradient boosting with the heart disease data. Although bo
 #| label: boost-py
 #| results: hide
 #| eval: false
-from lightgbm import LGBMClassifier
-from sklearn.metrics import accuracy_score
-
 model_boost = LGBMClassifier(
     n_estimators = 1000,
     learning_rate = 1e-3,
@@ -577,7 +577,7 @@ g |>
 ```
 
 
-![A neural network](img/nn_basic.svg){width=50%}
+![A neural network](img/nn_basic.svg){#fig-basic-nn width=50%}
 
 **Deep learning has fundamentally transformed the world of data science, and the world itself**. It has been used to solve problems in image detection, speech recognition, natural language processing, and more, from assisting with cancer diagnosis to summarizing entire novels. As of now, it is not a panacea for every problem, and is not always the best tool for the job, but it is an approach that should be in your toolbox. Here we'll provide a brief overview of the key concepts behind neural networks, the underlying approach to deep learning, and then demonstrate how to implement a simple neural network to get things started.
 
@@ -615,7 +615,7 @@ g |>
 ```
 
 
-![The first hidden layer](img/nn_first_hidden_layer.svg){width=25%}
+![The first hidden layer](img/nn_first_hidden_layer.svg){#fig-first-layer width=25%}
 
 
 The next phase is where things can get more interesting. We take those hidden units and add in nonlinear transformations before moving deeper into the network. The transformations applied are typically referred to as **activation functions**[^relu]. So, the output of the current (typically linear) part is transformed in a way that allows the model to incorporate nonlinearities. While this might sound new, this is just like how we use link functions in generalized linear models (@sec-glm-distributions). Furthermore, these multiple combinations also allow us to incorporate interactions between features.
@@ -638,7 +638,7 @@ g |>
     rsvg::rsvg_svg("img/nn_deep.svg")
 ```
 
-![A more complex neural network](img/nn_deep.svg){width=75%}
+![A more complex neural network](img/nn_deep.svg){#fig-complex-nn width=75%}
 
 
 <!-- TODO: show inputs to 1 hidden node to one activation. The graphviz plots aren't great, and probably not necessary. Revisit.
@@ -677,7 +677,7 @@ g |>
     rsvg::rsvg_svg("img/nn_logreg.svg")
 ```
 
-![A logistic regression as a neural network with one hidden layer, one hidden node, and sigmoid activation](img/nn_logreg.svg){width=50%}
+![A logistic regression as a neural network with one hidden layer, one hidden node, and sigmoid activation](img/nn_logreg.svg){#fig-logreg-nn width=50%}
 
 
 This shows that we can actually think of logistic regression as a very simple neural network, with a  linear combination of the inputs as a single hidden node and a sigmoid activation function adding the nonlinear transformation. Indeed, the earliest **multilayer perceptron** models were just composed of multiple layers of logistic regressions! 
@@ -710,9 +710,6 @@ For our demonstration we'll use `sklearn`'s builtin `MLPClassifier`. We set the 
 ```{python}
 #| label: deep-py
 #| eval: false
-
-from sklearn.neural_network import MLPClassifier
-
 model_mlp = MLPClassifier(
     hidden_layer_sizes = (200, 200, 200),  
     learning_rate = 'adaptive',
@@ -864,12 +861,6 @@ Here is an example using the boosting model. We'll tune the number of trees, the
 #| label: tune-boost-py
 #| eval: false
 #| results: hide
-
-from sklearn.model_selection import RandomizedSearchCV, train_test_split
-from sklearn.metrics import accuracy_score
-
-from lightgbm import LGBMClassifier
-
 # train-test split
 X_train, X_test, y_train, y_test = train_test_split(
     df_heart.drop(columns='heart_disease'), 
@@ -961,104 +952,91 @@ print(
 #| label: tune-comparison-py
 #| echo: false
 #| eval: false
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import RandomizedSearchCV, Hyp train_test_split
+def calculate_metrics(y_true, y_pred):
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+    acc = accuracy_score(y_true, y_pred)
+    tpr = recall_score(y_true, y_pred)  # True Positive Rate (Sensitivity)
+    tnr = tn / (tn + fp)  # True Negative Rate (Specificity)
+    f1 = f1_score(y_true, y_pred)
+    ppv = precision_score(y_true, y_pred)  # Positive Predictive Value (Precision)
+    npv = tn / (tn + fn)  # Negative Predictive Value
+    return {
+        'acc': acc,
+        'tpr': tpr,
+        'tnr': tnr,
+        'f1': f1,
+        'ppv': ppv,
+        'npv': npv
+    }
+
+def evaluate_model(model, X_train, y_train, X_test, y_test):
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    return calculate_metrics(y_test, y_pred)
 
 
-# train-test split
-X_train, X_test, y_train, y_test = train_test_split(
-    df_heart.drop(columns='heart_disease'),
-    df_heart_num['heart_disease'],
-    test_size = 0.2,
-    random_state = 42
-)
+# Split data into training and test sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-model_elasticnet = LogisticRegression(
-    penalty='elasticnet',
-    solver='saga',
-    max_iter=1000,
-    verbose=0
-)
+# Define models
+model_glmnet = LogisticRegression(solver='saga', max_iter=10000, random_state=42)
+model_boost = LGBMClassifier(random_state=42)
+model_mlp = MLPClassifier(max_iter=10000, random_state=42)
 
-param_grid = {
-    'C': [.01, 0.1, 0.5, 1.0],
-    'l1_ratio': [.01, 0.1, 0.5, 1.0],
+# Define parameter grids for each model
+param_grid_glmnet = {
+    'penalty': ['elasticnet'],
+    'l1_ratio': [0.1, 0.5, 0.9],
+    'C': [0.01, 0.1, 1, 10]
 }
 
-# this will take a few seconds
-model_elastic_cv_tune = RandomizedSearchCV(
-    model_elasticnet, 
-    param_grid, 
-    n_iter=10,
-    cv=5, 
-    scoring='accuracy', 
-    n_jobs=-1
-)
-
-model_elastic_cv_tune.fit(X_train, y_train)
-
-# show the results
-
-df_model_elastic_cv_tune = pd.DataFrame(model_elastic_cv_tune.cv_results_)
-
-import lightgbm as lgb
-
-# define the parameter grid
-param_grid = {
-    'max_depth': [3, 5, 7],
-    'learning_rate': [0.1, 0.01, 0.001],
-    'min_child_samples': [2, 5,10],
-    'n_estimators': [500, 1000]
+param_grid_boost = {
+    'n_estimators': [250, 500, 1000],
+    'learning_rate': [1e-3, 0.01, 0.1, 0.5],
+    'max_depth': [2, 3, 5, 7],
+    'min_child_samples': [1, 5, 10],
+    'colsample_bytree': [0.75, 1.0],
+    'reg_alpha': [0.0, 1],
+    'reg_lambda': [0.0, 1]
 }
 
-# create the LGBMClassifier model
-model_lgbm = lgb.LGBMClassifier()
-
-# perform randomized search cross-validation
-cv_model_boost_cv_tune = RandomizedSearchCV(
-    model_lgbm, 
-    param_grid, 
-    n_iter=25,
-    cv=5, 
-    scoring='accuracy', 
-    n_jobs=-1
-)
-
-cv_model_boost_cv_tune.fit(X_train, y_train)
-
-# save the results
-df_cv_model_boost_cv_tune = pd.DataFrame(cv_model_boost_cv_tune.cv_results_)
-
-
-from sklearn.neural_network import MLPClassifier
-# Define the parameter grid
-param_grid = {
-    'hidden_layer_sizes': [(100,100,100), (100, 100), (200,200,200), (200, 200)],
-    'activation': ['relu'],
-    'solver': ['adam'],
-    'alpha': [0.0001, .01, .1],
-    'learning_rate': ['adaptive'],
+param_grid_mlp = {
+    'hidden_layer_sizes': [(100, 100), (200, 200), (100, 100, 100), (200, 200, 200)],
+    'activation': ['relu', 'tanh'],
+    'alpha': [0.0001, 0.001, 0.01]
 }
 
-# Create the MLPClassifier model
-model_mlp = MLPClassifier(max_iter=5000)
+# Perform hyperparameter tuning
+grid_search_glmnet = RandomizedSearchCV(model_glmnet, param_grid_glmnet, cv=10, scoring='accuracy')
+grid_search_boost = RandomizedSearchCV(model_boost, param_grid_boost, cv=10, scoring='accuracy')
+grid_search_mlp = RandomizedSearchCV(model_mlp, param_grid_mlp, cv=10, scoring='accuracy')
 
-# Perform randomized search cross-validation
-model_mlp_cv_tune = RandomizedSearchCV(
-    model_mlp, 
-    param_grid, 
-    n_iter=10,
-    cv=5, 
-    scoring='accuracy', 
-    n_jobs=-1
-)
+# Fit the grid searches
+grid_search_glmnet.fit(X_train, y_train)
+grid_search_boost.fit(X_train, y_train)
+grid_search_mlp.fit(X_train, y_train)
 
-model_mlp_cv_tune.fit(X_train, y_train)
+# Get the best models
+best_glmnet = grid_search_glmnet.best_estimator_
+best_boost = grid_search_boost.best_estimator_
+best_mlp = grid_search_mlp.best_estimator_
 
-# Save the results
-df_model_mlp_cv_tune = pd.DataFrame(model_mlp_cv_tune.cv_results_)
+results.to_csv('../ml/data/ml-common-py_model_comparison.csv', index=False)
 
-model_elastic_cv_tune.best_score_
+# # Make predictions on the test set
+# y_pred_glmnet = best_glmnet.predict(X_test)
+# y_pred_boost = best_boost.predict(X_test)
+# y_pred_mlp = best_mlp.predict(X_test)
+
+# # Combine predictions with observed values into a DataFrame
+# df_predictions = pd.DataFrame({
+#     'Observed': y_test,
+#     'GLMNet_Predictions': y_pred_glmnet,
+#     'Boost_Predictions': y_pred_boost,
+#     'MLP_Predictions': y_pred_mlp
+# })
+
+# df_predictions.to_csv('../ml/data/ml-common-py_predictions.csv', index=False)
 
 ```
 
@@ -1139,15 +1117,13 @@ Looks like we've done a lot better than guessing. Even if we don't do better tha
 
 ## Comparing Models {#sec-ml-common-compare}
 
-
 ```{r}
-#| label: tune-comparison-r
+#| label: autotune-comparison-r
 #| echo: false
 #| eval: false
 
 library(mlr3verse)
 library(mlr3torch)
-# TODO: change this to autotune approach?
 # load("ml/data/tune-boost-r-results.RData")
 
 set.seed(1234)
@@ -1167,29 +1143,32 @@ task = as_task_classif(
 )
 
 # Tune and setup glmnet
-lrn_glmnet_tune = lrn(
+lrn_glmnet = lrn(
     "classif.cv_glmnet",
     predict_type = "prob",
     alpha = to_tune(0, 1.0), # mixing
     s = to_tune(1e-3, 1e-1) # penalty
 )
 
-instance_glmnet_tune = ti(
-    task = task,
-    learner = lrn_glmnet_tune,
+lrn_glmnet_tune = AutoTuner$new(
+    learner = lrn_glmnet,
     resampling = cv,
-    measures     = metric,
+    measure = metric,
+    tuner = tnr("random_search"),
     terminator = trm("evals", n_evals = 10)
 )
 
-tuner$optimize(instance_glmnet_tune)
+lrn_glmnet_tune$train(task)
+
+lrn_glmnet_tune$tuning_result$learner_param_vals
 
 lrn_glmnet = lrn(
     "classif.glmnet",
     predict_type = "prob"
 )
 
-lrn_glmnet$param_set$values = instance_glmnet_tune$result_learner_param_vals
+lrn_glmnet$param_set$values = lrn_glmnet_tune$tuning_result$learner_param_vals[[1]]
+
 
 # Tune and setup lgbm
 lrn_lgbm = lrn(
@@ -1204,28 +1183,27 @@ lrn_lgbm = lrn(
     lambda_l2 = to_tune(0, 1.0)
 )
 
-instance_model_boost_cv_tune = ti(
-    task = task,
+lrn_lgbm_tune = AutoTuner$new(
     learner = lrn_lgbm,
     resampling = cv,
-    measures   = metric,
+    measure = metric,
+    tuner = tnr("random_search"),
     terminator = trm("evals", n_evals = 10)
 )
 
-
-tuner$optimize(instance_model_boost_cv_tune)
+lrn_lgbm_tune$train(task)
 
 lrn_lgbm = lrn(
     "classif.lightgbm",
     predict_type = "prob"
 )
 
-lrn_lgbm$param_set$values = instance_model_boost_cv_tune$result_learner_param_vals
+lrn_lgbm$param_set$values = lrn_lgbm_tune$tuning_result$learner_param_vals[[1]]
 
 # Tune and setup MLP
 library(mlr3torch)
 
-learner_mlp_tune = lrn(
+learner_mlp = lrn(
     "classif.mlp",
     # defining network parameters
     layers = to_tune(2, 3),
@@ -1243,141 +1221,23 @@ learner_mlp_tune = lrn(
     predict_type = "prob"
 )
 
-instance_mlp_tune = ti(
-    task = task,
-    learner = learner_mlp_tune,
+lrn_mlp_tune = AutoTuner$new(
+    learner = learner_mlp,
     resampling = cv,
-    measures   = metric,
-    terminator = trm("evals", n_evals = 4)
+    measure = metric,
+    tuner = tnr("random_search"),
+    terminator = trm("evals", n_evals = 10)
 )
 
-tuner$optimize(instance_mlp_tune)
+lrn_mlp_tune$train(task)
+
 
 lrn_mlp = lrn(
     "classif.mlp",
     predict_type = "prob"
 )
 
-lrn_mlp$param_set$values = instance_mlp_tune$result_learner_param_vals
-
-save(
-    df_train,
-    df_test,
-    split_prop,
-    task,
-    lrn_lgbm,
-    lrn_glmnet,
-    lrn_mlp,
-    file = "ml/data/tune-comparison-r-results.RData"
-)
-```
-
-
-```{r}
-#| label: autotune-comparison-r
-#| echo: false
-#| eval: false
-# TODO: Ideally we should go back and do with py
-library(mlr3verse)
-library(mlr3torch)
-# load("ml/data/tune-boost-r-results.RData")
-
-set.seed(1234)
-split_prop = .8
-split = rsample::initial_split(X, prop = split_prop)
-
-df_train = rsample::training(split)
-df_test  = rsample::testing(split)
-
-tuner = tnr("random_search")
-cv = rsmp("cv", folds = 10)
-metric = msr("classif.acc")
-
-task = as_task_classif(
-    df_train,
-    target = "heart_disease"
-)
-
-# Tune and setup glmnet
-lrn_glmnet_tune = lrn(
-    "classif.cv_glmnet",
-    predict_type = "prob",
-    alpha = to_tune(0, 1.0), # mixing
-    s = to_tune(1e-3, 1e-1) # penalty
-)
-
-lrn_glmnet = AutoTuner$new(
-    learner = lrn_glmnet_tune,
-    resampling = cv,
-    measure = metric,
-    tuner = tnr("random_search"),
-    terminator = trm("evals", n_evals = 10)
-)
-
-lrn_glmnet$train(task)
-
-lrn_glmnet = lrn(
-    "classif.glmnet",
-    predict_type = "prob"
-)
-
-lrn_glmnet$param_set$values = instance_glmnet_tune$result_learner_param_vals
-
-
-# Tune and setup lgbm
-lrn_model_boost_cv_tune = lrn(
-    "classif.lightgbm",
-    predict_type = "prob",
-    num_iterations = to_tune(c(250, 500, 1000)),
-    learning_rate = to_tune(1e-3, 1e-1),
-    max_depth = to_tune(c(2, 3, 5, 7, 9)),
-    min_data_in_leaf = to_tune(c(1, 5, 10)),
-    feature_fraction = to_tune(0.75, 1.0),
-    lambda_l1 = to_tune(0, 1.0),
-    lambda_l2 = to_tune(0, 1.0)
-)
-
-lrn_lgbm = AutoTuner$new(
-    learner = lrn_model_boost_cv_tune,
-    resampling = cv,
-    measure = metric,
-    tuner = tnr("random_search"),
-    terminator = trm("evals", n_evals = 10)
-)
-
-lrn_lgbm$train(task)
-
-
-# Tune and setup MLP
-library(mlr3torch)
-
-learner_mlp_tune = lrn(
-    "classif.mlp",
-    # defining network parameters
-    layers = to_tune(2, 3),
-    d_hidden = to_tune(c(100, 200)),
-    # training parameters
-    batch_size = 16,
-    epochs = 200,
-    # Defining the optimizer, loss, and callbacks
-    optimizer = t_opt("adam", lr = 1e-3),
-    loss = t_loss("cross_entropy"),
-    # Measures to track
-    measures_train = msrs(c("classif.logloss")),
-    measures_valid = msrs(c("classif.logloss", "classif.ce")),
-    # predict type (required by logloss)
-    predict_type = "prob"
-)
-
-lrn_mlp = AutoTuner$new(
-    learner = learner_mlp_tune,
-    resampling = cv,
-    measure = metric,
-    tuner = tnr("random_search"),
-    terminator = trm("evals", n_evals = 10)
-)
-
-lrn_mlp$train(task)
+lrn_mlp$param_set$values = lrn_mlp_tune$tuning_result$learner_param_vals[[1]]
 
 save(
     df_train,
@@ -1401,8 +1261,8 @@ save(
 
 # Run Benchmark 
 
-load("ml/data/tune-comparison-r-results.RData") # old
-# load("ml/data/autotune-comparison-r-results.RData") 
+# load("ml/data/tune-comparison-r-results.RData") # old
+load("ml/data/autotune-comparison-r-results.RData") 
 
 
 set.seed(123)
@@ -1428,7 +1288,7 @@ We can tune all the models and compare them head to head. We first split the sam
 - Boosting: number of trees, learning rate, and maximum depth, etc.
 - Neural network: number of hidden layers, number of nodes in each layer
 
-After this, we used the tuned values to retrain on the complete data set. At this stage it's not necessary to investigate in most settings, but we show the results of the 10-fold cross-validation for the already-tuned models, to give a sense of the uncertainty in error estimation with a small sample like this. Even with the 'best' settings, we can see that there is definitely some variability across data splits.
+After this, we used the tuned values to retrain on the complete training data set. At this stage it's not necessary to investigate in most settings, but we show the results of the 10-fold cross-validation for the already-tuned models, to give a sense of the uncertainty in error estimation with a small sample like this. Even with the 'best' settings, we can see that there is definitely some variability across data splits.
 
 
 :::{.content-visible when-format="html"}
@@ -1447,7 +1307,13 @@ val_accuracy = bmr$score(msr("classif.acc")) |>
 p = autoplot(bmr, measure = msr("classif.acc"))
 
 p$data |> 
-    mutate(learner_id = str_remove(learner_id, "classif.")) |>
+    arrange(learner_id) |> 
+    mutate(
+        learner_id = str_remove(learner_id, "classif."),
+        learner_id = str_replace(learner_id, "glmnet", "elastic net"),
+        learner_id = str_replace(learner_id, "mlp", "MLP"),
+        learner_id = fct_inorder(str_to_title(str_replace(learner_id, "lightgbm", "boost"))),
+    ) |>
     ggplot(aes(x = learner_id, y = classif.acc)) +
     ggbeeswarm::geom_beeswarm(size = 5) +
     labs(
@@ -1483,7 +1349,7 @@ ggsave(
 
 library(mlr3verse)
 
-load("ml/data/tune-comparison-r-results.RData")
+load("ml/data/autotune-comparison-r-results.RData")
 
 set.seed(1234)
 
@@ -1506,24 +1372,36 @@ test_performance = map_df(
 #| label: prop-test-r
 #| echo: false
 
+# CHANGE IF USING PY RESULTS
+
+best_preds = read_csv('ml/data/ml-common-py_predictions.csv')
+
+# pred_class_glm = lrn_glmnet$predict_newdata(df_test)$response
+# pred_class_boost = lrn_lgbm$predict_newdata(df_test)$response
+# observed = lrn_glmnet$predict_newdata(df_test)$truth
+pred_class_glm = best_preds$GLMNet_Predictions
+pred_class_boost = best_preds$Boost_Predictions
+observed = best_preds$Observed
+n_test = length(observed)
+
 acc_interval_enet = prop.test(
-    x = sum(lrn_glmnet$predict_newdata(df_test)$response == lrn_glmnet$predict_newdata(df_test)$truth),
-    n = nrow(df_test),
+    x = sum(pred_class_glm == observed),
+    n = n_test,
     # p = .5,
     # alternative = 'greater'
 ) 
 enet_correct = sum(
-    lrn_glmnet$predict_newdata(df_test)$response == lrn_glmnet$predict_newdata(df_test)$truth
+    pred_class_glm == observed
     )
 lgbm_correct = sum(
-    lrn_lgbm$predict_newdata(df_test)$response == lrn_lgbm$predict_newdata(df_test)$truth
+    pred_class_boost == observed
 )
 tab = matrix(
     c(
-        enet_correct,
-        75 - enet_correct,
-        lgbm_correct,
-        75 - lgbm_correct
+        sum(pred_class_glm & observed),
+        sum(observed == 1) - sum(pred_class_glm & observed),
+        sum(pred_class_boost & observed),
+        sum(observed == 1) - sum(pred_class_boost & observed)
     ), 
     nrow= 2,
     byrow = TRUE
@@ -1557,9 +1435,9 @@ diff_interval = prop.test(
 # quantile(bootstrap_results$t, c(0.025, 0.975))
 ```
 
-When we look at the performance on the holdout set with our tuned models, we see something you might be surprised about - the simplest model wins! However, none of these results are likely *statistically different* from each other. As an example, the elastic net model had an accuracy of `r acc_interval_enet$estimate`, but the interval estimate for such a small sample is very wide - from `r round(acc_interval_enet$conf.int[1], 2)` to `r round(acc_interval_enet$conf.int[2], 2)`. The interval estimate for the *difference* in accuracy between the elastic net and boosting models is from `r round(diff_interval$conf.int[1], 2)` to `r round(diff_interval$conf.int[2], 2)`[^proptest]. Again, don't take this result too far, we're dealing with a small data set and it is difficult to detect potentially complex relationships in such a setting. In addition, we could have done more to explore the parameter space of the models, but we'll leave that for another time. But this was a good example of the importance of having an adequate baseline, and where complexity didn't really help much, though all our approaches did well. In this case, any would be a good choice for future prediction.
+When we look at the performance on the holdout set with our tuned models, we see something you might be surprised about - the simplest model does really well! However, none of these results are *statistically different* from each other. As an example, the elastic net model had an accuracy of `r round(acc_interval_enet$estimate, 2)`, but the interval estimate for such a small holdout sample is very wide - from `r round(acc_interval_enet$conf.int[1], 2)` to `r round(acc_interval_enet$conf.int[2], 2)`. The interval estimate for the *difference* in TPR between the elastic net and boosting models is from `r round(diff_interval$conf.int[1], 2)` to `r round(diff_interval$conf.int[2], 2)`[^proptest]. Again, don't take this result too far, we're dealing with a small data set and it is difficult to detect potentially complex relationships in such a setting. In addition, we could have done more to explore the parameter space of the models, but we'll leave that for another time. But this was a good example of the importance of having an adequate baseline, and where complexity didn't really help much, though all our approaches did well. In this case, any of these models would be a good choice for future prediction.
 
-[^proptest]: We just used the `prop.test` function in R for these values with the test being, what proportion of predictions are correct, and are these proportions different? A lot of the metrics people look at from confusion matrices are proportions.
+[^proptest]: We just used the `prop.test` function in R for these values with the key question of whether these proportions are different. A lot of the metrics people look at from confusion matrices are proportions.
 
 
 
@@ -1569,7 +1447,7 @@ When we look at the performance on the holdout set with our tuned models, we see
 #| tbl-cap: Metrics for tuned models on holdout data.
 #| echo: false
 df_metrics_cv = tibble(
-    model  = c('Elastic Net', 'LGBM', 'MLP'),
+    model  = c('Elastic Net', 'Boost', 'MLP'),
     `Acc.` = test_performance$acc,
     `TPR`  = test_performance$tpr,
     `TNR`  = test_performance$tnr,
@@ -1578,13 +1456,18 @@ df_metrics_cv = tibble(
     `NPV`  = test_performance$npv
 )
 
+df_metrics_cv = read_csv('ml/data/ml-common-py_model_comparison.csv')
+
+max_cols = map_int(df_metrics_cv |> select(-model), \(x) which.max(x))
+
 df_metrics_cv |> 
+    mutate(model  = c('Elastic Net', 'Boost', 'MLP')) |> 
     gt(decimals = 2) |> 
-    tab_style (
+    tab_style(
         style = cell_text(weight = "bold"),
-        locations = cells_body(
-            columns = where(is.numeric),
-            rows = map_int(df_metrics_cv |> select(-model), \(x) which.max(x))
+        locations = map( # ridiculous, but it works
+            names(max_cols),
+            \(x) cells_body(columns = x, rows = max_cols[[x]])
         )
     )
     
@@ -1624,32 +1507,6 @@ pd.DataFrame({
 }).sort_values('Importance', ascending=False)
 ```
 
-```{python}
-#| label: imp-py-show
-#| eval: true
-#| echo: false
-#| results: asis
-
-from prettytable import PrettyTable
-
-
-import joblib
-
-model_boost_cv_tune = joblib.load('ml/data/tune-boost-py-model.pkl')
-
-feature_importances = (
-    pd.DataFrame({'Feature': model_boost_cv_tune.feature_name_,
-    'Importance': model_boost_cv_tune.feature_importances_})
-    .sort_values(by='Importance', ascending=False)
-    .reset_index(drop=True)
-)
-
-# feature_importances.head(4)
-
-# feature_importances.head(4).to_html() # this obviously won't work for pdf
-
-```
-
 ##### R
 
 R shows the proportion of splits in which a feature is used across trees rather than the raw number.
@@ -1671,7 +1528,7 @@ model_boost_cv_tune$learner$importance()
 #| echo: false
 #| eval: true
 #| label: tbl-imp-r-show
-#| tbl-cap: Top 4 features from an LGBM model.
+#| tbl-cap: Top 4 features from a tuned LGBM model.
 
 # load the tuned model
 load("ml/data/tune-boost-r-results.RData")
@@ -1691,8 +1548,6 @@ Now let's think about a visual display to aid our understanding. Here we show a 
 ```{python}
 #| label: pdp-py
 #| eval: false
-from sklearn.inspection import PartialDependenceDisplay
-
 PartialDependenceDisplay.from_estimator(
     model_boost_cv_tune, 
     df_heart.drop(columns='heart_disease'), 
@@ -1705,7 +1560,7 @@ PartialDependenceDisplay.from_estimator(
 
 ##### R
 
-For R we'll use the IML package. 
+For R we'll use the [iml]{.pack} package. 
 
 ```{r}
 #| eval: false
@@ -1714,15 +1569,16 @@ For R we'll use the IML package.
 library(iml)
 
 prediction = Predictor$new(
-    instance_model_boost_cv_tune$model$learner,
+    model_boost_cv_tune$model$learner,
     data = df_heart,
     type = 'prob', 
     class = 'yes'
 )
 
+# interaction plot, select a singe feature for a single feature plot
 effect_dat = FeatureEffect$new(
     prediction, 
-    feature = c('cholesterol', 'male'), 
+    feature = c('cholesterol', 'male'),
     method = "pdp", 
 )
 
