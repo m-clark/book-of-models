@@ -20,7 +20,6 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 from sklearn.model_selection import cross_validate, KFold, cross_val_score
 from sklearn.metrics import accuracy_score
-
 ```
 
 ## Key Ideas {#sec-ml-common-key-ideas}
@@ -948,99 +947,6 @@ print(
 )
 ```
 
-```{python}
-#| label: tune-comparison-py
-#| echo: false
-#| eval: false
-def calculate_metrics(y_true, y_pred):
-    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
-    acc = accuracy_score(y_true, y_pred)
-    tpr = recall_score(y_true, y_pred)  # True Positive Rate (Sensitivity)
-    tnr = tn / (tn + fp)  # True Negative Rate (Specificity)
-    f1 = f1_score(y_true, y_pred)
-    ppv = precision_score(y_true, y_pred)  # Positive Predictive Value (Precision)
-    npv = tn / (tn + fn)  # Negative Predictive Value
-    return {
-        'acc': acc,
-        'tpr': tpr,
-        'tnr': tnr,
-        'f1': f1,
-        'ppv': ppv,
-        'npv': npv
-    }
-
-def evaluate_model(model, X_train, y_train, X_test, y_test):
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    return calculate_metrics(y_test, y_pred)
-
-
-# Split data into training and test sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Define models
-model_glmnet = LogisticRegression(solver='saga', max_iter=10000, random_state=42)
-model_boost = LGBMClassifier(random_state=42)
-model_mlp = MLPClassifier(max_iter=10000, random_state=42)
-
-# Define parameter grids for each model
-param_grid_glmnet = {
-    'penalty': ['elasticnet'],
-    'l1_ratio': [0.1, 0.5, 0.9],
-    'C': [0.01, 0.1, 1, 10]
-}
-
-param_grid_boost = {
-    'n_estimators': [250, 500, 1000],
-    'learning_rate': [1e-3, 0.01, 0.1, 0.5],
-    'max_depth': [2, 3, 5, 7],
-    'min_child_samples': [1, 5, 10],
-    'colsample_bytree': [0.75, 1.0],
-    'reg_alpha': [0.0, 1],
-    'reg_lambda': [0.0, 1]
-}
-
-param_grid_mlp = {
-    'hidden_layer_sizes': [(100, 100), (200, 200), (100, 100, 100), (200, 200, 200)],
-    'activation': ['relu', 'tanh'],
-    'alpha': [0.0001, 0.001, 0.01]
-}
-
-# Perform hyperparameter tuning
-grid_search_glmnet = RandomizedSearchCV(model_glmnet, param_grid_glmnet, cv=10, scoring='accuracy')
-grid_search_boost = RandomizedSearchCV(model_boost, param_grid_boost, cv=10, scoring='accuracy')
-grid_search_mlp = RandomizedSearchCV(model_mlp, param_grid_mlp, cv=10, scoring='accuracy')
-
-# Fit the grid searches
-grid_search_glmnet.fit(X_train, y_train)
-grid_search_boost.fit(X_train, y_train)
-grid_search_mlp.fit(X_train, y_train)
-
-# Get the best models
-best_glmnet = grid_search_glmnet.best_estimator_
-best_boost = grid_search_boost.best_estimator_
-best_mlp = grid_search_mlp.best_estimator_
-
-results.to_csv('../ml/data/ml-common-py_model_comparison.csv', index=False)
-
-# # Make predictions on the test set
-# y_pred_glmnet = best_glmnet.predict(X_test)
-# y_pred_boost = best_boost.predict(X_test)
-# y_pred_mlp = best_mlp.predict(X_test)
-
-# # Combine predictions with observed values into a DataFrame
-# df_predictions = pd.DataFrame({
-#     'Observed': y_test,
-#     'GLMNet_Predictions': y_pred_glmnet,
-#     'Boost_Predictions': y_pred_boost,
-#     'MLP_Predictions': y_pred_mlp
-# })
-
-# df_predictions.to_csv('../ml/data/ml-common-py_predictions.csv', index=False)
-
-```
-
-
 ##### R
 
 ```{r}
@@ -1118,13 +1024,12 @@ Looks like we've done a lot better than guessing. Even if we don't do better tha
 ## Comparing Models {#sec-ml-common-compare}
 
 ```{r}
-#| label: autotune-comparison-r
+#| label: tune-comparison-r
 #| echo: false
 #| eval: false
 
 library(mlr3verse)
 library(mlr3torch)
-# load("ml/data/tune-boost-r-results.RData")
 
 set.seed(1234)
 split_prop = .8
@@ -1252,6 +1157,111 @@ save(
 ```
 
 
+```{python}
+#| label: tune-comparison-py
+#| echo: false
+#| eval: false
+from sklearn.metrics import accuracy_score, f1_score, confusion_matrix, precision_score, recall_score
+
+def calculate_metrics(y_true, y_pred):
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+    acc = accuracy_score(y_true, y_pred)
+    tpr = recall_score(y_true, y_pred)  # True Positive Rate (Sensitivity)
+    tnr = tn / (tn + fp)  # True Negative Rate (Specificity)
+    f1 = f1_score(y_true, y_pred)
+    ppv = precision_score(y_true, y_pred)  # Positive Predictive Value (Precision)
+    npv = tn / (tn + fn)  # Negative Predictive Value
+    return {'acc': acc, 'tpr': tpr, 'tnr': tnr, 'f1': f1, 'ppv': ppv, 'npv': npv}
+
+
+def evaluate_model(model, X_train, y_train, X_test, y_test):
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    return calculate_metrics(y_test, y_pred)
+
+
+# Split data into training and test sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Define models
+model_glmnet = LogisticRegression(solver='saga', max_iter=10000, random_state=42)
+model_boost = LGBMClassifier(random_state=42, verbosity=-1)
+model_mlp = MLPClassifier(max_iter=10000, random_state=42)
+
+# Define parameter space for each model
+param_glmnet = {
+    'penalty': ['elasticnet'],
+    'l1_ratio': [0.1, 0.5, 0.9],
+    'C': [0.01, 0.1, 1, 10]
+}
+
+param_boost = {
+    'n_estimators': [250, 500, 1000],
+    'learning_rate': [1e-3, 0.01, 0.1, 0.5],
+    'max_depth': [2, 3, 5, 7],
+    'min_child_samples': [1, 5, 10],
+    'colsample_bytree': [0.75, 1.0],
+    'reg_alpha': [0.0, 1],
+    'reg_lambda': [0.0, 1]
+}
+
+param_mlp = {
+    'hidden_layer_sizes': [(100, 100), (200, 200), (100, 100, 100), (200, 200, 200)],
+    'activation': ['relu', 'tanh'],
+    'alpha': [0.0001, 0.001, 0.01]
+}
+
+# Perform hyperparameter tuning
+search_glmnet = RandomizedSearchCV(model_glmnet, param_glmnet, cv=10, scoring='accuracy')
+search_boost = RandomizedSearchCV(model_boost, param_boost, cv=10, scoring='accuracy')
+search_mlp = RandomizedSearchCV(model_mlp, param_mlp, cv=10, scoring='accuracy')
+
+# Fit the grid searches
+search_glmnet.fit(X_train, y_train)
+search_boost.fit(X_train, y_train)
+search_mlp.fit(X_train, y_train)
+
+# Get the best models
+best_glmnet = search_glmnet.best_estimator_
+best_boost = search_boost.best_estimator_
+best_mlp = search_mlp.best_estimator_
+
+# Make predictions on the test set
+y_pred_glmnet = best_glmnet.predict(X_test)
+y_pred_boost = best_boost.predict(X_test)
+y_pred_mlp = best_mlp.predict(X_test)
+
+# Evaluate the best models on the test set
+results_glmnet = evaluate_model(best_glmnet, X_train, y_train, X_test, y_test)
+results_boost = evaluate_model(best_boost, X_train, y_train, X_test, y_test)
+results_mlp = evaluate_model(best_mlp, X_train, y_train, X_test, y_test)
+
+
+# Aggregate results into a DataFrame for comparison
+results_df = pd.DataFrame({
+    'GLMNet': results_glmnet,
+    'Boost': results_boost,
+    'MLP': results_mlp
+})
+
+results = results_df.T.reset_index().rename(columns={'index': 'model'})
+
+results
+
+results.to_csv('ml/data/ml-common-py_model_comparison.csv', index=False)
+
+# Combine predictions with observed values into a DataFrame
+df_predictions = pd.DataFrame(
+    {
+        'Observed': y_test,
+        'GLMNet_Predictions': y_pred_glmnet,
+        'Boost_Predictions': y_pred_boost,
+        'MLP_Predictions': y_pred_mlp,
+    }
+)
+
+df_predictions.to_csv('ml/data/ml-common-py_predictions.csv', index=False)
+```
 
 
 ```{r}
@@ -1286,14 +1296,14 @@ We can tune all the models and compare them head to head. We first split the sam
 
 - Elastic net: penalty and mixing ratio
 - Boosting: number of trees, learning rate, and maximum depth, etc.
-- Neural network: number of hidden layers, number of nodes in each layer
+- Neural network: number of hidden layers, number of nodes in each layer, etc.
 
 After this, we used the tuned values to retrain on the complete training data set. At this stage it's not necessary to investigate in most settings, but we show the results of the 10-fold cross-validation for the already-tuned models, to give a sense of the uncertainty in error estimation with a small sample like this. Even with the 'best' settings, we can see that there is definitely some variability across data splits.
 
 
 :::{.content-visible when-format="html"}
 ```{r}
-#| label: fig-benchmark
+#| label: fig-benchmark-plot
 #| fig-cap: Cross-validation results for tuned models.
 #| echo: false
 
@@ -1343,33 +1353,9 @@ ggsave(
 ![Cross-validation results for tuned models](img/ml-benchmark-comparison.svg){#fig-benchmark}
 :::
 
-```{r}
-#| label: get-holdout-accs
-#| echo: false
-
-library(mlr3verse)
-
-load("ml/data/autotune-comparison-r-results.RData")
-
-set.seed(1234)
-
-lrn_glmnet$train(task)
-lrn_lgbm$train(task)
-lrn_mlp$train(task)
-
-test_performance = map_df(
-    # list(enet = lrn_glmnet, lgbm = lrn_lgbm, mlp = lrn_mlp),
-    list(enet = lrn_glmnet, lgbm = lrn_lgbm, mlp = lrn_mlp),
-    \(x) {
-        preds = x$predict_newdata(df_test)
-        mlr3measures::confusion_matrix(preds$truth, preds$response, positive = '1')$measures
-    },
-    .id = 'model'
-)
-```
 
 ```{r}
-#| label: prop-test-r
+#| label: prop-test-py
 #| echo: false
 
 # CHANGE IF USING PY RESULTS
@@ -1435,17 +1421,35 @@ diff_interval = prop.test(
 # quantile(bootstrap_results$t, c(0.025, 0.975))
 ```
 
-When we look at the performance on the holdout set with our tuned models, we see something you might be surprised about - the simplest model does really well! However, none of these results are *statistically different* from each other. As an example, the elastic net model had an accuracy of `r round(acc_interval_enet$estimate, 2)`, but the interval estimate for such a small holdout sample is very wide - from `r round(acc_interval_enet$conf.int[1], 2)` to `r round(acc_interval_enet$conf.int[2], 2)`. The interval estimate for the *difference* in TPR between the elastic net and boosting models is from `r round(diff_interval$conf.int[1], 2)` to `r round(diff_interval$conf.int[2], 2)`[^proptest]. Again, don't take this result too far, we're dealing with a small data set and it is difficult to detect potentially complex relationships in such a setting. In addition, we could have done more to explore the parameter space of the models, but we'll leave that for another time. But this was a good example of the importance of having an adequate baseline, and where complexity didn't really help much, though all our approaches did well. In this case, any of these models would be a good choice for future prediction.
+When we look at the performance on the holdout set with our tuned models in the following table[^modcompare], we see something you might be surprised about - the simplest model does really well! It is tied for or the best on three out of six metrics. Again, your results may vary depending on whether you used a seed, R vs. Python, and possibly other aspects of your environment.
 
-[^proptest]: We just used the `prop.test` function in R for these values with the key question of whether these proportions are different. A lot of the metrics people look at from confusion matrices are proportions.
-
-
-
+[^modcompare]: This table was based on Python randomized CV search, but a similar R approach produced similar results, and they can both vary quite a bit even with just a random seed change.
 
 ```{r}
 #| label: tbl-benchmark-r
-#| tbl-cap: Metrics for tuned models on holdout data.
 #| echo: false
+#| eval: false
+
+library(mlr3verse)
+
+load("ml/data/autotune-comparison-r-results.RData")
+
+set.seed(1234)
+
+lrn_glmnet$train(task)
+lrn_lgbm$train(task)
+lrn_mlp$train(task)
+
+test_performance = map_df(
+    # list(enet = lrn_glmnet, lgbm = lrn_lgbm, mlp = lrn_mlp),
+    list(enet = lrn_glmnet, lgbm = lrn_lgbm, mlp = lrn_mlp),
+    \(x) {
+        preds = x$predict_newdata(df_test)
+        mlr3measures::confusion_matrix(preds$truth, preds$response, positive = '1')$measures
+    },
+    .id = 'model'
+)
+
 df_metrics_cv = tibble(
     model  = c('Elastic Net', 'Boost', 'MLP'),
     `Acc.` = test_performance$acc,
@@ -1455,6 +1459,13 @@ df_metrics_cv = tibble(
     `PPV`  = test_performance$ppv,
     `NPV`  = test_performance$npv
 )
+
+```
+
+```{r}
+#| label: tbl-benchmark-py
+#| tbl-cap: Metrics for tuned models on holdout data.
+#| echo: false
 
 df_metrics_cv = read_csv('ml/data/ml-common-py_model_comparison.csv')
 
@@ -1469,13 +1480,17 @@ df_metrics_cv |>
             names(max_cols),
             \(x) cells_body(columns = x, rows = max_cols[[x]])
         )
-    )
-    
+    )    
 ```
+
+ It's important to note that none of these results are *statistically different* from each other. As an example, the elastic net model had an accuracy of `r round(acc_interval_enet$estimate, 2)`, but the interval estimate for such a small holdout sample is very wide - from `r round(acc_interval_enet$conf.int[1], 2)` to `r round(acc_interval_enet$conf.int[2], 2)`. The interval estimate for the *difference* in TPR between the elastic net and boosting models is from `r round(diff_interval$conf.int[1], 2)` to `r round(diff_interval$conf.int[2], 2)`[^proptest]. Again, don't take this result too far, we're dealing with a small data set and it is difficult to detect potentially complex relationships in such a setting. In addition, we could have done more to explore the parameter space of the models, but we'll leave that for another time. But this was a good example of the importance of having an adequate baseline, and where complexity didn't really help much, though all our approaches did well. In this case, any of these models would be a good choice for future prediction.
+
+[^proptest]: We just used the `prop.test` function in R for these values with the key question of whether these proportions are different. A lot of the metrics people look at from confusion matrices are proportions.
+
 
 
 :::{.callout type='note' title='Test metrics better than training?' collapse='true'}
-Some may wonder how the holdout results can be better than the cross-validation results, as they are for the elastic net model. This can definitely happen, and at least in this case probably just reflects the small sample size. The holdout set is a random sample of 20% of the complete data, which is `r nrow(df_test)` examples. Just a couple different predictions could result in a several percentage point difference in accuracy. Also, this could happen just by chance. In general though, you'd expect the holdout results to be a bit, or even significantly, worse than the cross-validation results.
+Some may wonder how the holdout results can be better than the cross-validation results, as they are for the elastic net model. This can definitely happen, and at least in this case probably just reflects the small sample size. The holdout set is a random sample of 20% of the complete data, which is `r round(nrow(X)*.8)` examples. Just a couple different predictions could result in a several percentage point difference in accuracy. Also, this could happen just by chance. In general though, you'd expect the holdout results to be a bit, or even significantly, worse than the cross-validation results.
 :::
 
 
