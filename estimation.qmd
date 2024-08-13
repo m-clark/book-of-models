@@ -171,15 +171,21 @@ For our purposes here, and we'll drop any rows with missing values, and we'll us
 
 ```{r}
 #| label: r-happiness-data-setup
-#| eval: false
+#| eval: true
 df_happiness = read_csv('https://tinyurl.com/worldhappiness2018') |>
     drop_na() |> 
-    renname(happiness = happiness_score)
+    rename(happiness = happiness_score) |> 
+    select(
+        country,
+        happiness,
+        contains('_sc')
+    )
 ```
 
 ```{r}
 #| label: r-happiness-data-setup-delete-after-update
 #| echo: false
+#| eval: false
 
 df_happiness = read_csv('https://tinyurl.com/worldhappiness2018') |>
     drop_na() |>
@@ -210,19 +216,21 @@ df_happiness = read_csv('https://tinyurl.com/worldhappiness2018') |>
 
 ```{python}
 #| label: py-happiness-data-setup
-#| eval: false
+#| eval: true
 import pandas as pd
 
 df_happiness = (
     pd.read_csv('https://tinyurl.com/worldhappiness2018')
     .dropna()
     .rename(columns = {'happiness_score': 'happiness'})
+    .filter(regex = '_sc|country|happ')
 )
 ```
 
 ```{python}
 #| label: py-happiness-data-setup-delete-after-update
 #| echo: false
+#| eval: false
 df_happiness = (
     pd.read_csv('https://tinyurl.com/worldhappiness2018')
     .dropna()
@@ -1696,15 +1704,16 @@ Once again, we can see that the results are very similar between our classificat
 #| label: tbl-logloss
 #| tbl-cap: Comparison of log loss results
 tibble(
-    Source    = c('Ours', 'GLM'),
+    Source    = c('Our result', 'Standard'),
     LogLike   = c(model_logloss$value, -logLik(model_glm)),
     intercept = c(model_logloss$par[1], coef(model_glm)[1]),
     life_exp_sc = c(model_logloss$par[2], coef(model_glm)[2]),
     corrupt_sc  = c(model_logloss$par[3], coef(model_glm)[3]),
     gdp_pc_sc   = c(model_logloss$par[4], coef(model_glm)[4])
 ) |>
-    pivot_longer(-Source) |>
+    pivot_longer(-Source, names_to = 'parameter') |>
     pivot_wider(names_from = Source, values_from = value) |>
+    select('parameter', 'Standard', 'Our result') |>  # consistency
     gt(decimals = 4)
 ```
 

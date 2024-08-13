@@ -520,7 +520,7 @@ window.Quarto = {
 <h2 data-number="8.3" class="anchored" data-anchor-id="sec-ml-common-data-setup"><span class="header-section-number">8.3</span> Data Setup</h2>
 <p>For our demonstration here, we’ll use the heart disease dataset. This is a popular ML binary classification problem, where we want to predict whether a patient has heart disease, given information such as age, sex, resting heart rate etc (<a href="dataset_descriptions.html#sec-dd-heart-disease-uci" class="quarto-xref"><span>Section A.3</span></a>).</p>
 <p><em>There are two forms of the data</em> - one which is mostly in raw form, and one that is purely numeric, where the categorical features are dummy coded and where numeric variables have been standardized (<a href="data.html#sec-data-transformations" class="quarto-xref"><span>Section 10.2</span></a>). The purely numeric version will allow us to forgo any additional data processing for some model/package implementations. We have also dropped the handful of rows with missing values. This form of the data will allow us to use any model and make direct comparisons later.</p>
-<p>In this data, roughly 46% suffered from heart disease, so that is an initial baseline if we’re interested in accuracy- we could get 54% correct by just guessing the majority class of no disease.</p>
+<p>In this data, roughly 46% suffered from heart disease, so that is an initial baseline if we’re interested in accuracy- we could get 54% correct by just guessing the majority class of no disease. Hopefully we can do better than that!</p>
 <div class="tabset-margin-container"></div><div class="panel-tabset">
 <ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true" aria-current="page">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false">R</a></li></ul>
 <div class="tab-content">
@@ -529,19 +529,27 @@ window.Quarto = {
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>df_heart <span class="op">=</span> pd.read_csv(<span class="st">'https://tinyurl.com/heartdiseaseprocessed'</span>)</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>df_heart_num <span class="op">=</span> pd.read_csv(<span class="st">'https://tinyurl.com/heartdiseaseprocessednumeric'</span>)</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># convert appropriate features to categorical</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> col <span class="kw">in</span> df_heart.select_dtypes(include<span class="op">=</span><span class="st">'object'</span>).columns:</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    df_heart[col] <span class="op">=</span> df_heart[col].astype(<span class="st">'category'</span>)</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> df_heart_num.drop(columns<span class="op">=</span>[<span class="st">'heart_disease'</span>]).to_numpy()</span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> df_heart_num[<span class="st">'heart_disease'</span>].to_numpy()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> cross_validate, RandomizedSearchCV, train_test_split</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.inspection <span class="im">import</span> PartialDependenceDisplay</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.neural_network <span class="im">import</span> MLPClassifier</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> lightgbm <span class="im">import</span> LGBMClassifier</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>prevalence <span class="op">=</span> np.mean(y)</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>majority <span class="op">=</span> np.<span class="bu">max</span>([prevalence, <span class="dv">1</span> <span class="op">-</span> prevalence])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>df_heart <span class="op">=</span> pd.read_csv(<span class="st">'https://tinyurl.com/heartdiseaseprocessed'</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>df_heart_num <span class="op">=</span> pd.read_csv(<span class="st">'https://tinyurl.com/heartdiseaseprocessednumeric'</span>)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># convert appropriate features to categorical</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> col <span class="kw">in</span> df_heart.select_dtypes(include<span class="op">=</span><span class="st">'object'</span>).columns:</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    df_heart[col] <span class="op">=</span> df_heart[col].astype(<span class="st">'category'</span>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> df_heart_num.drop(columns<span class="op">=</span>[<span class="st">'heart_disease'</span>]).to_numpy()</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> df_heart_num[<span class="st">'heart_disease'</span>].to_numpy()</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>prevalence <span class="op">=</span> np.mean(y)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>majority <span class="op">=</span> np.<span class="bu">max</span>([prevalence, <span class="dv">1</span> <span class="op">-</span> prevalence])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 <div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
@@ -554,7 +562,7 @@ window.Quarto = {
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>df_heart_num <span class="ot">=</span> <span class="fu">read_csv</span>(<span class="st">"https://tinyurl.com/heartdiseaseprocessednumeric"</span>)</span>
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co"># for use with for mlr3</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>X_num_df <span class="ot">=</span> df_heart_num <span class="sc">%&gt;%</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>X <span class="ot">=</span> df_heart_num <span class="sc">|&gt;</span> </span>
 <span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as_tibble</span>() <span class="sc">|&gt;</span> </span>
 <span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">heart_disease =</span> <span class="fu">factor</span>(heart_disease)) <span class="sc">|&gt;</span> </span>
 <span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    janitor<span class="sc">::</span><span class="fu">clean_names</span>() <span class="co"># remove some symbols</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -562,6 +570,7 @@ window.Quarto = {
 </div>
 </div>
 </div>
+<p>One last thing, as we go along, performance metrics will vary depending on your setup (e.g.&nbsp;Python vs.&nbsp;R), package versions used, and other things. As such your results may not look exactly like these, and that’s okay! The important thing is to understand the concepts and how to apply them to your own data.</p>
 </section>
 <section id="sec-ml-common-baseline" class="level2" data-number="8.4">
 <h2 data-number="8.4" class="anchored" data-anchor-id="sec-ml-common-baseline"><span class="header-section-number">8.4</span> Beat the Baseline</h2>
@@ -569,7 +578,7 @@ window.Quarto = {
 <p>Before getting carried away with models, we should have a good reference point for performance - a <strong>baseline</strong> model. The baseline model should serve as a way to gauge how much better your model performs over one that is simpler, probably more computationally efficient, more interpretable, and is still <em>viable</em>. It could also be a model that is sufficiently complex to capture something about the data you are exploring, but not as complex as the models you’re also interested in. Take a classification model for example, where we often use a logistic regression as a baseline. It is a viable model to begin answering some questions, but is often too simple to be adequately performant for many situations. We should be able to get better performance with more complex models, or there is little justification for using them.</p>
 <section id="sec-ml-common-baseline-why" class="level3" data-number="8.4.1">
 <h3 data-number="8.4.1" class="anchored" data-anchor-id="sec-ml-common-baseline-why"><span class="header-section-number">8.4.1</span> Why do we do this?</h3>
-<p>Having a baseline model can help you avoid wasting time and resources implementing more complex tools, and to avoid mistakenly thinking performance is better than expected. It is probably rare, but sometimes relationships for the chosen features and target are mostly or nearly linear and have little interaction. In this case, no amount of fancy modeling will make complex feature targets exist if they don’t already. Furthermore, if our baseline is a more complex model that actually incorporates nonlinear relationships and interactions (e.g.&nbsp;a GAMM), you’ll often find that the more complex models don’t significantly improve on the baseline. As a last example, in time series settings, a moving average can often be a difficult baseline to beat, and so can be a good starting point.</p>
+<p>Having a baseline model can help you avoid wasting time and resources implementing more complex tools, and to avoid mistakenly thinking performance is better than expected. It is probably rare, but sometimes relationships for the chosen features and target are mostly or nearly linear and have little interaction. In this case, no amount of fancy modeling will make complex feature targets exist if they don’t already. Furthermore, if our baseline is a more complex model that actually incorporates nonlinear relationships and interactions (e.g.&nbsp;a GAMM), you’ll often find that the more complex models often don’t significantly improve on it. As a last example, in time series settings, a <em>moving average</em> can often be a difficult baseline to beat, and so can be a good starting point.</p>
 <p>So in general, you may find that the initial baseline model is good enough for present purposes, and you can then move on to other problems to solve, like acquiring data that is more predictive. This is especially true if you are working in a business setting where you have limited time and resources, but should be of mind in many other settings as well</p>
 </section>
 <section id="sec-ml-common-baseline-how-much" class="level3" data-number="8.4.2">
@@ -583,26 +592,26 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
 </figcaption>
 <div aria-describedby="tbl-prop-test-r-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="cell-output-display">
-<div id="oiagvnsggq" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<div id="exxyldvred" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>@import url("https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
-#oiagvnsggq table {
+#exxyldvred table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#oiagvnsggq thead, #oiagvnsggq tbody, #oiagvnsggq tfoot, #oiagvnsggq tr, #oiagvnsggq td, #oiagvnsggq th {
+#exxyldvred thead, #exxyldvred tbody, #exxyldvred tfoot, #exxyldvred tr, #exxyldvred td, #exxyldvred th {
   border-style: none;
 }
 
-#oiagvnsggq p {
+#exxyldvred p {
   margin: 0;
   padding: 0;
 }
 
-#oiagvnsggq .gt_table {
+#exxyldvred .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -628,12 +637,12 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   border-left-color: #D3D3D3;
 }
 
-#oiagvnsggq .gt_caption {
+#exxyldvred .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#oiagvnsggq .gt_title {
+#exxyldvred .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -645,7 +654,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   border-bottom-width: 0;
 }
 
-#oiagvnsggq .gt_subtitle {
+#exxyldvred .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -657,7 +666,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   border-top-width: 0;
 }
 
-#oiagvnsggq .gt_heading {
+#exxyldvred .gt_heading {
   background-color: #FFFFFF;
   text-align: left;
   border-bottom-color: #FFFFFF;
@@ -669,13 +678,13 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   border-right-color: #D3D3D3;
 }
 
-#oiagvnsggq .gt_bottom_border {
+#exxyldvred .gt_bottom_border {
   border-bottom-style: none;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#oiagvnsggq .gt_col_headings {
+#exxyldvred .gt_col_headings {
   border-top-style: none;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -690,7 +699,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   border-right-color: #D3D3D3;
 }
 
-#oiagvnsggq .gt_col_heading {
+#exxyldvred .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 12px;
@@ -710,7 +719,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   overflow-x: hidden;
 }
 
-#oiagvnsggq .gt_column_spanner_outer {
+#exxyldvred .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 12px;
@@ -722,15 +731,15 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   padding-right: 4px;
 }
 
-#oiagvnsggq .gt_column_spanner_outer:first-child {
+#exxyldvred .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#oiagvnsggq .gt_column_spanner_outer:last-child {
+#exxyldvred .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#oiagvnsggq .gt_column_spanner {
+#exxyldvred .gt_column_spanner {
   border-bottom-style: none;
   border-bottom-width: 1px;
   border-bottom-color: #334422;
@@ -742,11 +751,11 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   width: 100%;
 }
 
-#oiagvnsggq .gt_spanner_row {
+#exxyldvred .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#oiagvnsggq .gt_group_heading {
+#exxyldvred .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -772,7 +781,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   text-align: left;
 }
 
-#oiagvnsggq .gt_empty_group_heading {
+#exxyldvred .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -787,15 +796,15 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   vertical-align: middle;
 }
 
-#oiagvnsggq .gt_from_md > :first-child {
+#exxyldvred .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#oiagvnsggq .gt_from_md > :last-child {
+#exxyldvred .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#oiagvnsggq .gt_row {
+#exxyldvred .gt_row {
   padding-top: 7px;
   padding-bottom: 7px;
   padding-left: 5px;
@@ -814,7 +823,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   overflow-x: hidden;
 }
 
-#oiagvnsggq .gt_stub {
+#exxyldvred .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -827,7 +836,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   padding-right: 5px;
 }
 
-#oiagvnsggq .gt_stub_row_group {
+#exxyldvred .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -841,15 +850,15 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   vertical-align: top;
 }
 
-#oiagvnsggq .gt_row_group_first td {
+#exxyldvred .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#oiagvnsggq .gt_row_group_first th {
+#exxyldvred .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#oiagvnsggq .gt_summary_row {
+#exxyldvred .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -859,16 +868,16 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   padding-right: 5px;
 }
 
-#oiagvnsggq .gt_first_summary_row {
+#exxyldvred .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#oiagvnsggq .gt_first_summary_row.thick {
+#exxyldvred .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#oiagvnsggq .gt_last_summary_row {
+#exxyldvred .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -878,7 +887,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   border-bottom-color: #D3D3D3;
 }
 
-#oiagvnsggq .gt_grand_summary_row {
+#exxyldvred .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -888,7 +897,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   padding-right: 5px;
 }
 
-#oiagvnsggq .gt_first_grand_summary_row {
+#exxyldvred .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -898,7 +907,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   border-top-color: #D3D3D3;
 }
 
-#oiagvnsggq .gt_last_grand_summary_row_top {
+#exxyldvred .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -908,11 +917,11 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   border-bottom-color: #D3D3D3;
 }
 
-#oiagvnsggq .gt_striped {
+#exxyldvred .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#oiagvnsggq .gt_table_body {
+#exxyldvred .gt_table_body {
   border-top-style: none;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -921,7 +930,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   border-bottom-color: #FFFFFF;
 }
 
-#oiagvnsggq .gt_footnotes {
+#exxyldvred .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -935,7 +944,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   border-right-color: #D3D3D3;
 }
 
-#oiagvnsggq .gt_footnote {
+#exxyldvred .gt_footnote {
   margin: 0px;
   font-size: 6px;
   padding-top: 4px;
@@ -944,7 +953,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   padding-right: 5px;
 }
 
-#oiagvnsggq .gt_sourcenotes {
+#exxyldvred .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -958,7 +967,7 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   border-right-color: #D3D3D3;
 }
 
-#oiagvnsggq .gt_sourcenote {
+#exxyldvred .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -966,63 +975,63 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
   padding-right: 5px;
 }
 
-#oiagvnsggq .gt_left {
+#exxyldvred .gt_left {
   text-align: left;
 }
 
-#oiagvnsggq .gt_center {
+#exxyldvred .gt_center {
   text-align: center;
 }
 
-#oiagvnsggq .gt_right {
+#exxyldvred .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#oiagvnsggq .gt_font_normal {
+#exxyldvred .gt_font_normal {
   font-weight: normal;
 }
 
-#oiagvnsggq .gt_font_bold {
+#exxyldvred .gt_font_bold {
   font-weight: bold;
 }
 
-#oiagvnsggq .gt_font_italic {
+#exxyldvred .gt_font_italic {
   font-style: italic;
 }
 
-#oiagvnsggq .gt_super {
+#exxyldvred .gt_super {
   font-size: 65%;
 }
 
-#oiagvnsggq .gt_footnote_marks {
+#exxyldvred .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#oiagvnsggq .gt_asterisk {
+#exxyldvred .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#oiagvnsggq .gt_indent_1 {
+#exxyldvred .gt_indent_1 {
   text-indent: 5px;
 }
 
-#oiagvnsggq .gt_indent_2 {
+#exxyldvred .gt_indent_2 {
   text-indent: 10px;
 }
 
-#oiagvnsggq .gt_indent_3 {
+#exxyldvred .gt_indent_3 {
   text-indent: 15px;
 }
 
-#oiagvnsggq .gt_indent_4 {
+#exxyldvred .gt_indent_4 {
   text-indent: 20px;
 }
 
-#oiagvnsggq .gt_indent_5 {
+#exxyldvred .gt_indent_5 {
   text-indent: 25px;
 }
 </style>
@@ -1059,44 +1068,40 @@ Table&nbsp;8.1: Interval Estimates for Accuracy
 </div>
 </div>
 <p>That said, in some situations <em>any</em> performance increase is worth it, and even if we can’t be certain a result is statistically better, any sign of improvement is worth pursuing. For example, if you are trying to predict the next word in a sentence, and your baseline is 10% accurate, and your complex model is 12% accurate, that’s a 20% increase over the baseline, and which may be significant in terms of user experience. You should still try and show that this is a consistent increase and not a fluke.</p>
+<p>In other settings, you’ll need to make sure the cost is worth it. Is 2% worth millions of dollars? Six months of research? These are among many of the practical considerations you may have to make as well.</p>
 </section>
 </section>
 <section id="sec-ml-common-penalized" class="level2" data-number="8.5">
 <h2 data-number="8.5" class="anchored" data-anchor-id="sec-ml-common-penalized"><span class="header-section-number">8.5</span> Penalized Linear Models</h2>
-<p>So let’s get on with some models already! Let’s use the classic linear model as our starting point for ML, just because we can. We show explicitly how to estimate models like lasso and ridge regression in <a href="estimation.html#sec-estim-penalty" class="quarto-xref"><span>Section 4.8</span></a>. Those work well as a baseline, and so should be in your ML modeling toolbox.</p>
+<p>So let’s get on with some models already! Let’s use the classic linear model as our starting point for ML. We show explicitly how to estimate models like lasso and ridge regression in <a href="estimation.html#sec-estim-penalty" class="quarto-xref"><span>Section 4.8</span></a>. Those work well as a baseline, and so should be in your ML modeling toolbox.</p>
 <section id="sec-ml-common-elasticnet" class="level3" data-number="8.5.1">
 <h3 data-number="8.5.1" class="anchored" data-anchor-id="sec-ml-common-elasticnet"><span class="header-section-number">8.5.1</span> Elastic Net</h3>
-<p>Another common linear model approach is <strong>elastic net</strong>. It combines two techniques: lasso and ridge regression. We will not show how to estimate elastic net by hand here, but all you have to know is that it combines the two penalties- one for lasso and one for ridge, along with a standard objective function for a numeric or categorical target. The relative proportion of the two penalties is controlled by a mixing parameter, and the optimal value for it is determined by cross-validation. So for example, you might end up with a 75% lasso penalty and 25% ridge penalty. In the end though, we’re just going to do a slightly fancier logistic regression!</p>
+<p>Another common linear model approach is <strong>elastic net</strong>, which we also saw in <a href="machine_learning.html" class="quarto-xref"><span>Chapter 7</span></a>. It combines two techniques: lasso and ridge regression. We will not show how to estimate elastic net by hand here, but all you have to know is that it combines the two penalties- one for lasso and one for ridge, along with a standard objective function for a numeric or categorical target. The relative proportion of the two penalties is controlled by a mixing parameter, and the optimal value for it is determined by cross-validation. So for example, you might end up with a 75% lasso penalty and 25% ridge penalty. In the end though, we’re just going to do a slightly fancier logistic regression!</p>
 <p>Let’s apply this to the heart disease data. We are only doing simple cross-validation here to get a better performance assessment, but you are more than welcome to tune both the penalty parameter and the mixing ratio as we have demonstrated before (<a href="machine_learning.html#sec-ml-tuning" class="quarto-xref"><span>Section 7.7</span></a>). We’ll revisit hyperparameter tuning towards the end of this chapter.</p>
 <div class="tabset-margin-container"></div><div class="panel-tabset">
 <ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-2-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-1" role="tab" aria-controls="tabset-2-1" aria-selected="true">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-2-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-2" role="tab" aria-controls="tabset-2-2" aria-selected="false">R</a></li></ul>
 <div class="tab-content">
 <div id="tabset-2-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-2-1-tab">
 <div class="cell">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression, LogisticRegressionCV</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> cross_validate, KFold, cross_val_score</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>model_elastic <span class="op">=</span> LogisticRegression(</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    penalty<span class="op">=</span><span class="st">'elasticnet'</span>,</span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span><span class="st">'saga'</span>,</span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    l1_ratio<span class="op">=</span><span class="fl">0.5</span>,</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">42</span>,</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    max_iter<span class="op">=</span><span class="dv">10000</span>,</span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    verbose<span class="op">=</span><span class="va">False</span>,</span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a> <span class="co"># use cross-validation to estimate performance</span></span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>cv_elastic <span class="op">=</span> cross_validate(</span>
-<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    model_elastic,</span>
-<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    X,</span>
-<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    y,</span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    cv<span class="op">=</span><span class="dv">5</span>,</span>
-<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    scoring<span class="op">=</span><span class="st">'accuracy'</span>,</span>
-<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="co"># pd.DataFrame(cv_elastic) # default output</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>model_elastic <span class="op">=</span> LogisticRegression(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    penalty <span class="op">=</span> <span class="st">'elasticnet'</span>,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    solver <span class="op">=</span> <span class="st">'saga'</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    l1_ratio <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    random_state <span class="op">=</span> <span class="dv">42</span>,</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    max_iter <span class="op">=</span> <span class="dv">10000</span>,</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    verbose <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="co"># use cross-validation to estimate performance</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>model_elastic_cv <span class="op">=</span> cross_validate(</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    model_elastic,</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    X,</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    y,</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    cv <span class="op">=</span> <span class="dv">5</span>,</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    scoring <span class="op">=</span> <span class="st">'accuracy'</span>,</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="co"># pd.DataFrame(model_elastic_cv) # default output</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
@@ -1110,7 +1115,7 @@ Guessing:  0.539</code></pre>
 <div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(mlr3verse)</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>tsk_elastic <span class="ot">=</span> <span class="fu">as_task_classif</span>(</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    X_num_df,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    X,</span>
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">target =</span> <span class="st">"heart_disease"</span></span>
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
@@ -1121,13 +1126,13 @@ Guessing:  0.539</code></pre>
 <span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">alpha =</span> <span class="fl">0.5</span></span>
 <span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>cv_elastic <span class="ot">=</span> <span class="fu">resample</span>(</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">task       =</span> tsk_elastic,</span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">learner    =</span> model_elastic,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>model_elastic_cv <span class="ot">=</span> <span class="fu">resample</span>(</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">task =</span> tsk_elastic,</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">learner =</span> model_elastic,</span>
 <span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">resampling =</span> <span class="fu">rsmp</span>(<span class="st">"cv"</span>, <span class="at">folds =</span> <span class="dv">5</span>)</span>
 <span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="co"># cv_elastic$aggregate(msr('classif.acc')) # default output</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="co"># model_elastic_cv$aggregate(msr('classif.acc')) # default output</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
@@ -1157,7 +1162,7 @@ Guessing: 0.539</code></pre>
 </section>
 <section id="sec-ml-common-penalized-additional" class="level3" data-number="8.5.3">
 <h3 data-number="8.5.3" class="anchored" data-anchor-id="sec-ml-common-penalized-additional"><span class="header-section-number">8.5.3</span> Additional thoughts</h3>
-<p>Using penalized regression is a very good default linear model method, and is something to strongly consider for even more interpretative model settings. These approaches predict better on new data than their standard, non-regularized complements, so they provide a nice balance between interpretability and predictive power. However, in general they are not going to be as strong of a method as others typically used in the machine learning world, and may not even be competitive without a lot of feature engineering. If prediction is all you care about, you’ll likely want to try something else.</p>
+<p>Using penalized regression is a very good default method in the tabular data setting, and is something to strongly consider for more interpretative model settings like determining causal effects. These approaches predict better on new data than their standard, non-regularized complements, so they provide a nice balance between interpretability and predictive power. However, in general they are not going to be as strong of a method as others typically used in the machine learning world, and may not even be competitive without a lot of feature engineering. If prediction is all you care about, you’ll likely want to try something else.</p>
 </section>
 </section>
 <section id="sec-ml-common-trees" class="level2" data-number="8.6">
@@ -1194,24 +1199,23 @@ Guessing: 0.539</code></pre>
 <div class="tab-content">
 <div id="tabset-3-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-3-1-tab">
 <div class="cell">
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> lightgbm <span class="im">import</span> LGBMClassifier</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>model_boost <span class="op">=</span> LGBMClassifier(</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    n_estimators<span class="op">=</span><span class="dv">1000</span>,</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    learning_rate<span class="op">=</span><span class="fl">1e-3</span>,</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    max_depth <span class="op">=</span> <span class="dv">5</span>,</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    verbose <span class="op">=</span> <span class="op">-</span><span class="dv">1</span>,</span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">42</span>,</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>cv_boost <span class="op">=</span> cross_validate(</span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    model_boost,</span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    df_heart.drop(columns<span class="op">=</span><span class="st">'heart_disease'</span>),</span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>    df_heart_num[<span class="st">'heart_disease'</span>],</span>
-<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    cv<span class="op">=</span><span class="dv">5</span>,</span>
-<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    scoring<span class="op">=</span><span class="st">'accuracy'</span>,</span>
-<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>model_boost <span class="op">=</span> LGBMClassifier(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    n_estimators <span class="op">=</span> <span class="dv">1000</span>,</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    learning_rate <span class="op">=</span> <span class="fl">1e-3</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    max_depth <span class="op">=</span> <span class="dv">5</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    verbose <span class="op">=</span> <span class="op">-</span><span class="dv">1</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">42</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>model_boost_cv <span class="op">=</span> cross_validate(</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    model_boost,</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    df_heart.drop(columns<span class="op">=</span><span class="st">'heart_disease'</span>),</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    df_heart[<span class="st">'heart_disease'</span>],</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    cv <span class="op">=</span> <span class="dv">5</span>,</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    scoring<span class="op">=</span><span class="st">'accuracy'</span>,</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="co"># pd.DataFrame(model_boost_cv)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
@@ -1234,7 +1238,7 @@ Guessing:  0.539</code></pre>
 <span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">1234</span>)</span>
 <span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Define task</span></span>
-<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="co"># For consistency we use X_num_df, but lgbm can handle factors and missing data </span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="co"># For consistency we use X, but lgbm can handle factors and missing data </span></span>
 <span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co"># and so we can use the original df_heart if desired</span></span>
 <span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>tsk_boost <span class="ot">=</span> <span class="fu">as_task_classif</span>(</span>
 <span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    df_heart,                   <span class="co"># can use the 'raw' data</span></span>
@@ -1250,9 +1254,9 @@ Guessing:  0.539</code></pre>
 <span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Cross-validation</span></span>
-<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>cv_boost <span class="ot">=</span> <span class="fu">resample</span>(</span>
-<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">task       =</span> tsk_boost,</span>
-<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">learner    =</span> model_boost,</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>model_boost_cv <span class="ot">=</span> <span class="fu">resample</span>(</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">task =</span> tsk_boost,</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">learner =</span> model_boost,</span>
 <span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>    <span class="at">resampling =</span> <span class="fu">rsmp</span>(<span class="st">"cv"</span>, <span class="at">folds =</span> <span class="dv">5</span>)</span>
 <span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
@@ -1265,7 +1269,7 @@ Guessing: 0.539</code></pre>
 </div>
 </div>
 </div>
-<p>So here we have a model that is also performing well, though not significantly better or worse than our elastic net model. For most situations, we’d expect boosting to do better, but this shows why we want a good baseline or simpler model. We’ll revisit hyperparameter tuning using this model later.</p>
+<p>So here we have a model that is also performing well, though not significantly better or worse than our elastic net model. For most situations, we’d expect boosting to do better, but this shows why we want a good baseline or simpler model for comparison. We’ll revisit hyperparameter tuning using this model later.</p>
 <!-- If you'd like to see an example of how we could implement a form  boosting by hand, see @app-boosting. -->
 <!-- TODO: ADD GBLINEAR BY HAND TO APPENDIX -->
 </section>
@@ -1278,9 +1282,8 @@ Guessing: 0.539</code></pre>
 <li>Easily incorporates features of different types (the scale of numeric features, or using categorical features*, doesn’t matter).</li>
 <li>Tolerance to irrelevant features.</li>
 <li>Some tolerance to correlated inputs.</li>
-<li>Handling of missing values. Missing values are just another value to potentially split on*.</li>
+<li>Handling of missing values. Missing values are just another value to potentially split on<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a>.</li>
 </ul>
-<p>*It’s not clear why most model functions still have no default for this sort of thing in 2024.</p>
 <p><strong>Weaknesses</strong></p>
 <ul>
 <li>Honestly few, but like all techniques, it might be relatively less predictive in certain situations. There is <a href="https://machinelearningmastery.com/no-free-lunch-theorem-for-machine-learning/">no free lunch</a>.</li>
@@ -1290,44 +1293,60 @@ Guessing: 0.539</code></pre>
 </section>
 <section id="sec-ml-common-dl-nn" class="level2" data-number="8.7">
 <h2 data-number="8.7" class="anchored" data-anchor-id="sec-ml-common-dl-nn"><span class="header-section-number">8.7</span> Deep Learning and Neural Networks</h2>
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<p><img src="img/nn_basic.svg" class="img-fluid figure-img" style="width:50.0%"></p>
-<figcaption>A neural network</figcaption>
+<div id="fig-basic-nn" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-basic-nn-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="img/nn_basic.svg" class="img-fluid figure-img" style="width:50.0%">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-basic-nn-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;8.1: A neural network
+</figcaption>
 </figure>
 </div>
 <p><strong>Deep learning has fundamentally transformed the world of data science, and the world itself</strong>. It has been used to solve problems in image detection, speech recognition, natural language processing, and more, from assisting with cancer diagnosis to summarizing entire novels. As of now, it is not a panacea for every problem, and is not always the best tool for the job, but it is an approach that should be in your toolbox. Here we’ll provide a brief overview of the key concepts behind neural networks, the underlying approach to deep learning, and then demonstrate how to implement a simple neural network to get things started.</p>
 <section id="sec-ml-common-nnet" class="level3" data-number="8.7.1">
 <h3 data-number="8.7.1" class="anchored" data-anchor-id="sec-ml-common-nnet"><span class="header-section-number">8.7.1</span> What is a neural network?</h3>
-<p>Neural networks form the basis of deep learning models. They have actually been around a while - <a href="https://cs.stanford.edu/people/eroberts/courses/soco/projects/neural-networks/History/history1.html">computationally and conceptually going back decades</a><a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a><a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a>. Like other models, they are computational tools that help us understand how to get outputs from inputs. However, they weren’t quickly adopted due to computing limitations, similar to the slow adoption of Bayesian methods. But now neural networks, or deep learning more generally, have recently become the go-to method for many problems.</p>
+<p>Neural networks form the basis of deep learning models. They have actually been around a while - <a href="https://cs.stanford.edu/people/eroberts/courses/soco/projects/neural-networks/History/history1.html">computationally and conceptually going back decades</a><a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a><a href="#fn7" class="footnote-ref" id="fnref7" role="doc-noteref"><sup>7</sup></a>. Like other models, they are computational tools that help us understand how to get outputs from inputs. However, they weren’t quickly adopted due to computing limitations, similar to the slow adoption of Bayesian methods. But now neural networks, or deep learning more generally, have recently become the go-to method for many problems.</p>
 </section>
 <section id="sec-ml-common-nnet-how" class="level3" data-number="8.7.2">
 <h3 data-number="8.7.2" class="anchored" data-anchor-id="sec-ml-common-nnet-how"><span class="header-section-number">8.7.2</span> How do they work?</h3>
 <p>At its core, a neural network can be seen as a series of matrix multiplications and other operations to produce combinations of features, and ultimately a desired output. We’ve been talking about inputs and outputs since the beginning (<a href="linear_models.html#sec-lm-relationships" class="quarto-xref"><span>Section 2.3.2</span></a>), but neural networks like to put a lot more in between the inputs and outputs than we’ve seen with other models. However, the core operations are often no different than what we’ve done with a basic linear model, and sometimes even simpler! But the combinations of features they produce can represent many aspects of the data that are not easily captured by simpler models.</p>
-<p>One notable difference from models we’ve been seeing is that neural networks implement <em>multiple combinations of features</em>, where each combination is referred to as hidden <strong>nodes</strong> or units<a href="#fn7" class="footnote-ref" id="fnref7" role="doc-noteref"><sup>7</sup></a>. In a neural network, each feature has a weight, just like in a linear model. These features are multiplied by their weights and then added together. But we actually create multiple such combinations, as depicted in the ‘H’ or ‘hidden’ nodes in the following visualization.</p>
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<p><img src="img/nn_first_hidden_layer.svg" class="img-fluid figure-img" style="width:25.0%"></p>
-<figcaption>The first hidden layer</figcaption>
+<p>One notable difference from models we’ve been seeing is that neural networks implement <em>multiple combinations of features</em>, where each combination is referred to as hidden <strong>nodes</strong> or units<a href="#fn8" class="footnote-ref" id="fnref8" role="doc-noteref"><sup>8</sup></a>. In a neural network, each feature has a weight, just like in a linear model. These features are multiplied by their weights and then added together. But we actually create multiple such combinations, as depicted in the ‘H’ or ‘hidden’ nodes in the following visualization.</p>
+<div id="fig-first-layer" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-first-layer-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="img/nn_first_hidden_layer.svg" class="img-fluid figure-img" style="width:25.0%">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-first-layer-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;8.2: The first hidden layer
+</figcaption>
 </figure>
 </div>
-<p>The next phase is where things can get more interesting. We take those hidden units and add in nonlinear transformations before moving deeper into the network. The transformations applied are typically referred to as <strong>activation functions</strong><a href="#fn8" class="footnote-ref" id="fnref8" role="doc-noteref"><sup>8</sup></a>. So, the output of the current (typically linear) part is transformed in a way that allows the model to incorporate nonlinearities. While this might sound new, this is just like how we use link functions in generalized linear models (<a href="generalized_linear_models.html#sec-glm-distributions" class="quarto-xref"><span>Section 5.2</span></a>). Furthermore, these multiple combinations also allow us to incorporate interactions between features.</p>
+<p>The next phase is where things can get more interesting. We take those hidden units and add in nonlinear transformations before moving deeper into the network. The transformations applied are typically referred to as <strong>activation functions</strong><a href="#fn9" class="footnote-ref" id="fnref9" role="doc-noteref"><sup>9</sup></a>. So, the output of the current (typically linear) part is transformed in a way that allows the model to incorporate nonlinearities. While this might sound new, this is just like how we use link functions in generalized linear models (<a href="generalized_linear_models.html#sec-glm-distributions" class="quarto-xref"><span>Section 5.2</span></a>). Furthermore, these multiple combinations also allow us to incorporate interactions between features.</p>
 <p>But we can go even further! We can add more layers, and more nodes in each layer, to create a <strong>deep neural network</strong>. We can also add components specific to certain types of processing, have some parts only connected to certain other parts and more. The complexity really is only limited by our imagination, and computational power! This is what helps make neural networks so powerful - given enough nodes and layers they can potentially approximate <strong><em>any</em></strong> function. Ultimately though, the feature inputs become an output or multiple outputs that can then be assessed in the similar ways as other models.</p>
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<p><img src="img/nn_deep.svg" class="img-fluid figure-img" style="width:75.0%"></p>
-<figcaption>A more complex neural network</figcaption>
+<div id="fig-complex-nn" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-complex-nn-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="img/nn_deep.svg" class="img-fluid figure-img" style="width:75.0%">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-complex-nn-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;8.3: A more complex neural network
+</figcaption>
 </figure>
 </div>
 <!-- TODO: show inputs to 1 hidden node to one activation. The graphviz plots aren't great, and probably not necessary. Revisit.
 
 ![Activation functions applied to a hidden node before passing to next layer](img/activation_nn.svg){width=25% } -->
 <p>Before getting carried away, let’s simplify things a bit by returning to some familiar ground. Consider a logistic regression model. There we take the linear combination of features and weights, and then apply the sigmoid function (inverse logit) to it, and that is the output of the model that we compare to our observed target.</p>
-<p>We can revisit a plot we saw earlier (<a href="linear_models.html#fig-graph-logistic" class="quarto-xref">Figure&nbsp;<span>2.5</span></a>) to make things more concrete. The input features are <span class="math inline">\(X_1\)</span>, <span class="math inline">\(X_2\)</span>, and <span class="math inline">\(X_3\)</span>, and the output is the probability of a positive outcome of a binary target. The weights are <span class="math inline">\(w_1\)</span>, <span class="math inline">\(w_2\)</span>, and <span class="math inline">\(w_3\)</span>, and the bias<a href="#fn9" class="footnote-ref" id="fnref9" role="doc-noteref"><sup>9</sup></a> is <span class="math inline">\(w_0\)</span>. The hidden node is just our linear predictor which we can create via matrix multiplication of the feature matrix and weights. The sigmoid function is the activation function, and the output is the probability of the chosen label.</p>
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<p><img src="img/nn_logreg.svg" class="img-fluid figure-img" style="width:50.0%"></p>
-<figcaption>A logistic regression as a neural network with one hidden layer, one hidden node, and sigmoid activation</figcaption>
+<p>We can revisit a plot we saw earlier (<a href="linear_models.html#fig-graph-logistic" class="quarto-xref">Figure&nbsp;<span>2.6</span></a>) to make things more concrete. The input features are <span class="math inline">\(X_1\)</span>, <span class="math inline">\(X_2\)</span>, and <span class="math inline">\(X_3\)</span>, and the output is the probability of a positive outcome of a binary target. The weights are <span class="math inline">\(w_1\)</span>, <span class="math inline">\(w_2\)</span>, and <span class="math inline">\(w_3\)</span>, and the bias<a href="#fn10" class="footnote-ref" id="fnref10" role="doc-noteref"><sup>10</sup></a> is <span class="math inline">\(w_0\)</span>. The hidden node is just our linear predictor which we can create via matrix multiplication of the feature matrix and weights. The sigmoid function is the activation function, and the output is the probability of the chosen label.</p>
+<div id="fig-logreg-nn" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-logreg-nn-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="img/nn_logreg.svg" class="img-fluid figure-img" style="width:50.0%">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-logreg-nn-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;8.4: A logistic regression as a neural network with one hidden layer, one hidden node, and sigmoid activation
+</figcaption>
 </figure>
 </div>
 <p>This shows that we can actually think of logistic regression as a very simple neural network, with a linear combination of the inputs as a single hidden node and a sigmoid activation function adding the nonlinear transformation. Indeed, the earliest <strong>multilayer perceptron</strong> models were just composed of multiple layers of logistic regressions!</p>
@@ -1351,7 +1370,7 @@ GAMs and Neural Networks
 <section id="sec-ml-common-dl-nn-try" class="level3" data-number="8.7.3">
 <h3 data-number="8.7.3" class="anchored" data-anchor-id="sec-ml-common-dl-nn-try"><span class="header-section-number">8.7.3</span> Trying it out</h3>
 <p>For simplicity we’ll use similar tools as before. Our model is a <strong>multi-layer perceptron</strong> (MLP), which is a model like the one we’ve been depicting. It consists of multiple hidden layers of varying sizes, and we can incorporate activation functions as we see fit.</p>
-<p>Do know this would be considered a bare minimum approach for a neural network, and generally you’d need to do more. To begin with, you’d want to tune the <strong>architecture</strong>, or structure of hidden layers. For example, you might want to try more layers, as well as ‘wider’ layers, or more nodes per layer. Also, as noted in the data discussion, we’d usually want to use <strong>embeddings</strong> for categorical features as opposed to the one-hot approach used here (<a href="data.html#sec-data-cat" class="quarto-xref"><span>Section 10.2.2</span></a>)<a href="#fn10" class="footnote-ref" id="fnref10" role="doc-noteref"><sup>10</sup></a>.</p>
+<p>Do know this would be considered a bare minimum approach for a neural network, and generally you’d need to do more. To begin with, you’d want to tune the <strong>architecture</strong>, or structure of hidden layers. For example, you might want to try more layers, as well as ‘wider’ layers, or more nodes per layer. Also, as noted in the data discussion, we’d usually want to use <strong>embeddings</strong> for categorical features as opposed to the one-hot approach used here (<a href="data.html#sec-data-cat" class="quarto-xref"><span>Section 10.2.2</span></a>)<a href="#fn11" class="footnote-ref" id="fnref11" role="doc-noteref"><sup>11</sup></a>.</p>
 <p>For our example, we’ll use the data with one-hot encoded features. For our architecture, we’ll use three hidden layers with 200 nodes each. As noted, these and other settings are hyperparameters that you’d normally prefer to tune.</p>
 <div class="tabset-margin-container"></div><div class="panel-tabset">
 <ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-4-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-4-1" role="tab" aria-controls="tabset-4-1" aria-selected="true">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-4-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-4-2" role="tab" aria-controls="tabset-4-2" aria-selected="false">R</a></li></ul>
@@ -1359,29 +1378,27 @@ GAMs and Neural Networks
 <div id="tabset-4-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-4-1-tab">
 <p>For our demonstration we’ll use <code>sklearn</code>’s builtin <code>MLPClassifier</code>. We set the learning rate to 0.001. We’ll also use a validation set of 20% of the data to help with early stopping. We set an <strong>adaptive learning rate</strong>, which is a way to automatically adjust the learning rate as the model trains. The ReLU activation function is default. We’ll also use the <strong>nesterov momentum</strong> approach, which is a way to help the model avoid local minima. We use a <strong>warm start</strong>, which allows us to train the model in stages, which is useful for early stopping. We’ll also set the <strong>validation fraction</strong>, which is the proportion of data to use for the validation set. And finally, we’ll use <strong>shuffle</strong> to randomly select observations for each batch.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.neural_network <span class="im">import</span> MLPClassifier</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>model_mlp <span class="op">=</span> MLPClassifier(</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    hidden_layer_sizes<span class="op">=</span>(<span class="dv">200</span>, <span class="dv">200</span>, <span class="dv">200</span>),  </span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    learning_rate<span class="op">=</span><span class="st">'adaptive'</span>,</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    learning_rate_init<span class="op">=</span><span class="fl">0.001</span>,</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    shuffle<span class="op">=</span><span class="va">True</span>,</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">123</span>,</span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    warm_start<span class="op">=</span><span class="va">True</span>,</span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    nesterovs_momentum<span class="op">=</span><span class="va">True</span>,</span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    validation_fraction<span class="op">=</span> <span class="fl">.2</span>,</span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    verbose<span class="op">=</span><span class="va">False</span>,</span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="co"># with the above settings, this will take a few seconds</span></span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>cv_mlp <span class="op">=</span> cross_validate(</span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>  model_mlp, </span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>  X, </span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>  y, </span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>  cv<span class="op">=</span><span class="dv">5</span></span>
-<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>) </span>
-<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a><span class="co"># pd.DataFrame(cv_mlp) # default output</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>model_mlp <span class="op">=</span> MLPClassifier(</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    hidden_layer_sizes <span class="op">=</span> (<span class="dv">200</span>, <span class="dv">200</span>, <span class="dv">200</span>),  </span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    learning_rate <span class="op">=</span> <span class="st">'adaptive'</span>,</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    learning_rate_init <span class="op">=</span> <span class="fl">0.001</span>,</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    shuffle <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    random_state <span class="op">=</span> <span class="dv">123</span>,</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    warm_start <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    nesterovs_momentum <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    validation_fraction <span class="op">=</span>  <span class="fl">.2</span>,</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    verbose <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="co"># with the above settings, this will take a few seconds</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>model_mlp_cv <span class="op">=</span> cross_validate(</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    model_mlp, </span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>    X, </span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>    y, </span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>    cv <span class="op">=</span> <span class="dv">5</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>) </span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a><span class="co"># pd.DataFrame(model_mlp_cv) # default output</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
@@ -1415,18 +1432,18 @@ Guessing:  0.539</code></pre>
 <span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>tsk_mlp <span class="ot">=</span> <span class="fu">as_task_classif</span>(</span>
-<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> X_num_df,</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> X,</span>
 <span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">target =</span> <span class="st">'heart_disease'</span></span>
 <span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a><span class="co"># this will take a few seconds depending on your chosen settings and hardware</span></span>
-<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a>cv_mlp <span class="ot">=</span> <span class="fu">resample</span>(</span>
-<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">task       =</span> tsk_mlp,</span>
-<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a>    <span class="at">learner    =</span> learner_mlp,</span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a>model_mlp_cv <span class="ot">=</span> <span class="fu">resample</span>(</span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">task =</span> tsk_mlp,</span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a>    <span class="at">learner =</span> learner_mlp,</span>
 <span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a>    <span class="at">resampling =</span> <span class="fu">rsmp</span>(<span class="st">"cv"</span>, <span class="at">folds =</span> <span class="dv">5</span>),</span>
 <span id="cb14-32"><a href="#cb14-32" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb14-33"><a href="#cb14-33" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-34"><a href="#cb14-34" aria-hidden="true" tabindex="-1"></a>cv_mlp<span class="sc">$</span><span class="fu">aggregate</span>(<span class="fu">msr</span>(<span class="st">"classif.acc"</span>)) <span class="co"># default output</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb14-34"><a href="#cb14-34" aria-hidden="true" tabindex="-1"></a>model_mlp_cv<span class="sc">$</span><span class="fu">aggregate</span>(<span class="fu">msr</span>(<span class="st">"classif.acc"</span>)) <span class="co"># default output</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
@@ -1450,7 +1467,7 @@ Deep and Wide
 </div>
 <div id="callout-2" class="callout-2-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
-<!-- TODO: Note about favoring depth via compartmentalization, building on previous lower level features-->
+<p>A now relatively old question in deep learning is what is the better approach: deep networks, with more layers, or extremely wide (lots of neurons) and fewer layers? The answer is that it can depend on the problem, but in general, deep networks are more efficient and easier to train, and <a href="https://stats.stackexchange.com/questions/222883/why-are-neural-networks-becoming-deeper-but-not-wider">will generalize better</a>. Deeper networks have the ability to build upon what the previous layers have learned, basically compartmentalizing different parts of the task to learn. More important is creating an architecture that is able to learn the appropriate aspects of the data and generalize well.</p>
 </div>
 </div>
 </div>
@@ -1480,44 +1497,40 @@ Deep and Wide
 <div class="tab-content">
 <div id="tabset-5-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-5-1-tab">
 <div class="cell">
-<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> RandomizedSearchCV, train_test_split</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> lightgbm <span class="im">import</span> LGBMClassifier</span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="co"># train-test split</span></span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>X_train, X_test, y_train, y_test <span class="op">=</span> train_test_split(</span>
-<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    df_heart.drop(columns<span class="op">=</span><span class="st">'heart_disease'</span>), </span>
-<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>    df_heart_num[<span class="st">'heart_disease'</span>],</span>
-<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>    test_size<span class="op">=</span><span class="fl">0.2</span>,</span>
-<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">42</span></span>
-<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>model_boost <span class="op">=</span> LGBMClassifier(</span>
-<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    verbose <span class="op">=</span> <span class="op">-</span><span class="dv">1</span></span>
-<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>param_grid <span class="op">=</span> {</span>
-<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a>    <span class="st">'n_estimators'</span>: [<span class="dv">500</span>, <span class="dv">1000</span>],</span>
-<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a>    <span class="st">'learning_rate'</span>: [<span class="fl">1e-3</span>, <span class="fl">1e-2</span>, <span class="fl">1e-1</span>],</span>
-<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a>    <span class="st">'max_depth'</span>: [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">7</span>, <span class="dv">9</span>],</span>
-<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a>    <span class="st">'min_child_samples'</span>: [<span class="dv">1</span>, <span class="dv">5</span>, <span class="dv">10</span>],</span>
-<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a><span class="co"># this will take a few seconds</span></span>
-<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a>cv_boost_tune <span class="op">=</span> RandomizedSearchCV(</span>
-<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a>    model_boost, </span>
-<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a>    param_grid, </span>
-<span id="cb16-29"><a href="#cb16-29" aria-hidden="true" tabindex="-1"></a>    n_iter <span class="op">=</span> <span class="dv">10</span>,</span>
-<span id="cb16-30"><a href="#cb16-30" aria-hidden="true" tabindex="-1"></a>    cv <span class="op">=</span> <span class="dv">5</span>, </span>
-<span id="cb16-31"><a href="#cb16-31" aria-hidden="true" tabindex="-1"></a>    scoring <span class="op">=</span> <span class="st">'accuracy'</span>, </span>
-<span id="cb16-32"><a href="#cb16-32" aria-hidden="true" tabindex="-1"></a>    n_jobs <span class="op">=</span> <span class="op">-</span><span class="dv">1</span></span>
-<span id="cb16-33"><a href="#cb16-33" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb16-34"><a href="#cb16-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-35"><a href="#cb16-35" aria-hidden="true" tabindex="-1"></a>cv_boost_tune.fit(X_train, y_train)</span>
-<span id="cb16-36"><a href="#cb16-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-37"><a href="#cb16-37" aria-hidden="true" tabindex="-1"></a>test_predictions <span class="op">=</span> cv_boost_tune.predict(X_test)</span>
-<span id="cb16-38"><a href="#cb16-38" aria-hidden="true" tabindex="-1"></a>accuracy_score(y_test, test_predictions)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># train-test split</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>X_train, X_test, y_train, y_test <span class="op">=</span> train_test_split(</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    df_heart.drop(columns<span class="op">=</span><span class="st">'heart_disease'</span>), </span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    df_heart_num[<span class="st">'heart_disease'</span>],</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    test_size <span class="op">=</span> <span class="fl">0.2</span>,</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    random_state <span class="op">=</span> <span class="dv">42</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>model_boost <span class="op">=</span> LGBMClassifier(</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>    verbose <span class="op">=</span> <span class="op">-</span><span class="dv">1</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>param_grid <span class="op">=</span> {</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">'n_estimators'</span>: [<span class="dv">500</span>, <span class="dv">1000</span>],</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">'learning_rate'</span>: [<span class="fl">1e-3</span>, <span class="fl">1e-2</span>, <span class="fl">1e-1</span>],</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">'max_depth'</span>: [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">7</span>, <span class="dv">9</span>],</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">'min_child_samples'</span>: [<span class="dv">1</span>, <span class="dv">5</span>, <span class="dv">10</span>],</span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a><span class="co"># this will take a few seconds</span></span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a>model_boost_cv_tune <span class="op">=</span> RandomizedSearchCV(</span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a>    model_boost, </span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a>    param_grid, </span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a>    n_iter <span class="op">=</span> <span class="dv">10</span>,</span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a>    cv <span class="op">=</span> <span class="dv">5</span>, </span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a>    scoring <span class="op">=</span> <span class="st">'accuracy'</span>, </span>
+<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a>    n_jobs <span class="op">=</span> <span class="op">-</span><span class="dv">1</span>,</span>
+<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a>    random_state <span class="op">=</span> <span class="dv">42</span></span>
+<span id="cb16-29"><a href="#cb16-29" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb16-30"><a href="#cb16-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-31"><a href="#cb16-31" aria-hidden="true" tabindex="-1"></a>model_boost_cv_tune.fit(X_train, y_train)</span>
+<span id="cb16-32"><a href="#cb16-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-33"><a href="#cb16-33" aria-hidden="true" tabindex="-1"></a>test_predictions <span class="op">=</span> model_boost_cv_tune.predict(X_test)</span>
+<span id="cb16-34"><a href="#cb16-34" aria-hidden="true" tabindex="-1"></a>accuracy_score(y_test, test_predictions)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
@@ -1534,12 +1547,12 @@ Guessing:  0.539</code></pre>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(mlr3verse)</span>
 <span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(rsample)</span>
 <span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>tsk_lgbm_tune <span class="ot">=</span> <span class="fu">as_task_classif</span>(</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>tsk_model_boost_cv_tune <span class="ot">=</span> <span class="fu">as_task_classif</span>(</span>
 <span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    df_heart,</span>
 <span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">target =</span> <span class="st">"heart_disease"</span></span>
 <span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>split <span class="ot">=</span> <span class="fu">partition</span>(tsk_lgbm_tune, <span class="at">ratio =</span> .<span class="dv">8</span>)</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>split <span class="ot">=</span> <span class="fu">partition</span>(tsk_model_boost_cv_tune, <span class="at">ratio =</span> .<span class="dv">8</span>)</span>
 <span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>lrn_lgbm <span class="ot">=</span> <span class="fu">lrn</span>(</span>
 <span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">"classif.lightgbm"</span>,</span>
@@ -1549,7 +1562,7 @@ Guessing:  0.539</code></pre>
 <span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">min_data_in_leaf =</span> <span class="fu">to_tune</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">5</span>, <span class="dv">10</span>))</span>
 <span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a>lgbm_tune <span class="ot">=</span> <span class="fu">auto_tuner</span>(</span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a>model_boost_cv_tune <span class="ot">=</span> <span class="fu">auto_tuner</span>(</span>
 <span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">tuner =</span> <span class="fu">tnr</span>(<span class="st">"random_search"</span>),</span>
 <span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">learner =</span> lrn_lgbm,</span>
 <span id="cb18-24"><a href="#cb18-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">resampling =</span> <span class="fu">rsmp</span>(<span class="st">"cv"</span>, <span class="at">folds =</span> <span class="dv">5</span>),</span>
@@ -1557,8 +1570,8 @@ Guessing:  0.539</code></pre>
 <span id="cb18-26"><a href="#cb18-26" aria-hidden="true" tabindex="-1"></a>    <span class="at">terminator =</span> <span class="fu">trm</span>(<span class="st">"evals"</span>, <span class="at">n_evals =</span> <span class="dv">10</span>)</span>
 <span id="cb18-27"><a href="#cb18-27" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb18-28"><a href="#cb18-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-29"><a href="#cb18-29" aria-hidden="true" tabindex="-1"></a>lgbm_tune<span class="sc">$</span><span class="fu">train</span>(tsk_lgbm_tune, <span class="at">row_ids =</span> split<span class="sc">$</span>train)</span>
-<span id="cb18-30"><a href="#cb18-30" aria-hidden="true" tabindex="-1"></a>lgbm_tune<span class="sc">$</span><span class="fu">predict</span>(tsk_lgbm_tune, <span class="at">row_ids =</span> split<span class="sc">$</span>test)<span class="sc">$</span><span class="fu">score</span>(<span class="fu">msr</span>(<span class="st">"classif.acc"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb18-29"><a href="#cb18-29" aria-hidden="true" tabindex="-1"></a>model_boost_cv_tune<span class="sc">$</span><span class="fu">train</span>(tsk_model_boost_cv_tune, <span class="at">row_ids =</span> split<span class="sc">$</span>train)</span>
+<span id="cb18-30"><a href="#cb18-30" aria-hidden="true" tabindex="-1"></a>model_boost_cv_tune<span class="sc">$</span><span class="fu">predict</span>(tsk_model_boost_cv_tune, <span class="at">row_ids =</span> split<span class="sc">$</span>test)<span class="sc">$</span><span class="fu">score</span>(<span class="fu">msr</span>(<span class="st">"classif.acc"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
@@ -1573,56 +1586,68 @@ Guessing: 0.539</code></pre>
 </section>
 <section id="sec-ml-common-compare" class="level2" data-number="8.9">
 <h2 data-number="8.9" class="anchored" data-anchor-id="sec-ml-common-compare"><span class="header-section-number">8.9</span> Comparing Models</h2>
-<p>We can tune all the models and compare them head to head. We first split the data into training and test sets (20% test). Then with training data, we tuned each model over different settings:</p>
+<p>We can tune all the models and compare them head to head. We first split the same data into training and test sets (20% test). Then with training data, we tuned each model over different settings:</p>
 <ul>
 <li>Elastic net: penalty and mixing ratio</li>
 <li>Boosting: number of trees, learning rate, and maximum depth, etc.</li>
-<li>Neural network: number of hidden layers, number of nodes in each layer</li>
+<li>Neural network: number of hidden layers, number of nodes in each layer, etc.</li>
 </ul>
-<p>After this, we used the tuned values to retrain on the complete data set. At this stage it’s not necessary to investigate in most settings, but we show the results of the 10-fold cross-validation for the already-tuned models, to give a sense of the uncertainty in error estimation.</p>
+<p>After this, we used the tuned values to retrain on the complete training data set. At this stage it’s not necessary to investigate in most settings, but we show the results of the 10-fold cross-validation for the already-tuned models, to give a sense of the uncertainty in error estimation with a small sample like this. Even with the ‘best’ settings, we can see that there is definitely some variability across data splits.</p>
 <div class="cell">
 <div class="cell-output-display">
-<div id="fig-benchmark" class="quarto-float quarto-figure quarto-figure-center anchored">
+<div id="fig-benchmark-plot" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-benchmark-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="ml_common_models_files/figure-html/fig-benchmark-1.png" class="img-fluid figure-img" width="672">
+<div aria-describedby="fig-benchmark-plot-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ml_common_models_files/figure-html/fig-benchmark-plot-1.png" class="img-fluid figure-img" width="672">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-benchmark-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;8.1: Cross-validation results for tuned models.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-benchmark-plot-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;8.5: Cross-validation results for tuned models.
 </figcaption>
 </figure>
 </div>
 </div>
 </div>
-<p>When we look at the performance on the holdout set with our tuned models, we see something you might be surprised about - the simplest model wins! However, none of these results are likely <em>statistically different</em> from each other. As an example, the elastic net model had an accuracy of 0.85, but the interval estimate for such a small sample is very wide - from 0.73 to 0.92. The interval estimate for the <em>difference</em> in accuracy between the elastic net and boosting models is from -0.14 to 0.19<a href="#fn11" class="footnote-ref" id="fnref11" role="doc-noteref"><sup>11</sup></a>. This was a good example of the importance of having an adequate baseline, and where complexity didn’t really help much, though all our approaches did well.</p>
-<div class="cell">
+<p>When we look at the performance on the holdout set with our tuned models in the following table<a href="#fn12" class="footnote-ref" id="fnref12" role="doc-noteref"><sup>12</sup></a>, we see something you might be surprised about - the simplest model does really well! It is tied for or the best on three out of six metrics. Again, your results may vary depending on whether you used a seed, R vs.&nbsp;Python, and possibly other aspects of your environment.</p>
 <div id="tbl-benchmark-r" class="cell quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-tbl figure">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-benchmark-r-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;8.2: Metrics for tuned models on holdout data.
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl quarto-uncaptioned" id="tbl-benchmark-r-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;8.2
 </figcaption>
 <div aria-describedby="tbl-benchmark-r-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div>
+
+</div>
+</div>
+</figure>
+</div>
+<div class="cell">
+<div id="tbl-benchmark-py" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-benchmark-py-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;8.3: Metrics for tuned models on holdout data.
+</figcaption>
+<div aria-describedby="tbl-benchmark-py-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="cell-output-display">
-<div id="zveloiefpd" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<div id="sbjhygoauk" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>@import url("https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
-#zveloiefpd table {
+#sbjhygoauk table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#zveloiefpd thead, #zveloiefpd tbody, #zveloiefpd tfoot, #zveloiefpd tr, #zveloiefpd td, #zveloiefpd th {
+#sbjhygoauk thead, #sbjhygoauk tbody, #sbjhygoauk tfoot, #sbjhygoauk tr, #sbjhygoauk td, #sbjhygoauk th {
   border-style: none;
 }
 
-#zveloiefpd p {
+#sbjhygoauk p {
   margin: 0;
   padding: 0;
 }
 
-#zveloiefpd .gt_table {
+#sbjhygoauk .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -1648,12 +1673,12 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   border-left-color: #D3D3D3;
 }
 
-#zveloiefpd .gt_caption {
+#sbjhygoauk .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#zveloiefpd .gt_title {
+#sbjhygoauk .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -1665,7 +1690,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   border-bottom-width: 0;
 }
 
-#zveloiefpd .gt_subtitle {
+#sbjhygoauk .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -1677,7 +1702,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   border-top-width: 0;
 }
 
-#zveloiefpd .gt_heading {
+#sbjhygoauk .gt_heading {
   background-color: #FFFFFF;
   text-align: left;
   border-bottom-color: #FFFFFF;
@@ -1689,13 +1714,13 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   border-right-color: #D3D3D3;
 }
 
-#zveloiefpd .gt_bottom_border {
+#sbjhygoauk .gt_bottom_border {
   border-bottom-style: none;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#zveloiefpd .gt_col_headings {
+#sbjhygoauk .gt_col_headings {
   border-top-style: none;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -1710,7 +1735,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   border-right-color: #D3D3D3;
 }
 
-#zveloiefpd .gt_col_heading {
+#sbjhygoauk .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 12px;
@@ -1730,7 +1755,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   overflow-x: hidden;
 }
 
-#zveloiefpd .gt_column_spanner_outer {
+#sbjhygoauk .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 12px;
@@ -1742,15 +1767,15 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   padding-right: 4px;
 }
 
-#zveloiefpd .gt_column_spanner_outer:first-child {
+#sbjhygoauk .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#zveloiefpd .gt_column_spanner_outer:last-child {
+#sbjhygoauk .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#zveloiefpd .gt_column_spanner {
+#sbjhygoauk .gt_column_spanner {
   border-bottom-style: none;
   border-bottom-width: 1px;
   border-bottom-color: #334422;
@@ -1762,11 +1787,11 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   width: 100%;
 }
 
-#zveloiefpd .gt_spanner_row {
+#sbjhygoauk .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#zveloiefpd .gt_group_heading {
+#sbjhygoauk .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1792,7 +1817,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   text-align: left;
 }
 
-#zveloiefpd .gt_empty_group_heading {
+#sbjhygoauk .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -1807,15 +1832,15 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   vertical-align: middle;
 }
 
-#zveloiefpd .gt_from_md > :first-child {
+#sbjhygoauk .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#zveloiefpd .gt_from_md > :last-child {
+#sbjhygoauk .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#zveloiefpd .gt_row {
+#sbjhygoauk .gt_row {
   padding-top: 7px;
   padding-bottom: 7px;
   padding-left: 5px;
@@ -1834,7 +1859,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   overflow-x: hidden;
 }
 
-#zveloiefpd .gt_stub {
+#sbjhygoauk .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1847,7 +1872,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   padding-right: 5px;
 }
 
-#zveloiefpd .gt_stub_row_group {
+#sbjhygoauk .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1861,15 +1886,15 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   vertical-align: top;
 }
 
-#zveloiefpd .gt_row_group_first td {
+#sbjhygoauk .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#zveloiefpd .gt_row_group_first th {
+#sbjhygoauk .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#zveloiefpd .gt_summary_row {
+#sbjhygoauk .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -1879,16 +1904,16 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   padding-right: 5px;
 }
 
-#zveloiefpd .gt_first_summary_row {
+#sbjhygoauk .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#zveloiefpd .gt_first_summary_row.thick {
+#sbjhygoauk .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#zveloiefpd .gt_last_summary_row {
+#sbjhygoauk .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1898,7 +1923,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   border-bottom-color: #D3D3D3;
 }
 
-#zveloiefpd .gt_grand_summary_row {
+#sbjhygoauk .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -1908,7 +1933,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   padding-right: 5px;
 }
 
-#zveloiefpd .gt_first_grand_summary_row {
+#sbjhygoauk .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1918,7 +1943,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   border-top-color: #D3D3D3;
 }
 
-#zveloiefpd .gt_last_grand_summary_row_top {
+#sbjhygoauk .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1928,11 +1953,11 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   border-bottom-color: #D3D3D3;
 }
 
-#zveloiefpd .gt_striped {
+#sbjhygoauk .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#zveloiefpd .gt_table_body {
+#sbjhygoauk .gt_table_body {
   border-top-style: none;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -1941,7 +1966,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   border-bottom-color: #FFFFFF;
 }
 
-#zveloiefpd .gt_footnotes {
+#sbjhygoauk .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -1955,7 +1980,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   border-right-color: #D3D3D3;
 }
 
-#zveloiefpd .gt_footnote {
+#sbjhygoauk .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -1964,7 +1989,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   padding-right: 5px;
 }
 
-#zveloiefpd .gt_sourcenotes {
+#sbjhygoauk .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -1978,7 +2003,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   border-right-color: #D3D3D3;
 }
 
-#zveloiefpd .gt_sourcenote {
+#sbjhygoauk .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -1986,63 +2011,63 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   padding-right: 5px;
 }
 
-#zveloiefpd .gt_left {
+#sbjhygoauk .gt_left {
   text-align: left;
 }
 
-#zveloiefpd .gt_center {
+#sbjhygoauk .gt_center {
   text-align: center;
 }
 
-#zveloiefpd .gt_right {
+#sbjhygoauk .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#zveloiefpd .gt_font_normal {
+#sbjhygoauk .gt_font_normal {
   font-weight: normal;
 }
 
-#zveloiefpd .gt_font_bold {
+#sbjhygoauk .gt_font_bold {
   font-weight: bold;
 }
 
-#zveloiefpd .gt_font_italic {
+#sbjhygoauk .gt_font_italic {
   font-style: italic;
 }
 
-#zveloiefpd .gt_super {
+#sbjhygoauk .gt_super {
   font-size: 65%;
 }
 
-#zveloiefpd .gt_footnote_marks {
+#sbjhygoauk .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#zveloiefpd .gt_asterisk {
+#sbjhygoauk .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#zveloiefpd .gt_indent_1 {
+#sbjhygoauk .gt_indent_1 {
   text-indent: 5px;
 }
 
-#zveloiefpd .gt_indent_2 {
+#sbjhygoauk .gt_indent_2 {
   text-indent: 10px;
 }
 
-#zveloiefpd .gt_indent_3 {
+#sbjhygoauk .gt_indent_3 {
   text-indent: 15px;
 }
 
-#zveloiefpd .gt_indent_4 {
+#sbjhygoauk .gt_indent_4 {
   text-indent: 20px;
 }
 
-#zveloiefpd .gt_indent_5 {
+#sbjhygoauk .gt_indent_5 {
   text-indent: 25px;
 }
 </style>
@@ -2050,36 +2075,36 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
   <thead>
     <tr class="gt_col_headings">
       <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1" style="color: #A9A9A9; font-family: 'Source Sans Pro'; text-transform: uppercase;" scope="col" id="model">model</th>
-      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" style="color: #A9A9A9; font-family: 'Source Sans Pro'; text-transform: uppercase;" scope="col" id="Acc.">Acc.</th>
-      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" style="color: #A9A9A9; font-family: 'Source Sans Pro'; text-transform: uppercase;" scope="col" id="TPR">TPR</th>
-      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" style="color: #A9A9A9; font-family: 'Source Sans Pro'; text-transform: uppercase;" scope="col" id="TNR">TNR</th>
-      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" style="color: #A9A9A9; font-family: 'Source Sans Pro'; text-transform: uppercase;" scope="col" id="F1">F1</th>
-      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" style="color: #A9A9A9; font-family: 'Source Sans Pro'; text-transform: uppercase;" scope="col" id="PPV">PPV</th>
-      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" style="color: #A9A9A9; font-family: 'Source Sans Pro'; text-transform: uppercase;" scope="col" id="NPV">NPV</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" style="color: #A9A9A9; font-family: 'Source Sans Pro'; text-transform: uppercase;" scope="col" id="acc">acc</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" style="color: #A9A9A9; font-family: 'Source Sans Pro'; text-transform: uppercase;" scope="col" id="tpr">tpr</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" style="color: #A9A9A9; font-family: 'Source Sans Pro'; text-transform: uppercase;" scope="col" id="tnr">tnr</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" style="color: #A9A9A9; font-family: 'Source Sans Pro'; text-transform: uppercase;" scope="col" id="f1">f1</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" style="color: #A9A9A9; font-family: 'Source Sans Pro'; text-transform: uppercase;" scope="col" id="ppv">ppv</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" style="color: #A9A9A9; font-family: 'Source Sans Pro'; text-transform: uppercase;" scope="col" id="npv">npv</th>
     </tr>
   </thead>
   <tbody class="gt_table_body">
     <tr><td headers="model" class="gt_row gt_left" style="font-family: 'Source Sans Pro'; font-weight: 400;">Elastic Net</td>
-<td headers="Acc." class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: bold;">0.85</td>
-<td headers="TPR" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: bold;">0.77</td>
-<td headers="TNR" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: bold;">0.91</td>
-<td headers="F1" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: bold;">0.82</td>
-<td headers="PPV" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: bold;">0.87</td>
-<td headers="NPV" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: bold;">0.84</td></tr>
-    <tr><td headers="model" class="gt_row gt_left" style="font-family: 'Source Sans Pro'; font-weight: 400;">LGBM</td>
-<td headers="Acc." class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.82</td>
-<td headers="TPR" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.69</td>
-<td headers="TNR" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.91</td>
-<td headers="F1" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.77</td>
-<td headers="PPV" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.86</td>
-<td headers="NPV" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.79</td></tr>
+<td headers="acc" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: bold;">0.88</td>
+<td headers="tpr" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: bold;">0.83</td>
+<td headers="tnr" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: bold;">0.92</td>
+<td headers="f1" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: bold;">0.85</td>
+<td headers="ppv" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: bold;">0.87</td>
+<td headers="npv" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: bold;">0.89</td></tr>
+    <tr><td headers="model" class="gt_row gt_left" style="font-family: 'Source Sans Pro'; font-weight: 400;">Boost</td>
+<td headers="acc" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.87</td>
+<td headers="tpr" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.83</td>
+<td headers="tnr" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.89</td>
+<td headers="f1" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.83</td>
+<td headers="ppv" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.83</td>
+<td headers="npv" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.89</td></tr>
     <tr><td headers="model" class="gt_row gt_left" style="font-family: 'Source Sans Pro'; font-weight: 400;">MLP</td>
-<td headers="Acc." class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.82</td>
-<td headers="TPR" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.73</td>
-<td headers="TNR" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.88</td>
-<td headers="F1" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.78</td>
-<td headers="PPV" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.83</td>
-<td headers="NPV" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.81</td></tr>
+<td headers="acc" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.83</td>
+<td headers="tpr" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.83</td>
+<td headers="tnr" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.83</td>
+<td headers="f1" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.80</td>
+<td headers="ppv" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.77</td>
+<td headers="npv" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.88</td></tr>
   </tbody>
   
   
@@ -2090,6 +2115,7 @@ Table&nbsp;8.2: Metrics for tuned models on holdout data.
 </figure>
 </div>
 </div>
+<p>It’s important to note that none of these results are <em>statistically different</em> from each other. As an example, the elastic net model had an accuracy of 0.88, but the interval estimate for such a small holdout sample is very wide - from 0.77 to 0.95. The interval estimate for the <em>difference</em> in TPR between the elastic net and boosting models is from -0.21 to 0.21<a href="#fn13" class="footnote-ref" id="fnref13" role="doc-noteref"><sup>13</sup></a>. Again, don’t take this result too far, we’re dealing with a small data set and it is difficult to detect potentially complex relationships in such a setting. In addition, we could have done more to explore the parameter space of the models, but we’ll leave that for another time. But this was a good example of the importance of having an adequate baseline, and where complexity didn’t really help much, though all our approaches did well. In this case, any of these models would be a good choice for future prediction.</p>
 <div class="callout callout-style-simple callout-none no-icon callout-titled" type="note" title="Test metrics better than training?">
 <div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-3-contents" aria-controls="callout-3" aria-expanded="false" aria-label="Toggle callout">
 <div class="callout-icon-container">
@@ -2102,7 +2128,7 @@ Test metrics better than training?
 </div>
 <div id="callout-3" class="callout-3-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
-<p>Some may wonder how the holdout results can be better than the cross-validation results, as they are for the elastic net model. This can definitely happen, and at least in this case probably just reflects the small sample size. The holdout set is a random sample of 20% of the complete data, which is 60 examples. Just a couple different predictions could result in a several percentage point difference in accuracy. Also, this could happen just by chance. In general though, you’d expect the holdout results to be a bit, or even significantly, worse than the cross-validation results.</p>
+<p>Some may wonder how the holdout results can be better than the cross-validation results, as they are for the elastic net model. This can definitely happen, and at least in this case probably just reflects the small sample size. The holdout set is a random sample of 20% of the complete data, which is 238 examples. Just a couple different predictions could result in a several percentage point difference in accuracy. Also, this could happen just by chance. In general though, you’d expect the holdout results to be a bit, or even significantly, worse than the cross-validation results.</p>
 </div>
 </div>
 </div>
@@ -2112,29 +2138,28 @@ Test metrics better than training?
 <p>When it comes to machine learning, many models we use don’t have an easy interpretation, like with coefficients in a linear model. However, that doesn’t mean we can’t still figure out what’s going on. Let’s use the boosting model as an example.</p>
 <section id="sec-ml-common-feat-imp" class="level3" data-number="8.10.1">
 <h3 data-number="8.10.1" class="anchored" data-anchor-id="sec-ml-common-feat-imp"><span class="header-section-number">8.10.1</span> Feature Importance</h3>
-<p>The default importance metric for a lightgbm model is the number of splits in which a feature is used across trees, and this will depend notably on the chosen parameters of the best model. But there are other ways to think about what importance means that will be specific to a model, data setting, and ultimate goal of the modeling process. For this data and the model, depending on the settings, you might see that the most important features are age, cholesterol, and max heart rate.</p>
+<p>The default importance metric for a lightgbm model is the number of splits in which a feature is used across trees, and this will depend a lot on the chosen parameters of the best model. But there are other ways to think about what importance means that will be specific to a model, data setting, and ultimate goal of the modeling process. For this data and the model, depending on the settings, you might see that the most important features are age, cholesterol, and max heart rate.</p>
 <div class="tabset-margin-container"></div><div class="panel-tabset">
 <ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-6-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-6-1" role="tab" aria-controls="tabset-6-1" aria-selected="true">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-6-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-6-2" role="tab" aria-controls="tabset-6-2" aria-selected="false">R</a></li></ul>
 <div class="tab-content">
 <div id="tabset-6-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-6-1-tab">
 <div class="cell">
-<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get feature importances (# of trees a feature is used in)</span></span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>best_model <span class="op">=</span> cv_boost_tune.best_estimator_</span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>best_model.feature_importances_</span>
-<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="co"># you remember which feature is which, right? if not, do this:</span></span>
-<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>pd.DataFrame({</span>
-<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">'Feature'</span>: cv_boost_tune.feature_name_,</span>
-<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">'Importance'</span>: cv_boost_tune.feature_importances_</span>
-<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>})</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get feature importances</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>best_model <span class="op">=</span> model_boost_cv_tune.best_estimator_</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>best_model.feature_importances_</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="co"># you remember which feature is which, right? if not, do this:</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>pd.DataFrame({</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">'Feature'</span>: best_model.feature_name_,</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">'Importance'</span>: best_model.feature_importances_</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>}).sort_values(<span class="st">'Importance'</span>, ascending<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 <div id="tabset-6-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-6-2-tab">
 <p>R shows the proportion of splits in which a feature is used across trees rather than the raw number.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get feature importances</span></span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>lgbm_tune<span class="sc">$</span>learner<span class="sc">$</span><span class="fu">importance</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>model_boost_cv_tune<span class="sc">$</span>learner<span class="sc">$</span><span class="fu">importance</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
@@ -2143,30 +2168,30 @@ Test metrics better than training?
 <div id="tbl-imp-r-show" class="cell quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-tbl figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-imp-r-show-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;8.3: Top 4 features from an LGBM model.
+Table&nbsp;8.4: Top 4 features from a tuned LGBM model.
 </figcaption>
 <div aria-describedby="tbl-imp-r-show-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="cell-output-display">
-<div id="bgvzfontnx" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<div id="aagztdsgkp" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>@import url("https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
-#bgvzfontnx table {
+#aagztdsgkp table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#bgvzfontnx thead, #bgvzfontnx tbody, #bgvzfontnx tfoot, #bgvzfontnx tr, #bgvzfontnx td, #bgvzfontnx th {
+#aagztdsgkp thead, #aagztdsgkp tbody, #aagztdsgkp tfoot, #aagztdsgkp tr, #aagztdsgkp td, #aagztdsgkp th {
   border-style: none;
 }
 
-#bgvzfontnx p {
+#aagztdsgkp p {
   margin: 0;
   padding: 0;
 }
 
-#bgvzfontnx .gt_table {
+#aagztdsgkp .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -2192,12 +2217,12 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   border-left-color: #D3D3D3;
 }
 
-#bgvzfontnx .gt_caption {
+#aagztdsgkp .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#bgvzfontnx .gt_title {
+#aagztdsgkp .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -2209,7 +2234,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   border-bottom-width: 0;
 }
 
-#bgvzfontnx .gt_subtitle {
+#aagztdsgkp .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -2221,7 +2246,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   border-top-width: 0;
 }
 
-#bgvzfontnx .gt_heading {
+#aagztdsgkp .gt_heading {
   background-color: #FFFFFF;
   text-align: left;
   border-bottom-color: #FFFFFF;
@@ -2233,13 +2258,13 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   border-right-color: #D3D3D3;
 }
 
-#bgvzfontnx .gt_bottom_border {
+#aagztdsgkp .gt_bottom_border {
   border-bottom-style: none;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#bgvzfontnx .gt_col_headings {
+#aagztdsgkp .gt_col_headings {
   border-top-style: none;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2254,7 +2279,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   border-right-color: #D3D3D3;
 }
 
-#bgvzfontnx .gt_col_heading {
+#aagztdsgkp .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 12px;
@@ -2274,7 +2299,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   overflow-x: hidden;
 }
 
-#bgvzfontnx .gt_column_spanner_outer {
+#aagztdsgkp .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 12px;
@@ -2286,15 +2311,15 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   padding-right: 4px;
 }
 
-#bgvzfontnx .gt_column_spanner_outer:first-child {
+#aagztdsgkp .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#bgvzfontnx .gt_column_spanner_outer:last-child {
+#aagztdsgkp .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#bgvzfontnx .gt_column_spanner {
+#aagztdsgkp .gt_column_spanner {
   border-bottom-style: none;
   border-bottom-width: 1px;
   border-bottom-color: #334422;
@@ -2306,11 +2331,11 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   width: 100%;
 }
 
-#bgvzfontnx .gt_spanner_row {
+#aagztdsgkp .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#bgvzfontnx .gt_group_heading {
+#aagztdsgkp .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2336,7 +2361,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   text-align: left;
 }
 
-#bgvzfontnx .gt_empty_group_heading {
+#aagztdsgkp .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -2351,15 +2376,15 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   vertical-align: middle;
 }
 
-#bgvzfontnx .gt_from_md > :first-child {
+#aagztdsgkp .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#bgvzfontnx .gt_from_md > :last-child {
+#aagztdsgkp .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#bgvzfontnx .gt_row {
+#aagztdsgkp .gt_row {
   padding-top: 7px;
   padding-bottom: 7px;
   padding-left: 5px;
@@ -2378,7 +2403,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   overflow-x: hidden;
 }
 
-#bgvzfontnx .gt_stub {
+#aagztdsgkp .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2391,7 +2416,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   padding-right: 5px;
 }
 
-#bgvzfontnx .gt_stub_row_group {
+#aagztdsgkp .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2405,15 +2430,15 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   vertical-align: top;
 }
 
-#bgvzfontnx .gt_row_group_first td {
+#aagztdsgkp .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#bgvzfontnx .gt_row_group_first th {
+#aagztdsgkp .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#bgvzfontnx .gt_summary_row {
+#aagztdsgkp .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2423,16 +2448,16 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   padding-right: 5px;
 }
 
-#bgvzfontnx .gt_first_summary_row {
+#aagztdsgkp .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#bgvzfontnx .gt_first_summary_row.thick {
+#aagztdsgkp .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#bgvzfontnx .gt_last_summary_row {
+#aagztdsgkp .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2442,7 +2467,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   border-bottom-color: #D3D3D3;
 }
 
-#bgvzfontnx .gt_grand_summary_row {
+#aagztdsgkp .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2452,7 +2477,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   padding-right: 5px;
 }
 
-#bgvzfontnx .gt_first_grand_summary_row {
+#aagztdsgkp .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2462,7 +2487,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   border-top-color: #D3D3D3;
 }
 
-#bgvzfontnx .gt_last_grand_summary_row_top {
+#aagztdsgkp .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2472,11 +2497,11 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   border-bottom-color: #D3D3D3;
 }
 
-#bgvzfontnx .gt_striped {
+#aagztdsgkp .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#bgvzfontnx .gt_table_body {
+#aagztdsgkp .gt_table_body {
   border-top-style: none;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2485,7 +2510,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   border-bottom-color: #FFFFFF;
 }
 
-#bgvzfontnx .gt_footnotes {
+#aagztdsgkp .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -2499,7 +2524,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   border-right-color: #D3D3D3;
 }
 
-#bgvzfontnx .gt_footnote {
+#aagztdsgkp .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -2508,7 +2533,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   padding-right: 5px;
 }
 
-#bgvzfontnx .gt_sourcenotes {
+#aagztdsgkp .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -2522,7 +2547,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   border-right-color: #D3D3D3;
 }
 
-#bgvzfontnx .gt_sourcenote {
+#aagztdsgkp .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -2530,63 +2555,63 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   padding-right: 5px;
 }
 
-#bgvzfontnx .gt_left {
+#aagztdsgkp .gt_left {
   text-align: left;
 }
 
-#bgvzfontnx .gt_center {
+#aagztdsgkp .gt_center {
   text-align: center;
 }
 
-#bgvzfontnx .gt_right {
+#aagztdsgkp .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#bgvzfontnx .gt_font_normal {
+#aagztdsgkp .gt_font_normal {
   font-weight: normal;
 }
 
-#bgvzfontnx .gt_font_bold {
+#aagztdsgkp .gt_font_bold {
   font-weight: bold;
 }
 
-#bgvzfontnx .gt_font_italic {
+#aagztdsgkp .gt_font_italic {
   font-style: italic;
 }
 
-#bgvzfontnx .gt_super {
+#aagztdsgkp .gt_super {
   font-size: 65%;
 }
 
-#bgvzfontnx .gt_footnote_marks {
+#aagztdsgkp .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#bgvzfontnx .gt_asterisk {
+#aagztdsgkp .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#bgvzfontnx .gt_indent_1 {
+#aagztdsgkp .gt_indent_1 {
   text-indent: 5px;
 }
 
-#bgvzfontnx .gt_indent_2 {
+#aagztdsgkp .gt_indent_2 {
   text-indent: 10px;
 }
 
-#bgvzfontnx .gt_indent_3 {
+#aagztdsgkp .gt_indent_3 {
   text-indent: 15px;
 }
 
-#bgvzfontnx .gt_indent_4 {
+#aagztdsgkp .gt_indent_4 {
   text-indent: 20px;
 }
 
-#bgvzfontnx .gt_indent_5 {
+#aagztdsgkp .gt_indent_5 {
   text-indent: 25px;
 }
 </style>
@@ -2599,13 +2624,13 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
   </thead>
   <tbody class="gt_table_body">
     <tr><td headers="Feature" class="gt_row gt_left" style="font-family: 'Source Sans Pro'; font-weight: 400;">num_major_vessels</td>
-<td headers="value" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.21</td></tr>
+<td headers="value" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.23</td></tr>
     <tr><td headers="Feature" class="gt_row gt_left" style="font-family: 'Source Sans Pro'; font-weight: 400;">age</td>
-<td headers="value" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.14</td></tr>
+<td headers="value" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.16</td></tr>
     <tr><td headers="Feature" class="gt_row gt_left" style="font-family: 'Source Sans Pro'; font-weight: 400;">thalassemia</td>
-<td headers="value" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.09</td></tr>
-    <tr><td headers="Feature" class="gt_row gt_left" style="font-family: 'Source Sans Pro'; font-weight: 400;">resting_bp</td>
-<td headers="value" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.09</td></tr>
+<td headers="value" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.10</td></tr>
+    <tr><td headers="Feature" class="gt_row gt_left" style="font-family: 'Source Sans Pro'; font-weight: 400;">st_depression</td>
+<td headers="value" class="gt_row gt_right" style="color: #404040; font-family: 'Source Sans Pro'; font-weight: 400;">0.10</td></tr>
   </tbody>
   
   
@@ -2622,37 +2647,36 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
 <div class="tab-content">
 <div id="tabset-7-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-7-1-tab">
 <div class="cell">
-<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.inspection <span class="im">import</span> PartialDependenceDisplay</span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>PartialDependenceDisplay.from_estimator(</span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    cv_boost_tune, </span>
-<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    df_heart.drop(columns<span class="op">=</span><span class="st">'heart_disease'</span>), </span>
-<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    features<span class="op">=</span>[<span class="st">'cholesterol'</span>, <span class="st">'male'</span>], </span>
-<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    categorical_features<span class="op">=</span>[<span class="st">'male'</span>], </span>
-<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>    percentiles<span class="op">=</span>(<span class="dv">0</span>, <span class="fl">.9</span>),</span>
-<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>    grid_resolution<span class="op">=</span><span class="dv">75</span></span>
-<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>PartialDependenceDisplay.from_estimator(</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    model_boost_cv_tune, </span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    df_heart.drop(columns<span class="op">=</span><span class="st">'heart_disease'</span>), </span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    features<span class="op">=</span>[<span class="st">'cholesterol'</span>, <span class="st">'male'</span>], </span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    categorical_features<span class="op">=</span>[<span class="st">'male'</span>], </span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    percentiles<span class="op">=</span>(<span class="dv">0</span>, <span class="fl">.9</span>),</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    grid_resolution<span class="op">=</span><span class="dv">75</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 <div id="tabset-7-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-7-2-tab">
-<p>For R we’ll use the IML package.</p>
+<p>For R we’ll use the <span class="pack">iml</span> package.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(iml)</span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>prediction <span class="ot">=</span> Predictor<span class="sc">$</span><span class="fu">new</span>(</span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    instance_lgbm_tune<span class="sc">$</span>model<span class="sc">$</span>learner,</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    model_boost_cv_tune<span class="sc">$</span>model<span class="sc">$</span>learner,</span>
 <span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> df_heart,</span>
 <span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">type =</span> <span class="st">'prob'</span>, </span>
 <span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">class =</span> <span class="st">'yes'</span></span>
 <span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>effect_dat <span class="ot">=</span> FeatureEffect<span class="sc">$</span><span class="fu">new</span>(</span>
-<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>    prediction, </span>
-<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">feature =</span> <span class="fu">c</span>(<span class="st">'cholesterol'</span>, <span class="st">'male'</span>), </span>
-<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">method =</span> <span class="st">"pdp"</span>, </span>
-<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>effect_dat<span class="sc">$</span><span class="fu">plot</span>(<span class="at">show.data =</span> <span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a><span class="co"># interaction plot, select a singe feature for a single feature plot</span></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>effect_dat <span class="ot">=</span> FeatureEffect<span class="sc">$</span><span class="fu">new</span>(</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>    prediction, </span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">feature =</span> <span class="fu">c</span>(<span class="st">'cholesterol'</span>, <span class="st">'male'</span>),</span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">method =</span> <span class="st">"pdp"</span>, </span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>effect_dat<span class="sc">$</span><span class="fu">plot</span>(<span class="at">show.data =</span> <span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
@@ -2663,7 +2687,7 @@ Table&nbsp;8.3: Top 4 features from an LGBM model.
 <img src="img/ml-pdp-plot.svg" class="img-fluid figure-img" style="width:100.0%">
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pdp-r-plot-show-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;8.2: Partial dependence plot for cholesterol
+Figure&nbsp;8.6: Partial dependence plot for cholesterol
 </figcaption>
 </figure>
 </div>
@@ -2763,17 +2787,19 @@ Zhang, Aston, Zack Lipton, Mu Li, and Alex Smola. 2023. <span>“Dive into <span
 <section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes">
 <hr>
 <ol>
-<li id="fn1"><p>There would be far less hype and wasted time if those in ML and DL research simply did this rather than just reporting the chosen metric of their model ‘winning’ against other models. It’s not that hard to do, yet most do not provide any ranged estimate for their metric, let alone test statistical differences from other models. You don’t even have to bootstrap many common metric estimates for binary classification since they are just proportions! It’d also be nice if they used a more meaningful baseline than logistic regression, but that’s a different story.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn1"><p>There would be far less hype and wasted time if those in ML and DL research simply did this rather than just reporting the chosen metric of their model ‘winning’ against other models. It’s not that hard to do, yet most do not provide any ranged estimate for their metric, let alone test statistical differences from other models. You don’t even have to bootstrap many common metric estimates for binary classification since they are just proportions. It’d also be nice if they used a more meaningful baseline than logistic regression, but that’s a different story. And one more thing, ranks also have uncertainty. So just saying you’re #1 isn’t enough to prove it.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn2"><p>A single regression/classification tree actually could serve as a decent baseline model, especially given the interpretability, and modern methods try to make them more stable.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn3"><p>This is pretty much the same concept as with stochastic gradient in general. Larger learning rates allow for quicker parameter exploration, but may overshoot the optimal value. Smaller learning rates are more conservative, but may take longer to find the optimal value.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn4"><p>Some also prefer <span class="pack">catboost</span>. The authors have not actually been able to practically implement catboost in a setting where it was more predictive or as efficient/speedy as <span class="pack">xgboost</span> or <span class="pack">lightgbm</span>, but some have had notable success with it.<a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn5"><p>Most consider the scientific origin with <span class="citation" data-cites="mcculloch_logical_1943">McCulloch and Pitts (<a href="references.html#ref-mcculloch_logical_1943" role="doc-biblioref">1943</a>)</span>.<a href="#fnref5" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn6"><p>On the conceptual side, they served as a rudimentary model of neuronal functioning in the brain, and a way to understand how the brain processes information. The models sprung from the cognitive revolution, a backlash against the behaviorist approach to psychology, and used the computer as <a href="https://en.wikipedia.org/wiki/Connectionism">a metaphor for how the brain might operate</a>.<a href="#fnref6" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn7"><p>The term ‘hidden’ is used because these nodes are between the input or output. It does not imply a latent/hidden variable in the sense it is used in structural equation or measurement models, but there is a lot of common ground. See the connection with principal components analysis for example(<a href="ml_more.html#sec-ml-more-pca-as-net" class="quarto-xref"><span>Section 9.2.1.2</span></a>).<a href="#fnref7" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn8"><p>We have multiple options for our activation functions, and probably the most common activation function in deep learning is the <strong>rectified linear unit</strong> or <a href="https://en.wikipedia.org/wiki/Rectifier_(neural_networks)">ReLU</a>. Other commonly used are the <a href="https://en.wikipedia.org/wiki/Sigmoid_function">sigmoid function</a>, which is exactly the same as what we used in logistic regression, the hyperbolic tangent function, variants of the ReLU, and of course the linear/identity function, which not to do any transformation at all.<a href="#fnref8" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn9"><p>It’s not exactly clear <a href="https://stats.stackexchange.com/questions/511726/different-usage-of-the-term-bias-in-stats-machine-learning">why computer scientists chose to call this the bias</a>, but it’s the same as the intercept in a linear model, or conceptually as an offset or constant. It has nothing to do with the word bias as used in every other modeling context.<a href="#fnref9" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn10"><p>A really good tool for a standard MLP type approach with automatic categorical embeddings is <code>fastai</code>’s tabular learner.<a href="#fnref10" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn11"><p>We just used the <code>prop.test</code> function in R for these values with the test being, what proportion of predictions are correct, and are these proportions different? A lot of the metrics people look at from confusion matrices are proportions.<a href="#fnref11" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn5"><p>It’s not clear why most model functions still have no default for this sort of thing in 2024.<a href="#fnref5" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn6"><p>Most consider the scientific origin with <span class="citation" data-cites="mcculloch_logical_1943">McCulloch and Pitts (<a href="references.html#ref-mcculloch_logical_1943" role="doc-biblioref">1943</a>)</span>.<a href="#fnref6" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn7"><p>On the conceptual side, they served as a rudimentary model of neuronal functioning in the brain, and a way to understand how the brain processes information. The models sprung from the cognitive revolution, a backlash against the behaviorist approach to psychology, and used the computer as <a href="https://en.wikipedia.org/wiki/Connectionism">a metaphor for how the brain might operate</a>.<a href="#fnref7" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn8"><p>The term ‘hidden’ is used because these nodes are between the input or output. It does not imply a latent/hidden variable in the sense it is used in structural equation or measurement models, but there is a lot of common ground. See the connection with principal components analysis for example(<a href="ml_more.html#sec-ml-more-pca-as-net" class="quarto-xref"><span>Section 9.2.1.2</span></a>).<a href="#fnref8" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn9"><p>We have multiple options for our activation functions, and probably the most common activation function in deep learning is the <strong>rectified linear unit</strong> or <a href="https://en.wikipedia.org/wiki/Rectifier_(neural_networks)">ReLU</a>. Other commonly used are the <a href="https://en.wikipedia.org/wiki/Sigmoid_function">sigmoid function</a>, which is exactly the same as what we used in logistic regression, the hyperbolic tangent function, variants of the ReLU, and of course the linear/identity function, which not to do any transformation at all.<a href="#fnref9" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn10"><p>It’s not exactly clear <a href="https://stats.stackexchange.com/questions/511726/different-usage-of-the-term-bias-in-stats-machine-learning">why computer scientists chose to call this the bias</a>, but it’s the same as the intercept in a linear model, or conceptually as an offset or constant. It has nothing to do with the word bias as used in every other modeling context.<a href="#fnref10" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn11"><p>A really good tool for a standard MLP type approach with automatic categorical embeddings is <code>fastai</code>’s tabular learner.<a href="#fnref11" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn12"><p>This table was based on Python randomized CV search, but a similar R approach produced similar results, and they can both vary quite a bit even with just a random seed change.<a href="#fnref12" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn13"><p>We just used the <code>prop.test</code> function in R for these values with the key question of whether these proportions are different. A lot of the metrics people look at from confusion matrices are proportions.<a href="#fnref13" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 </ol>
 </section>
 
