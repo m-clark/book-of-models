@@ -56,13 +56,13 @@ When comparing models, especially in the statistical modeling realm, many will u
 
 Some like to look at R^2^ to compare models[^adjr2], but it has a lot of problems. People think it's more interpretable than other options, yet there is no value of 'good' you can universally apply, even in very similar scenarios. It can arbitrarily increase with the number of features whether they are actually predictive or not, and it doesn't tell you how well the model will perform on new data. It can also simply reflect that you have time-series data, as you are just witnessing spurious correlations over time. In short, you can use it to get a sense of how your predictions *correlate* with the target, but that is fairly limited.
 
-The following plot shows 250 simulations with a sample size of 500 and 250 completely meaningless features. The R^2^ values would all suggest the model is somewhat useful with an average of .5. The adjusted R^2 values average zero, which is correct, but they can only average that by being negative, which is a meaningless value. Many
+The following plot shows 250 simulations with a sample size of 500 and 250 completely meaningless features. The R^2^ values would all suggest the model is somewhat useful with an average of .5. The adjusted R^2 values average zero, which is correct, but they can only average that by being negative, which is a meaningless value. Many adjusted values still get into areas that would be viable for some domains.
 
 :::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| eval: true
-#| label: r2_adjr2_vis
+#| label: fig-r2_adjr2_vis
 #| fig-cap: The problem of R^2^
 
 set.seed(123)
@@ -138,6 +138,7 @@ p_dat |>
 ggsave('img/danger-r2_adjr2_vis.svg', width = 8, height = 6)
 ```
 :::
+
 :::{.content-visible when-format='pdf'}
 ![The problem of R^2^](img/danger-r2_adjr2_vis.svg){#r2_adjr2_vis}
 :::
@@ -236,10 +237,10 @@ r2, adjusted_r2
 
 [^adjr2]: Adjusted R^2^ doesn't help, the same issues are present and it would not be any practically different than R^2^ except for very small data situations, where it might even be negative!
 
-Other commonly used metrics, like AIC, might be better in theory, but they approximate the model selection one would get through cross-validation, so why not just do the cross-validation? Furthermore, as long as you are using those metrics on the training data, you 
+Other commonly used metrics, like AIC, might be better in theory, but they approximate the model selection one would get through cross-validation, so why not just do the cross-validation? Furthermore, as long as you are using those metrics only on the training data, you really aren't getting a good idea of how the model will generalize (@sec-ml-sec-ml-generalization).
 
 
-:::{.callout type='note' title='Garden of Forking Paths'}
+:::{.callout type='note' title='Garden of Forking Paths' collapse='true'}
 A common issue in statistical and machine learning modeling is the **garden of forking paths**. This is the idea that there are many different ways to analyze a dataset, and that the results of these analyses can be very different. When you don't have a lot of data, or when the data is complex and the data generating process is not well understood, there can be a lot of forks that lead to many different models with varying results. In these cases, the interpretation of a single model from the many that are actually employed can be misleading, and can lead to incorrect conclusions about the data.
 :::
 
@@ -257,14 +258,14 @@ Unless you are using a bleeding edge technique, much of the work has been done f
 
 ### Everything is fine {#sec-danger-fine}
 
-There is a flip side to the previous point, and that is that many assume that the default settings for complex models are good enough. We all do this when venturing into the unknown, but this is not always the case. Many of the more complex models have defaults geared toward a 'just works' setting rather than a 'production' setting. For example, the default number of boosting rounds for xgboost will rarely be adequate[^num_boost_round].
+There is a flip side to the previous point, and that is that many assume that the default settings for complex models are good enough. We all do this when venturing into the unknown, but we do so at our own risk. Many of the more complex models have defaults geared toward a 'just works' setting rather than a 'production' setting. For example, the default number of boosting rounds for xgboost will rarely be adequate[^num_boost_round].
 
 [^num_boost_round]: The number is actually dependent on other parameters, like whether early stopping is used, the number of classes, etc.
 
 
 ### Just bootstrap it! {#sec-danger-bootstrap}
 
-When it comes to uncertainty estimation, many common modeling tools leave that to the user, and when the developers are pressed on how to get uncertainty estimates, they often will suggest to just bootstrap the result. While the bootstrap is a powerful tool for inference, it isn't appropriate just because you decide to use it. The suggestion to use bootstrapping is often made in the context of a complex modeling situation where it would be very (prohibitively) computationally expensive, and in other cases the properties of the results are not well understood. Other methods of prediction inference, such as conformal prediction, may be better suited to the task. In general, if a package developer suggests you bootstrap because their package doesn't have any means of uncertainty estimation, you should be wary.
+When it comes to uncertainty estimation, many common modeling tools leave that to the user, and when the developers are pressed on how to get uncertainty estimates, they often will suggest to just bootstrap the result. While the bootstrap is a powerful tool for inference, it isn't appropriate just because you decide to use it. The suggestion to use bootstrapping is often made in the context of a complex modeling situation where it would be very (prohibitively) computationally expensive, and in other cases the properties of the results are not well understood. Other methods of prediction inference, such as conformal prediction, may be better suited to the task. In general, if a package developer suggests you bootstrap because their package doesn't have any means of uncertainty estimation, you should be cautious. If it's the obvious option, it should be included in the package.
 
 
 ## Machine Learning {#sec-danger-ml}
@@ -285,6 +286,53 @@ When choosing a model or set of models, one should have a valid reason for the c
 Machine learning is not synonymous with a classification problem, but this point seems to be lost on many. As an example, many will split their target just so they can do classification, when the target is a more expressive continuous variable. This is a problem because you are unnecessarily diminishing the reliability of the target score, and losing information about it. This can lead to a well known statistical issue - **attenuation of the correlation** between variables.
 
 :::{.panel-tabset}
+
+##### Python
+
+```{python}
+#| label: simulate_binarize_py
+#| eval: false
+import numpy as np
+import pandas as pd
+
+def simulate_binarize(
+    N = 1000,
+    correlation = .5,
+    num_simulations = 100,
+    bin_y_only = False
+):
+    correlations = []
+    
+    for i in range(num_simulations):
+        # Simulate two variables with the given correlation
+        xy = np.random.multivariate_normal(
+            mean = [0, 0], 
+            cov = [[1, correlation], [correlation, 1]], 
+            size = N
+        )
+
+        # binarize on median split
+        if bin_y_only:
+            x_bin = xy[:, 0]
+        else:
+            x_bin = np.where(xy[:, 0] >= np.median(xy[:, 0]), 1, 0)
+        y_bin = np.where(xy[:, 1] >= np.median(xy[:, 1]), 1, 0)
+        
+        raw_correlation = np.corrcoef(xy[:, 0], xy[:, 1])[0, 1]
+        binarized_correlation = np.corrcoef(x_bin, y_bin)[0, 1]
+        
+        correlations.append({
+            'sim': i,
+            'raw_correlation': raw_correlation,
+            'binarized_correlation': binarized_correlation
+        })
+
+    cors = pd.DataFrame(correlations)
+    return cors
+
+simulate_binarize(correlation = .25, num_simulations = 5)
+```
+
 
 ##### R
 ```{r}
@@ -336,55 +384,9 @@ simulate_binarize = function(
 simulate_binarize(correlation = .25, num_simulations = 5)
 ```
 
-##### Python
-
-```{python}
-#| label: simulate_binarize_py
-#| eval: false
-import numpy as np
-import pandas as pd
-
-def simulate_binarize(
-    N = 1000,
-    correlation = .5,
-    num_simulations = 100,
-    bin_y_only = False
-):
-    correlations = []
-    
-    for i in range(num_simulations):
-        # Simulate two variables with the given correlation
-        xy = np.random.multivariate_normal(
-            mean = [0, 0], 
-            cov = [[1, correlation], [correlation, 1]], 
-            size = N
-        )
-
-        # binarize on median split
-        if bin_y_only:
-            x_bin = xy[:, 0]
-        else:
-            x_bin = np.where(xy[:, 0] >= np.median(xy[:, 0]), 1, 0)
-        y_bin = np.where(xy[:, 1] >= np.median(xy[:, 1]), 1, 0)
-        
-        raw_correlation = np.corrcoef(xy[:, 0], xy[:, 1])[0, 1]
-        binarized_correlation = np.corrcoef(x_bin, y_bin)[0, 1]
-        
-        correlations.append({
-            'sim': i,
-            'raw_correlation': raw_correlation,
-            'binarized_correlation': binarized_correlation
-        })
-
-    cors = pd.DataFrame(correlations)
-    return cors
-
-simulate_binarize(correlation = .25, num_simulations = 5)
-```
-
 :::
 
-The following plot shows the case where we only binarize the target variable for 500 simulations. The correlation between the raw and binarized variables is .25, .5, or .75, but the attenuated correlation  in the binarized case is still notable. This is because the binarization process has removed the correlation between the variables.
+The following plot shows the case where we only binarize the target variable for 500 simulations. The true correlation between the raw and binarized variables is .25, .5, or .75, but the correlation in the binarized case is notably less. This is because the binarization process has removed the correlation between the variables.
 
 ```{r}
 #| label: fig-simulate_binarize_plot
@@ -435,14 +437,14 @@ Common issues with ML classification don't end here however.  Another problem is
 
 ### Ignoring uncertainty {#sec-danger-ml-uncertainty}
 
-It is very common in ML practice to ignore uncertainty in your predictions or metrics. This is a problem because there is always uncertainty, and acknowledging that it is there will be helpful for mitigating performance expectations. This is especially true when you are using a model in a production setting, where the model's performance can have real-world consequences.
+It is very common in ML practice to ignore uncertainty in your predictions or metrics. This is a problem because there is always uncertainty, and acknowledging that it exists can be helpful for mitigating performance expectations. This is especially true when you are using a model in a production setting, where the model's performance can have real-world consequences.
 
-It is difficult, and often computationally hard to get uncertainty estimates for many of the black-box techniques that are popular in ML. Some might suggest that there is enough data such that uncertainty is not needed, but this would have to be demonstrated in some fashion, and there is always increased uncertainty for prediction on new data. In general, there are ways to get uncertainty estimates for these models, e.g., bootstrapping, conformal prediction, and it is worth the effort to do so.
+It is often computationally difficult to get uncertainty estimates for many of the black-box techniques that are popular in ML. Some might suggest that there is enough data such that uncertainty is not needed, but this would have to be demonstrated in some fashion, and there is always increased uncertainty for prediction on new data. In general, there are ways to get uncertainty estimates for these models, e.g., bootstrapping, conformal prediction, and simulation, and it is often worth the effort to do so.
 
 
 ### Hyperfocus on feature importance {#sec-danger-ml-featimport}
 
-Researchers and businesses often have questions about which features in an ML model are important. Yet this can be a difficult question to answer, and the answer is often not practically useful. For example, most models used in ML are going to have interactions, so the importance of a feature is going to be dependent on the other features in the model. If you can't disentangle the effects of one feature from another, where either may or may not be important on their own, or maybe neither is predictive except in the presence of the other, then trying to talk about a single feature's relative worth is often a misguided endeavor, even if you use an importance metric that purports to account for the interaction.
+Researchers and businesses often have questions about which features in an ML model are important. Yet this can be a difficult question to answer, and the answer is often not practically useful. For example, most models used in ML are going to have interactions, so the importance of a feature is going to be dependent on the other features in the model. If you can't disentangle the effects of one feature from another, where either feature may or may not be important on their own, or maybe neither is predictive except in the presence of the other, then trying to talk about a single feature's relative worth is often a misguided endeavor, even if you use an importance metric that purports to account for the interaction.
 
 Even if we can deem a variable 'important', this doesn't imply a causal relationship, and it doesn't mean that the variable is the best of the features you have. In addition, other metrics, which might be just as valid, may provide a different rank ordering of importance.
 
@@ -450,7 +452,7 @@ What's more, just because an importance metric may deem a feature as not importa
 
 The reality is that multiple valid measures of importance can come to different conclusions about the relative importance of a feature, even within the same model setting. One should be very cautious in how they interpret these.
 
-:::{.callout type='note' title='SHAP for Feature Importance'}
+:::{.callout type='note' title='SHAP for Feature Importance' collapse='true'}
 SHAP values are meant to assess local, i.e. observation level, feature contributions to a prediction. Although used as such, they are not meant to be a metric for assessing global feature importance. Because of this they can be misleading, and often average SHAP values will just reflect the distribution of the feature more than its importance, and could be notably inconsistent with other metrics even in simple settings.
 :::
 
@@ -500,7 +502,7 @@ In terms of features, extreme values can cause strange effects, but often they r
 
 ### Big data isn't always as big as you think {#sec-danger-bigdata}
 
-Consider a model setting with 100,000 samples. Is this large? Let's say you have a rare outcome that occurs 1% of the time. This means you have 1000 samples where outcome label of interest occurs. Now consider a categorical feature (A) that has four categories, and one of those categories is relatively small, say 5% of the data, or 5000 cases, and you want to interact it with another categorical feature (B), one whose categories are all equally distributed. Assuming no particular correlation between the two, you'd be down to ~1% of the data for the least category of A across the levels of B. Now if there is an actual interaction, some of those interaction cells may have only a dozen or so positive target values. Odds are pretty good that you don't have enough data to make a reliable estimate of the interaction effect. 
+Consider a model setting with 100,000 samples. Is this large? Let's say you have a rare outcome that occurs 1% of the time. This means you have 1000 samples where outcome label you're interested in occurs. Now consider a categorical feature (A) that has four categories, and one of those categories is relatively small, say 5% of the data, or 5000 cases, and you want to interact it with another categorical feature (B), one whose categories are all equally distributed. Assuming no particular correlation between the two, you'd be down to ~1% of the data for the least category of A across the levels of B. Now if there is an actual interaction, some of those interaction cells may have only a dozen or so positive target values. Odds are pretty good that you don't have enough data to make a reliable estimate of the interaction effect. 
 
 Oh wait, did you want to use cross-validation also?  A simple random sample approach might result in some validation sets with no positive values at all! Don't forget that you may have already split your 100,000 samples into training and test sets, so you have even less data to start with! The following table shows the final cell count for a dataset with these properties.
 
@@ -556,7 +558,7 @@ Many believe experimental design is the gold standard for making causal claims, 
 ```{r}
 #| echo: false
 #| eval: false
-#| label: random_assignment
+#| label: fig-random_assignment
 #| fig-cap: Main effect vs. interaction effect of treatment group
 
 set.seed(123) # For reproducibility
@@ -644,7 +646,7 @@ p_trt + p_inter &
 ggsave('img/danger-random_assignment.svg', width = 8, height = 6)
 ```
 
-![Main effect vs. interaction effect of treatment group](img/danger-random_assignment.svg){width=75% #random_assignment}
+![Main Effect vs. Interaction](img/danger-random_assignment.svg){width=75% #fig-random_assignment}
 
 So random assignment cannot save us from misunderstanding the causal mechanisms at play. Other issues to think about are that the treatment may be implemented poorly, participants may not be compliant, or the treatment may not even be well defined, and these are not uncommon situations. This comes back to having the causal structure understood as best you can before any analysis.
 
