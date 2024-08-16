@@ -47,13 +47,11 @@ For example, just centering features, i.e. subtracting the mean, provides a more
 
 The following table shows the interpretation of some very common transformations applied to numeric variables- logging and standardizing to mean zero, standard deviation of one.
 
-<!-- TODO: check this table for rendering in pdf -->
-\scriptsize
 ```{r}
 #| echo: false
 #| eval: true
-#| label: tbl-transformation
-#| tbl-cap: Common numeric transformations
+#| label: create-tbl-transformation
+#| tbl-cap: Common Numeric Transformations
 #|
 # gt doesn't seem to have an actual working answer to latex within cells, though kabel_extra and modelsummary appear to handle it as expected, at least if you just run it. Rendering to pdfseems to fail. tried using \U03B2 for beta, but that didn't work either.
 # tibble(
@@ -71,37 +69,56 @@ The following table shows the interpretation of some very common transformations
 # ) |>
 #     modelsummary::datasummary_df()
 # christ what year is this?
-tibble(
+tab = tibble(
     Target = c("y", "log(y)", "log(y)", "y", "scale(y)"),
     Feature = c("x", "x", "log(x)", "scale(x)", "scale(x)"),
     `Change in X` = c("1 unit", "1 unit", "1% change", "1 standard deviation", "1 standard deviation"),
     `Change in Y` = c("B unit", "100 * (exp(B) -1) ", "B% change", "B unit", "B standard deviation"),
     Benefits = c("Interpretation", "Heteroscedasticity in y", "Interpretation, deal with feature extremes", "Interpretation, estimation", "Interpretation, estimation"),
-) |>
-    gt()
+)
 
 ```
 
-\normalsize
+:::{.content-visible when-format='html'}
+```{r}
+#| echo: false
+#| eval: true
+#| label: tbl-transformation
+#| tbl-cap: Common Numeric Transformations
+
+tab |> gt()
+```
+:::
+
+:::{.content-visible when-format='pdf'}
+```{r}
+#| echo: false
+#| eval: true
+#| label: tbl-transformation-pdf
+#| tbl-cap: Common Numeric Transformations
+
+# table will overrun even with scriptsize
+tab |> select(-Benefits) |> gt()
+```
+
+:::
 
 For example, it is very common to use **standardized** variables, or simply 'scaling' them. Some also call this **normalizing** but [this term can mean a lot of things](https://en.wikipedia.org/wiki/Normalization_(statistics)), so one should be clear in their communication. If $y$ and $x$ are both standardized, a one unit (i.e. one standard deviation) change in $x$ leads to a $\beta$ standard deviation change in $y$. So, if $\beta$ was .5, a standard deviation change in $x$ leads to a half standard deviation change in $y$. In general, there is nothing to lose by standardizing, so you should employ it often.
 
 Another common transformation, particularly in machine learning, is **min-max scaling**. This involves changing variables to range from some minimum value to some maximum value, and usually this means zero and one respectively. This transformation can make numeric and categorical indicators more comparable, or at least put them on the same scale for estimation purposes, and so can help with convergence and speed up estimation. 
 
+
 :::{.panel-tabset}
 
 ###### Python
 
-When using `sklearn`, it's a bit of a verbose process to do such a simple transformation. However it is beneficial when you want to do more complicated things, especially when using data pipelines.
+When using [sklearn]{.pack}, it's a bit of a verbose process to do such a simple transformation. However it is beneficial when you want to do more complicated things, especially when using data pipelines.
 
 
 ```{python}
 #| eval: false
 #| label: py-numeric-transformation
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-import numpy as np
-
-# Create a sample dataset
 import numpy as np
 
 # Create a random sample of integers
@@ -118,7 +135,7 @@ minmax_scaled_data = minmax_scaler.fit_transform(data)
 
 ###### R
 
-R, being made for statistics, makes it easy to do simple transformations, but you can also use tools like `recipes` and `mlr3` pipeline operations when needed to make sure your preprocessing is applied appropriately.
+R makes it easy to do simple transformations like standardization and logs without external packages, but you can also use tools like [recipes]{.pack} and [mlr3]{.pack} pipeline operations when needed to make sure your preprocessing is applied appropriately.
 
 ```{r}
 #| eval: false
@@ -147,7 +164,7 @@ Using a **log** transformation for numeric targets and features is straightforwa
 ```{r}
 #| echo: false
 #| label: fig-log-transformation-heteroscedasticity
-#| fig-cap: Log transformation and heteroscedasticity
+#| fig-cap: Log Transformation and Heteroscedasticity
 #| out-width: 100%
 
 # Generate x values
@@ -223,7 +240,7 @@ Despite their ubiquity in data, we can't analyze raw text information as it is. 
 ```{r}
 #| echo: false
 #| label: tbl-one-hot
-#| tbl-cap: One-hot encoding
+#| tbl-cap: One-hot Encoding
 model.matrix(rating ~ -1 + season, df_reviews) |>
     as_tibble() |>
     bind_cols(df_reviews |> select(season)) |>
@@ -245,7 +262,7 @@ When we encode categories for statistical analysis, we can summarize their impac
 
 #### Text embeddings {#sec-data-embeddings}
 
-When it comes to other string representations like text, we use other methods to represent them numerically. One important way to encode text is through an **embedding**.  This is a way of representing the text as a vector of numbers, at which point the embedding feature is used in the model like anything else. The way to do this usually involves a model itself, one that learns the best way to represent the text or categories numerically. This is commonly used in deep learning and natural language processing in particular. However, embeddings can also be used as a preprocessing step in any modeling situation.
+When it comes to other string representations like text, we use other methods to represent them numerically. One important way to encode text is through an **embedding**.  This is a way of representing the text as a vector of numbers, at which point the numeric embedding feature is used in the model like anything else. The way to do this usually involves a model itself, one that learns the best way to represent the text or categories numerically. This is commonly used in deep learning and natural language processing in particular. However, embeddings can also be used as a preprocessing step in any modeling situation.
 
 To understand how embeddings work, consider a one-hot encoded matrix for a categorical variable. This matrix then connects to a hidden layer of a neural network, and the weights of that layer are the embeddings for the categorical variable. While this isn't the exact method used (there are more efficient methods that don't require the actual matrix), the concept is the same. In addition, we normally don't even use whole words. Instead, we break the text into smaller units called **tokens**, like characters or subwords, and then use embeddings for those units. [Tokenization](https://huggingface.co/learn/nlp-course/en/chapter6/5) is used in many of the most successful models for natural language processing, including those such as [ChatGPT](https://www.youtube.com/watch?v=zduSFxRajkE).
 
@@ -272,12 +289,12 @@ g |>
 #### Multiclass targets {#sec-data-multiclass}
 
 
-We've talked and demonstrated binary targets a lot, but what about when there are more than two classes?  In statistical settings, we can use a **multinomial regression**, which is a generalization of (binomial) logistic regression to more than two classes via the multinomial distribution. Depending on the tool, you may have to use a *multivariate* target of the counts, though most commonly they would be zeros and ones for a classification model, which then is just a one-hot encoded target.  The following table demonstrates how this might look.
+We've talked about and demonstrated models with binary targets, but what about when there are more than two classes?  In statistical settings, we can use a **multinomial regression**, which is a generalization of (binomial) logistic regression to more than two classes via the multinomial distribution. Depending on the tool, you may have to use a *multivariate* target of the counts, though most commonly they would be zeros and ones for a classification model, which then is just a one-hot encoded target.  The following table demonstrates how this might look.
 
 ```{r}
 #| echo: false
 #| label: tbl-multinomial-data
-#| tbl-cap: Multinomial data example
+#| tbl-cap: Multinomial Data Example
 
 tibble(
     x1 = rnorm(5),
@@ -294,14 +311,14 @@ tibble(
 
 With Bayesian tools, it's common to use the **[categorical distribution](https://en.wikipedia.org/wiki/Categorical_distribution)**, which is a different generalization of the Bernoulli distribution to more than two classes. Unlike the multinomial, it is not a count distribution, but an actual distribution over categories. 
 
-In the machine learning context, we can use a variety of models we'd use for binary classification. How the model is actually implemented will depend on the tool, but one of the more popular methods is to use **one-vs-all** or **one-vs-one** strategies, where you treat each class as the target in a binary classification problem. In the first case you would have a model for each class that predicts whether an observation is in that class or not. In the second case, you would have a model for each pair of classes. You should generally be careful with either approach if interpretation is important, as it can make the feature effects very difficult to understand.  As an example, we can't expect feature X to have the same effect on the target in a model for class A vs B, as it does in a model for class A vs. (B & C) or A & C. It also can be misleading when the models are conducted as if the categories are independent.
+In the machine learning context, we can use a variety of models we'd use for binary classification. How the model is actually implemented will depend on the tool, but one of the more popular methods is to use **one-vs-all** or **one-vs-one** strategies, where you treat each class as the target in a binary classification problem. In the first case of one vs. all, you would have a model for each class that predicts whether an observation is in that class or not. In the second case, you would have a model for each pair of classes. You should generally be careful with either approach if interpretation is important, as it can make the feature effects very difficult to understand.  As an example, we can't expect feature X to have the same effect on the target in a model for class A vs B, as it does in a model for class A vs. (B & C) or A & C. As such, it can be misleading when the models are conducted as if the categories are independent.
 
 Regardless of the context, interpretation is now spread across multiple target outputs, and so it can be difficult to understand the overall effect of a feature on the target. Even in the statistical setting, you now have coefficients that regard *relative* effects for one class versus a reference group, and so they cannot tell you a general effect of a feature on the target. This is where tools like marginal effects and SHAP can be useful (@sec-knowing).
 
 
 #### Multilabel targets {#sec-data-multilabel}
 
-Multilabel targets are a bit more complicated, and are not as common as multiclass targets. In this case, each observation can have multiple labels. For example, if we wanted to predict genre based on the movie review data, we could choose to allow a movie to be both a comedy and action film, a sci-fi horror, or a romantic comedy. In this setting, labels are not mutually exclusive.
+Multilabel targets are a bit more complicated, and are not as common as multiclass targets. In this case, each observation can have multiple labels. For example, if we wanted to predict genre based on the movie review data, we could choose to allow a movie to be both a comedy and action film, a sci-fi horror, or a romantic comedy. In this setting, labels are not mutually exclusive. If there are not too many unique label settings, we can treat the target as we would other multiclass targets, but if there are many, we might need to use a different model to go about things more efficiently.
 
 
 :::{.callout-note title='Categorical Objective Functions' collapse='true'}
@@ -315,11 +332,11 @@ So far in our discussion of categorical data, it's assumed to have no order. But
 
 #### Ordinal features {#sec-data-ordinal-features}
 
-The simplest way to treat ordinal features is as if they were numeric.  If you do this, then you're just pretending that it's not categorical, and this is usually fine.  Most of the transformations we mentioned probably aren't going to be as useful, but you can still use them if you want. For example, logging ratings 1-5 isn't going to do anything for you model-wise, but it technically doesn't hurt anything.  But you should know that typical statistics like means and standard deviations don't really make sense for ordinal data, so the main reason for treating them as numeric is for modeling convenience.  
+The simplest way to treat ordinal features is as if they were numeric. If you do this, then you're just pretending that it's not categorical, but in practice this is usually fine for features. Most of the transformations we mentioned previously aren't going to be as useful, but you can still use them if you want. For example, logging ratings 1-5 isn't going to do anything for you model-wise, but it technically doesn't hurt anything. But you should know that typical statistics like means and standard deviations don't really make sense for ordinal data, so the main reason for treating them as numeric is for modeling convenience.  
 
-If you choose to treat an ordinal feature as categorical, you can ignore the ordering and do the same as you would with categorical data.  This would allow for some nonlinearity since the category means whatever they need to be. There are also some specific techniques to coding ordinal data for use in linear models, but they are not commonly used, and they generally aren't going to help the model performance or interpreting the feature, so we do not recommend them. You could however use old-school **effects coding** that you would incorporate traditional ANOVA models, but again, you'd need a good reason to do so.
+If you choose to treat an ordinal feature as categorical, you can ignore the ordering and do the same as you would with categorical data.  This would allow for some nonlinearity since the category means will be whatever they need to be. There are some specific techniques to coding ordinal data for use in linear models, but they are not commonly used, and they generally aren't going to help the model performance or interpreting the feature, so we do not recommend them. You could however use old-school **effects coding** that you would incorporate traditional ANOVA models, but again, you'd need a good reason to do so.
 
-The take home message for ordinal features is generally simple. Treat them as you would numeric  features or non-ordered categorical features. Either is fine.
+The take home message for ordinal features is generally simple. Treat them as you would numeric features or non-ordered categorical features. Either is fine.
 
 
 #### Ordinal targets {#sec-data-ordinal-targets}
@@ -328,12 +345,12 @@ Ordinal targets can be trickier to deal with. If you treat them as numeric, you'
 
 There are a number of ways to model ordinal targets, but probably the most common is the **proportional odds model**.  This model can be seen as a generalization of the logistic regression model, and is very similar to it, and actually identical if you only had two categories. It basically is a model of 2 vs. 1, 3 vs. (2, 1), 4 vs. (3, 2, 1), etc. But other models beyond proportional odds are also possible, and your results could return something that gives coefficients for the model for the 1-2 category change, the 2-3 category change, and so on.  
 
-Ordinality of a categorical outcome is largely ignored in machine learning applications. The outcome is either treated as numeric or multiclass classification. This is not necessarily a bad thing, especially if prediction is the primary goal. But if you need a categorical prediction, treating the target as numeric means you have to make an arbitrary choice to classify the predictions. And if you treat it as multiclass, you're ignoring the ordinality of the target, which may not work as well.
+Ordinality of a categorical outcome is largely ignored in machine learning applications. The outcome is either treated as numeric or multiclass classification. This is not necessarily a bad thing, especially if prediction is the primary goal. But if you need a categorical prediction, treating the target as numeric means you have to make an arbitrary choice to classify the predictions. And if you treat it as multiclass, you're ignoring the ordinality of the target, which may not work as well in terms of performance.
 
 
 #### Rank data {#sec-data-rank}
 
-Though ranks are ordered, with rank data we are referring to cases where the observations are uniquely ordered. An ordinal vector with numeric labels could be something like [2, 1, 1, 3, 4, 2], whereas rank data would be [2, 1, 3, 4, 5, 6].  For example, in sports, the actual finish of the runners in a race is what we'd want to predict. Assuming you have a modeling tool that actually handles this situation, the objective will be different from other scenarios. Statistical modeling methods include using the Plackett-Luce distribution (or the simpler variant Bradley-Terry model). In machine learning, you might use so-called [learning to rank methods](https://en.wikipedia.org/wiki/Learning_to_rank), like the [RankNet and LambdaRank algorithms](https://icml.cc/Conferences/2015/wp-content/uploads/2015/06/icml_ranking.pdf), and other variants for [deep learning models](https://github.com/tensorflow/ranking).
+Though ranks are ordered, with rank data we are referring to cases where the observations are uniquely ordered. An ordinal vector of 1-6 with numeric labels could be something like [2, 1, 1, 3, 4, 2], whereas rank data would be [2, 1, 3, 4, 5, 6], each being unique (unless you allowed for ties).  For example, in sports, a ranking problem would regard predicting the actual finish of the runners. Assuming you have a modeling tool that actually handles this situation, the objective will be different from other scenarios. Statistical modeling methods include using the Plackett-Luce distribution (or the simpler variant Bradley-Terry model). In machine learning, you might use so-called [learning to rank methods](https://en.wikipedia.org/wiki/Learning_to_rank), like the [RankNet and LambdaRank algorithms](https://icml.cc/Conferences/2015/wp-content/uploads/2015/06/icml_ranking.pdf), and other variants for [deep learning models](https://github.com/tensorflow/ranking).
 
 
 
@@ -343,8 +360,8 @@ Though ranks are ordered, with rank data we are referring to cases where the obs
 
 ```{r}
 #| echo: false
-#| 
-#| label: fig-missing-data
+#| label: tbl-missing-data
+#| tbl-cap: A Table with Missing Values
 set.seed(123)
 df <- data.frame(
     x1 = rpois(5, 5),
@@ -362,7 +379,6 @@ df |>
     as_tibble() |>
     mutate(across(everything(), \(x) replace_na(x, '?'))) |>
     gt()
-
 ```
 
 
@@ -390,11 +406,11 @@ Although the implication is that you would have one model per feature and then b
 
 ### Multiple imputation {#sec-data-missing-mi}
 
-**Multiple imputation** (MI) is a more complicated technique, but can be very useful under some situations, depending on what you're willing to sacrifice for having better uncertainty estimates versus a deeper dive into the model. The idea is that you create multiple imputed datasets, each of which is based on the **predictive distribution** of the model used in model-based imputation. Say we use a linear regression assuming a normal distribution to impute feature A. We would then draw repeatedly from the predictive distribution of that model to create multiple datasets with (randomly) imputed values for feature A
+**Multiple imputation** (MI) is a more complicated technique, but can be very useful under some situations, depending on what you're willing to sacrifice for having better uncertainty estimates versus a deeper dive into the model. The idea is that you create multiple imputed datasets, each of which is based on the **predictive distribution** of the model used in model-based imputation (See @sec-knowing-model-vis). Say we use a linear regression assuming a normal distribution to impute feature A. We would then draw repeatedly from the predictive distribution of that model to create multiple datasets with (randomly) imputed values for feature A.
 
-Let's say we do this 10 times, and we now have 10 imputed data sets. We now run our actual model of interest on each of these datasets, and final model results are averaged in some way to get final parameter estimates. Doing so acknowledges that your single imputation methods have uncertainty in those imputed values, and that uncertainty is incorporated into the final model results. 
+Let's say we do this 10 times, and we now have 10 imputed data sets, each with a now complete feature A. We now run our actual model on each of these datasets, and final model results are averaged in some way to get final parameter estimates. Doing so acknowledges that your single imputation methods have uncertainty in those imputed values, and that uncertainty is incorporated into the final model results. 
 
-MI can in theory handle any source of missingness and can be a very powerful technique. But it has some drawbacks that are often not mentioned. One is that you need a specified target distribution for all imputation models used, in order to generate random draws. Your final model presumably is also a probabilistic model with coefficients and variances you are trying to estimate and understand. MI probably isn't going to help boosting or deep learning models that have native methods for dealing with missing values, or at least offer little if anything over single value imputation. If you have very large data and a complicated model, you could be waiting a long time, and as modeling is an iterative process itself, this can be rather tedious to work through. Finally, few data or post-model processing tools that you commonly use will work with MI results, especially visualization tools. So you will have to hope that whatever package you use for MI has what you need. As an example, you'd have to figure out how you're going to impute interaction terms if you have them.
+MI can in theory handle any source of missingness and can be a very powerful technique. But it has some drawbacks that are often not mentioned. One is that you need a specified target distribution for all imputation models used, in order to generate random draws with appropriate uncertainty. Your final model presumably is also a probabilistic model with coefficients and variances you are trying to estimate and understand. MI probably isn't going to help boosting or deep learning models that have native methods for dealing with missing values, or at least offer little if anything over single value imputation. In addition, if you have very large data and a complicated model, you could be waiting a long time, and as modeling is an iterative process itself, this can be rather tedious to work through. Finally, few data or post-model processing tools that you commonly use will work with MI results, especially visualization tools. So you will have to hope that whatever package you use for MI has what you need. As an example, you'd have to figure out how you're going to impute interaction terms if you have them.
 
 *Practically speaking*, MI takes a lot of effort to often come to the same conclusions you would have with a single imputation method, or possibly fewer conclusions for anything beyond GLM coefficients and their standard errors. But if you want your uncertainty estimate for those models to be better, MI can be an option.
 
@@ -570,6 +586,7 @@ p_dat.to_csv("data/bootstrap_calibration.csv", index=False)
 #| echo: false
 #| label: fig-calibration-plot
 #| fig-cap: Calibration Plot
+#| out-width: 100%
 p_dat = read_csv("data/basic_calibration.csv")
 
 set.seed(123)
@@ -591,7 +608,7 @@ p = p_dat |>
     geom_point(size = 3, alpha = 1) +
     scale_x_continuous(breaks = seq(0, 1, .1)) +
     scale_y_continuous(breaks = seq(0, 1, .1)) +
-    scale_color_manual(values = c(okabe_ito[[2]], okabe_ito[[1]])) +
+    scale_color_manual(values = c(okabe_ito[['darkblue']], okabe_ito[['orange']])) +
     labs(x = "Average (Binned) Probability", y = "Observed (Binned)\nProportions", title = "")
 
 p
@@ -599,8 +616,8 @@ p
 ggsave(
     "img/data-calibration_plot.svg", 
     p, 
-    width = 6, 
-    height = 4
+    width = 8, 
+    height = 6
 )
 ```
 :::
@@ -691,7 +708,7 @@ p = ggplot(df, aes(x = person, age, fill = censoring, color = censoring)) +
     geom_point(size = 5, alpha = 1) +
     lims(y = c(0, 90)) + 
     labs(x = "Person", y = "Age", title = "") +
-    scale_fill_manual(values = unname(okabe_ito), aesthetics = c('color', 'fill')) +
+    scale_fill_manual(values = unname(okabe_ito)[c(1,5)], aesthetics = c('color', 'fill')) +
     coord_flip()
 
 p
@@ -907,9 +924,9 @@ model_corAR <- lme(rnorm(24) ~ 1, random= ~1|id, data = df, correlation = corAR1
 # phi = abs(coef(model_corAR$modelStruct$corStruct, unconstrained = F)*3)
 phi = .66
 init = corMatrix(Initialize(corAR1(phi, form = ~1|id), data=df))
-rc_ar = bdsmatrix::bdsmatrix(rep(12, 2), blocks = rep(init[[1]][lower.tri(init[[1]], diag = T)], 2)) %>%
-  as.matrix()
- 
+rc_ar = bdsmatrix::bdsmatrix(rep(12, 2), blocks = rep(init[[1]][lower.tri(init[[1]], diag = T)], 2)) |>
+    as.matrix()
+
 dates = seq.Date(as.Date("2022-01-15"), as.Date("2022-12-15"), by = "month")
 dates = factor(month.abb, levels = month.abb)
 l = length(dates)
@@ -967,8 +984,8 @@ library(sf)
 library(spdep)
 library(tigris)
 
-dfw <- core_based_statistical_areas(cb = TRUE, year = 2020) %>%
-    filter(str_detect(NAME, "Dallas")) %>%
+dfw <- core_based_statistical_areas(cb = TRUE, year = 2020) |> 
+    filter(str_detect(NAME, "Dallas")) |> 
     st_transform(32138)
 
 dfw_tracts <- get_acs(
@@ -977,9 +994,9 @@ dfw_tracts <- get_acs(
     state = "TX",
     year = 2020,
     geometry = TRUE
-) %>%
-    st_transform(32138) %>%
-    st_filter(dfw, .predicate = st_within) %>%
+) |> 
+    st_transform(32138) |> 
+    st_filter(dfw, .predicate = st_within) |> 
     na.omit()
 
 neighbors <- poly2nb(dfw_tracts, queen = TRUE)
@@ -1058,7 +1075,9 @@ Some are a little too eager to jump to simultaneously modeling multiple target v
 
 g = DiagrammeR::grViz('img/graphical-bifactor.dot')
 
-g |> DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_svg("img/graphical-bifactor.svg")
+g |> DiagrammeRsvg::export_svg() |>
+    charToRaw() |>
+    rsvg::rsvg_svg("img/graphical-bifactor.svg")
 ```
 
 ![Latent Variable Model (Bifactor)](img/graphical-bifactor.svg){#fig-graphical-bifactor}
@@ -1086,7 +1105,7 @@ It's easy to see from such a list that latent variables are very common in model
 
 In the tabular domain, data augmentation is less common, but still possible. You'll see it most commonly applied with class-imbalance settings (@sec-data-class-imbalance), where you might create new data points for the minority class to balance the dataset. This can be done by randomly sampling from the existing data points, or by creating new data points based on the existing data points. For the latter, SMOTE and many variants of it are quite common.
 
-Unfortunately for tabular data, these techniques are not nearly as successful, nor consistently so. Part of the issue is that tabular data is very noisy and fraught with measurement error, so in a sense, such techniques are just adding noise to the modeling process[^vscv]. Simple random upsampling can potentially lead to an overconfident model that still doesn't generalize well. In the end, the best approach is to get more and/or better data, but hopefully more successful methods will be developed in the future.
+Unfortunately for tabular data, these techniques are not nearly as successful as augmentation for computer vision or natural language processing, nor consistently so. Part of the issue is that tabular data is very noisy and fraught with measurement error, so in a sense, such techniques are just adding noise to the modeling process[^vscv]. Downsampling the majority class can potentially throw away usefu information. Simple random upsampling of the minority class can potentially lead to an overconfident model that still doesn't generalize well. In the end, the best approach is to get more and/or better data, but hopefully more successful methods will be developed in the future.
 
 [^vscv]: Compare to the image settings where there is relatively little measurement error, by just rotating an image, you are still preserving the underlying structure of the data.
 

@@ -118,7 +118,7 @@ this option appears to make the whole book do left-right margining.
 ```{r}
 #| echo: false
 #| label: tbl-performance-metrics
-#| tbl-cap: Commonly used performance metrics in machine learning.
+#| tbl-cap: Commonly Used Performance Metrics in Machine Learning.
 
 
 performance_metrics = tribble(
@@ -295,7 +295,7 @@ features = [
     "total_reviews_sc", 
     "word_count_sc", 
     "genre", 
-    ]
+]
 
 model =  'rating ~ ' + " + ".join(features)
 
@@ -353,6 +353,7 @@ The goal now is to find out how close our predictions match reality. Let's look 
 :::{.content-visible when-format='html'}
 ```{r}
 #| label: fig-pred-vs-obs
+#| fig-cap: Observed vs. Predicted Ratings
 #| echo: false
 
 p_dat = tibble(
@@ -381,7 +382,7 @@ p2 = p_dat |>
     pivot_longer(everything()) |>
     ggplot(aes(x = value)) +
     # geom_density(aes(color = name, fill = name), alpha = 0.15) +
-    stat_ecdf(geom = 'borderline', aes(color = name), linewidth = 1) +
+    stat_ecdf(geom = 'borderline', aes(color = name, linetype = name), linewidth = 1) +
     scale_color_manual(values = c(okabe_ito[['orange']], okabe_ito[['darkblue']]), aesthetics = c('fill', 'color')) +
     labs(y = 'Cumulative Density', x = 'Rating') 
 
@@ -393,10 +394,10 @@ ggsave('img/knowing-pred_vs_obs.svg', width = 8, height = 6)
 :::
 
 :::{.content-visible when-format='pdf'}
-![Observed vs. Predicted Ratings](img/knowing-pred_vs_obs.svg)
+![Observed vs. Predicted Ratings](img/knowing-pred_vs_obs.svg){#fig-pred-vs-obs}
 :::
 
-Obviously, our points do not make a perfect line on the left, which would indicate perfect prediction. Also, the distribution of our values suggests we're over predicting on the lower end and under predicting on the higher end of the target's range. But we'd like to determine how far off we are in a general sense. There are a number of metrics that can be used to measure this. We'll go through a few of them here.
+Obviously, our points do not make a perfect line on the left, which would indicate perfect prediction. Also, the distribution of our values suggests we're over predicting on the lower end and under predicting on the higher end of the target's range. More generally, we're not capturing the range of the observed values very well. But we'd like to determine how far off we are in a general sense. There are a number of metrics that can be used to measure this. We'll go through a few of them here. In each case, we'll demystify the calculations to make sure we understand what's going on.
 
 
 
@@ -404,11 +405,13 @@ Obviously, our points do not make a perfect line on the left, which would indica
 
 Anyone that has done linear regression has come across the $R^2$ value. It is a measure of how well the model explains the variance in the target. One way to calculate it is as follows:
 
-$$R^2 = 1 - \frac{\sum_{i=1}^{n}(y_i - \hat{y}_i)^2}{\sum_{i=1}^{n}(y_i - \bar{y})^2}$$
+$$R^2 = 1 - \frac{\sum_{i=1}^{n}(y_i - \hat{y}_i)^2}{\sum_{i=1}^{n}(y_i - \bar{y})^2}$$ {#eq-r2}
 
-where $y_i$ is the observed value, $\hat{y}_i$ is the predicted value, and $\bar{y}$ is the mean of the observed values. The $R^2$ value is a measure of how much variance in the target (the denominator) is attributable to the model's predictions (numerator). It is a value between 0 and 1, with 1 indicating that the model explains all of the variance in the target.
+where $y_i$ is the observed value, $\hat{y}_i$ is the predicted value, and $\bar{y}$ is the mean of the observed values. The $R^2$ value is basically a proportion of how much variance in the target (the denominator) is attributable to the model's predictions (numerator). When applied to the training or observed data, it is a value between 0 and 1, with 1 indicating that the model explains all of the variance in the target.
 
-More simply, $R^2$ is the squared correlation of our predicted values and the target. In that sense it can almost always be useful as a *descriptive* measure, just like we use means and standard deviations in exploratory data analysis. However, it is not so great at telling us about predictive quality. Why? Take your predictions from our rating model, and add 10 to them, or make them all negative. In both cases your predictions would be ridiculous, but your $R^2$ will be the same. Another problem is that for training data, $R^2$ will always increase as you add more features to your model, whether they are useful or pure noise! This is why we use other metrics to assess predictive quality.
+More simply, $R^2$ is the squared correlation of our predicted values and the target. In that sense it can almost always be useful as a *descriptive* measure, just like we use means and standard deviations in exploratory data analysis. However, it is not so great at telling us about predictive quality. Why? Take the predictions from our rating model, and add 10 to them, or make them all negative. In both cases your predictions would be ridiculous, but your $R^2$ will be the same. Another problem is that for training data, $R^2$ will always increase as you add more features to your model, whether they are useful or pure noise! This is why we use other metrics to assess predictive quality[^r2test].
+
+[^r2test]: When the formula is applied to the test set, it can even be negative for a very poor model.
 
 :::{.panel-tabset}
 
@@ -416,6 +419,7 @@ More simply, $R^2$ is the squared correlation of our predicted values and the ta
 
 ```{r}
 #| label: r-regression-r2
+#| results: hold
 
 residual_ss = sum((df_test$rating - predictions)^2)
 total_ss = sum((df_test$rating - mean(df_test$rating))^2)
@@ -434,6 +438,7 @@ yardstick::rsq_trad_vec(df_test$rating, predictions)
 
 ```{python}
 #| label: python-regression-r2
+#| results: hold
 from sklearn.metrics import r2_score
 
 residual_ss = np.sum((df_test.rating - predictions)**2)
@@ -459,11 +464,11 @@ There are different versions of R-squared. 'Adjusted' R-squared is a common one,
 
 One of the most common *performance* metrics for numeric targets is the mean squared error (MSE) and its square root, root mean squared error (RMSE). The MSE is the average of the squared differences between the predicted and actual values. It is calculated as follows:
 
-$$\text{MSE} = \frac{1}{n}\sum_{i=1}^{n}(y_i - \hat{y}_i)^2$$
+$$\text{MSE} = \frac{1}{n}\sum_{i=1}^{n}(y_i - \hat{y}_i)^2$$ {#eq-mse}
 
 MSE penalizes large errors more- since errors are squared, the larger the error, the larger the penalty. As mentioned, the root mean squared error (RMSE) is just the square root of the MSE. Like MSE, RMSE likewise penalizes large errors, but if you want a metric that is in the same units as the original target data, RMSE is the metric for you. It is calculated as follows:
 
-$$\text{RMSE} = \sqrt{\text{MSE}}$$
+$$\text{RMSE} = \sqrt{\text{MSE}}$$ {#eq-rmse}
 
 
 :::{.panel-tabset}
@@ -517,7 +522,7 @@ root_mean_squared_error(df_test.rating, predictions)
 
 The mean absolute error (MAE) is the average of the absolute differences between the predicted and observed values. It is calculated as follows:
 
-$$\text{MAE} = \frac{1}{n}\sum_{i=1}^{n}|y_i - \hat{y}_i|$$
+$$\text{MAE} = \frac{1}{n}\sum_{i=1}^{n}|y_i - \hat{y}_i|$$ {#eq-mae}
 
 MAE is a great metric when all you really want to know is how far off your predictions are from the observed values. It is not as sensitive to large errors as the MSE.
 
@@ -552,7 +557,8 @@ mean_absolute_error(df_test.rating, predictions)
 
 The mean absolute percentage error (MAPE) is the average of the absolute differences between the predicted and observed values, expressed as a percentage of the observed values. It is calculated as follows:
 
-$$MAPE = \frac{1}{n}\sum_{i=1}^{n}\frac{|y_i - \hat{y}_i|}{y_i}$$
+$$MAPE = \frac{1}{n}\sum_{i=1}^{n}\frac{|y_i - \hat{y}_i|}{y_i}$$ {#eq-mape}
+
 
 :::{.panel-tabset}
 
@@ -564,7 +570,7 @@ MAPE is a great metric when you want to know how far off your predictions are fr
 #| label: r-regression-mape
 #| results: hold
 mean(
-  abs(df_test$rating - predictions) / 
+    abs(df_test$rating - predictions) / 
     df_test$rating
 ) * 100
 
@@ -587,6 +593,7 @@ mean_absolute_percentage_error(df_test.rating, predictions) * 100
 ```
 
 :::
+
 
 #### Which regression metric should I use? {#sec-knowing-which-reg-metrics}
 
@@ -768,7 +775,7 @@ rating_cm = confusion_matrix(df_test.rating_good, predicted_class)
 ```{r}
 #| echo: false
 #| label: tbl-pretty-confmat
-#| tbl-cap: Example confusion matrix
+#| tbl-cap: Example of a Confusion Matrix
 new_cm = rating_cm$matrix
 
 new_cm['0','0'] = paste0("TN: ", new_cm['0','0'])
@@ -806,7 +813,7 @@ Let's look at some metrics that will help to see if we've got a suitable model o
 
 Accuracy's allure is in its simplicity and because we use it for so many things in our everyday affairs. The accuracy is the proportion of correct predictions made by the model. Of all the metrics to assess the quality of classification, accuracy is the easiest to cheat. If you have any **class imbalance** (i.e., one class within the target has far more observations than the other), you can get a high accuracy by simply predicting the majority class all of the time!  To get around the false sense of confidence that accuracy alone can promote, we can look at a few other metrics.
 
-:::{.callout-warning title='Accuracy is not enough' collapse='true'}
+:::{.callout-note title='Accuracy is not enough' collapse='true'}
 Accuracy is the first thing you see and the last thing that you trust! Seriously, accuracy alone should not be your sole performance metric unless you have a perfectly even split in the target! If you find yourself in a meeting where people are presenting their classification models and they only talk about accuracy, you should be very skeptical of their model; this is especially true when those accuracy values seem too good to be true. At the very least, always be ready to compare it to the baseline rate, or prevalence of the majority class.
 :::
 
@@ -884,7 +891,7 @@ Now that we have a sense of some metrics, let's get a confusion matrix and stats
 
 ##### R
 
-We use [mlr3verse]{.pack} in the ML chapters, so we'll use it here too. Though our predictions are 0/1, we need to convert it to a factor for this function.
+We use [mlr3verse]{.pack} in the machine learning chapters, so we'll use it here too. Though our predictions are 0/1, we need to convert it to a factor for this function.
 
 ```{r}
 #| label: r-cm-summary
@@ -1004,9 +1011,9 @@ fpr, tpr, thresholds = roc_curve(
     predicted_prob
 )
 
-RocCurveDisplay(fpr=fpr, tpr=tpr).plot()
-
 auc(fpr, tpr)
+
+RocCurveDisplay(fpr=fpr, tpr=tpr).plot()
 ```
 :::
 
@@ -1043,7 +1050,7 @@ ggsave("img/knowing-roc_auc.svg", width = 8, height = 6)
 :::
 
 :::{.content-visible when-format='pdf'}
-![ROC curve and AUC value](img/knowing-roc_auc.svg)
+![ROC curve and AUC value](img/knowing-roc_auc.svg){#fig-pretty-roc-auc}
 :::
 
 With ROC curves and AUC values in hand, now we can find the ideal cut-point for balancing the TPR and FPR. There are different ways to do this, but one common way is to use the Youden's J statistic, which both of the following do.
@@ -1205,7 +1212,7 @@ result = pd.DataFrame({
 ```{r}
 #| echo: false
 #| label: tbl-regression-compare
-#| tbl-cap: RMSE for different models
+#| tbl-cap: RMSE for Different Models
 
 tibble(
     model = c("3 features", "original", "3 feat+interact"),
@@ -1284,7 +1291,7 @@ p_res = plot(
 ```{r}
 #| echo: false
 #| label: fig-model-select-residuals
-#| fig-cap: Residuals vs. Fitted plot for a regression model
+#| fig-cap: Residuals vs. Fitted Plot
 p_res
 
 ggsave("img/knowing-model-select-residuals.svg", width = 8, height = 6)
@@ -1293,7 +1300,7 @@ ggsave("img/knowing-model-select-residuals.svg", width = 8, height = 6)
 :::
 
 :::{.content-visible when-format='pdf'}
-![Residuals vs. Fitted and PP Check plots for our regression model](img/knowing-model-select-residuals.svg)
+![Residuals vs. Fitted and PP Check plots for our regression model](img/knowing-model-select-residuals.svg){#fig-model-select-residuals}
 :::
 
 - **Training/Test Performance**: For iterative approaches like deep learning, we may want to see how our model is performing across iterations, typically called epochs. We can look at the training and testing performance to see if our model is overfitting or underfitting. We can actually do this with standard models as well if the estimation approach is iterative, but it's not as common. We can also visualize performance across samples of the data, such as in cross-validation. The following shows performance for a model similar to the multilayer perceptron (MLP) model demonstrated later (@sec-ml-common-dl-nn), where we can see we get to a relatively low objective function value after just a few epochs.
@@ -1383,7 +1390,7 @@ ggsave("img/knowing-model-select-training-loss.svg", width = 8, height = 6)
 :::
 
 :::{.content-visible when-format='pdf'}
-![MSE Loss over 25 epochs in an MLP model](img/knowing-model-select-training-loss.svg)
+![MSE Loss over 25 epochs in an MLP model](img/knowing-model-select-training-loss.svg){#fig-model-select-training-loss}
 :::
 
 
@@ -1403,7 +1410,7 @@ ggsave("img/knowing-model-select-pp-check.svg", width = 8, height = 6)
 :::
 
 :::{.content-visible when-format='pdf'}
-![Posterior Predictive Check for a regression model](img/knowing-model-select-pp-check.svg)
+![Posterior Predictive Check for a regression model](img/knowing-model-select-pp-check.svg){#fig-model-select-pp-check}
 :::
 
 - **Other Plots**: Other plots may look at the distribution of residuals, check for extreme values, see if there is an overabundance of zero values, and other issues, some of which may be specific to the type of model you are using.
@@ -1475,7 +1482,7 @@ plt.show()
 
 
 
-:::{.callout-caution title='Tests of Assumptions' collapse='true'}
+:::{.callout-note title='Tests of Assumptions' collapse='true'}
 For standard GLM models there are an abundance of statistical tests available for some of these checks, for example heterogeneity of variance, or whether your residuals are normally distributed. On a practical level, these are not usually helpful, and often misguided. For example, if you have a large sample size, you will almost always reject the null hypothesis that your residuals are normally distributed. It also starts the [turtles all the way down](https://en.wikipedia.org/wiki/Turtles_all_the_way_down) problem of whether you need to check the assumptions of your test of assumptions! We prefer the 'seeing is believing' approach. It is often pretty clear when there are model and data issues, and if it isn't, it's probably not a big deal.
 :::
 
@@ -1496,7 +1503,7 @@ We saw in the linear model chapter ([-@sec-lm-interpretation-feature]) that we c
 ```{r}
 #| echo: false
 #| label: tbl-r-regression-coefs
-#| tbl-cap: Coefficients for our regression model
+#| tbl-cap: Coefficients for Our Regression Model
 
 broom::tidy(model_lr_train, conf.int = TRUE) |>
     janitor::clean_names() |>
@@ -1918,7 +1925,7 @@ pd.DataFrame({
 ```{r}
 #| echo: false
 #| label: tbl-counterfactual-happiness
-#| tbl-cap: Predictions for happiness score for Russia and the US with switched freedom and GDP
+#| tbl-cap: Predictions for Happiness Score for Russia and the US with Switched Freedom and GDP
 tab_democracy = tibble(
     country = c("Russia", "United States"),
     base_predictions,
@@ -1932,9 +1939,9 @@ tab_democracy |>
     gt(decimals = 1)
 ```
 
-In this case, we see that the happiness score is expected to be very lopsided in favor of the US, which our base prediction would suggest the US to be almost a full standard deviation higher in happiness than Russia given their current values. But if the US was just a bit more like Russia, we'd see a significant drop even if it maintained its life expectancy, generosity, and faith in government. Likewise, if Russia was a bit more like the US, we'd expect to see a significant increase in their happiness score.
+In this case, we see that the happiness score is expected to be very lopsided in favor of the US, which our base prediction would suggest the US to be almost a full standard deviation higher in happiness than Russia given their current values (SD happiness ~`r round(sd(df_happiness_2018$happiness_score), 1)`). But if the US was just a bit more like Russia, we'd see a significant drop even if it maintained its life expectancy, generosity, and faith in government. Likewise, if Russia was a bit more like the US, we'd expect to see a significant increase in their happiness score.
 
-It's very easy even with base package functions to see some very interesting things about our data and model. Counterfactual predictions get us thinking more explicitly about what the situation would be if things were much different, but in the end, we're just playing around with predicted values and thinking about possibilities!
+It's very easy even with base package functions to see some very interesting things about our data and model. As an exercise, you might go back to the movie reviews data and see what happens if we switch the age of reviewer and length of a movie for a few observations. Counterfactual predictions get us thinking more explicitly about what the situation would be if things were much different, but in the end, we're just playing around with predicted values and thinking about possibilities!
 
 
 ### SHAP values {#sec-knowing-shap-values}

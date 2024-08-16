@@ -28,22 +28,22 @@ generate_gp <- function(
     y_sd = .1,
     seed = 123
 ) {
-  set.seed(seed)
+    set.seed(seed)
+    
+    X_train = 15 * (runif(n_train) - .5)
+    n_train = length(X_train)
+    
+    # kept sine function for comparison to noise free result
+    y_train = sin(X_train) + rnorm(n = n_train, sd = y_sd)
+    
+    X_test = seq(-7.5, 7.5, length = 200)
+    n_test = length(X_test)
   
-  X_train = 15 * (runif(n_train) - .5)
-  n_train = length(X_train)
-  
-  # kept sine function for comparison to noise free result
-  y_train = sin(X_train) + rnorm(n = n_train, sd = y_sd)
-  
-  X_test = seq(-7.5, 7.5, length = 200)
-  n_test = length(X_test)
-  
-  data = list(
-    X_train = X_train,
-    y_train = y_train,
-    X_test = X_test
-  )
+    data = list(
+        X_train = X_train,
+        y_train = y_train,
+        X_test = X_test
+    )
 }
 
 
@@ -141,7 +141,7 @@ plot_gp = function(
 
 
 walk(
-    0:12,
+    0:20,
     \(x) {
         data = generate_gp(seed = x)
         X_train = data$X_train
