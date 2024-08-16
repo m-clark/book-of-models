@@ -229,6 +229,46 @@ ggsave = function(filename, width = 8, height = 6, ...) {
   )
 }
 
+skimmer = function() {
+	skimr::skim_with(
+		# reordering/naming/slimming numeric output
+		numeric = skimr::sfl(
+			mean = ~ mean(., na.rm = TRUE),
+			sd   = ~ sd(., na.rm = TRUE),
+			min  = ~ min(., na.rm = TRUE),
+			med  = ~ median(., na.rm = TRUE),
+			max  = ~ max(., na.rm = TRUE),
+			iqr  = NULL,
+			hist = NULL,
+			p0   = NULL,  # renamed
+			p25  = NULL,
+			p50  = NULL,  # renamed
+			p75  = NULL,
+			p100 = NULL   # renamed
+		),
 
+		character = skimr::sfl(
+			empty  = \(x) skimr::n_empty(x) + skimr::n_whitespace(x), # replace default which is only n_empty
+      whitespace = NULL,
+      min = NULL,  # these refer to nchar which I doubt anyone would know
+      max = NULL,
+		),
+		append = TRUE
+	)
+}
+
+summarize_data = function(data, types = 'all') {
+	init = skimmer()(data)
+	summ = skimr::partition(init)
+
+	if (!all(types == 'all')) {
+		summ = summ[tolower(names(summ)) %in% tolower(types)]
+	}
+
+	summ = purrr::map(summ, tibble::tibble)
+
+	return(summ)
+}
 
 options(digits = 4) # number of digits of precision for floating point output
+
