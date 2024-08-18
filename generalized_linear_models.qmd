@@ -541,14 +541,18 @@ We feel it is much more intuitive to interpret things on the probability scale, 
 #| out-width: 100%
 p_prob = ggeffects::ggpredict(model_logistic, terms = c('word_count')) |>
     plot(color = okabe_ito['darkblue'], use_theme = FALSE) +
+    annotate(geom = 'text', x = 20, y = plogis(1), label = 'Not so much!') +
     scale_fill_manual(values = okabe_ito) +
+    lims(y = c(0.02, .9), x = c(0, 32)) +
+    scale_y_continuous(labels = scales::percent) +
     labs(x = 'Word Count', y = '% Good Rating', title = '')
 
-p_dat = p_prob$data
+p_dat = p_prob$data |> 
+    as_tibble()
 
 logit_preds = predict(
     model_logistic,
-    newdata = as_tibble(p_prob$data) |> mutate(word_count = x, gender = 'female'),
+    newdata = as_tibble(p_dat) |> mutate(word_count = x, gender = 'female'),
     se.fit = TRUE
 )
 
@@ -563,6 +567,8 @@ p_logit = p_dat |>
     ggplot(aes(x = x, y = logit)) +
     geom_ribbon(aes(ymin = ll, ymax = ul), fill = okabe_ito['darkblue'], alpha = .2) +
     geom_line(color = okabe_ito['darkblue']) +
+    annotate(geom = 'text', x = 20, y = 1, label = 'Linear!') +
+    lims(y = c(qlogis(0.02), qlogis(.9)), x = c(0, 32)) +
     labs(x = 'Word Count', y = 'Log Odds', title = '')
 
 
@@ -579,7 +585,8 @@ p_logit = p_dat |>
     plot_layout(guides = 'collect') +
     plot_annotation(
         title = 'Logistic Regression Predictions',
-        caption = 'Note: The shaded area represents the 95% confidence interval for the log odds.'
+        caption = "Note: The shaded area represents the 95% confidence interval for the log odds.\n
+        Effect is with Gender = 'Female'."
     ) &
     theme(
         axis.title.y = element_text(size = 12),
@@ -609,7 +616,7 @@ In @fig-logistic-regression-word-count, we can see a clear negative relationship
 #| fig-cap: Model Predictions for Gender
 p = ggeffects::ggpredict(model_logistic, terms = c('gender')) |> 
     plot(
-        color = okabe_ito['darkblue'], 
+        color = c(okabe_ito[['orange']], okabe_ito[['darkblue']]), 
         dot_size = 10, 
         dot_alpha = 1, # ignored, so added back with geom_point
         line_size = 2,
@@ -617,6 +624,7 @@ p = ggeffects::ggpredict(model_logistic, terms = c('gender')) |>
     ) +
     geom_point(color = okabe_ito['darkblue'], alpha = 1, size = 10) +
     scale_fill_manual(values = unname(okabe_ito)) +
+    scale_y_continuous(limits = c(.5, .65), labels = scales::percent) +
     labs(x = '', y = '% Good Rating', title = 'Logistic Regression Predictions')
 
 p
@@ -653,7 +661,7 @@ Logistic regression does not have an $R^2$ value in the way that a linear regres
 
 The Poisson distribution is very similar to the binomial distribution, because the binomial is also a count distribution, and in fact generalizes the poisson[^poisbin]. The Poisson has a single parameter noted as $\lambda$, which makes it the simplest model setting we've seen so far[^novariance]. Conceptually, this rate parameter is going to estimate the expected number of events during a time interval. This can be accidents in a year, pieces produced in a day, or hits during the course of a baseball season.
 
-[^novariance]: Neither the binomial nor the Poisson have a variance parameter to estimate, as the variance is determined by the mean. This is in contrast to the normal distribution, where the variance is a separate parameter. For the Poisson, the variance is equal to the mean, and for the binomial, the variance is equal to $n*p*(1-p)$. The Poisson assumption of equal variance rarely holds up in practice, so people often use the negative binomial distribution instead.
+[^novariance]: Neither the binomial nor the Poisson have a variance parameter to estimate, as the variance is determined by the mean. This is in contrast to the normal distribution, where the variance is an estimated parameter. For the Poisson, the variance is equal to the mean, and for the binomial, the variance is equal to $n*p*(1-p)$. The Poisson assumption of equal variance rarely holds up in practice, so people often use the negative binomial distribution instead.
 
 [^poisbin]: If your binomial setting has a very large number of trials relative to the number of successes, which amounts to very small proportions $p$, you would find that the binomial distribution would converge to the Poisson distribution.
 
