@@ -17,5 +17,5 @@ library(scico)
 # Tables
 
 library(gt)
-library(gtsummary)
+suppressPackageStartupMessages(library(gtsummary))
 library(gtExtras)
