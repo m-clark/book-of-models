@@ -170,7 +170,6 @@ Now let's look at the interaction effect for children and the kids genre. It is 
 
 When we talk about differences in coefficients across values of features, it can get a little bit hard to follow. In every case that you employ an interaction, you should look at the interaction visually for interpretation. Here is a plot of the predictions from the interaction model. We can see that the effect of children in the home is strongest for kids movies than for other genres, which makes a whole lot of sense! In other genres, the effect of having children seems to have little effect, and in others it still has a positive effect, but not as strong as for kids movies.
 
-<!-- TODO: fix linetype -->
 ::: {.content-visible when-format='html'}
 ```{r }
 #| echo: false
@@ -950,12 +949,12 @@ fig.add_trace(
 Models incorporating this type of effect belong to a broad group of *generalized additive models* (**GAM**s). When we explored interactions and mixed models, we explored how the feature-target relationship varies with another feature. There we focused on our feature and its relationship to the target at different values of other features. When we use a GAM, our initial focus is just on a specific feature and how its relationship with the target changes at different feature values. How are we going to do this, you might ask? Conceptually, we will have a model that looks like this:
 
 $$
-y = f(x) + \epsilon
+y = f(X) + \epsilon
 $$
 
-This isn't actually any different than what you've seen - it really isn't! It's just shorthand for the input $x$ being fed into a function $f()$  of some kind. That function is very flexible, and can be anything you want, and up until now we just used to to create a simple sum of the inputs.
+This isn't actually any different than what you've seen - it really isn't! It's just shorthand for the input $X$ being fed into a function $f()$  of some kind, exactly as we saw in @sec-models-expression-math. That function is very flexible, and can be anything you want, and up until now we just used to to create a simple sum of the inputs.
 
-The difference now is that we are going to expand the feature $x$ in some way, and so it will actually become multiple columns of input. Some approaches can be quite complex, tackling spatial, temporal, or other aspects of the data. But practically, it's just extra columns in the **model matrix** that go into the model fitting function like any other feature. This helps us capture non-linear patterns in our data.
+The difference now is that we are going to expand the feature $x$ in some way, which on a practical level means it will actually become multiple columns of input. Some approaches can be quite complex, tackling spatial, temporal, or other aspects of the data. But it's just extra columns in the **model matrix** that go into the model fitting function like any other feature. This enables the model to explore a more complex representation space, ultimately helping us capture non-linear patterns in our data.
 
 At this point, you might be asking yourself, "Why couldn't I just use some type of polynomial regression or even a nonlinear regression?". Of course you could, but both have limitations relative to a GAM. If you are familiar with polynomial regression, where we add columns that are squares, cubes, etc. of the original feature, you can think of GAMs as a more general approach, and very similar in spirit. But that polynomial approach assumes a specific form of nonlinearity, and has no regularization. This means that it tends to overfit the data you currently have, and *you* are forcing curves to fit through the data.
 
@@ -1314,6 +1313,22 @@ library(quantreg)
 model_median = rq(rating ~ word_count_sc, tau = .5, data = df_reviews)
 
 summary(model_median)
+```
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: quantiles-vs-prediction-intervals
+ul = fitted(rq(rating ~ word_count_sc, tau = .975, data = df_reviews))
+ll = fitted(rq(rating ~ word_count_sc, tau = .025, data = df_reviews))
+main = predict(lm(rating ~ word_count_sc, data = df_reviews), interval = 'prediction')
+
+c(mean(ll - main[,'lwr']), mean(ul - main[,'upr']))
+plot(ll, main[,'lwr'])
+plot(ul, main[,'upr'])
+
+# does it statistically work for other models? e.g. the lgbm for the mean might not have the same feature space for the q 975 https://developer.ibm.com/articles/prediction-intervals-explained-a-lightgbm-tutorial/
+# https://jmarkhou.com/lgbqr/
 ```
 
 ##### Python
