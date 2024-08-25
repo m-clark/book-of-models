@@ -35,9 +35,9 @@ skimmer = function() {
 
 		character = skimr::sfl(
 			empty  = \(x) skimr::n_empty(x) + skimr::n_whitespace(x), # replace default which is only n_empty
-      whitespace = NULL,
-      min = NULL,  # these refer to nchar which I doubt anyone would know
-      max = NULL,
+			whitespace = NULL,
+			min = NULL,  # these refer to nchar which I doubt anyone would know
+			max = NULL,
 		),
 		append = TRUE
 	)
@@ -51,7 +51,7 @@ summarize_data = function(data, types = 'all') {
 		summ = summ[tolower(names(summ)) %in% tolower(types)]
 	}
 
-	summ = purrr::map(summ, tibble::tibble)
+	summ = purrr::map(summ, \(x) tibble::tibble(x) |> rename(variable = skim_variable))
 
 	return(summ)
 }
