@@ -2,12 +2,10 @@
 
 ![](img/chapter_gp_plots/gp_plot_9.svg){width=75%}
 
-<!-- TODO: change to moviereviewsdata and check  -->
-
 ```{r}
 #| label: setup-data
 #| include: false
-df_reviews = read_csv("https://tinyurl.com/moviereviewsraw")
+df_reviews = read_csv("https://tinyurl.com/moviereviewsdata")
 ```
 
 It's an inescapable fact that models need data to work. One of the dirty secrets in data science is that getting the data right will do more for your model than any fancy algorithm or hyperparameter tuning.  Data is messy, and there are a lot of ways it can be messy. In addition, dealing with a target variable on its terms can lead to more interesting results. In this chapter we'll discuss some of the most common data issues and things to consider. There's a lot to know about data before you ever get into modeling your own, so we'll give you some things to think about it in this chapter. 
@@ -28,7 +26,7 @@ It's an inescapable fact that models need data to work. One of the dirty secrets
 
 Knowing your data is one of the most important aspects of any application of *data* science. It's not just about knowing what you have, but also what you can do with it. The data you have will influence the models you can potentially use, the features you can create and manipulate, and have a say on the results you can expect. 
 
-### Good to Know {#sec-data-good-to-know}
+### Helpful context {#sec-data-good-to-know}
 
 We're talking very generally about data here, so not much background is needed. The models mentioned are covered in other chapters, or build upon those, but we're not doing any actual modeling here. 
 
@@ -135,7 +133,7 @@ minmax_scaler = MinMaxScaler()
 minmax_scaled_data = minmax_scaler.fit_transform(data)
 ```
 
-###### R
+###### R {.unnumbered}
 
 R makes it easy to do simple transformations like standardization and logs without external packages, but you can also use tools like [recipes]{.pack} and [mlr3]{.pack} pipeline operations when needed to make sure your preprocessing is applied appropriately.
 
@@ -157,12 +155,11 @@ minmax_scaled_data = apply(data, 2, function(x) {
 ```
 :::
 
-
 Using a **log** transformation for numeric targets and features is straightforward, and [comes with several benefits](https://stats.stackexchange.com/questions/107610/what-is-the-reason-the-log-transformation-is-used-with-right-skewed-distribution). For example, it can help with **heteroscedasticity**, which is when the variance of the target is not constant across the range of the predictions[^notnormal] (demonstrated below). It can also help to keep predictions positive after transformation, allows for interpretability gains, and more. One issue with logging is that it is not a linear transformation, which can help capture nonlinear feature-target relationships, but can also make some post-modeling transformations more less straightforward. Also if you have a lot of zeros, 'log plus one' transformations are not going to be enough to help you overcome that hurdle[^logp1]. Logging also won't help much when the variables in question have few distinct values, like ordinal variables, which we'll discuss later in @sec-data-ordinal.
 
 [^logp1]: That doesn't mean you won't see many people try (and fail).
 
-:::{.content-visible when-format="html"}
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| label: fig-log-transformation-heteroscedasticity
@@ -243,10 +240,11 @@ Despite their ubiquity in data, we can't analyze raw text information as it is. 
 #| echo: false
 #| label: tbl-one-hot
 #| tbl-cap: One-hot Encoding
+
 model.matrix(rating ~ -1 + season, df_reviews) |>
     as_tibble() |>
     bind_cols(df_reviews |> select(season)) |>
-    head() |>
+    head(9) |>
     gt() |> 
     fmt_number(columns = everything(), decimals = 0)
 ```
@@ -425,7 +423,7 @@ One final option is to run a Bayesian model where the missing values are treated
 
 ## Class Imbalance {#sec-data-class-imbalance}
 
-:::{.content-visible when-format="html"}
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| label: fig-class-imbalance
@@ -583,7 +581,7 @@ p_dat = pd.concat([df_true, df_pred])
 p_dat.to_csv("data/bootstrap_calibration.csv", index=False)
 ```
 
-:::{.content-visible when-format="html"}
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| label: fig-calibration-plot
@@ -685,7 +683,7 @@ p_dat |>
 ## Censoring and Truncation {#sec-data-censoring}
 
 
-:::{.content-visible when-format="html"}
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| label: fig-censoring
@@ -737,7 +735,7 @@ Sometimes, we just don't see all the data there is to see. **Censoring** is a si
 
 **Survival analysis**[^eventhistory] is a common modeling technique in this situation, but you may also be able to keep things even more simple via something like [tobit regression](https://m-clark.github.io/models-by-example/tobit.html).  In this model, you assume that the target is fully observed, but that the values are censored, and you model the probability of censoring. This is a common technique in econometrics, and can keep you in a traditional linear model context.  
 
-:::{.content-visible when-format="html"}
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| label: fig-truncation
@@ -821,7 +819,7 @@ Image from [StackExchange]((https://stats.stackexchange.com/questions/16089/is-s
 
 ## Time Series {#sec-data-time}
 
-:::{.content-visible when-format="html"}
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| label: fig-time-series
@@ -911,7 +909,7 @@ In general, we'd like to account for the time-dependent correlations in our data
 
 Instead, we can also use something like a **mixed model**, where we include a random effect for each group and estimate the variance attributable to the grouping effect. By default, this ultimately assumes a constant correlation from time point to time point, but many tools allow you to specify a more complex covariance structure. A common method is to use autoregressive covariance structure that allows for correlations further apart in time to lessen. In this sense the covariance comes in as an added *random effect*, rather than being a model in and of itself as with ARIMA. Many such approaches to covariance structures are special cases of **gaussian processes**, which are a very general technique to model time series, spatial, and other types of data. 
 
-:::{.content-visible when-format="html"}
+:::{.content-visible when-format='html'}
 ```{r}
 #| echo: false
 #| label: fig-covariance-structure
@@ -1069,7 +1067,6 @@ Some are a little too eager to jump to simultaneously modeling multiple target v
 
 ## Latent Variables {#sec-data-latent}
 
-<!-- TODO: maybe update to look like other nnet plots? -->
 ```{r}
 #| echo: false
 #| eval: false
@@ -1128,6 +1125,7 @@ Many of the transformations and missing data techniques could possibly be applie
 
 Consider revisiting a model covered in the other parts of this book in light of the data issues discussed here. For example,might you deal with class imbalance for a boosted tree model? How would you deal with spatial structure in a neural network? How would you deal with a multivariate target in a time series model?
 
+
 ### Additional resources {#sec-data-resources}
 
 Here are some additional resources to help you learn more about the topics covered in this chapter.
@@ -1171,3 +1169,6 @@ There's a ton of stuff, but one of your humble authors has an applied treatment 
 **Data Augmentation**
 
 [What is Data Augmentation?](https://aws.amazon.com/what-is/data-augmentation/) (@amazon_what_2024)
+
+
+We always need to inspect the data closely, and see if it matches our expectations. This is a critical part of the modeling process, and can often be the most time-consuming part. There are tools that can help with the validation process, and to that end, you might look at [pointblank]{.pack} in R or [y_data_profiling]{.pack} in Python as options to get started.

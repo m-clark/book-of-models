@@ -1,4 +1,4 @@
-# How Did We Get Here? {#sec-estimation}
+# Model Estimation and Optimization {#sec-estimation}
 
 ![](img/chapter_gp_plots/gp_plot_3.svg){width=75%}
 
@@ -100,9 +100,7 @@ We can use **estimation** as general term for finding parameters, while **optimi
 
 When it comes to modeling, even knowing just a little bit about what goes on behind the scenes is a great demystifier. And if models are less of a mystery, you'll feel more confident using them. Parts of what you see here are a part of almost every common model used for statistics and machine learning, providing you even more of a foundation for understanding what's going on. 
 
-### Good to know {#sec-estim-good-to-know}
-
-<!-- TODO: rethink title of 'Good to know': 'recommended/suggested background', 'helpful to know', -->
+### Helpful context {#sec-estim-good-to-know}
 
 This chapter is more involved and technical than most of the others, so might be more suited for those who like to get their hands dirty. It's all about 'rolling your own', and so we'll be doing a lot of the work ourselves. If you're not one of those types of people that gets much out of that, that's ok, you can skip this chapter and still get a lot out of the rest of the book.  But if you're curious about how things work, or you want to be able to do more than just run a function, then we think you'll find the following useful. You'd want to at least have your linear model basics down (@sec-foundation).
 
@@ -163,7 +161,6 @@ htmltools::br()
 
 For our purposes here, and we'll drop any rows with missing values, and we'll use scaled features so that they have the same variance, which as noted in the [data chapter](./data.html#sec-data-transformations), can help make estimation easier.  
 
-<!-- TODO: remove the processing to create a data frame that already has it done. Scaled values will be added after next update Aug, but will still need to drop_na -->
 
 :::{.panel-tabset}
 
@@ -182,36 +179,6 @@ df_happiness = read_csv('https://tinyurl.com/worldhappiness2018') |>
     )
 ```
 
-```{r}
-#| label: r-happiness-data-setup-delete-after-update
-#| echo: false
-#| eval: false
-
-df_happiness = read_csv('https://tinyurl.com/worldhappiness2018') |>
-    drop_na() |>
-    select(
-        country,
-        happiness_score,
-        healthy_life_expectancy_at_birth,
-        log_gdp_per_capita,
-        perceptions_of_corruption
-    ) |>
-    rename(
-        happiness  = happiness_score,
-        life_exp   = healthy_life_expectancy_at_birth,
-        log_gdp_pc = log_gdp_per_capita,
-        corrupt    = perceptions_of_corruption
-    ) |>
-    # put gdp back on original scale before scaling
-    mutate(
-        gdp_pc = exp(log_gdp_pc), 
-        across(life_exp:gdp_pc, \(x) scale(x)[,1])
-    ) |>
-    select(-log_gdp_pc) |>  # drop the log version
-    rename_with(\(x) glue('{x}_sc'), -c(happiness, country))
-
-```
-
 ##### Python
 
 ```{python}
@@ -225,38 +192,6 @@ df_happiness = (
     .rename(columns = {'happiness_score': 'happiness'})
     .filter(regex = '_sc|country|happ')
 )
-```
-
-```{python}
-#| label: py-happiness-data-setup-delete-after-update
-#| echo: false
-#| eval: false
-df_happiness = (
-    pd.read_csv('https://tinyurl.com/worldhappiness2018')
-    .dropna()
-    .rename(
-        columns = {
-            'happiness_score': 'happiness',
-            'healthy_life_expectancy_at_birth': 'life_exp',
-            'log_gdp_per_capita': 'log_gdp_pc',
-            'perceptions_of_corruption': 'corrupt'
-        }
-    )
-    .assign(
-        gdp_pc = lambda x: np.exp(x['log_gdp_pc']),
-    )    
-    [['country', 'happiness','life_exp', 'gdp_pc', 'corrupt']]
-)
-
-
-from sklearn.preprocessing import StandardScaler
-
-scaler = StandardScaler()
-
-df_happiness[['life_exp_sc', 'gdp_pc_sc', 'corrupt_sc']] = scaler.fit_transform(
-    df_happiness[['life_exp', 'gdp_pc', 'corrupt']]
-)
-df_happiness = df_happiness.drop(columns = ['life_exp', 'gdp_pc', 'corrupt'])
 ```
 
 :::
@@ -1109,8 +1044,8 @@ sig = sqrt(summary(mod_)$dispersion)
 # sigma = sort(c(sig, seq(0.5, .75, length = 99)))
 b1_range = c(.5, 1)
 sigma_range = c(.5, 1)
-b1 = seq(b1_range[1], b1_range[2], length = 50)
-sigma = seq(sigma_range[1], sigma_range[2], length = 50)
+b1 = seq(b1_range[1], b1_range[2], length = 100)
+sigma = seq(sigma_range[1], sigma_range[2], length = 100)
 
 llsurf = matrix(NA, length(b1), length(sigma))
 
@@ -1162,6 +1097,7 @@ estimates = mle_est |>
     select(-1) |>
     rename(b1 = V2, sigma = V3, ll = V4) |>
     mutate(across(everything(), as.numeric))
+    
 # scico::scico_palette_show()
 p = plot_ly(
     z = ~llsurf,
@@ -1244,16 +1180,21 @@ We can also see the path our estimates take. Starting at a fairly bad estimate, 
 #| echo: false
 #| label: fig-r-likelihood-path
 #| fig-cap: Optimization Path for Two Parameters
+
+# looked for ways to 'smooth'
 estimates |>
     filter(b1 < 1, sigma > .5, sigma < 1) |>
+    # arrange(b1) |> 
     # dplyr::slice(-1) |>
     # mutate(b1 = fct_inorder(factor(b1)), sigma = fct_inorder(factor(sigma))) |>
     ggplot(aes(b1, sigma)) +
-    ggforce::geom_link2(
-        aes(color = ll), 
-        alpha = 1,
-        linewidth = 1
-    ) +
+    geom_path(aes(color = ll), alpha = 1, linewidth = 1) +
+    # ggforce::geom_bspline0(aes(color = ll, group = 1), linewidth = 1) +
+    # ggforce::geom_link2(
+    #     aes(color = ll), 
+    #     alpha = 1,
+    #     linewidth = 1
+    # ) +
     geom_point(
         # aes(size = -ll),
         size = 2,
@@ -1271,7 +1212,7 @@ ggsave('img/estim-likelihood_path.svg', width = 8, height = 6)
 ![Optimization Path for Two Parameters](img/estim-likelihood_path.svg){#fig-r-likelihood-path width=75%}
 :::
 
-<!-- TODO: can we get a better/smoother traj plot? -->
+
 
 ```{r}
 #| echo: false
@@ -1290,7 +1231,7 @@ init = guesses |>
 init = init |>
     mutate(ll = pmap_dbl(
         list(b0 = init$b0, b1 = init$b1, sigma = init$sigma),
-        \(b0, b1, sigma) likelihood(c(b0, b1, sigma), df_happiness$life_exp_sc, df_happiness$happiness)
+        \(b0, b1, sigma) max_likelihood(c(b0, b1, sigma), df_happiness$life_exp_sc, df_happiness$happiness)
     ))
 
 # check
@@ -1324,32 +1265,10 @@ What we've shown here with maximum likelihood applies in general to searching fo
 For linear regression assuming a normal distribution, the maximum likelihood estimate of the standard deviation is the OLS estimate of the standard deviation of the residuals. Furthermore, the maximum likelihood coefficient estimates and OLS estimates converge to the same estimates as the sample size increases. For most data sizes in practice these estimates are indistinguishable, and the OLS estimate is the maximum likelihood estimate for linear regression. So OLS and variants (such as those used for GLM) are maximum likelihood estimation methods.
 :::
 
-<!-- 
-#### Parting Thoughts on Maximum Likelihood {#sec-estim-maxlike-add}
- -->
-<!-- TODO: Remove? -->
 
-<!-- One of the key things to note is that maximum likelihood is an estimation technique that relies on specifying the probability distribution that serves as the data generating process. Maximum likelihood allows us to be explicit about why we think those target values are the way they are. The likelihood also serves as a fundamental part of Bayesian analysis, which we'll discuss more later. In general, maximum likelihood is a powerful technique that can be used in many contexts, and likelihoods can be used as the objective for many machine learning algorithms as well. -->
-
-
-
-<!-- 
-## Estimation: Quick Review {#sec-estim-review}
- -->
-<!-- TODO: MOVE WHERE? NEEDED? if anywhere just put at the end -->
-
-<!-- At this point we understand a few things:
-
-- Parameters are the values associated with a model
-- Objective functions specify a modeling goal with which to estimate the parameters.
-- Estimation is a way of finding the best model, i.e. parameters that help us achieve a goal.
-- Optimization is the process of finding the parameters that maximize or minimize some objective function
-- The likelihood is an alternate way to assess the match of data and model, and allows us to compare the relative fits of models
- -->
 
 ## Penalized Objectives {#sec-estim-penalty}
 
-<!-- TODO: MOVE TO AFTER CLASSIFICATION? -->
 
 One thing we may want to take into account with our models is their complexity, especially in the context of **overfitting**. We talk about this with machine learning also (@sec-ml-core-concepts), but the basic idea is that we can get too familiar with the data we have, and when we try to predict on new data the model hasn't seen before, our performance suffers, or even gets worse than a simpler model. In other words, we are not generalizing well (@sec-ml-generalization). 
 
@@ -1508,7 +1427,7 @@ So far, we've been assuming a continuous target, but what if we have a categoric
 A straightforward correspondence to MSE is a function that minimizes classification error, or by the same token, maximizes accuracy. In other words, we can think of the objective function as the proportion of incorrect classifications. This is called the **misclassification rate**.  
 
 $$
-\text{Loss} = \frac{1}{n} \sum_{i=1}^{n} \mathbb{1}(y_i \neq \hat{y_i})
+\text{Value} = \frac{1}{n} \sum_{i=1}^{n} \mathbb{1}(y_i \neq \hat{y_i})
 $${#eq-estim-misclassification}
 
 In the equation, $y_i$ is the actual value of the target for observation $i$, arbitrarily coded as 1 or 0, and $\hat{y_i}$ is the predicted class from the model. The $\mathbb{1}$ is an indicator function that returns 1 if the condition is true, and 0 otherwise.  In other words, we are counting the number of times the predicted value is not equal to the actual value, and dividing by the number of observations. Very straightforward, so let's do this ourselves!
@@ -1570,7 +1489,7 @@ def misclassification_rate(par, X, y, class_threshold = .5):
 
 :::
 
-Note that our function first adds a step to convert the linear predictor (called `mu`) to a probability. Once we have a probability, we use some threshold to convert it to a 'class'. In this case, we use 0.5 as the threshold, but this could be different depending on the context, something we talk more about elsewhere (@sec-knowing-ideal-cut-point). We'll leave it as an exercise for you to play around with this, as the next objective function is more commonly used. But at least you can see how easy it can be to switch to the classification case. 
+Note that our function first adds a step to convert the linear predictor (called `mu`) to a probability. Once we have a probability, we use some threshold to convert it to a 'class'. In this case, we use 0.5 as the threshold, but this could be different depending on the context, something we talk more about elsewhere (@sec-knowing-classification-metrics). We'll leave it as an exercise for you to play around with this, as the next objective function is more commonly used. But at least you can see how easy it can be to switch to the classification case. 
 
 
 ### Log loss {#sec-estim-logloss}
@@ -1578,7 +1497,7 @@ Note that our function first adds a step to convert the linear predictor (called
 Another approach is to use the **log loss**, sometimes called logistic loss or **cross-entropy**. If we have just the binary case it is:
 
 $$
-\text{Loss} = -\sum_{i=1}^{n} y_i \log(\hat{y_i}) + (1 - y_i) \log(1 - \hat{y_i})
+\text{Value} = -\sum_{i=1}^{n} y_i \log(\hat{y_i}) + (1 - y_i) \log(1 - \hat{y_i})
 $${#eq-estim-logloss}
 
 Where $y_i$ is the actual value of the target for observation $i$, and $\hat{y_i}$ is the predicted value from the model (essentially a probability). It turns out that *this is the same as the log-likelihood used in a maximum likelihood approach for logistic regression*, made negative so we can minimize it. 
@@ -2208,9 +2127,6 @@ ggsave('img/estim-sgd.svg', p_sgd, width = 8, height = 6)
 :::
 
 
-<!-- TODO: Make this section the intro while using GD/SGD as the primary example. -->
-
-
 To wrap things up, here are the results for the happiness model using different optimization algorithms, with a comparison to the standard linear regression model function. We can see that the results are very similar, and for simpler modeling endeavors they should converge on the same result.
 
 ```{r}
@@ -2523,13 +2439,143 @@ The bootstrap is often used for predictions and other metrics. However, it is co
 
 ### Bayesian estimation {#sec-estim-bayes}
 
-<!-- TODO: add simple demo from bayesian basics https://m-clark.github.io/bayesian-basics/example.html -->
 
 The **Bayesian** approach to modeling is many things - a philosophical viewpoint, an entirely different way to think about probability, a different way to measure uncertainty, and on a practical level, just another way to get model parameter estimates. It can be as frustrating as it is fun to use, and one of the really nice things about using Bayesian estimation is that it can handle model complexities that other approaches can't do well.
 
 The basis of Bayesian estimation is the **likelihood**, the same as with maximum likelihood, and everything we did there applies here. So you need a good grasp of maximum likelihood to understand the Bayesian approach. However, the Bayesian approach is different because it also lets us use our knowledge about the parameters through **prior distributions**. For example, we may think that the coefficients for a linear model come from a normal distribution centered on zero with some variance. That would serve as our prior. The combination of a prior distribution with the likelihood results in the **posterior distribution**, which is a *distribution* of possible parameter values. 
 
 ![Prior, likelihood, posterior and distributions](img/prior2post_clean.png){#fig-bayesian-prior-posterior}
+
+#### Example {.unnumbered}
+
+Let's do a simple example to show how this comes about. We'll use a binomial model where we have penalty kicks taken for a soccer player, and we want to estimate the probability of the player making a goal, which we'll call $\theta$. For our prior distribution, we'll use use a beta distribution that has a mean of 0.5, suggesting that we think this person would have about a 50% chance of converting the kick on average. For the likelihood, we'll use a binomial distribution. We also use this in our GLM chapter (@eq-binomial), which, as we noted earlier, is akin to using the log loss (@sec-estim-logloss).
+
+We'll then calculate the posterior distribution for the probability of making a shot, given our prior and the evidence at hand, i.e., the data.
+
+Let's start with some data, and just like our other estimation approaches, we'll have some guesses for $theta$ which represents the probability of making a goal. We'll use a triangular prior, but you can change it to a uniform or beta prior if you like. We'll then calculate the likelihood of the data given the parameter, and then the posterior distribution.
+
+:::{.panel-tabset}
+
+##### R
+```{r}
+#| label: bayesian-demo-r
+pk = c(
+    'goal','goal','goal','miss','miss',
+    'goal','goal','miss','goal','goal'
+)
+
+# convert to numeric, arbitrarily picking goal=1, miss=0
+
+N = length(pk)               # sample size
+n_goal = sum(pk == 'goal')   # number of pk made
+n_miss = sum(pk == 'miss')   # number of those miss
+
+# grid of potential theta values
+theta = seq(
+    from = 1 / (N + 1),
+    to = N / (N + 1),
+    length = 10
+)
+
+### prior distribution
+# beta prior with mean = .5, but pretty flat
+p_theta = dbeta(theta, 5, 5)
+
+# Normalize so that values sum to 1
+p_theta = p_theta / sum(p_theta) 
+
+# likelihood (binomial)
+p_data_given_theta = choose(N, n_goal) * theta^n_goal * (1 - theta)^n_miss
+
+# posterior (combination of prior and likelihood)
+# marginal probability of the data for normalization
+p_data = sum(p_data_given_theta * p_theta)
+
+p_theta_given_data = p_data_given_theta*p_theta / p_data  # Bayes theorem
+
+# final estimate
+theta_est = sum(theta * p_theta_given_data)
+theta_est
+```
+
+##### Python
+
+```{python}
+#| label: bayesian-demo-py
+from scipy.stats import beta
+
+pk = np.array([
+    'goal','goal','goal','miss','miss',
+    'goal','goal','miss','goal','goal'
+])
+
+# convert to numeric, arbitrarily picking goal=1, miss=0
+N = len(pk)                     # sample size
+n_goal = np.sum(pk == 'goal')   # number of pk made
+n_miss = np.sum(pk == 'miss')   # number of those miss
+
+# grid of potential theta values
+theta = np.linspace(1 / (N + 1), N / (N + 1), 10)
+
+### prior distribution
+# beta prior with mean = .5, but pretty flat
+p_theta = beta.pdf(theta, 5, 5)
+
+# Normalize so that values sum to 1
+p_theta = p_theta / np.sum(p_theta)
+
+# likelihood (binomial)
+p_data_given_theta = np.math.comb(N, n_goal) * theta**n_goal * (1 - theta)**n_miss
+
+# posterior (combination of prior and likelihood)
+# marginal probability of the data for normalization
+p_data = np.sum(p_data_given_theta * p_theta) 
+
+p_theta_given_data = p_data_given_theta * p_theta / p_data  # Bayes theorem
+
+# final estimate
+theta_est = np.sum(theta * p_theta_given_data)
+theta_est
+```
+:::
+
+Here is the table that puts all this together. Our prior distribution is centered around 0.5, and the likelihood is centered closer to 0.7. The posterior distribution is a combination of the two. It gives no weight to smaller values, or the max values.  Our final estimate is is `r theta_est`, which falls between the two. With more evidence in the form of data, our estimate will shift more and more towards what the likelihood would suggest. This is a simple example, but it shows how the Bayesian approach works, and this holds for more complex parameter estimation as well.
+
+```{r}
+#| echo: false
+#| label: tbl-bayesian-demo
+#| tbl-cap: Bayesian Demo Results
+
+tibble(
+    theta = theta,
+    prior = p_theta,
+    like = p_data_given_theta,
+    post = p_theta_given_data
+) |>
+    gt() |> 
+    tab_style(
+        style = cell_text(weight = "bold"),
+        locations = list(
+            cells_body(
+                columns = prior, 
+                rows = which.max(prior)
+            ),
+            cells_body(
+                columns = like, 
+                rows = which.max(like)
+            ),
+            cells_body(
+                columns = post, 
+                rows = which.max(post)
+            )
+        )
+    )
+```
+
+Our final estimate
+
+#### Application {.unnumbered}
+
 
 Just like with the bootstrap which also provided distributions for the parameters, we can use the Bayesian approach to understand how certain we are about our estimates. We can look at any range of values in the posterior distribution to get what is often referred to as a **credible interval**, which is the Bayesian equivalent of a confidence interval[^confintinterp]. Here is an example of the posterior distribution for the parameters of our happiness model, along with 95% intervals[^brms].
 
@@ -2664,7 +2710,7 @@ p_print = p_dat |>
         hjust = 0,
         size = 3
     ) +
-    scale_color_grey() +
+    scale_color_grey() + # INTENTIONALLY LEFT GRAY
     labs(
         x = 'Iteration', 
         y = 'Coefficient',
@@ -2785,7 +2831,6 @@ So, in many modeling contexts, you're actually doing a restrictive form of Bayes
 
 [^rpybayes]: R has excellent tools here for modeling and post-processing, like [brms]{.pack} and [tidybayes]{.pack}, and Python has [pymc3]{.pack}, [numpyro]{.pack}, and [arviz]{.pack}, which are also useful. Honestly R has way more going on here, with many packages devoted to Bayesian estimation of specific models even, but if you want to stick with Python it's gotten a lot better recently. 
 
-<!-- TODO: MC thought of another section to add here but can't remember it now. But also maybe mention backprop -->
 
 
 ## Wrapping Up {#sec-estim-wrap}
