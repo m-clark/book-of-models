@@ -1109,22 +1109,27 @@ print(
 
 ##### R
 
-We use the `AutoTuner` function to perform k-fold cross-validation to select the best penalty parameter.
+We use the `auto_tuner` function to perform k-fold cross-validation to select the best penalty parameter (`lambda`). We set the mixing parameter (`alpha`) to zero so that we are only using ridge regression. See the [glmnet vignette](https://glmnet.stanford.edu/articles/glmnet.html) for details.
+
 ```{r}
 #| label: r-tune
 #| results: 'hide'
 
 # Load necessary libraries
-library(mlr3verse)
-library(paradox) # for tuning
+# library(mlr3verse)
+# library(paradox) # for tuning
+library(mlr3)
+library(mlr3learners)
+library(mlr3tuning) # for tuning
 library(rsample) # for cross validation
 
 X = df_reviews |> 
     mutate(rating_good = as.factor(rating_good)) |> 
-    select(matches('sc|rating_good'))
+    select(matches('sc|rating_good')) |> 
+    as.data.table()
 
 # Define task
-task = TaskClassif$new('movie_reviews', X, target = 'rating_good')
+task = TaskClassif$new('movie_reviews', X, target = 'rating_good', positive = 'good')
 
 # split the dataset into training and test sets
 splits = partition(task, ratio = 0.75)
@@ -1140,11 +1145,11 @@ measure = msr('classif.acc')
 
 # Define parameter space
 param_set = ParamSet$new(list(
-    ParamDbl$new('lambda', lower = 1e-3, upper = 1)
+    lambda = p_dbl(lower = 1e-3, upper = 1)
 ))
 
 # Define tuner
-model_logistic_grid = AutoTuner$new(
+model_logistic_grid = auto_tuner(
     learner = learner,
     resampling = cv_k5,
     measure = measure,
@@ -1296,6 +1301,7 @@ With R, [mlr3]{.pack} works in a similar fashion to [scikit-learn]{.pack}. We cr
 #| results: 'hide'
 
 # Using task/splits/resampling from tuning section
+library(mlr3pipelines)
 
 # Define pipeline
 logistic_cv_pipeline =  po('imputemean') %>>%
@@ -1303,7 +1309,8 @@ logistic_cv_pipeline =  po('imputemean') %>>%
     po(
         'learner', 
         lrn('classif.cv_glmnet', predict_type = 'response'), 
-        alpha = to_tune(1e-04, 1e-1, logscale = TRUE)
+        alpha = to_tune(1e-04, 1e-1, logscale = TRUE), # mixing parameter
+        lambda = c(1e-3, 1e-2, 1e-1, 1)   # penalty
     )
 
 model_logistic_cv_pipeline = AutoTuner$new(

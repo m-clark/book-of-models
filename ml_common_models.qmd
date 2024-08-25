@@ -35,7 +35,7 @@ The take home messages from this section include the following:
 Having the right tools in data science saves time and improves results, and using well-known tools means you'll have plenty of resources for help. It also allows you to focus more on the data and the problem, rather than the details of the model. A simple model might be all you need, but if you need something more complex, these models can still provide a performance benchmark.
 
 
-### Good to Know {#sec-ml-common-good-to-know}
+### Helpful context {#sec-ml-common-good-to-know}
 
 
 Before diving in, it'd be helpful to be familiar with the following:
@@ -162,7 +162,37 @@ One last thing, as we go along, performance metrics will vary depending on your 
 
 ## Beat the Baseline {#sec-ml-common-baseline}
 
-<!-- TODO: CAN WE GET A VISUAL IN HERE SOMEWHERE? -->
+
+```{r}
+#| eval: false
+#| label: beat-the-baseline
+#| echo: false
+#| 
+l <- c(NA, 'img/me_for_web.jpeg', 'img/seth.png')
+library(ggimage)
+performance_data = tibble(
+    model = c("Baseline", "Model MC", "Model SB"),
+    accuracy = c(0.75, 0.85, 0.88),
+    image = l  # Path to the image file
+)
+
+# Create the bar chart
+ggplot(performance_data, aes(x = model, y = accuracy, fill = model)) +
+    geom_col(width=.1, alpha = .5, color = NA, show.legend = FALSE) +
+    geom_point(data = performance_data |> slice(1), size = 10, alpha = 1, show.legend = FALSE) +
+    geom_image(aes(image=image), size = .075) +
+    scale_fill_manual(values = unname(okabe_ito)) +
+    coord_flip() +
+    labs(
+        title = "Beat the Baseline!",
+        x = "",
+        y = "Performance (Awesome Units)"
+    ) 
+
+ggsave("img/ml-beat_the_baseline.svg", width = 8, height = 6, dpi = 300)
+```
+
+![Hypothetical Baseline Comparison](img/ml-beat_the_baseline.svg){width=75%}
 
 Before getting carried away with models, we should have a good reference point for performance - a **baseline** model. The baseline model should serve as a way to gauge how much better your model performs over one that is simpler, probably more computationally efficient, more interpretable, and is still *viable*. It could also be a model that is sufficiently complex to capture something about the data you are exploring, but not as complex as the models you're also interested in. Take a classification model for example, where we often use a logistic regression as a baseline. It is a viable model to begin answering some questions, but is often too simple to be adequately performant for many situations. We should be able to get better performance with more complex models, or there is little justification for using them.
 
@@ -226,7 +256,7 @@ So let's get on with some models already! Let's use the classic linear model as 
 
 ### Elastic Net {#sec-ml-common-elasticnet}
 
-Another common linear model approach is **elastic net**, which we also saw in @sec-ml-core-concepts. It combines two techniques: lasso and ridge regression.  We will not show how to estimate elastic net by hand here, but all you have to know is that it combines the two penalties- one for lasso and one for ridge, along with a standard objective function for a numeric or categorical target. The relative proportion of the two penalties is controlled by a mixing parameter, and the optimal value for it is determined by cross-validation.  So for example, you might end up with a 75% lasso penalty and 25% ridge penalty.  In the end though, we're just going to do a slightly fancier logistic regression!
+Another common linear model approach is **elastic net**, which we also saw in @sec-ml-core-concepts. It combines two techniques: lasso and ridge regression.  We demonstrate the lasso and ridge penalties in @sec-estimation-penalty, but all you have to know is that elastic net combines the two penalties- one for lasso and one for ridge, along with a standard objective function for a numeric or categorical target. The relative proportion of the two penalties is controlled by a mixing parameter, and the optimal value for it is determined by cross-validation.  So for example, you might end up with a 75% lasso penalty and 25% ridge penalty. In the end though, we're just going to do a slightly fancier logistic regression!
 
 Let's apply this to the heart disease data. We are only doing simple cross-validation here to get a better performance assessment, but you are more than welcome to tune both the penalty parameter and the mixing ratio as we have demonstrated before (@sec-ml-tuning). We'll revisit hyperparameter tuning towards the end of this chapter.
 
@@ -468,7 +498,7 @@ print(
 
 Note that as of writing, the mlr3 implementation of lightgbm doesn't seem to handle factors even though the lightgbm R package does. So we'll use the numeric version of the data here.
 
-<!-- TODO: it's not clear that lgbm is even working at all in mlr3 without the GH version-->
+<!-- it's not clear that lgbm will work without the GH version-->
 
 ```{r}
 #| eval: false
@@ -476,7 +506,7 @@ Note that as of writing, the mlr3 implementation of lightgbm doesn't seem to han
 library(mlr3verse)
 
 # for lightgbm, you need mlr3extralearners and lightgbm package installed
-# we suggest the latest available from github
+# mlr3extralearners available from github
 # remotes::install_github("mlr-org/mlr3extralearners@*release")
 library(mlr3extralearners) 
 
@@ -511,7 +541,7 @@ model_boost_cv = resample(
 #| echo: false
 #| eval: false
 
-# TODO: mlr3 appears to not be using categorical features appropriately
+# Note: mlr3 can sometimes fail to process factor targets (which it requires) appropriately
 # this appears to have been an repeated issue https://github.com/mlr-org/mlr3/issues/91
 
 saveRDS(model_boost_cv, "ml/data/boost-r-results.rds")
@@ -535,7 +565,7 @@ So here we have a model that is also performing well, though not significantly b
 
 
 <!-- If you'd like to see an example of how we could implement a form  boosting by hand, see @app-boosting. -->
-<!-- TODO: ADD GBLINEAR BY HAND TO APPENDIX -->
+<!-- TODO: ADD GBLINEAR BY HAND TO APPENDIX for web version in future -->
 
 
 ### Strengths & weaknesses {#sec-ml-common-trees-strengths-weaknesses}
@@ -622,6 +652,22 @@ The next phase is where things can get more interesting. We take those hidden un
 [^relu]:  We have multiple options for our activation functions, and probably the most common activation function in deep learning is the **rectified linear unit** or [ReLU](https://en.wikipedia.org/wiki/Rectifier_(neural_networks)). Other commonly used are the [sigmoid function](https://en.wikipedia.org/wiki/Sigmoid_function), which is exactly the same as what we used in logistic regression, the hyperbolic tangent function, variants of the ReLU, and of course the linear/identity function, which not to do any transformation at all.
 
 
+```{r}
+#| echo: false
+#| eval: false
+#| label: half-nn-graph-activation
+
+g = DiagrammeR::grViz('img/nn_activation2.dot')
+
+g |> 
+    DiagrammeRsvg::export_svg() |>
+    charToRaw() |>
+    rsvg::rsvg_svg("img/nn_activation2.svg")
+```
+
+![Activation function applied to a node's output before passing it as input to next layer](img/nn_activation2.svg){#fig-activate width=33%}
+
+
 But we can go even further! We can add more layers, and more nodes in each layer, to create a **deep neural network**. We can also add components specific to certain types of processing, have some parts only connected to certain other parts and more. The complexity really is only limited by our imagination, and computational power! This is what helps make neural networks so powerful - given enough nodes and layers they can potentially approximate ***any*** function.  Ultimately though, the feature inputs become an output or multiple outputs that can then be assessed in the similar ways as other models. 
 
 ```{r}
@@ -640,9 +686,6 @@ g |>
 ![A more complex neural network](img/nn_deep.svg){#fig-complex-nn width=75%}
 
 
-<!-- TODO: show inputs to 1 hidden node to one activation. The graphviz plots aren't great, and probably not necessary. Revisit.
-
-![Activation functions applied to a hidden node before passing to next layer](img/activation_nn.svg){width=25% } -->
 
 ```{r}
 #| echo: false
@@ -776,7 +819,7 @@ learner_mlp = lrn(
     # Defining the optimizer, loss, and callbacks
     optimizer = t_opt("adam", lr = 1e-3),
     loss = t_loss("cross_entropy"),
-    # # Measures to track
+    # Measures to track
     measures_train = msrs(c("classif.logloss")),
     measures_valid = msrs(c("classif.logloss", "classif.ce")),
     # predict type (required by logloss)
@@ -967,7 +1010,7 @@ split = partition(tsk_model_boost_cv_tune, ratio = .8)
 lrn_lgbm = lrn(
     "classif.lightgbm",
     num_iterations = to_tune(c(500, 1000)),
-    learning_rate = to_tune(1e-3, 1e-1),
+    learning_rate = to_tune(1e-3, 1e-1, logscale = TRUE),
     max_depth = to_tune(c(3, 5, 7, 9)),
     min_data_in_leaf = to_tune(c(1, 5, 10))
 )
@@ -1301,12 +1344,14 @@ We can tune all the models and compare them head to head. We first split the sam
 After this, we used the tuned values to retrain on the complete training data set. At this stage it's not necessary to investigate in most settings, but we show the results of the 10-fold cross-validation for the already-tuned models, to give a sense of the uncertainty in error estimation with a small sample like this. Even with the 'best' settings, we can see that there is definitely some variability across data splits.
 
 
-:::{.content-visible when-format="html"}
+:::{.content-visible when-format='html'}
 ```{r}
 #| label: fig-benchmark-plot
 #| fig-cap: Cross-validation results for tuned models.
 #| echo: false
+#| eval: false
 
+# TODO: return to this if after redoing; many things got broken with mlr3 update
 load("ml/data/benchmark-comparison-r-results.RData")
 
 # used in callout tip
@@ -1349,9 +1394,9 @@ ggsave(
 ```
 :::
 
-:::{.content-visible when-format='pdf'}
+<!-- :::{.content-visible when-format='pdf'} -->
 ![Cross-validation results for tuned models](img/ml-benchmark-comparison.svg){#fig-benchmark}
-:::
+<!-- ::: -->
 
 
 ```{r}
@@ -1378,11 +1423,11 @@ acc_interval_enet = prop.test(
 ) 
 enet_correct = sum(
     pred_class_glm == observed
-    )
+)
 lgbm_correct = sum(
     pred_class_boost == observed
 )
-tab = matrix(
+tab_TPR = matrix(
     c(
         sum(pred_class_glm & observed),
         sum(observed == 1) - sum(pred_class_glm & observed),
@@ -1392,9 +1437,19 @@ tab = matrix(
     nrow= 2,
     byrow = TRUE
 )
+tab_acc = matrix(
+    c(
+        sum(pred_class_glm == observed),
+        sum(pred_class_glm != observed),
+        sum(pred_class_boost == observed),
+        sum(pred_class_boost != observed)
+    ), 
+    nrow= 2,
+    byrow = TRUE
+)
 
 diff_interval = prop.test(
-    x = tab
+    x = tab_acc
 ) 
 
 # a curiosity, but also if we want interval estimates for the other stuff.
@@ -1421,9 +1476,9 @@ diff_interval = prop.test(
 # quantile(bootstrap_results$t, c(0.025, 0.975))
 ```
 
-When we look at the performance on the holdout set with our tuned models in the following table[^modcompare], we see something you might be surprised about - the simplest model does really well! It is tied for or the best on three out of six metrics. Again, your results may vary depending on whether you used a seed, R vs. Python, and possibly other aspects of your environment.
+When we look at the performance on the holdout set with our tuned models in the following table[^modcompare], we see something you might be surprised about - the simplest model does really well! In this case, we'd probably declare it the winner given the combination of ease of use and interpretability. Again, your results may vary depending on whether you used a seed, R vs. Python, and possibly other aspects of your environment.
 
-[^modcompare]: This table was based on Python randomized CV search, but a similar R approach produced similar results, and they can both vary quite a bit even with just a random seed change.
+[^modcompare]: This table was based on Python randomized CV search, but the R approach produced similar results, but they can both vary quite a bit even with just a random seed change due to the small sample size.
 
 ```{r}
 #| label: tbl-benchmark-r
@@ -1470,6 +1525,7 @@ df_metrics_cv = tibble(
 df_metrics_cv = read_csv('ml/data/ml-common-py_model_comparison.csv')
 
 max_cols = map_int(df_metrics_cv |> select(-model), \(x) which.max(x))
+max_cols2 = map(df_metrics_cv |> select(-model) |> slice(-1), \(x) which.max(x))
 
 df_metrics_cv |> 
     mutate(model  = c('Elastic Net', 'Boost', 'MLP')) |> 
@@ -1480,10 +1536,17 @@ df_metrics_cv |>
             names(max_cols),
             \(x) cells_body(columns = x, rows = max_cols[[x]])
         )
-    )    
+    ) |> 
+    tab_style(
+        style = cell_text(weight = "bold"),
+        locations = cells_body(
+            columns = c(tpr, npv),
+            rows = 2
+        )
+    )
 ```
 
- It's important to note that none of these results are *statistically different* from each other. As an example, the elastic net model had an accuracy of `r round(acc_interval_enet$estimate, 2)`, but the interval estimate for such a small holdout sample is very wide - from `r round(acc_interval_enet$conf.int[1], 2)` to `r round(acc_interval_enet$conf.int[2], 2)`. The interval estimate for the *difference* in TPR between the elastic net and boosting models is from `r round(diff_interval$conf.int[1], 2)` to `r round(diff_interval$conf.int[2], 2)`[^proptest]. Again, don't take this result too far, we're dealing with a small data set and it is difficult to detect potentially complex relationships in such a setting. In addition, we could have done more to explore the parameter space of the models, but we'll leave that for another time. But this was a good example of the importance of having an adequate baseline, and where complexity didn't really help much, though all our approaches did well. In this case, any of these models would be a good choice for future prediction.
+ It's important to note that none of these results are *statistically different* from each other. As an example, the elastic net model had an accuracy of `r round(acc_interval_enet$estimate, 2)`, but the interval estimate for such a small holdout sample is very wide - from `r round(acc_interval_enet$conf.int[1], 2)` to `r round(acc_interval_enet$conf.int[2], 2)`. The interval estimate for the *difference* in accuracy between the elastic net and boosting models is from `r round(diff_interval$conf.int[1], 2)` to `r round(diff_interval$conf.int[2], 2)`[^proptest]. Again, don't take this result too far, we're dealing with a small data set and it is difficult to detect potentially complex relationships in such a setting. In addition, we could have done more to explore the parameter space of the models, but we'll leave that for another time. But this was a good example of the importance of having an adequate baseline, and where complexity didn't really help much, though all our approaches did well. In this case, any of these models would be a good choice for future prediction.
 
 [^proptest]: We just used the `prop.test` function in R for these values with the key question of whether these proportions are different. A lot of the metrics people look at from confusion matrices are proportions.
 
@@ -1669,7 +1732,6 @@ ggsave(
 ![Partial dependence plot for cholesterol](img/ml-pdp-plot.svg){width=100% #fig-pdp-r-plot-show}
 
 
-
 ```{python}
 #| label: shap-py
 #| eval: false
@@ -1696,7 +1758,6 @@ shap.summary_plot(shap_values, df_heart.drop(columns='heart_disease'), plot_type
 shap.importances(model_boost_cv_tune.best_estimator_, df_heart.drop(columns='heart_disease'))
 ```
 
-<!-- TODO: not enough concern for uncertainty, conformal prediction, etc. -->
 
 ## Other ML Models for Tabular Data {#sec-ml-common-other-models}
 
