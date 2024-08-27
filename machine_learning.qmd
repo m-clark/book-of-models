@@ -373,15 +373,172 @@ In the following discussion, you can think of a standard linear model scenario, 
 
 #### Generalization in the classical regime
 
-So what result should we expect in this scenario? Let's look at the following visualization inspired by @hastie_elements_2017. 
+So what result should we expect in this scenario? Let's look at the following visualization inspired by @hastie_elements_2017, and which we will return to later.
 
-<!-- TODO: code is long since lost, but plot should be recreated at some point -->
 
-![Bias Variance Tradeoff](img/biasvar2.svg){#fig-bias-variance}
+```{r}
+#| echo: false
+#| eval: false
+#| label: bias-var-tradeoff
+fit_ridgeless = function(X, y, x_test, y_test) {
+    b = psych::Pinv(crossprod(X)) %*% crossprod(X, y)
 
-Prediction error on the test set, shown in red, is a function of several components, and two of these are  **bias** and **variance**. 
+    predictions_train = X %*% b
+    predictions_test  = x_test %*% b
 
-A key idea is that as the model complexity increases, we potentially capture more of the data variability. This reduces **bias**, which is the difference in our average prediction and the true model prediction. But this only works for training error, shown in blue, where eventually our model can potentially fit the training data perfectly! 
+    rmse_train = yardstick::rmse_vec(y, predictions_train[, 1])
+    rmse_test  = yardstick::rmse_vec(y_test, predictions_test[, 1])
+
+    list(b = b, rmse_train = rmse_train, rmse_test = rmse_test)
+}
+
+
+fit_reshuffle = function(
+    n,
+    scale = TRUE,
+    random = FALSE,
+    bs = 'cs',
+    k = 10
+) {
+    df_cars_shuffled = mtcars[sample(1:nrow(mtcars)), c(1, sample(2:ncol(mtcars)))] # shuffle rows/columns (keep mpg as first)
+
+    if (scale) df_cars_shuffled = data.frame(scale(df_cars_shuffled))
+
+    sc_wt = mgcv::smoothCon(mgcv::s(wt, bs = bs, k = k), data = df_cars_shuffled)[[1]]$X
+    sc_hp = mgcv::smoothCon(mgcv::s(hp, bs = bs, k = k), data = df_cars_shuffled)[[1]]$X
+    sc_disp = mgcv::smoothCon(mgcv::s(disp, bs = bs, k = k), data = df_cars_shuffled)[[1]]$X
+
+    if (random) {
+        ran_dim = 10
+        sc_wt = matrix(rnorm(nrow(df_cars_shuffled) * ran_dim), ncol = ran_dim)
+        sc_hp = matrix(rnorm(nrow(df_cars_shuffled) * ran_dim), ncol = ran_dim)
+        sc_disp = matrix(rnorm(nrow(df_cars_shuffled) * ran_dim), ncol = ran_dim)
+    }
+
+    X = as.matrix(cbind(1, df_cars_shuffled[, -1], sc_wt, sc_hp, sc_disp))
+    y = df_cars_shuffled$mpg
+
+    train_idx = sample(1:nrow(df_cars_shuffled), n)
+
+    X_train = X[train_idx, , drop = FALSE]
+    X_test = X[-train_idx, , drop = FALSE]
+
+    y_train = y[train_idx]
+    y_test = y[-train_idx]
+
+    ncol_X_main = ncol(mtcars) # max model.matrix dim for original data
+    ncol_cubic_wt = ncol(sc_wt)
+    ncol_cubic_hp = ncol(sc_hp)
+    ncol_cubic_disp = ncol(sc_disp)
+
+    if (random) {
+        total_explore = 1:ncol(X)
+    } else {
+        total_explore = c(
+            1:ncol_X_main,
+            ncol_X_main + ncol_cubic_wt,
+            ncol_X_main + ncol_cubic_wt + ncol_cubic_hp,
+            ncol(X) # max dim
+        )
+    }
+
+    # for each dimension, run fit_ridgeless
+    rmse = map_df(
+        total_explore,
+        ~ fit_ridgeless(X_train[, 1:.x], y_train, X_test[, 1:.x], y_test)[c('rmse_train', 'rmse_test')] |> as_tibble()
+    )
+
+    tibble(p = total_explore, rmse)
+}
+
+set.seed(42)
+n = 20
+
+res = map_df(1:250, ~ fit_reshuffle(
+    n = n,
+    random = FALSE,
+    bs = 'cs',
+    k = 15
+), .id = 'sim')
+
+test_error_summary = res |> 
+    group_by(p) |> 
+    summarize(
+        rmse_train = mean(rmse_train, na.rm = TRUE),
+        rmse_test = mean(rmse_test, na.rm = TRUE),
+    ) |> 
+    pivot_longer(-p, names_to = 'type', values_to = 'rmse') |> 
+    mutate(
+      type = str_to_title(str_remove(type, 'rmse_'))
+    )
+
+# test_error_summary
+
+max_p = 20
+
+p_dd_main = res |> 
+    pivot_longer(-c(p, sim), names_to = 'type', values_to = 'rmse') |> 
+    mutate(
+      type = str_to_title(str_remove(type, 'rmse_'))
+    ) |> 
+    filter(p <= max_p) |> 
+    ggplot(aes(as.integer(p), rmse)) +
+    # geom_vline(xintercept = n, alpha = .5) +
+    geom_line(aes(color = type, group = interaction(type, sim)), alpha = .33, linewidth = .05) +
+    geom_line(aes(color = type, linetype = type),
+        linewidth = 1.5,
+        data = test_error_summary |> filter(p <= max_p)
+    ) +
+    scale_color_manual(values = unname(okabe_ito[c(1,5)])) +
+    # geom_point(aes(color = type),
+    #     alpha = .75,
+    #     size = 3,
+    #     data = test_error_summary
+    # ) +
+    # geom_point(
+    #     # aes(color = type),
+    #     color = 'gray50',
+    #     alpha = 1,
+    #     size = 9,
+    #     data = test_error_summary |> 
+    #         filter(p < n, type == 'test') |> 
+    #         filter(rmse == min(rmse)),
+    #     show.legend = FALSE
+    # ) +
+    # geom_point(
+    #     color = okabe_ito[[1]],
+    #     alpha = 1,
+    #     size = 10,
+    #     data = test_error_summary |>  filter(type == 'test') |>  filter(rmse == min(rmse)),
+    #     show.legend = FALSE
+    # ) +
+    scale_x_continuous(breaks = 1:max_p, limits = c(1, 11)) +
+    coord_cartesian(
+        # xlim = c(0, n),
+        # ylim = c(0, max(test_error_summary$rmse) + 1)
+        ylim = c(0, 1)
+    ) +
+    labs(
+        x = 'Model Complexity', 
+        y = 'Test Error',
+        # caption = 'This scale goes to 11!',
+        subtitle = 'Bias Variance Tradeoff'
+    ) +
+    theme(
+      # axis.text.x = element_blank(),
+      axis.ticks.x = element_blank()
+    )
+
+p_dd_main
+
+ggsave('img/biasvar_mtcars.svg')
+```
+
+![Bias Variance Tradeoff](img/biasvar_mtcars.svg){#fig-bias-variance width=100%}
+
+Prediction error on the test set is a function of several components, and two of these are  **bias** and **variance**. 
+
+A key idea is that as the model complexity increases, we potentially capture more of the data variability. This reduces **bias**, which is the difference in our average prediction and the true model prediction. But this only works for training error, where eventually our model can potentially fit the training data perfectly! 
 
 For test error though, as the model complexity increases, the bias decreases, but the **variance** eventually increases. This variance reflects how much our prediction changes with different data. If our model gets too cozy with the training data, it will do poorly when we try to generalize beyond it, and this will be reflected in increased variance. This is traditionally known as the **bias-variance tradeoff** - we can reduce one source of error in the test set at the expense of the other, but not both at the same time indefinitely. In other words, we can reduce bias by increasing model complexity, but this will eventually increase variance in our test predictions. We can reduce variance by reducing model complexity, but this will increase bias. One additional thing to note is that even if we had the 'true' model given the features specified correctly, for the vast majority of cases there would still be prediction error due to the random data generating process (**noise**). This can potentially be reduced using additional valid features, getting better measurements, etc., but it will still be there to some extent in practice, and so will limit test set performance.
 
@@ -389,8 +546,6 @@ The ultimate goal is to find the sweet spot. We want a model that's complex enou
 
 
 #### Generalization in deep learning {.unnumbered}
-
-
 
 It turns out that with lots of data and very complex models, or maybe even in most settings, our 'classical' understanding just described doesn't hold up. In fact, it is possible to get a model that fits the training data perfectly, and yet ultimately still generalizes well to new data! 
 
@@ -512,7 +667,7 @@ p_dd_main = res |>
     ggplot(aes(as.integer(p), rmse)) +
     geom_vline(xintercept = n, alpha = .5) +
     geom_line(aes(color = type, group = interaction(type, sim)), alpha = .25, linewidth = .05) +
-    geom_line(aes(color = type),
+    geom_line(aes(color = type, linetype = type),
         linewidth = .5,
         data = test_error_summary
     ) +
@@ -520,7 +675,8 @@ p_dd_main = res |>
     geom_point(aes(color = type),
         alpha = .75,
         size = 3,
-        data = test_error_summary
+        data = test_error_summary,
+        show.legend = FALSE
     ) +
     geom_point(
         # aes(color = type),
