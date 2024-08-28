@@ -534,23 +534,48 @@ In general, any modeling technique might be employed as part of a causal modelin
 [^gcomp]: The G-computation approach and S-learners are essentially the same approach, but came about from different domain contexts.
 
 
-## Prediction and Explanation Revisited {@sec-causal-prediction-explanation}
+## Prediction and Explanation Revisited {#sec-causal-prediction-explanation}
+
+We introduced the idea of prediction and explanation in the context of linear models in @sec-lm-prediction-vs-explanation, and it's worth revisiting here. One attribute of a causal model is an intense focus on the explanatory power of the model.  We want to demonstrate that there is a relationship between usually a single feature and the target, and we want to know the precise manner of this relationship as much as possible. Even if we use complex models, e.g., as with meta-learners, the endeavor is to explain the specifics.
 
 
-<!-- there is no explanation coefficients, visuals with out prediction! -->
-
-In the following example we show the results of a model with 10k observations and a single feature predicting a binary target. The coefficient is statistically significant, and we can see a slight positive relationship. Under certain settings, such as the exploration of causal effects where we have controlled for various other factors to obtain this result, we might be satisfied with interpreting this positive relationship. 
 ```{r}
 #| echo: false
-#| label: prediction-vs-explanation
-set.seed(123)
+#| label: prediction-vs-explanation-demo
+set.seed(42)
 n = 10000
 x = rnorm(n)
 y_num = rbinom(n, 1, plogis(.05*x))
 y = factor(y_num)
 
 model = glm(y ~ x, family = 'binomial')
+x_OR = round(exp(coef(model)['x']), 2)
+# summary(model)
 
+
+# summary(model)
+#confint(model)['x',]
+y_pred0 = predict(model, data.frame(x=0), type='response')
+y_pred1 = predict(model, data.frame(x=1), type='response')
+
+prob_diff = label_percent()(y_pred1 - y_pred0)
+
+pred_class = factor(as.integer(predict(model, type = 'response') > .5))
+base_rate = label_percent()(mean(y == '1'))
+# mlr3measures::confusion_matrix(y, pred_class, positive = '1') 
+
+x_new = data.frame(x = rnorm(100))
+y_new = factor(rbinom(100, 1, plogis(.05 * x_new$x)))
+pred_class_new = factor(as.integer(predict(model, newdata = x_new, type = 'response') > .5))
+# mean(y_new == '1')
+# mlr3measures::confusion_matrix(y_new, pred_class_new, positive = '1') 
+causal_power = readRDS('data/causal_power.rds')
+```
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: prediction-vs-explanation-demo-power
 get_power = function(reps = 1000) {
     pvals = replicate(reps, {
         y = rbinom(n, 1, plogis(.05*x))
@@ -559,17 +584,25 @@ get_power = function(reps = 1000) {
     })
     mean(pvals < .05)
 }
-power = scales::label_percent()(get_power())
-# summary(model)
-#confint(model)['x',]
-y_pred0 = predict(model, data.frame(x=0), type='response')
-y_pred1 = predict(model, data.frame(x=1), type='response')
+causal_power = scales::label_percent()(get_power())
 
-prob_diff = scales::label_percent()(y_pred1 - y_pred0)
+saveRDS(causal_power, 'data/causal_power.rds')
+```
 
+
+
+Let's say that we used some particular causal modeling approach to explain a feature-target relationship in a classification setting.  We have 10,000 observations, and the baseline rate of the target is about ~`r base_rate`. We have a model that predicts the target `y` based on the feature of interest `x`, and we may have used something like propensity score weighting or some other technique to help control for confounding. 
+
+The coefficient, though small with an odds ratio of `r x_OR`, is statistically significant (take our word for it), and we can see a slight positive relationship. Under certain settings, such as this where we are interested in causal effects and where we have controlled for various other factors to obtain this result, we might be satisfied with interpreting this positive relationship. 
+
+```{r}
+#| echo: false
+#| label: fig-prediction-vs-explanation-demo-plot
+#| fig-cap: Results from a hypothetical causal model
+#| out-width: 100%
 pdat = plot(ggeffects::ggpredict(model, terms = 'x'))$data
 ggeffects::ggpredict(model, terms = 'x') |> 
-    plot() +
+    plot(use_theme = FALSE) +
     geom_segment(
         # aes(
             x = 0,
@@ -577,41 +610,59 @@ ggeffects::ggpredict(model, terms = 'x') |>
             y = y_pred0,
             yend = y_pred1,
         # ),
-        linetype = 'dashed',
+        color = okabe_ito['darkblue'],
         linewidth = 1.5
     ) +
-    geom_point(
-        data = tibble(x = -4, predicted = c(y_pred0, y_pred1)),
-        color = 'red'
-    ) 
-
-
-pred_class = factor(as.integer(predict(model, type = 'response') > .5))
-mean(y == '1')
-mlr3measures::confusion_matrix(y, pred_class, positive = '1') 
-
-x_new = data.frame(x = rnorm(100))
-y_new = factor(rbinom(100, 1, plogis(.05*x_new$x)))
-pred_class_new = factor(as.integer(predict(model, newdata = x_new, type = 'response') > .5))
-mean(y_new == '1')
-mlr3measures::confusion_matrix(y_new, pred_class_new, positive = '1') 
-
+    geom_segment(
+        x = 0,
+        xend = min(pdat$x),
+        y = y_pred0,
+        yend = y_pred0,
+        color = okabe_ito['darkblue'],
+        arrow = arrow(type = 'closed', angle = 30, length = unit(0.1, 'inches'))
+    ) +
+    geom_segment(
+        x = 1,
+        xend = min(pdat$x),
+        y = y_pred1,
+        yend = y_pred1,
+        color = okabe_ito['darkblue'],
+        arrow = arrow(type = 'closed', angle = 30, length = unit(0.1, 'inches'))
+    ) +
+    labs(title = '') +
+    # geom_point(
+    #     data = tibble(x = -4, predicted = c(y_pred0, y_pred1)),
+    #     size = 2,
+    #     color = 'darkred'
+    # ) +
+    scale_y_continuous(breaks = c(seq(.4, .6, .05), seq(.5, .55, .01)), labels = scales::label_percent())
 ```
 
-But if we are interested in prediction, we would be disappointed with the model's performance. It predicts the target at almost the same rate as guessing even on the data it's fit on, and does even worse than guessing on new data. Even the effect as shown is quite small by typical standards, as it would take a standard deviation change in the feature to get a ~`r prob_diff` change in the probability of the target. If we are concerned solely with explanation, we now would want to ask ourselves if the effect is large enough to be of interest, and if the result is useful to make decisions regarding[^seedsofchange]. It may very well be, maybe the target concerns the percentage of survival, or the data circumstances demand such interpretation, because it is extremely costly to obtain more. For more exploratory efforts however, this sort of result would likely not be enough to come to any explanatory conclusion even if explanation is the only goal. 
+But if we are interested in predictive performance, we would be disappointed with this model. It predicts the target at about the same rate as guessing, even on the data it's fit on, and does even worse with new data. Even the effect as shown is quite small by typical standards, as it would take a standard deviation change in the feature to get a ~`r prob_diff` change in the probability of the target (x is standardized).
 
-[^seedsofchange]: This is a contrived example, but it's not far from what you might see in practice. The relationship is weak, and though statistically significant, the model can't predict the target well at all. The statistical power is actually decent in this case, roughly `r power`, but this is only because the sample size is so large and we have no other features to contend with. This is a common issue in many academic fields, and it's why we always need to be careful about how we interpret our models. In practice, we would need to consider other factors, such as the cost of a false positive or false negative, the cost of obtaining the feature, and the cost of the data and running the model itself, to determine if the model is worth using.
+If we are concerned solely with explanation, we now would want to ask ourselves first if we can trust our result based on the data, model, and various issues that went into producing it. If so, we can then if the effect is large enough to be of interest, and if the result is useful in making decisions[^seedsofchange]. It may very well be, maybe the target concerns the rate of survival, where any increase is worthwhile. Or perhaps the data circumstances demand such interpretation, because it is extremely costly to obtain more. For more exploratory efforts however, this sort of result would likely not be enough to come to any strong conclusion even if explanation is the only goal. 
 
-<!-- Change to an election example? <50 data points, but want to explain factors that lead to a win.  -->
+[^seedsofchange]: This is a contrived example, but it is definitely something what you might see in the wild. The relationship is weak, and though statistically significant, the model can't predict the target well at all. The **statistical power** is actually decent in this case, roughly `r causal_power`, but this is mainly because the sample size is so large and it is a very simple model setting. <br> This is a common issue in many academic fields, and it's why we always need to be careful about how we interpret our models. In practice, we would generally need to consider other factors, such as the cost of a false positive or false negative, or the cost of the data and running the model itself, to determine if the model is worth using.
+
+As another example, consider the world happiness data we've used in previous demonstrations. We want to explain the association of country level characteristics and the population's happiness. We likely aren't going to be as interested in predicting next year's happiness score, but rather what attributes are correlated with a happy populace in general. In this election year (2024) in the U.S., we'd be interested in specific factors related to presidential elections, of which there are relatively very few data points. In these cases, explanation is the focus, and we may not even need a model at all to come to our conclusions.
+
+So we can understand that in some settings we may be more interested in understanding the underlying mechanisms of the data, as with these examples, and in others we may be more interested in predictive performance, as in our demonstrations of machine learning. However, the distinction between prediction and explanation in the end is a bit problematic, not the least of which is that we often want to do both.
+
+Although it's often implied as such, *prediction is not just what we do with new data*. It is the very means by which we get any explanation of effects via coefficients, marginal effects, visualizations, and other model results. Additionally, where the focus is on predictive performance, if we can't explain the results we get, we will typically feel dissatisfied, and may still question how well the model is actually doing.
+
+Here are some ways we might think about different modeling contexts:
+
+- **Descriptive Analysis**: A description of data with no modeling focus. We'll use descriptive statistics and visualizations to understand the data. An end product may be an infographic or a report. Even here we may still use models to aid visualizations or otherwise to help us understand the data better.
+- **Exploratory Modeling**: Using models for exploration. Focus should be on both prediction and explanation. The former can help inform the strength of the results for future exploration.
+- **Causal Modeling**: Using models to understand causal effects. We focus on explanation, and prediction on the current data. We may very well be interested in predictive performance also, and often are in industry.
+- **Generalization**: When our goal is generalizing to unseen data, the focus is always on predictive performance. This does not mean we can't use the model to understand the data though, and explanation could possibly be as important.
+
+Depending on the context, we may be more interested explanation or predictive performance, but in practice we often, and usually, want both. It is crucial to remind yourself why you are interested in the problem, what a model is capable telling you about it, and to be clear about what you want to get out of the result.
 
 
-Consider the world happiness data we'll be using later. We want to explain the association of country level characteristics and the population's happiness. We likely aren't going to be interested in predicting next year's happiness score, but rather what attributes are correlated with a happy populace. In this case, explanation is the focus, and we may not even need a model at all to come to our conclusions.
-
-<!-- However, the distinction between prediction and explanation is a bit problematic, not the least of which is that we often want to do both. It is also the case that we cannot get explanation without prediction, which is what provides the coefficient estimates and a means to visualize the relationships between the features and the target. In addition, most of the time where the focus is on prediction, if we can't explain the results we get, we will typically feel fairly dissatisfied, and may question how well the model is actually doing. -->
 
 
 ## Wrapping Up {#causal-wrap}
-
 
 We've been pretty loose in our presentation here, and glossed over many details with causal modeling. Our main goal is to give you some idea of the domain, but more so the models used and things to think about when you want to answer a causal question with your data.
 
