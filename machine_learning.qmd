@@ -521,12 +521,14 @@ p_dd_main = res |>
     labs(
         x = 'Model Complexity', 
         y = 'Test Error',
-        # caption = 'This scale goes to 11!',
+        caption = 'Training error continues to decrease with model complexity, but test error increases after a certain point.',
         subtitle = 'Bias Variance Tradeoff'
     ) +
     theme(
       # axis.text.x = element_blank(),
-      axis.ticks.x = element_blank()
+      axis.ticks.x = element_blank(),
+      legend.key.size = unit(1.5, 'cm'),
+      legend.text = element_text(size = 12),
     )
 
 p_dd_main
@@ -704,9 +706,8 @@ p_dd_main = res |>
     labs(
         x = 'Model Complexity', 
         y = 'Test Error',
-        # subtitle = 'Double Descent on the classic mtcars dataset'
-    ) +
-    theme()
+        subtitle = 'Double Descent on the classic mtcars dataset. This is the same setup used in the bias-variance tradeoff plot.',
+    )
 
 p_dd_main
 
@@ -880,7 +881,7 @@ Regularization is used in many modeling scenarios. Here is a quick rundown of so
 
 - Still another form of regularization occurs in the form of priors in Bayesian models. There we use priors to control the influence of the data on the final model. A small variance on the prior shrinks the model towards the prior mean.  If large, there is little influence of the prior on the posterior. In regression models, there is correspondence between ridge regression and using a normal distribution prior for the coefficients in Bayesian regression, where the L2 penalty is related to the variance of that prior. Even in deep learning, there is usually a 'Bayesian interpretation' of the regularization approaches employed.
 
-- As a final example of regularization, **dropout** is a technique used in deep learning to prevent overfitting.  Feel free to return to this discussion after seeing neural networks in action in the the next chapter(@#sec-ml-common-dl-nn), as that will provide the appropriate context. But the gist of dropout is that it works by randomly dropping out some of the nodes in intervening/hidden layers in the network during training. This tends to force the network to learn more robust features, allowing for better generalization.
+- As a final example of regularization, **dropout** is a technique used in deep learning to prevent overfitting.  Feel free to return to this discussion after seeing neural networks in action in the the next chapter(@sec-ml-common-dl-nn), as that will provide the appropriate context. But the gist of dropout is that it works by randomly dropping out some of the nodes in intervening/hidden layers in the network during training. This tends to force the network to learn more robust features, allowing for better generalization.
 
 ```{r}
 #| echo: false
@@ -931,106 +932,110 @@ data = data.frame(x = as.numeric(1:30))
 
 # perform 3-fold cross validation
 p_dat = data  |> 
-  mutate(
-    fold1 = cut(seq(1,nrow(data)),breaks=3,labels=FALSE),
-    `Fold 2` = case_when(
-      fold1 == 1 ~ 3,
-      fold1 == 2 ~ 1,
-      fold1 == 3 ~ 2
-    ),
-    `Fold 3` = case_when(
-      fold1 == 1 ~ 3,
-      fold1 == 2 ~ 2,
-      fold1 == 3 ~ 1
-    )
-  ) |> 
-  rename(`Fold 1` = fold1) |>
-  pivot_longer(cols = `Fold 1`:`Fold 3`, names_to = 'fold', values_to = 'value') |>
-  mutate(fold = as.factor(fold), value = ifelse(value == 1, 'Test', 'Train')) 
+    mutate(
+      fold1 = cut(seq(1,nrow(data)),breaks=3,labels=FALSE),
+        `Fold 2` = case_when(
+          fold1 == 1 ~ 3,
+          fold1 == 2 ~ 1,
+          fold1 == 3 ~ 2
+        ),
+        `Fold 3` = case_when(
+          fold1 == 1 ~ 3,
+          fold1 == 2 ~ 2,
+          fold1 == 3 ~ 1
+        )
+    ) |> 
+    rename(`Fold 1` = fold1) |>
+    pivot_longer(cols = `Fold 1`:`Fold 3`, names_to = 'fold', values_to = 'value') |>
+    mutate(fold = as.factor(fold), value = ifelse(value == 1, 'Test', 'Train')) 
   
 p_dat |> 
   ggplot(aes(color= value)) +
-  geom_segment(aes(x = 1, y = fold, xend = 30, yend = fold, group = 1), color = okabe_ito[1], size = 20) +
-  # good christ this is stupid
-  # geom_line(aes(x = x, y = fold, group = fold), size = 20, data = p_dat |> filter(fold == 'Fold 1')) +
-  # geom_line(aes(x = x, y = fold, group = fold), size = 20, data = p_dat |> filter(fold == 'Fold 2')) +
-  # geom_line(aes(x = x, y = fold, group = fold), size = 20, data = p_dat |> filter(fold == 'Fold 3')) +
   geom_segment(
-    aes(x = 1, xend= 10, y = fold, yend = fold), 
-    linewidth = 20, 
-    color = okabe_ito[2],
-    data = p_dat |> filter(fold == 'Fold 1')
-  ) +
-  annotate(
-    geom = 'text',
-    x = 20,
-    y = 'Fold 1',
-    size = 10, 
-    label = 'Training',
-    color = 'white',
-    # data = p_dat |> filter(fold == 'Fold 1')
-  ) +
-  annotate(
-    geom = 'text',
-    x = 5,
-    y = 'Fold 1',
-    size = 10, 
-    label = 'Validation',
-    color = 'white',
-    # data = p_dat |> filter(fold == 'Fold 1')
-  ) +
+      aes(x = 1, y = fold, xend = 30, yend = fold, group = 1),
+      color = okabe_ito[['orange']],
+      size = 20
+    ) +
   geom_segment(
-    aes(x = 10, xend= 20, y = fold, yend = fold), 
-    linewidth = 20, 
-    color = okabe_ito[2],
-    data = p_dat |> filter(fold == 'Fold 2')
+      aes(x = 1, xend= 10, y = fold, yend = fold), 
+      linewidth = 20, 
+      color = okabe_ito[['darkblue']],
+      data = p_dat |> filter(fold == 'Fold 1')
   ) +
   annotate(
-    geom = 'text',
-    x = c(6, 25),
-    y = 'Fold 2',
-    size = 10, 
-    label = 'Training',
-    color = 'white',
-    # data = p_dat |> filter(fold == 'Fold 1')
+      geom = 'text',
+      x = 20,
+      y = 'Fold 1',
+      size = 10, 
+      label = 'Training',
+      color = 'white',
+      # data = p_dat |> filter(fold == 'Fold 1')
   ) +
   annotate(
-    geom = 'text',
-    x = 15,
-    y = 'Fold 2',
-    size = 10, 
-    label = 'Validation',
-    color = 'white',
-    # data = p_dat |> filter(fold == 'Fold 1')
+      geom = 'text',
+      x = 5,
+      y = 'Fold 1',
+      size = 10, 
+      label = 'Validation',
+      color = 'white',
+      # data = p_dat |> filter(fold == 'Fold 1')
   ) +
   geom_segment(
-    aes(x = 20, xend= 30, y = fold, yend = fold), 
-    linewidth = 20, 
-    color = okabe_ito[2],
-    data = p_dat |> filter(fold == 'Fold 3')
+      aes(x = 10, xend= 20, y = fold, yend = fold), 
+      linewidth = 20, 
+      color = okabe_ito[['darkblue']],
+      data = p_dat |> filter(fold == 'Fold 2')
   ) +
   annotate(
-    geom = 'text',
-    x = 11,
-    y = 'Fold 3',
-    size = 10, 
-    label = 'Training',
-    color = 'white',
-    # data = p_dat |> filter(fold == 'Fold 1')
+      geom = 'text',
+      x = c(6, 25),
+      y = 'Fold 2',
+      size = 10, 
+      label = 'Training',
+      color = 'white',
+      # data = p_dat |> filter(fold == 'Fold 1')
   ) +
   annotate(
-    geom = 'text',
-    x = 25,
-    y = 'Fold 3',
-    size = 10, 
-    label = 'Validation',
-    color = 'white',
-    # data = p_dat |> filter(fold == 'Fold 1')
+      geom = 'text',
+      x = 15,
+      y = 'Fold 2',
+      size = 10, 
+      label = 'Validation',
+      color = 'white',
+      # data = p_dat |> filter(fold == 'Fold 1')
   ) +
-  labs(x = 'Sample Index', y = '') +
+  geom_segment(
+      aes(x = 20, xend= 30, y = fold, yend = fold), 
+      linewidth = 20, 
+      color = okabe_ito[['darkblue']],
+      data = p_dat |> filter(fold == 'Fold 3')
+  ) +
+  annotate(
+      geom = 'text',
+      x = 11,
+      y = 'Fold 3',
+      size = 10, 
+      label = 'Training',
+      color = 'white',
+      # data = p_dat |> filter(fold == 'Fold 1')
+  ) +
+  annotate(
+      geom = 'text',
+      x = 25,
+      y = 'Fold 3',
+      size = 10, 
+      label = 'Validation',
+      color = 'white',
+      # data = p_dat |> filter(fold == 'Fold 1')
+  ) +
+  labs(
+      x = 'Sample Index',
+      y = '',
+      caption = '3-fold Cross Validation. Each fold is used for validation once.'
+  ) +
   theme(
-    axis.text.y = element_text(size = 20),
-    axis.title.x = element_text(size = 20),
+      axis.text.y = element_text(size = 20),
+      axis.title.x = element_text(size = 20),
   )
 
 ggsave('img/ml-core-kfold_new.svg')

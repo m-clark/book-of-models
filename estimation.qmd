@@ -128,7 +128,8 @@ Happiness = read_csv('data/world_happiness_2018.csv') |>
 tbl_happy = Happiness |>
     gtExtras::gt_plt_summary()
 
-gtsave_extra(tbl_happy, 'img/happiness_data_summary.png')
+# CROP AFTER ('expand' does not appear affect unnecessary whitespace)
+gtsave_extra(tbl_happy, 'img/happiness_data_summary.png', expand = 0, zoom = 3)
 ```
 
 ![World Happiness Data Summary](img/happiness_data_summary.png){#fig-r-happiness-data width=100%}
@@ -570,12 +571,10 @@ p_ols = guesses |>
 ggsave(p_ols, filename = 'img/estim-ols_guesses.svg', width = 8, height = 6)
 ```
 
-![Results of parameter search](img/estim-ols_guesses.svg){#fig-r-ols-apply width=50%}
+![Results of parameter search](img/estim-ols_guesses.svg){#fig-r-ols-apply width=75%}
 
 
 If we inspect our results from the standard functions, we had estimates of `r int_happy` and `r coef_happy` for our coefficients versus the best guess from our approach of `r min_loss$b0` and `r min_loss$b1`. These are very similar but not exactly the same, but this is mostly due to the granularity of our guesses.  Even so, in the end we can see that we get pretty dang close to what our basic `lm` or `statsmodels` functions would get us. Pretty neat!
-
-
 
 
 ::: {.callout type='note' title="Estimation as 'Learning'" collapse='true'}
@@ -2350,7 +2349,7 @@ np.mean(our_result['par'], axis=0)
 
 Here are the results of the interval estimates for the coefficients. Each parameter has the mean estimate, the lower and upper bounds of the 95% confidence interval, and the width of the interval. The bootstrap intervals are a bit wider than the OLS intervals, possibly better capturing the uncertainty in this model based on not too many observations.
 
-
+\small
 ```{r}
 #| echo: false
 #| label: tbl-bootstrap
@@ -2381,6 +2380,7 @@ tab_boot_summary |>
         footnotes.font.size = 10
     )
 ```
+\normalsize
 
 Let's look more closely at the distributions for each coefficient. Standard statistical estimates assume a specific shape like the normal distribution. But with the bootstrap method, we have more flexibility, even though it often leans towards the assumed distribution. These distributions aren't perfectly symmetrical like a normal distribution, but they suit our needs in that we can extract the lower and upper quantiles to create an interval estimate.
 
@@ -2445,6 +2445,7 @@ The **Bayesian** approach to modeling is many things - a philosophical viewpoint
 The basis of Bayesian estimation is the **likelihood**, the same as with maximum likelihood, and everything we did there applies here. So you need a good grasp of maximum likelihood to understand the Bayesian approach. However, the Bayesian approach is different because it also lets us use our knowledge about the parameters through **prior distributions**. For example, we may think that the coefficients for a linear model come from a normal distribution centered on zero with some variance. That would serve as our prior. The combination of a prior distribution with the likelihood results in the **posterior distribution**, which is a *distribution* of possible parameter values. 
 
 ![Prior, likelihood, posterior and distributions](img/prior2post_clean.png){#fig-bayesian-prior-posterior}
+
 
 #### Example {.unnumbered}
 
@@ -2572,10 +2573,12 @@ tibble(
     )
 ```
 
-Our final estimate
+
+:::{.callout-info 'Priors as Regularization'}
+In the context of penalized estimation and machine learning, the prior distribution can be thought of as a form of **regularization** (See -@sec-estim-penalty above, and -@sec-ml-regularization later). In this context, the prior shrinks the estimate, pulling the parameter estimates towards it, just like the penalty parameter does in the penalized estimation methods. In fact, many penalized methods can be thought of as a Bayesian approach with a specific prior distribution. A specific example would be ridge regression, which can be thought of as a Bayesian approach with a normal prior distribution for the coefficients.
+:::
 
 #### Application {.unnumbered}
-
 
 Just like with the bootstrap which also provided distributions for the parameters, we can use the Bayesian approach to understand how certain we are about our estimates. We can look at any range of values in the posterior distribution to get what is often referred to as a **credible interval**, which is the Bayesian equivalent of a confidence interval[^confintinterp]. Here is an example of the posterior distribution for the parameters of our happiness model, along with 95% intervals[^brms].
 
@@ -2884,5 +2887,11 @@ Classical treatments:
 
 ## Exercise {#sec-estim-exercise}
 
-Try creating an objective function for a continuous target that uses the mean absolute error, and compare your estimated parameters to the previous results for ordinary least squares. Alternatively, use the ridge regression demonstration and change it to use the lasso approach (this would require altering just one line).
+For this exercise you'll have two tasks:
+
+- Try creating an objective function for a continuous target that uses the mean absolute error, and compare your estimated parameters to the previous results for ordinary least squares. Use the OLS function from the chapter as a basis (@sec-estim-ols), but modify it for the new objective.
+
+- Use the estimation function we demonstrated for ridge regression (@sec-estim-penalty) and change it to use the lasso approach.
+
+Both of these can be done by changing one line in the previous functions used.
 
