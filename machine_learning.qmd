@@ -10,9 +10,8 @@ At its core, machine learning is a branch of data analysis with a primary focus 
 
 This is a *different focus* than statistical modeling approaches that put much more emphasis on interpreting coefficients and uncertainty. But these two approaches can work together. Some implementations of machine learning include models that have their basis in traditional statistics, while others are often sufficiently complex that they are scarcely interpretable. However, even after you conduct your modeling via machine learning, you may still fall back on statistical analysis for further exploration of the results. 
 
-That said, here we will also discuss some of the key ideas in machine learning, such as model assessment, loss functions, and cross-validation. Later we'll demonstrate common models used, but if you want to dive in, [you can head there now](ml-common-models.html)!
+That said, here we will also discuss some of the key ideas in machine learning, such as model assessment, loss functions, and cross-validation. Later we'll demonstrate common models used, but if you want to dive in, [you can head there now](ml_common_models.html)!
 
-<!-- TODO: check link -->
 
 [^machinelearn]: The description of ML as machines learning 'without being programmed' can be misleading to the newcomer. In fact, many of the most common models used in machine learning are not capable of learning 'on their own' at any level, and require human intervention to provide processed data, specify the model, its parameters, set up the search through that parameter space, analyze the results, update the model, etc. We only very recently, post-2020, have developed models that appear to be able to generalize well to new tasks as if they have learned them without human involvement, but we still don't want to ignore all the hands-on work that went into the development of those models, which never could have such capabilities otherwise. When you see this 'learning without being programmed' it is an odd way to say that we don't have to guess the parameters ourselves (aside from the first guess). That said, it does feel like The Matrix, Star Trek and the rest is just around the corner though, doesn't it?
 
@@ -42,7 +41,7 @@ Here are the key ideas we'll cover in this chapter:
 Machine learning applications help define the modern world and how we interact with it.  There are few aspects of modern society that have not been touched by it in some way. With a basic understanding of the core ideas behind machine learning, you will better understand the models and techniques that are used in ML applications, and be able to apply them to your own work. You'll also be able to understand the limitations of these models, and not think of machine learning as 'magic'. 
 
 
-### Good to know
+### Helpful context
 
 To dive into applying machine learning models, you really only need a decent grasp of linear models as applied to regression and classification problems (@sec-foundation, @sec-glm). It would also be good to have an idea behind how they are estimated, as the same basic logic serves as a starting point here (@sec-estimation).
 
@@ -51,13 +50,13 @@ To dive into applying machine learning models, you really only need a decent gra
 
 We've implemented a variety of objective functions in other chapters such as mean squared error for numeric targets and log loss for binary targets (@sec-estimation). The objective function is what we used to estimate model parameters, but not necessarily the same as the performance metric we ultimately use to select a model. For example, we may use log loss as the objective function, but then use accuracy as the performance metric. In that setting, the log loss provides a 'smooth' objective function to search the parameter space over, while accuracy is a straightforward and more interpretable metric for stakeholders. In this case, the objective function is used to optimize the model, while the performance metric is used to evaluate the model. In some cases, the objective function and performance metric are the same (e.g. (R)MSE), and even if not, they might have selected the same 'best' model, but this is not always the case.
 
-<!-- TODO: fix table for pdf -->
+<!-- TODO: check table for pdf and too much white space -->
 
 {{< pagebreak >}}
 
 \blandscape
 
-\small
+\footnotesize
 
 
 ```{r}
@@ -105,9 +104,6 @@ As an example, and as a reason to get our first taste of machine learning, let's
 
 In Python, we can use the `sklearn.metrics` module to get a variety of metrics for both regression and classification problems. 
 
-<!-- TODO: apparent quarto bug does not suppress output (really an sklearn bug); but you can avoid via assignment. -->
-
-<!-- TODO: change to moviereviewsdata and check  -->
 
 ```{python}
 #| label: py-metrics
@@ -377,34 +373,193 @@ In the following discussion, you can think of a standard linear model scenario, 
 
 #### Generalization in the classical regime
 
-So what result should we expect in this scenario? Let's look at the following visualization inspired by @hastie_elements_2017. 
+So what result should we expect in this scenario? Let's look at the following visualization inspired by @hastie_elements_2017, and which we will return to later.
 
-<!-- TODO: code is long since lost, but plot should be recreated at some point -->
 
-![Bias Variance Tradeoff](img/biasvar2.svg){#fig-bias-variance}
+```{r}
+#| echo: false
+#| eval: false
+#| label: bias-var-tradeoff
+fit_ridgeless = function(X, y, x_test, y_test) {
+    b = psych::Pinv(crossprod(X)) %*% crossprod(X, y)
 
-Prediction error on the test set, shown in red, is a function of several components, and two of these are  **bias** and **variance**. 
+    predictions_train = X %*% b
+    predictions_test  = x_test %*% b
 
-A key idea is that as the model complexity increases, we potentially capture more of the data variability. This reduces **bias**, which is the difference in our average prediction and the true model prediction. But this only works for training error, shown in blue, where eventually our model can potentially fit the training data perfectly! 
+    rmse_train = yardstick::rmse_vec(y, predictions_train[, 1])
+    rmse_test  = yardstick::rmse_vec(y_test, predictions_test[, 1])
+
+    list(b = b, rmse_train = rmse_train, rmse_test = rmse_test)
+}
+
+
+fit_reshuffle = function(
+    n,
+    scale = TRUE,
+    random = FALSE,
+    bs = 'cs',
+    k = 10
+) {
+    df_cars_shuffled = mtcars[sample(1:nrow(mtcars)), c(1, sample(2:ncol(mtcars)))] # shuffle rows/columns (keep mpg as first)
+
+    if (scale) df_cars_shuffled = data.frame(scale(df_cars_shuffled))
+
+    sc_wt = mgcv::smoothCon(mgcv::s(wt, bs = bs, k = k), data = df_cars_shuffled)[[1]]$X
+    sc_hp = mgcv::smoothCon(mgcv::s(hp, bs = bs, k = k), data = df_cars_shuffled)[[1]]$X
+    sc_disp = mgcv::smoothCon(mgcv::s(disp, bs = bs, k = k), data = df_cars_shuffled)[[1]]$X
+
+    if (random) {
+        ran_dim = 10
+        sc_wt = matrix(rnorm(nrow(df_cars_shuffled) * ran_dim), ncol = ran_dim)
+        sc_hp = matrix(rnorm(nrow(df_cars_shuffled) * ran_dim), ncol = ran_dim)
+        sc_disp = matrix(rnorm(nrow(df_cars_shuffled) * ran_dim), ncol = ran_dim)
+    }
+
+    X = as.matrix(cbind(1, df_cars_shuffled[, -1], sc_wt, sc_hp, sc_disp))
+    y = df_cars_shuffled$mpg
+
+    train_idx = sample(1:nrow(df_cars_shuffled), n)
+
+    X_train = X[train_idx, , drop = FALSE]
+    X_test = X[-train_idx, , drop = FALSE]
+
+    y_train = y[train_idx]
+    y_test = y[-train_idx]
+
+    ncol_X_main = ncol(mtcars) # max model.matrix dim for original data
+    ncol_cubic_wt = ncol(sc_wt)
+    ncol_cubic_hp = ncol(sc_hp)
+    ncol_cubic_disp = ncol(sc_disp)
+
+    if (random) {
+        total_explore = 1:ncol(X)
+    } else {
+        total_explore = c(
+            1:ncol_X_main,
+            ncol_X_main + ncol_cubic_wt,
+            ncol_X_main + ncol_cubic_wt + ncol_cubic_hp,
+            ncol(X) # max dim
+        )
+    }
+
+    # for each dimension, run fit_ridgeless
+    rmse = map_df(
+        total_explore,
+        ~ fit_ridgeless(X_train[, 1:.x], y_train, X_test[, 1:.x], y_test)[c('rmse_train', 'rmse_test')] |> as_tibble()
+    )
+
+    tibble(p = total_explore, rmse)
+}
+
+set.seed(42)
+n = 20
+
+res = map_df(1:250, ~ fit_reshuffle(
+    n = n,
+    random = FALSE,
+    bs = 'cs',
+    k = 15
+), .id = 'sim')
+
+test_error_summary = res |> 
+    group_by(p) |> 
+    summarize(
+        rmse_train = mean(rmse_train, na.rm = TRUE),
+        rmse_test = mean(rmse_test, na.rm = TRUE),
+    ) |> 
+    pivot_longer(-p, names_to = 'type', values_to = 'rmse') |> 
+    mutate(
+      type = str_to_title(str_remove(type, 'rmse_'))
+    )
+
+# test_error_summary
+
+max_p = 20
+
+p_dd_main = res |> 
+    pivot_longer(-c(p, sim), names_to = 'type', values_to = 'rmse') |> 
+    mutate(
+      type = str_to_title(str_remove(type, 'rmse_'))
+    ) |> 
+    filter(p <= max_p) |> 
+    ggplot(aes(as.integer(p), rmse)) +
+    # geom_vline(xintercept = n, alpha = .5) +
+    geom_line(aes(color = type, group = interaction(type, sim)), alpha = .33, linewidth = .05) +
+    geom_line(aes(color = type, linetype = type),
+        linewidth = 1.5,
+        data = test_error_summary |> filter(p <= max_p)
+    ) +
+    scale_color_manual(values = unname(okabe_ito[c(1,5)])) +
+    # geom_point(aes(color = type),
+    #     alpha = .75,
+    #     size = 3,
+    #     data = test_error_summary
+    # ) +
+    # geom_point(
+    #     # aes(color = type),
+    #     color = 'gray50',
+    #     alpha = 1,
+    #     size = 9,
+    #     data = test_error_summary |> 
+    #         filter(p < n, type == 'test') |> 
+    #         filter(rmse == min(rmse)),
+    #     show.legend = FALSE
+    # ) +
+    # geom_point(
+    #     color = okabe_ito[[1]],
+    #     alpha = 1,
+    #     size = 10,
+    #     data = test_error_summary |>  filter(type == 'test') |>  filter(rmse == min(rmse)),
+    #     show.legend = FALSE
+    # ) +
+    scale_x_continuous(breaks = 1:max_p, limits = c(1, 11)) +
+    coord_cartesian(
+        # xlim = c(0, n),
+        # ylim = c(0, max(test_error_summary$rmse) + 1)
+        ylim = c(0, 1)
+    ) +
+    labs(
+        x = 'Model Complexity', 
+        y = 'Test Error',
+        caption = 'Training error continues to decrease with model complexity, but test error increases after a certain point.',
+        subtitle = 'Bias Variance Tradeoff'
+    ) +
+    theme(
+      # axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      legend.key.size = unit(1.5, 'cm'),
+      legend.text = element_text(size = 12),
+    )
+
+p_dd_main
+
+ggsave('img/biasvar_mtcars.svg')
+```
+
+![Bias Variance Tradeoff](img/biasvar_mtcars.svg){#fig-bias-variance width=100%}
+
+Prediction error on the test set is a function of several components, and two of these are  **bias** and **variance**. 
+
+A key idea is that as the model complexity increases, we potentially capture more of the data variability. This reduces **bias**, which is the difference in our average prediction and the true model prediction. But this only works for training error, where eventually our model can potentially fit the training data perfectly! 
 
 For test error though, as the model complexity increases, the bias decreases, but the **variance** eventually increases. This variance reflects how much our prediction changes with different data. If our model gets too cozy with the training data, it will do poorly when we try to generalize beyond it, and this will be reflected in increased variance. This is traditionally known as the **bias-variance tradeoff** - we can reduce one source of error in the test set at the expense of the other, but not both at the same time indefinitely. In other words, we can reduce bias by increasing model complexity, but this will eventually increase variance in our test predictions. We can reduce variance by reducing model complexity, but this will increase bias. One additional thing to note is that even if we had the 'true' model given the features specified correctly, for the vast majority of cases there would still be prediction error due to the random data generating process (**noise**). This can potentially be reduced using additional valid features, getting better measurements, etc., but it will still be there to some extent in practice, and so will limit test set performance.
 
 The ultimate goal is to find the sweet spot. We want a model that's complex enough to capture the data, but not so complex that it overfits to the training data.
 
 
-#### Generalization in deep learning
-
-<!-- TODO: also note grokking -->
+#### Generalization in deep learning {.unnumbered}
 
 It turns out that with lots of data and very complex models, or maybe even in most settings, our 'classical' understanding just described doesn't hold up. In fact, it is possible to get a model that fits the training data perfectly, and yet ultimately still generalizes well to new data! 
 
-This phenomenon is encapsulated in the notion of **double descent**. The idea is that, with overly complex models such as those employed with deep learning, we can get to the point of interpolating the data exactly. But as we continue to increase the complexity of the model, we actually start to generalize better again, and visually this displays as a 'double descent' in terms of test error. We see an initial decrease in test error as the model gets better in general. After a while, it begins to rise as we would expect in the classical regime (@fig-bias-variance). Eventually it peaks at the point where we have as many parameters as data points. Beyond that however, as we get even more complex with our model, we can possibly see a decrease in test error again. Crazy!
+This phenomenon is encapsulated in the notion of **double descent**. The idea is that, with overly complex models such as those employed with deep learning, we can get to the point of interpolating the data exactly. But as we continue to increase the complexity of the model, we actually start to generalize better again, as the model continues to to explore potential options for fitting the data. This is a fascinating and somewhat counterintuitive result, and visually this displays as a 'double descent' in terms of test error. We see an initial decrease in test error as the model gets better in general. After a while, it begins to rise as we would expect in the classical regime (@fig-bias-variance). Eventually it peaks at the point where we have as many parameters as data points. Beyond that however, as we get even more complex with our model, we can possibly see a decrease in test error again[^grok]. Crazy!
+
+[^grok]: A similar phenomenon is found in the idea of **grokking** in deep learning. In this case, even after seemingly doing as well as the model can on training and validation, the model 'spontaneously' starts to improve on validation. See @power_grokking_2022 for more on this.
 
 We can demonstrate this on the classic `mtcars` dataset[^mtcars], which has only 32 observations! We repeatedly trained a model to predict miles per gallon on only 10 of those observations, and assess test error on the rest. The model we used is a form of ridge regression, but we implemented splines for the car's weight, horsepower, and displacement[^ridgeless], i.e. we GAMed it up (@sec-gam). We trained increasingly complex models, and in what follows we visualize the  error as a function of model complexity. 
 
 On the left part of the visualization, we see that the test error dips as we get a better model. Our best test error is noted by the large gray dot.  Eventually though, the test error rises as expected, even as training error gets better. Test error eventually hits a peak when the number of parameters equals the number of training observations. But then we keep going, and the test error starts to decrease again! By the end we have essentially perfect training prediction, and our test error is as good as it was with the simpler models. This is the double descent phenomenon with one of the simplest datasets around. Cool!
 
-<!-- TODO: could add demo code to appendix? -->
+<!-- could add demo code to appendix? or note the witten tweets -->
 
 [^mtcars]: If not familiar, the `mtcars` object is a data frame that comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973-74 models).
 
@@ -514,7 +669,7 @@ p_dd_main = res |>
     ggplot(aes(as.integer(p), rmse)) +
     geom_vline(xintercept = n, alpha = .5) +
     geom_line(aes(color = type, group = interaction(type, sim)), alpha = .25, linewidth = .05) +
-    geom_line(aes(color = type),
+    geom_line(aes(color = type, linetype = type),
         linewidth = .5,
         data = test_error_summary
     ) +
@@ -522,7 +677,8 @@ p_dd_main = res |>
     geom_point(aes(color = type),
         alpha = .75,
         size = 3,
-        data = test_error_summary
+        data = test_error_summary,
+        show.legend = FALSE
     ) +
     geom_point(
         # aes(color = type),
@@ -550,9 +706,8 @@ p_dd_main = res |>
     labs(
         x = 'Model Complexity', 
         y = 'Test Error',
-        # subtitle = 'Double Descent on the classic mtcars dataset'
-    ) +
-    theme()
+        subtitle = 'Double Descent on the classic mtcars dataset. This is the same setup used in the bias-variance tradeoff plot.',
+    )
 
 p_dd_main
 
@@ -726,7 +881,7 @@ Regularization is used in many modeling scenarios. Here is a quick rundown of so
 
 - Still another form of regularization occurs in the form of priors in Bayesian models. There we use priors to control the influence of the data on the final model. A small variance on the prior shrinks the model towards the prior mean.  If large, there is little influence of the prior on the posterior. In regression models, there is correspondence between ridge regression and using a normal distribution prior for the coefficients in Bayesian regression, where the L2 penalty is related to the variance of that prior. Even in deep learning, there is usually a 'Bayesian interpretation' of the regularization approaches employed.
 
-- As a final example of regularization, **dropout** is a technique used in deep learning to prevent overfitting. It works by randomly dropping out some of the nodes in intervening/hidden layers in the network during training. This tends to force the network to learn more robust features, allowing for better generalization.
+- As a final example of regularization, **dropout** is a technique used in deep learning to prevent overfitting.  Feel free to return to this discussion after seeing neural networks in action in the the next chapter(@sec-ml-common-dl-nn), as that will provide the appropriate context. But the gist of dropout is that it works by randomly dropping out some of the nodes in intervening/hidden layers in the network during training. This tends to force the network to learn more robust features, allowing for better generalization.
 
 ```{r}
 #| echo: false
@@ -750,10 +905,9 @@ For the linear model and related models for typical tabular data, a very large d
 
 :::
 
-<!-- TODO: add conformal prediction discussion? -->
+
+
 ## Cross-validation {#sec-ml-cv}
-
-
 
 So we've talked a lot about generalization, so now let's think about some ways to go about a general process of selecting parameters for a model and assessing performance. 
 
@@ -778,106 +932,110 @@ data = data.frame(x = as.numeric(1:30))
 
 # perform 3-fold cross validation
 p_dat = data  |> 
-  mutate(
-    fold1 = cut(seq(1,nrow(data)),breaks=3,labels=FALSE),
-    `Fold 2` = case_when(
-      fold1 == 1 ~ 3,
-      fold1 == 2 ~ 1,
-      fold1 == 3 ~ 2
-    ),
-    `Fold 3` = case_when(
-      fold1 == 1 ~ 3,
-      fold1 == 2 ~ 2,
-      fold1 == 3 ~ 1
-    )
-  ) |> 
-  rename(`Fold 1` = fold1) |>
-  pivot_longer(cols = `Fold 1`:`Fold 3`, names_to = 'fold', values_to = 'value') |>
-  mutate(fold = as.factor(fold), value = ifelse(value == 1, 'Test', 'Train')) 
+    mutate(
+      fold1 = cut(seq(1,nrow(data)),breaks=3,labels=FALSE),
+        `Fold 2` = case_when(
+          fold1 == 1 ~ 3,
+          fold1 == 2 ~ 1,
+          fold1 == 3 ~ 2
+        ),
+        `Fold 3` = case_when(
+          fold1 == 1 ~ 3,
+          fold1 == 2 ~ 2,
+          fold1 == 3 ~ 1
+        )
+    ) |> 
+    rename(`Fold 1` = fold1) |>
+    pivot_longer(cols = `Fold 1`:`Fold 3`, names_to = 'fold', values_to = 'value') |>
+    mutate(fold = as.factor(fold), value = ifelse(value == 1, 'Test', 'Train')) 
   
 p_dat |> 
   ggplot(aes(color= value)) +
-  geom_segment(aes(x = 1, y = fold, xend = 30, yend = fold, group = 1), color = okabe_ito[1], size = 20) +
-  # good christ this is stupid
-  # geom_line(aes(x = x, y = fold, group = fold), size = 20, data = p_dat |> filter(fold == 'Fold 1')) +
-  # geom_line(aes(x = x, y = fold, group = fold), size = 20, data = p_dat |> filter(fold == 'Fold 2')) +
-  # geom_line(aes(x = x, y = fold, group = fold), size = 20, data = p_dat |> filter(fold == 'Fold 3')) +
   geom_segment(
-    aes(x = 1, xend= 10, y = fold, yend = fold), 
-    linewidth = 20, 
-    color = okabe_ito[2],
-    data = p_dat |> filter(fold == 'Fold 1')
-  ) +
-  annotate(
-    geom = 'text',
-    x = 20,
-    y = 'Fold 1',
-    size = 10, 
-    label = 'Training',
-    color = 'white',
-    # data = p_dat |> filter(fold == 'Fold 1')
-  ) +
-  annotate(
-    geom = 'text',
-    x = 5,
-    y = 'Fold 1',
-    size = 10, 
-    label = 'Validation',
-    color = 'white',
-    # data = p_dat |> filter(fold == 'Fold 1')
-  ) +
+      aes(x = 1, y = fold, xend = 30, yend = fold, group = 1),
+      color = okabe_ito[['orange']],
+      size = 20
+    ) +
   geom_segment(
-    aes(x = 10, xend= 20, y = fold, yend = fold), 
-    linewidth = 20, 
-    color = okabe_ito[2],
-    data = p_dat |> filter(fold == 'Fold 2')
+      aes(x = 1, xend= 10, y = fold, yend = fold), 
+      linewidth = 20, 
+      color = okabe_ito[['darkblue']],
+      data = p_dat |> filter(fold == 'Fold 1')
   ) +
   annotate(
-    geom = 'text',
-    x = c(6, 25),
-    y = 'Fold 2',
-    size = 10, 
-    label = 'Training',
-    color = 'white',
-    # data = p_dat |> filter(fold == 'Fold 1')
+      geom = 'text',
+      x = 20,
+      y = 'Fold 1',
+      size = 10, 
+      label = 'Training',
+      color = 'white',
+      # data = p_dat |> filter(fold == 'Fold 1')
   ) +
   annotate(
-    geom = 'text',
-    x = 15,
-    y = 'Fold 2',
-    size = 10, 
-    label = 'Validation',
-    color = 'white',
-    # data = p_dat |> filter(fold == 'Fold 1')
+      geom = 'text',
+      x = 5,
+      y = 'Fold 1',
+      size = 10, 
+      label = 'Validation',
+      color = 'white',
+      # data = p_dat |> filter(fold == 'Fold 1')
   ) +
   geom_segment(
-    aes(x = 20, xend= 30, y = fold, yend = fold), 
-    linewidth = 20, 
-    color = okabe_ito[2],
-    data = p_dat |> filter(fold == 'Fold 3')
+      aes(x = 10, xend= 20, y = fold, yend = fold), 
+      linewidth = 20, 
+      color = okabe_ito[['darkblue']],
+      data = p_dat |> filter(fold == 'Fold 2')
   ) +
   annotate(
-    geom = 'text',
-    x = 11,
-    y = 'Fold 3',
-    size = 10, 
-    label = 'Training',
-    color = 'white',
-    # data = p_dat |> filter(fold == 'Fold 1')
+      geom = 'text',
+      x = c(6, 25),
+      y = 'Fold 2',
+      size = 10, 
+      label = 'Training',
+      color = 'white',
+      # data = p_dat |> filter(fold == 'Fold 1')
   ) +
   annotate(
-    geom = 'text',
-    x = 25,
-    y = 'Fold 3',
-    size = 10, 
-    label = 'Validation',
-    color = 'white',
-    # data = p_dat |> filter(fold == 'Fold 1')
+      geom = 'text',
+      x = 15,
+      y = 'Fold 2',
+      size = 10, 
+      label = 'Validation',
+      color = 'white',
+      # data = p_dat |> filter(fold == 'Fold 1')
   ) +
-  labs(x = 'Sample Index', y = '') +
+  geom_segment(
+      aes(x = 20, xend= 30, y = fold, yend = fold), 
+      linewidth = 20, 
+      color = okabe_ito[['darkblue']],
+      data = p_dat |> filter(fold == 'Fold 3')
+  ) +
+  annotate(
+      geom = 'text',
+      x = 11,
+      y = 'Fold 3',
+      size = 10, 
+      label = 'Training',
+      color = 'white',
+      # data = p_dat |> filter(fold == 'Fold 1')
+  ) +
+  annotate(
+      geom = 'text',
+      x = 25,
+      y = 'Fold 3',
+      size = 10, 
+      label = 'Validation',
+      color = 'white',
+      # data = p_dat |> filter(fold == 'Fold 1')
+  ) +
+  labs(
+      x = 'Sample Index',
+      y = '',
+      caption = '3-fold Cross Validation. Each fold is used for validation once.'
+  ) +
   theme(
-    axis.text.y = element_text(size = 20),
-    axis.title.x = element_text(size = 20),
+      axis.text.y = element_text(size = 20),
+      axis.title.x = element_text(size = 20),
   )
 
 ggsave('img/ml-core-kfold_new.svg')
@@ -1112,22 +1270,27 @@ print(
 
 ##### R
 
-We use the `AutoTuner` function to perform k-fold cross-validation to select the best penalty parameter.
+We use the `auto_tuner` function to perform k-fold cross-validation to select the best penalty parameter (`lambda`). We set the mixing parameter (`alpha`) to zero so that we are only using ridge regression. See the [glmnet vignette](https://glmnet.stanford.edu/articles/glmnet.html) for details.
+
 ```{r}
 #| label: r-tune
 #| results: 'hide'
 
 # Load necessary libraries
-library(mlr3verse)
-library(paradox) # for tuning
+# library(mlr3verse)
+# library(paradox) # for tuning
+library(mlr3)
+library(mlr3learners)
+library(mlr3tuning) # for tuning
 library(rsample) # for cross validation
 
 X = df_reviews |> 
     mutate(rating_good = as.factor(rating_good)) |> 
-    select(matches('sc|rating_good'))
+    select(matches('sc|rating_good')) |> 
+    as.data.table()
 
 # Define task
-task = TaskClassif$new('movie_reviews', X, target = 'rating_good')
+task = TaskClassif$new('movie_reviews', X, target = 'rating_good', positive = 'good')
 
 # split the dataset into training and test sets
 splits = partition(task, ratio = 0.75)
@@ -1143,11 +1306,11 @@ measure = msr('classif.acc')
 
 # Define parameter space
 param_set = ParamSet$new(list(
-    ParamDbl$new('lambda', lower = 1e-3, upper = 1)
+    lambda = p_dbl(lower = 1e-3, upper = 1)
 ))
 
 # Define tuner
-model_logistic_grid = AutoTuner$new(
+model_logistic_grid = auto_tuner(
     learner = learner,
     resampling = cv_k5,
     measure = measure,
@@ -1172,8 +1335,6 @@ acc_test  = model_logistic_grid$predict(task, row_ids=splits$test)$score(measure
 #| tbl-cap: Results of hyperparameter tuning
 #| echo: false
 
-
-# FIXME: CURRENTLY FAILING FOR PDF
 # tibble(
 #   lambda = best_param$lambda,
 #   acc_train = acc_train,
@@ -1301,6 +1462,7 @@ With R, [mlr3]{.pack} works in a similar fashion to [scikit-learn]{.pack}. We cr
 #| results: 'hide'
 
 # Using task/splits/resampling from tuning section
+library(mlr3pipelines)
 
 # Define pipeline
 logistic_cv_pipeline =  po('imputemean') %>>%
@@ -1308,7 +1470,8 @@ logistic_cv_pipeline =  po('imputemean') %>>%
     po(
         'learner', 
         lrn('classif.cv_glmnet', predict_type = 'response'), 
-        alpha = to_tune(1e-04, 1e-1, logscale = TRUE)
+        alpha = to_tune(1e-04, 1e-1, logscale = TRUE), # mixing parameter
+        lambda = c(1e-3, 1e-2, 1e-1, 1)   # penalty
     )
 
 model_logistic_cv_pipeline = AutoTuner$new(
@@ -1387,6 +1550,7 @@ Miscellaneous resources related to topics covered:
 
 - [Ridge - Bayesian connection](https://en.wikipedia.org/wiki/Ridge_regression#Bayesian_interpretation) 
 - [Bias-Variance tradeoff](https://machinelearningmastery.com/gentle-introduction-to-the-bias-variance-trade-off-in-machine-learning/)
+- [A great thread on double descent using a GAM example by Daniela Witten](https://x.com/daniela_witten/status/1292293102103748609)
 - [Reconciling modern machine-learning practice and the classical bias-variance trade-off](https://www.pnas.org/doi/10.1073/pnas.1903070116)
 - [Overview of dropout in deep learning](https://d2l.ai/chapter_multilayer-perceptrons/dropout.html)
 - **Annotated History of Modern AI and Deep Learning** (@schmidhuber_annotated_2022)

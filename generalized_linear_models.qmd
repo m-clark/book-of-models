@@ -55,7 +55,7 @@ What happens when your target variable isn't really something you feel comfortab
 
 The linear model is powerful on its own, but even more so when you realize you can extend it to many other data settings, some of which may have implicitly nonlinear feature-target relationships! When we want to classify observations, count them, or deal with proportions and other things, very simple tweaks of our standard linear model allow us to handle such situations.
 
-### Good to know {#sec-glm-good2know}
+### Helpful context {#sec-glm-good2know}
 
 Generalized linear models are a broad class of models that extend the linear model to different distributions of the target variable. In general, you'd need to have a pretty good grasp of linear regression before getting too carried away here.
 
@@ -89,7 +89,6 @@ One thing to note, when we switch distributions for GLMs, we're still concerning
 
 As we've seen, you will often have a binary variable that you might want to use as a target -- it could be dead/alive, lose/win, quit/retain, etc. You might be tempted to use a linear regression, but you will quickly find that it's not the best option in that setting. So let's try something else.
 
-<!-- TODO: can probably move distribution part of this section to appendix as part of general discussion of some distributions worth knowing, esp. as this is focused on binomial as a count, and the model focus is on the binary/bernoulli special case. -->
 
 ### The binomial distribution {#sec-glm-binomial}
 
@@ -269,9 +268,10 @@ We can see that the probability of success approaches 0 when the log odds are ne
 
 Log odds have a nice symmetry around 0, where the probability of success is 0.5. Any value above 0 indicates a probability of success greater than 0.5, and any value below 0 indicates a probability of success less than 0.5. However, don't get too hung up on a .5 probability as being fundamentally important for any given problem.
 
-As mentioned, logistic regression models usually report coefficients on the log-odds scale by default. The coefficients reflect the odds associated with predicted probabilities given the feature at different values one unit apart. Log-odds are not the most intuitive thing to interpret. When we are more concerned with model interpretability, we often convert the coefficients to odds ratios by exponentiating them. In logistic regression models, the odds ratio is the ratio of the odds of the outcome occurring (vs. not occuring) for a one unit increase in the feature.
+As mentioned, logistic regression models usually report coefficients on the log-odds scale by default. The coefficients reflect the odds associated with predicted probabilities given the feature at different values one unit apart. Log-odds are not the most intuitive thing to interpret. When we are more concerned with model interpretability, we often convert the coefficients to odds ratios by exponentiating them. In logistic regression models, the odds ratio is the ratio of the odds of the outcome occurring (vs. not occurring) for a one unit increase in the feature.
 
-<!-- TODO: MC thinks this still may be too much, given that it's relatively rare to care about odds ratio outside of academic settings. -->
+<!-- MC thinks this still may be too much, given that it seems fairly rare to care about odds ratio outside of academic settings. Leave for now though -->
+
 The following function will calculate the odds ratio for two probabilities, which we can think of as prediction outcomes for two values of a feature one unit apart.
 
 :::{.panel-tabset}
@@ -431,48 +431,17 @@ Now let's get our hands dirty and do a classification model using logistic regre
 ##### R
 
 ```{r}
-#| label: import-data-r
+#| label: import-data-model-logistic-r
 df_reviews = read_csv('https://tinyurl.com/moviereviewsdata')
 
-# for the by-hand option later
+# for the 'by-hand' option later
 X = df_reviews |> 
     select(word_count, male = gender) |> 
     mutate(male = ifelse(male == 'male', 1, 0)) |> 
     as.matrix()
 
 y = df_reviews$rating_good
-```
 
-##### Python
-
-```{python}
-#| label: import-data-py
-import pandas as pd
-import numpy as np
-
-df_reviews = pd.read_csv('https://tinyurl.com/moviereviewsdata')
-
-# for the by-hand option later
-X = (
-    df_reviews[['word_count', 'gender']]
-    .rename(columns = {'gender': 'male'})
-    .assign(male = np.where(df_reviews[['gender']] == 'male', 1, 0))
-)
-
-y = df_reviews['rating_good']
-```
-
-:::
-
-
-For an initial logistic regression model, we can use standard and common functions in our chosen language.  Running a logistic regression model requires the specification of the family, but that's pretty much the only difference compared to our previous linear regression. The default link function for the binomial distribution is the 'logit' link, so we don't have to specify it explicitly.
-
-:::{.panel-tabset}
-
-##### R
-
-```{r}
-#| label: model-logistic-r
 model_logistic = glm(
     rating_good ~ word_count + gender, 
     data = df_reviews,
@@ -485,9 +454,23 @@ summary(model_logistic)
 ##### Python
 
 ```{python}
-#| label: model-logistic-py
-import statsmodels.api as sm
+#| label: import-data-model-logistic- py
+import pandas as pd
 import statsmodels.formula.api as smf
+import statsmodels.api as sm
+
+
+df_reviews = pd.read_csv('https://tinyurl.com/moviereviewsdata')
+
+# for the 'by-hand' option later
+X = (
+    df_reviews[['word_count', 'gender']]
+    .rename(columns = {'gender': 'male'})
+    .assign(male = np.where(df_reviews[['gender']] == 'male', 1, 0))
+)
+
+y = df_reviews['rating_good']
+
 
 model_logistic = smf.glm(
     'rating_good ~ word_count + gender', 
@@ -499,6 +482,8 @@ model_logistic.summary()
 ```
 
 :::
+
+Now that we have some results, we can see that they aren't too dissimilar from the linear regression output we obtained before. But, let's examine them more closely.
 
 
 :::{.callout type='note' title='Binomial Regression' collapse='true'}
@@ -818,8 +803,6 @@ ggsave(
 
 ### A Poisson regression model {#sec-glm-poisson-model-fitting}
 
-
-<!-- TODO: Could probably change the feature set, maybe confusing with 'word_count'? After that it's probably rating and most correlated, but that might be confusing also -->
 
 Recall that GLM specific distributions have a default link function. The Poisson distribution uses a log link function:
 
@@ -1191,6 +1174,56 @@ For more accessible fare that doesn't lack on core details either:
 
 ## Exercise {#sec-glm-exercise}
 
-Use the fish data (@sec-dd-fish) to conduct a Poisson regression and see how well you can predict the number of fish caught based on the other variables like how many people were on the trip, how many children, whether live bait was used etc.
+You have two options here, both using the fish data (@sec-dd-fish).
 
-If you would prefer to try a logistic regression, change the count to just 0 and 1 for whether any fish were caught, and see how well you can predict that.
+
+
+
+- Conduct a Poisson regression to predict the number of fish caught based on the other features like how many people were on the trip, how many children, whether live bait was used (or any others). Interpret your model results in terms of the coefficients/rate ratios.  Inspect your model more generally to see how well it fits the data, do you spot any issues?
+
+- Using the same data, binarize the count target variable for whether any fish were caught, and proceed similarly as you would have with the Poisson regression.
+
+
+:::{.panel-tabset}
+
+##### R
+```{r}
+#| label: glm-exercise-r
+#| eval: false
+
+# Load the data
+df_fish = read_csv('https://tinyurl.com/fishcountdata')
+df_fish$any_catch = ifelse(df_fish$count > 0, 1, 0)
+
+model = glm(count ~ ???)
+model = glm(any_catch ~ ???)
+summary(model)
+exp(coef(model))  # IRR/OR
+```
+
+##### Python
+
+```{python}
+#| label: glm-exercise-py
+#| eval: false
+
+import pandas as pd
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+
+# Load the data
+df_fish = pd.read_csv('https://tinyurl.com/fishcountdata')
+
+df_fish['any_catch'] = (df_fish['count'] > 0).astype(int)
+
+model = smf.glm(
+    formula = 'count ~ ???',
+    data = df_fish,
+    family = ???,
+).fit()
+
+model.summary()
+
+np.exp(model.params)  # IRR/OR
+```
+:::

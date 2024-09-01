@@ -97,7 +97,7 @@ theme_clean = function(
     ),
     plot.caption = ggplot2::element_text(
       color = 'gray30', 
-      size = font_size * .75, 
+      size = font_size * .8, 
       hjust = 0,
       family = font_family,
       face = 'bold',      
@@ -134,6 +134,7 @@ update_geom_defaults('smooth', list(color = '#0072B2', alpha = .15))
 update_geom_defaults('line', list(color = '#0072B2', alpha = .75))
 update_geom_defaults('path', list(color = '#0072B2', alpha = .75))
 update_geom_defaults('abline', list(color = '#0072B2', alpha = 1))
+update_geom_defaults('ribbon', list(color = NA, fill = '#E69F00'))
 update_geom_defaults('bar', list(color = '#E69F00', fill = '#E69F00'))
 update_geom_defaults('col', list(color = '#E69F00', fill = '#E69F00'))
 update_geom_defaults('dotplot', list(color = '#E69F00', fill = '#E69F00'))
