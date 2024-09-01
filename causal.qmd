@@ -8,6 +8,10 @@
 :::
 
 
+TODO: Reviewer 
+- provide a code demo of confounding
+- related: let's move explanation vs. prediction to this chapter.
+
 
 Causal inference is a very important topic in machine learning and statistics, and it is also a very difficult one to understand well, or consistently, because *not everyone agrees on how to define a cause in the first place*. Our focus here is merely practical- we just want to show some of the common model approaches used when attempting to answer causal questions. But causal modeling in general is such a rabbit hole that we won't be able to go into much detail, but we will try to give you a sense of the landscape, and some of the key ideas.
 
@@ -333,7 +337,68 @@ Any model can be used to answer a causal question, and which one you use will de
 
 Yep, [linear regression](https://matheusfacure.github.io/python-causality-handbook/05-The-Unreasonable-Effectiveness-of-Linear-Regression.html). The old standby is possibly the mostly widely used model for causal inference, historically speaking and even today. We've seen linear regression as a graphical model @fig-graph-lm, and in that sense, it can serve as the starting point for structural equation models and related models that we'll talk about next that many consider to be true causal models. It can also be used as a baseline model for other more complex causal model approaches. Linear regression can potentially tell us for any particular feature, what that feature's relationship with the target is, holding the other features constant. This **ceteris paribus** interpretation - 'all else being equal' - already gets us into a causal mindset. 
 
-However, your standard linear model doesn't care where the data came from or what the underlying structure *should* be. It only does what you ask of it, and will tell you about group differences whether they come from a randomized experiment or not. For example, if you don't include features that would have a say in how the treatment comes about (**confounders**), you could get a biased estimate of the effect[^biasedcause]. Basic linear regression also cannot tell you whether X is the effect of Y or vice versa. As such, linear regression by itself cannot save us from the difficulties of causal inference, nor really be considered a causal model. But it can be useful as a starting point in conjunction with other approaches.
+However, your standard linear model doesn't care where the data came from or what the underlying structure *should* be. It only does what you ask of it, and will tell you about group differences whether they come from a randomized experiment or not. For example, if you don't include features that would have a say in how the treatment comes about (**confounders**), you could get a biased estimate of the effect[^biasedcause]. Basic linear regression also cannot tell you whether X is the effect of Y or vice versa. 
+
+As an example, let's consider a simple linear model with a confounder. We'll generate some synthetic data with a confounder, and fit two models, one with the confounder and one without. We'll compare the coefficients of the feature of interest, `x`, in both models.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-demo-confounding
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Generate synthetic data
+n = 100
+z = rnorm(n)          # the confounder 
+x = 2 * z + rnorm(n)  # the confounded feature
+y = 3 * z + rnorm(n)  # the target
+
+data = tibble(x = x, y = y, z = z)
+
+# Fit linear models
+model_without_z = lm(y ~ x, data = data)
+model_with_z = lm(y ~ x + z, data = data)
+
+# Compare x coefficients
+c(coef(model_without_z)['x'], coef(model_with_z)['x'])
+```
+
+##### Python
+
+```{python}
+#| label: py-demo-confounding
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+
+# Set seed for reproducibility
+np.random.seed(42)
+
+# Generate synthetic data
+n = 100
+z = np.random.normal(size=n)          # the confounder
+x = 2 * z + np.random.normal(size=n)  # the confounded feature
+y = 3 * z + np.random.normal(size=n)  # the target
+
+data = pd.DataFrame({'x': x, 'y': y, 'z': z})
+
+# Fit linear models
+model_without_z = LinearRegression().fit(data[['x']], data['y'])
+model_with_z = LinearRegression().fit(data[['x', 'z']], data['y'])
+
+# Compare x coefficients
+model_without_z.coef_[0].round(3), model_with_z.coef_[0].round(3)
+```
+
+:::
+
+The results show that the coefficient of `x` is different in the two models. If we don't include the confounder, the feature's relationship with the target, which in this case is zero, is a reflection of the correlation it has with the confounder, which is also correlated with the target.  Without including the confounder, we can come away with the wrong conclusion about the relationship between `x` and `y`.
+
+As we can see from this simple demo, linear regression by itself cannot save us from the difficulties of causal inference, nor really can be considered a causal model. But it can be useful as a starting point in conjunction with other approaches.
 
 [^biasedcause]: A reminder that a conclusion of 'no effect' is also a causal statement, and can be just as biased as any other statement. Also, you can come to the same *practical* conclusion with a biased estimate as with an unbiased one.
 
@@ -439,7 +504,7 @@ There are more widely used tools for uplift modeling and meta-learners in Python
 [Meta-learners](https://arxiv.org/pdf/1706.03461.pdf) are used in machine learning contexts to assess potentially causal relationships between some treatment and outcome. The core model can actually be any kind you might want to use, but in which extra steps are taken to assess the causal relationship. The most common types of meta-learners are:
 
 
-- **S-learner** - **s**ingle model for both groups; predict the (counterfactual) difference as when all observations are treated vs when all are not, similar to our code demo above.
+- **S-learner** - **s**ingle model for both groups; predict the (counterfactual) difference as when all observations are treated vs when all are not, similar to our previous code demo.
 - **T-learner** - **t**wo models, one for each of the control and treatment groups; predict the values as if all observations are treated vs when all are control using both models, and take the difference.
 - **X-learner** - a more complicated modification to the T-learner also using a multi-step approach.
 
@@ -469,9 +534,138 @@ In general, any modeling technique might be employed as part of a causal modelin
 [^gcomp]: The G-computation approach and S-learners are essentially the same approach, but came about from different domain contexts.
 
 
+## Prediction and Explanation Revisited {#sec-causal-prediction-explanation}
+
+We introduced the idea of prediction and explanation in the context of linear models in @sec-lm-prediction-vs-explanation, and it's worth revisiting here. One attribute of a causal model is an intense focus on the explanatory power of the model.  We want to demonstrate that there is a relationship between usually a single feature and the target, and we want to know the precise manner of this relationship as much as possible. Even if we use complex models, e.g., as with meta-learners, the endeavor is to explain the specifics.
+
+
+```{r}
+#| echo: false
+#| label: prediction-vs-explanation-demo
+set.seed(42)
+n = 10000
+x = rnorm(n)
+y_num = rbinom(n, 1, plogis(.05*x))
+y = factor(y_num)
+
+model = glm(y ~ x, family = 'binomial')
+x_OR = round(exp(coef(model)['x']), 2)
+# summary(model)
+
+
+# summary(model)
+#confint(model)['x',]
+y_pred0 = predict(model, data.frame(x=0), type='response')
+y_pred1 = predict(model, data.frame(x=1), type='response')
+
+prob_diff = label_percent()(y_pred1 - y_pred0)
+
+pred_class = factor(as.integer(predict(model, type = 'response') > .5))
+base_rate = label_percent()(mean(y == '1'))
+# mlr3measures::confusion_matrix(y, pred_class, positive = '1') 
+
+x_new = data.frame(x = rnorm(100))
+y_new = factor(rbinom(100, 1, plogis(.05 * x_new$x)))
+pred_class_new = factor(as.integer(predict(model, newdata = x_new, type = 'response') > .5))
+# mean(y_new == '1')
+# mlr3measures::confusion_matrix(y_new, pred_class_new, positive = '1') 
+causal_power = readRDS('data/causal_power.rds')
+```
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: prediction-vs-explanation-demo-power
+get_power = function(reps = 1000) {
+    pvals = replicate(reps, {
+        y = rbinom(n, 1, plogis(.05*x))
+        model = glm(y ~ x, family = 'binomial')
+        summary(model)$coefficients['x', 4]
+    })
+    mean(pvals < .05)
+}
+causal_power = scales::label_percent()(get_power())
+
+saveRDS(causal_power, 'data/causal_power.rds')
+```
+
+
+
+Let's say that we used some particular causal modeling approach to explain a feature-target relationship in a classification setting.  We have 10,000 observations, and the baseline rate of the target is about ~`r base_rate`. We have a model that predicts the target `y` based on the feature of interest `x`, and we may have used something like propensity score weighting or some other technique to help control for confounding. 
+
+The coefficient, though small with an odds ratio of `r x_OR`, is statistically significant (take our word for it), and we can see a slight positive relationship. Under certain settings, such as this where we are interested in causal effects and where we have controlled for various other factors to obtain this result, we might be satisfied with interpreting this positive relationship. 
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: fig-prediction-vs-explanation-demo-plot
+#| fig-cap: Results from a hypothetical causal model
+#| out-width: 100%
+pdat = plot(ggeffects::ggpredict(model, terms = 'x'))$data
+ggeffects::ggpredict(model, terms = 'x') |> 
+    plot(use_theme = FALSE) +
+    geom_segment(
+        # aes(
+            x = 0,
+            xend = 1,
+            y = y_pred0,
+            yend = y_pred1,
+        # ),
+        color = okabe_ito[['darkblue']],
+        linewidth = 1.5
+    ) +
+    geom_segment(
+        x = 0,
+        xend = min(pdat$x),
+        y = y_pred0,
+        yend = y_pred0,
+        color = okabe_ito[['darkblue']],
+        arrow = arrow(type = 'closed', angle = 30, length = unit(0.1, 'inches'))
+    ) +
+    geom_segment(
+        x = 1,
+        xend = min(pdat$x),
+        y = y_pred1,
+        yend = y_pred1,
+        color = okabe_ito[['darkblue']],
+        arrow = arrow(type = 'closed', angle = 30, length = unit(0.1, 'inches'))
+    ) +
+    labs(
+        title = '',
+        caption = 'The model does not predict well but suggests a small positive effect.',
+    ) +
+    scale_y_continuous(breaks = c(seq(.4, .6, .05), seq(.5, .55, .01)), labels = scales::label_percent())
+
+ggsave('img/causal-prediction-vs-explanation-demo-plot.svg', width = 8, height = 6)
+```
+
+![Results from a hypothetical causal model](img/causal-prediction-vs-explanation-demo-plot.svg){width=100% #fig-prediction-vs-explanation-demo-plot}
+
+But if we are interested in predictive performance, we would be disappointed with this model. It predicts the target at about the same rate as guessing, even on the data it's fit on, and does even worse with new data. Even the effect as shown is quite small by typical standards, as it would take a standard deviation change in the feature to get a ~`r prob_diff` change in the probability of the target (x is standardized).
+
+If we are concerned solely with explanation, we now would want to ask ourselves first if we can trust our result based on the data, model, and various issues that went into producing it. If so, we can then if the effect is large enough to be of interest, and if the result is useful in making decisions[^seedsofchange]. It may very well be, maybe the target concerns the rate of survival, where any increase is worthwhile. Or perhaps the data circumstances demand such interpretation, because it is extremely costly to obtain more. For more exploratory efforts however, this sort of result would likely not be enough to come to any strong conclusion even if explanation is the only goal. 
+
+[^seedsofchange]: This is a contrived example, but it is definitely something what you might see in the wild. The relationship is weak, and though statistically significant, the model can't predict the target well at all. The **statistical power** is actually decent in this case, roughly `r causal_power`, but this is mainly because the sample size is so large and it is a very simple model setting. <br> This is a common issue in many academic fields, and it's why we always need to be careful about how we interpret our models. In practice, we would generally need to consider other factors, such as the cost of a false positive or false negative, or the cost of the data and running the model itself, to determine if the model is worth using.
+
+As another example, consider the world happiness data we've used in previous demonstrations. We want to explain the association of country level characteristics and the population's happiness. We likely aren't going to be as interested in predicting next year's happiness score, but rather what attributes are correlated with a happy populace in general. In this election year (2024) in the U.S., we'd be interested in specific factors related to presidential elections, of which there are relatively very few data points. In these cases, explanation is the focus, and we may not even need a model at all to come to our conclusions.
+
+So we can understand that in some settings we may be more interested in understanding the underlying mechanisms of the data, as with these examples, and in others we may be more interested in predictive performance, as in our demonstrations of machine learning. However, the distinction between prediction and explanation in the end is a bit problematic, not the least of which is that we often want to do both.
+
+Although it's often implied as such, *prediction is not just what we do with new data*. It is the very means by which we get any explanation of effects via coefficients, marginal effects, visualizations, and other model results. Additionally, where the focus is on predictive performance, if we can't explain the results we get, we will typically feel dissatisfied, and may still question how well the model is actually doing.
+
+Here are some ways we might think about different modeling contexts:
+
+- **Descriptive Analysis**: A description of data with no modeling focus. We'll use descriptive statistics and visualizations to understand the data. An end product may be an infographic or a report. Even here we may still use models to aid visualizations or otherwise to help us understand the data better.
+- **Exploratory Modeling**: Using models for exploration. Focus should be on both prediction and explanation. The former can help inform the strength of the results for future exploration.
+- **Causal Modeling**: Using models to understand causal effects. We focus on explanation, and prediction on the current data. We may very well be interested in predictive performance also, and often are in industry.
+- **Generalization**: When our goal is generalizing to unseen data, the focus is always on predictive performance. This does not mean we can't use the model to understand the data though, and explanation could possibly be as important.
+
+Depending on the context, we may be more interested explanation or predictive performance, but in practice we often, and usually, want both. It is crucial to remind yourself why you are interested in the problem, what a model is capable telling you about it, and to be clear about what you want to get out of the result.
+
+
+
 
 ## Wrapping Up {#causal-wrap}
-
 
 We've been pretty loose in our presentation here, and glossed over many details with causal modeling. Our main goal is to give you some idea of the domain, but more so the models used and things to think about when you want to answer a causal question with your data.
 

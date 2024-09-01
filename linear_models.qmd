@@ -247,7 +247,7 @@ g |>
 ```
 
 
-![A linear regression as a graphical model](img/graphical_lm.svg){width=50% #fig-graph-lm}
+![A linear regression as a graphical model](img/graphical_lm.svg){width=75% #fig-graph-lm}
 
 
 So at this point you have the basics of what a linear model is and how it works, and a couple ways to think about it, whether through programming, math, or just visually. But there is a lot more to it than that. Just getting the model is easy enough, but we need to be able to use it and understand the details better, so we'll get into that now!
@@ -404,7 +404,7 @@ ggsave('img/lm-my-first-model-predictions-plot.svg', width = 8, height = 6)
 :::
 
 :::{.content-visible when-format='pdf'}
-![Predicted vs. Observed Ratings](img/lm-my-first-model-predictions-plot.svg){width=50% #fig-my-first-model-predictions-plot}
+![Predicted vs. Observed Ratings](img/lm-my-first-model-predictions-plot.svg){#fig-my-first-model-predictions-plot}
 :::
 
 Now let's look at what our prediction looks like for a single observation, and we'll add in a few more- one for 10 words, and one for a 50 word review, which is beyond the length of any review in this dataset, and one for 12.3 words, which isn't even possible for this data, since words are only counted as whole values. To get these values we just use the same prediction approach as before, and we specify the word count value we want to predict for. 
@@ -489,7 +489,7 @@ ggsave('img/lm-my-first-model-error-plot.svg', width = 8, height = 6)
 :::
 
 :::{.content-visible when-format='pdf'}
-![Distribution of Prediction Errors](img/lm-my-first-model-error-plot.svg){width=50% #fig-my-first-model-error-plot}
+![Distribution of Prediction Errors](img/lm-my-first-model-error-plot.svg){width=100% #fig-my-first-model-error-plot}
 :::
 
 
@@ -562,13 +562,14 @@ pred_intervals
 #| eval: false
 #| out-width: 100%
 
+# contains both confidence ('mean_') and prediction ('obs_') intervals
 pred_intervals = (
     model_lr_rating
     .get_prediction(df_prediction)
     .summary_frame(alpha = 0.05)
 )
 
-pd.DataFrame(pred_intervals)
+pred_intervals 
 ```
 
 :::
@@ -584,12 +585,66 @@ pred_intervals |>
     fmt_number(c('fit', 'lwr', 'upr'), decimals = 2)
 ```
 
-As expected our prediction interval is wider than our confidence interval, and we can see that the prediction interval is quite wide- from a rating of `r round(pred_intervals$lwr[2], 1)` to `r round(pred_intervals$upr[2], 1)`. This is a consequence of the fact that we have a lot of uncertainty in our predictions for new observations and we can't expect to get a very precise prediction from our model with only one feature. This is a common issue with many models, and one that having a better model can help remedy[^pyuncertainty].
+As expected our prediction interval is wider than our confidence interval, and we can see that the prediction interval is quite wide- from a rating of `r round(pred_intervals$lwr[2], 1)` to `r round(pred_intervals$upr[2], 1)`. This is a consequence of the fact that we have a lot of uncertainty in our predictions for new observations and we can't expect to get a very precise prediction from our model with only one feature. This is a common issue with many models, and one that having a better model can help remedy. We can also plot these intervals across a range of values to get a better sense of what they look like. Let's do so for all observed word counts.
 
-[^pyuncertainty]: Once you move past OLS in statsmodels, obtaining uncertainty estimates for predictions is difficult due to the paucity of tools, especially for machine learning models, and practically non-existent for deep learning approaches. In practice, you can use bootstrapping to get a sense of the uncertainty, but this is often not a good estimate in many data scenarios and can be computationally expensive. On the other hand, conformal prediction tools are more developed in Python, and can provide a more reliable estimate of prediction uncertainty for any type of model, but are not as widely used as they should be.
+```{r}
+#| echo: false
+#| eval: false
+#| label: fig-prediction-intervals
+#| fig-cap: Prediction & Confidence Intervals Compared
+
+prediction_CI = predict(
+    model_lr_rating, 
+    se.fit = TRUE, 
+    interval = 'confidence'
+)
+
+prediction_PI = predict(
+    model_lr_rating, 
+    se.fit = TRUE, 
+    interval = 'prediction'
+)
+
+pred_intervals = bind_rows(
+    as_tibble(prediction_CI$fit) |> mutate(interval = 'Confidence'),
+    as_tibble(prediction_PI$fit) |> mutate(interval = 'Prediction'),
+) |> 
+    mutate(word_count = rep(df_reviews$word_count, 2))
+
+pred_intervals |> 
+    ggplot(aes(word_count, fit)) +
+    geom_ribbon(
+        aes(ymin = lwr, ymax = upr, fill = interval),
+        alpha = .25,
+        data = pred_intervals |> filter(interval == 'Prediction')
+    ) +
+    geom_ribbon(
+        aes(ymin = lwr, ymax = upr, fill = interval),
+        alpha = .8,
+        data = pred_intervals |> filter(interval == 'Confidence')
+    ) +
+    geom_line() +
+    # geom_point(data = df_reviews, aes(word_count, rating), color = okabe_ito[['darkblue']]) +
+    scale_fill_manual(values = c(okabe_ito[['orange']], okabe_ito[['orange']])) +
+    labs(
+        x = 'Word Count',
+        y = 'Predicted Rating',
+        title = 'Prediction Interval Estimates for Word Count',
+        color = 'Interval Type'
+    )
+
+ggsave('img/lm-prediction-intervals-plot.svg', width = 8, height = 6)
+```
+
+![Prediction & Confidence Intervals Compared](img/lm-prediction-intervals-plot.svg){width=100% #fig-prediction-intervals}
 
 
-So at this point you have the gist of prediction, prediction error, and uncertainty in a prediction, but there is still more to it!  We'll come back to global assessments of model error very shortly, and even more detail can be found in [Chapter -@sec-knowing] where we dive deeper into our models, and [Chapter -@sec-estimation], where we see how to estimate the parameters of our model by picking those that will reduce the prediction error the most. For now though, let's move on to the other main use of models, which is to help us understand the relationships between the features and the target, or **explanation**.
+Once you move past simpler linear models as here or generalized linear models, obtaining uncertainty estimates for predictions is difficult, and tools to do so can be scare. This is especially the case for models used in machine learning, and practically non-existent for deep learning approaches. In practice, you can use bootstrapping (@sec-estim-bootstrap) to get a sense of the uncertainty, but this is often not a good estimate in many data scenarios and can be computationally expensive. Bayesian approaches (@sec-estim-bayes) can also provide estimates of uncertainty, but likewise are computationally expensive, and require a good deal of expertise to implement for more complex settings. Quantile regression (@sec-lm-extend-quantile) can sometimes be appropriate to estimate predictions at different quantiles that can serve as a proxy for prediction intervals, but tools to do so for various models are uncommon. On the other hand, **conformal prediction** tools are becoming more popular, and can provide a more reliable estimate of prediction uncertainty for any type of model, but are, you guessed it, computationally expensive for more accurate estimates and good tools are only recently becoming available[^confpred].
+
+[^confpred]: For a good intro to conformal prediction, see @angelopoulos_gentle_2022.  The [mapie]{.pack} is a good tool for Python, and the [tidymodels family](https://www.tidymodels.org/learn/models/conformal-regression/) has recently added this functionality via the [probably]{.pack} package. Michael has a mostly complete blog post that got lost in the shuffle, but will be available at some point as well.
+
+
+So at this point you have the gist of prediction, prediction error, and uncertainty in a prediction, but there is still more to it!  We'll come back to global assessments of model error very shortly, and even more detail can be found in [Chapter -@sec-knowing] where we dive deeper into our models and how they work, and [Chapter -@sec-estimation], where we see how to estimate the parameters of our model by picking those that will reduce the prediction error the most. For now though, let's move on to the other main use of models, which is to help us understand the relationships between the features and the target, or **explanation**.
 
 
 ## How Do We Interpret the Model? {#sec-lm-interpretation}
@@ -657,7 +712,7 @@ broom::tidy(model_lr_rating, conf.int = TRUE) |>
 ```
 :::
 
-The statistic, here a t-statistic from the student t distribution[^coefstats], is the ratio of the coefficient to the standard error. This gives us a sense of the effect relative to its variability, but the statistic's primary use is to calculate the **p-value** related to its distribution[^pvaluet], which is the probability of seeing a coefficient as large as the one we have, *if* we assume from the outset that the true value of the coefficient is zero. In this case, the p-value is `r scales::label_scientific()(summary(model_lr_rating)$coefficients[2, 4])`, which is very small. We can conclude that the coefficient is statistically different from zero, and that the feature is related to the target, at least statistically speaking.  However, the interpretation we used regarding the coefficient previously is far more useful than the p-value, as the p-value can be affected by many things not necessarily related to the feature-target relationship, such as sample size, and is often misinterpreted. 
+The statistic, here a t-statistic from the student t distribution[^coefstats], is the ratio of the coefficient to the standard error. This gives us a sense of the effect relative to its variability, but the statistic's primary use is to calculate the **p-value** related to its distribution[^pvaluet], which is the probability of seeing a coefficient as large (or larger) as the one we have, *if* we assume from the outset that the true value of the coefficient is zero, *and* the model assumptions are true as well. In this case, the p-value is `r scales::label_scientific()(summary(model_lr_rating)$coefficients[2, 4])`, which is very small. We can conclude that the coefficient is statistically different from zero, and that the feature is related to the target, at least statistically speaking.  However, the interpretation we used regarding the coefficient previously is far more useful than the p-value, as the p-value can be affected by many things not necessarily related to the feature-target relationship, such as sample size, and is often misinterpreted. 
 
 
 [^coefstats]: Most statistical tables of this sort will use a t (student t distribution), Z (normal distribution), or F (F distribution) statistic.  It doesn't really matter for your purposes which is used by default, they provide the p-value of interest to claim statistical significance. 
@@ -842,93 +897,17 @@ Note also, that with R^2^ we get a sense of the variance shared between *all* fe
 
 ### Prediction vs. explanation {#sec-lm-prediction-vs-explanation}
 
-<!-- TODO: update relative to phd/isa's concerns -->
-
 In your humble authors' views, one can't stress enough the importance of a model's ability to predict the target. It can be a poor model, maybe because the data is not great, or perhaps we're exploring a new area of research, but we'll always be interested in how well a model **fits** the observed data, and in  situations where we're focused on how things will work out in the future, we're just as much or even more interested in how well a model predicts *new* data.
 
+In many settings, **statistical significance** is focused on a great deal, and much is made about models that may actually have little predictive power. As strange as it may sound to some, you can read results in journal articles, news features, and business reports in many fields with hardly any mention of a model's predictive capability. In these cases, the focus is almost entirely on the **explanation** of the model, and usually the statistical significance of the features with regard to their relationship to the target. 
 
-In many settings, **statistical significance** is focused on a great deal, and much is made about models that may actually have little predictive power. As strange as it may sound, you can read results in journal articles, news features, and business reports in many fields with hardly any mention of a model's predictive capability. In these cases, the focus is almost entirely on the **explanation** of the model, and usually the statistical significance of the features with regard to their relationship to the target. 
+In those settings, statistical significance is often used as a proxy for importance, though this is rarely ever justified. As we've noted elsewhere, statistical significance is affected by other things besides the size of the coefficient. And without an understanding of the context of the features, in this case, like how long typical reviews are, what their range is, what variability of ratings is, etc., the information it provides is extremely limited, and many would argue, not very useful. 
 
-
-
-
-In those settings, statistical significance is often used as a proxy for importance, though this is rarely ever justified. As we've noted elsewhere, statistical significance is affected by other things besides the size of the coefficient. And without an understanding of the context of the features, in this case, like how long typical reviews are, what their range is, what variability of ratings is, etc., the information it provides is extremely limited, and many would argue, not very useful. If we are very interested in the coefficient or weight value specifically, it is better to focus on the range of possible values, which is provided by the confidence interval, along with the predictions that come about based on that coefficient's value. While a confidence interval is also a loaded description of a feature's relationship to the target, we can use it in a very practical way as a range of possible values for that weight, and more importantly, *think of possibilities rather than certainties*. 
-
-<!-- there is no explanation coefficients, visuals with out prediction! -->
-
-In the following example we show the results of a model with 10k observations and a single feature predicting a binary target. The coefficient is statistically significant, and we can see a slight positive relationship. Under certain settings, such as the exploration of causal effects where we have controlled for various other factors to obtain this result, we might be satisfied with interpreting this positive relationship. 
-```{r}
-#| echo: false
-#| label: prediction-vs-explanation
-set.seed(123)
-n = 10000
-x = rnorm(n)
-y_num = rbinom(n, 1, plogis(.05*x))
-y = factor(y_num)
-
-model = glm(y ~ x, family = 'binomial')
-
-get_power = function(reps = 1000) {
-    pvals = replicate(reps, {
-        y = rbinom(n, 1, plogis(.05*x))
-        model = glm(y ~ x, family = 'binomial')
-        summary(model)$coefficients['x', 4]
-    })
-    mean(pvals < .05)
-}
-power = scales::label_percent()(get_power())
-# summary(model)
-#confint(model)['x',]
-y_pred0 = predict(model, data.frame(x=0), type='response')
-y_pred1 = predict(model, data.frame(x=1), type='response')
-
-prob_diff = scales::label_percent()(y_pred1 - y_pred0)
-
-pdat = plot(ggeffects::ggpredict(model, terms = 'x'))$data
-ggeffects::ggpredict(model, terms = 'x') |> 
-    plot() +
-    geom_segment(
-        # aes(
-            x = 0,
-            xend = 1,
-            y = y_pred0,
-            yend = y_pred1,
-        # ),
-        linetype = 'dashed',
-        linewidth = 1.5
-    ) +
-    geom_point(
-        data = tibble(x = -4, predicted = c(y_pred0, y_pred1)),
-        color = 'red'
-    ) 
-
-
-pred_class = factor(as.integer(predict(model, type = 'response') > .5))
-mean(y == '1')
-mlr3measures::confusion_matrix(y, pred_class, positive = '1') 
-
-x_new = data.frame(x = rnorm(100))
-y_new = factor(rbinom(100, 1, plogis(.05*x_new$x)))
-pred_class_new = factor(as.integer(predict(model, newdata = x_new, type = 'response') > .5))
-mean(y_new == '1')
-mlr3measures::confusion_matrix(y_new, pred_class_new, positive = '1') 
-
-```
-
-But if we are interested in prediction, we would be disappointed with the model's performance. It predicts the target at almost the same rate as guessing even on the data it's fit on, and does even worse than guessing on new data. Even the effect as shown is quite small by typical standards, as it would take a standard deviation change in the feature to get a ~`r prob_diff` change in the probability of the target. If we are concerned solely with explanation, we now would want to ask ourselves if the effect is large enough to be of interest, and if the result is useful to make decisions regarding[^seedsofchange]. It may very well be, maybe the target concerns the percentage of survival, or the data circumstances demand such interpretation, because it is extremely costly to obtain more. For more exploratory efforts however, this sort of result would likely not be enough to come to any explanatory conclusion even if explanation is the only goal. 
-
-[^seedsofchange]: This is a contrived example, but it's not far from what you might see in practice. The relationship is weak, and though statistically significant, the model can't predict the target well at all. The statistical power is actually decent in this case, roughly `r power`, but this is only because the sample size is so large and we have no other features to contend with. This is a common issue in many academic fields, and it's why we always need to be careful about how we interpret our models. In practice, we would need to consider other factors, such as the cost of a false positive or false negative, the cost of obtaining the feature, and the cost of the data and running the model itself, to determine if the model is worth using.
-
-<!-- Change to an election example? <50 data points, but want to explain factors that lead to a win.  -->
-
-
-Consider the world happiness data we'll be using later. We want to explain the association of country level characteristics and the population's happiness. We likely aren't going to be interested in predicting next year's happiness score, but rather what attributes are correlated with a happy populace. In this case, explanation is the focus, and we may not even need a model at all to come to our conclusions.
-
-<!-- However, the distinction between prediction and explanation is a bit problematic, not the least of which is that we often want to do both. It is also the case that we cannot get explanation without prediction, which is what provides the coefficient estimates and a means to visualize the relationships between the features and the target. In addition, most of the time where the focus is on prediction, if we can't explain the results we get, we will typically feel fairly dissatisfied, and may question how well the model is actually doing. -->
+If we are very interested in the coefficient or weight value specifically, it is better to focus on the range of possible values. This is provided by the confidence interval, along with the predictions that come about based on that coefficient's value, which will likewise have interval estimates. Like statistical significance, a confidence interval is also a 'loaded' description of a feature's relationship to the target, not without issues. However, we can use it in a very practical way as a range of possible values for that weight, and more importantly, *think of possibilities rather than certainties*.
 
 Suffice it to say at this point that how much one focuses on prediction vs. explanation depends on the context and goals of the data endeavor. There are cases where predictive capability is of utmost importance, and we care less about explanatory details, but not to the point of ignoring it. For example, even with deep learning models for image classification, where the inputs are just RGB values, we'd still like to know what the (notably complex) model is picking up on, otherwise we may be classifying images based on something like image backgrounds (e.g. outdoors vs. indoors) instead of the objects of actual interest (dogs vs. cats). In some business or other organizational settings, we are very, or even mostly, interested in the coefficients/weights, which might indicate how to allocate monetary resources in some fashion. But if those weights come from a model with no predictive power, placing much importance on them may be a fruitless endeavor.  
 
-In the end we'll need to balance our efforts to suit the task at hand. Prediction and explanation are both fundamental to the modeling endeavor.
+In the end we'll need to balance our efforts to suit the task at hand. Prediction and explanation are both fundamental to the modeling endeavor. We return to this topic again in the chapter on causal models (@sec-causal-prediction-explanation).
 
 
 
@@ -1262,9 +1241,9 @@ We now see the usual output. There is word count again, with its slightly negati
 
 #### Summarizing categorical features {#sec-lm-categorical-anova}
 
-When we have a lot of categories, it's not practical to look at the coefficients for each one, and even when there aren't that many, we often prefer to get a sense of the total effect of the feature. For standard linear models, we can break down the target variance explained by the model into the variance explained by each feature, and this is called the **ANOVA**, or analysis of variance. It is not without its issues[^typess], but it's a good way to get a sense of whether a categorical (or other) feature as a whole is statistically significant.  
+When we have a lot of categories, it's not practical to look at the coefficients for each one, and even when there aren't that many, we often prefer to get a sense of the total effect of the feature. For standard linear models, we can break down the target variance explained by the model into the variance explained by each feature, and this is called the **ANOVA**, or analysis of variance[^typess]. It is not without its issues, but it's one way to get a sense of whether a categorical (or other) feature as a whole is statistically significant. 
 
-[^typess]: There are many types of ANOVA, and different ways to calculate the variance values. One may notice the Python ANOVA result is different, even though the season coefficients and initial model is identical. R defaults with what is called Type II sums of squares, while the Python default uses Type I sums of squares. We won't bore you with the details of their differences, and the astute modeler will not come to different conclusions because of this sort of thing, and you now have enough detail to look it up.
+[^typess]: There are actually different types of ANOVA in this context, and different ways to calculate the variance values. One may notice the Python ANOVA result is different, even though the season coefficients and initial model is identical. R defaults with what is called Type II sums of squares, while the Python default uses Type I sums of squares. We won't bore you with the details of their differences, and the astute modeler will not come to different conclusions because of this sort of thing, and you now have enough detail to look it up.
 
 :::{.panel-tabset}
 
@@ -1303,10 +1282,10 @@ broom::tidy(anova(model_lr_cat)) |>
         p.value = ifelse(!is.na(p.value), '< 0.001', '')
     ) |> 
     gt(decimals=1) |> 
-    sub_missing(missing_text ='')
+    sub_missing(missing_text = '')
 ```
 
-The only reason to use this is for claims of statistical significance, which in this case, season is statistically significant. For practical purposes, the DF (degrees of freedom) represents the number of categories minus 1, and the F-statistic is a measure of the (mean sq) variance explained by the feature  (mean square value divided by DF) relative to the (mean sq) variance not explained by the feature. The p-value is the probability of observing an F-statistic as extreme as the one observed, given that the null hypothesis is true. In this case, the null hypothesis is that the feature has no effect on the target.  The p-value is less than 0.001, so we reject the null hypothesis and conclude that the feature has an effect on the target. Note that nothing here is different from what we saw in our previous regression models, and we can run an `anova` function on those too[^anova_vs_t]. 
+The only reason to use ANOVA is to make claims of statistical significance, which in this case, season is statistically significant. From the table, the DF (degrees of freedom) represents the number of categories minus 1, and the F-statistic is a measure of the (mean sq) variance explained by the feature  (mean square value divided by DF) relative to the (mean sq) variance not explained by the feature. The p-value is the probability of observing an F-statistic as extreme as the one observed, given that the null hypothesis is true. In this case, the null hypothesis is that the feature has no effect on the target. The p-value is less than 0.001, so we reject the null hypothesis and conclude that the observed feature-target relationship is statistically different from an assumption of no relationship. Note that nothing here is different from what we saw in our previous regression models, and we can run an `anova` function on those too[^anova_vs_t]. As a final comment, while it's good to be aware of these statistical significance is not the same as practical significance. Whether these group differences are meaningful is still left to be decided by the modeler given the context of the data.
 
 [^anova_vs_t]: For those interested, for those features with one degree of freedom, all else being equal the F statistic here would just be the square of the t-statistic for the coefficients, and the p-value would be the same.
 
@@ -1368,7 +1347,7 @@ Every model you use has underlying assumptions which, if not met, could potentia
 - The model is linear in the parameters (i.e. no $e^\beta_1$ type stuff)
 - The features are not correlated with the error (prediction errors, unobserved causes)
 - Your data observations are independent of each other
-- The prediction errors are homoscedastic (don't have large errors with certain predictions vs low with others)
+- The prediction errors are homoscedastic (e.g. some predictions aren't associated with very large errors relative to others)
 - Normality of the errors (i.e. your prediction errors). Another way to put it is that your target variable is normally distributed *conditional* on the features.
 
 
@@ -1532,12 +1511,11 @@ But there are many, many books on statistical analysis, linear models, and linea
 
 ## Exercise {#sec-lm-exercise}
 
-Import some data. Stick with the movie reviews data if you want and just try out other features, or maybe try the world happiness data 2018 data. You can find details about it in the appendix @sec-dd-world-happiness-report, can download it [here](https://tinyurl.com/worldhappiness2018).
+For this exercise let's switch to the world happiness data 2018 data. You can find details about the latter in the appendix @sec-dd-world-happiness-report, can download it [here](https://tinyurl.com/worldhappiness2018).
 
-- Fit a linear model, maybe keep it to three features or less
-- Get all the predictions for the data, and try a prediction of at least one new observation of interest
-- Interpret the coefficients
-- Assess the model fit
-
-
-
+- Fit a linear regression model, maybe keep it to three features or less
+    - Predict 'happiness' (`happiness_score`)
+    - Suggestion for features: GDP per capita, Social support, Healthy life expectancy
+- Summarize the model, and interpret the coefficients. What do you find?
+- Assess the model fit with RMSE and R^2^
+- Try to get a prediction of at least one new observation of interest, e.g. log GDP Per Capita of 10, life expectancy 70, social support 0.8, which would represent a decently well-off country. Contrast that prediction with a less well-off country, with values less than the median for each feature. What do you find?

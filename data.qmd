@@ -343,7 +343,56 @@ The take home message for ordinal features is generally simple. Treat them as yo
 
 Ordinal targets can be trickier to deal with. If you treat them as numeric, you're assuming that the difference between 1 and 2 is the same as the difference between 2 and 3, and so on.  This is probably not true.  If you treat them as categorical and use standard models for that setting, you're assuming that there is no connection between categories. So what should you do?  
 
-There are a number of ways to model ordinal targets, but probably the most common is the **proportional odds model**.  This model can be seen as a generalization of the logistic regression model, and is very similar to it, and actually identical if you only had two categories. It basically is a model of 2 vs. 1, 3 vs. (2, 1), 4 vs. (3, 2, 1), etc. But other models beyond proportional odds are also possible, and your results could return something that gives coefficients for the model for the 1-2 category change, the 2-3 category change, and so on.  
+There are a number of ways to model ordinal targets, but probably the most common is the **proportional odds model**.  This model can be seen as a generalization of the logistic regression model, and is very similar to it, and actually identical if you only had two categories. It basically is a model of 2 vs. 1, 3 vs. (2, 1), 4 vs. (3, 2, 1), etc. But other models beyond proportional odds are also possible, and your results could return something that gives coefficients for the model for the 1-2 category change, the 2-3 category change, and so on.
+
+As an example, here are predictions from an ordinal model. In this case, we categorize rounded movie ratings as 2 or less, 3, or 4 or more, and predict the probability of each category based on the release year of the movie. So we get three sets of predicted probabilities, one for each category. In this example, we see that the probability of a movie being rated 4 or more has increased over time, while the probability of a movie being rated 2 or less has decreased. The probability of a movie being rated 3 has remained relatively constant.
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: fig-ordinal-target
+df_ordinal = df_reviews |>
+    mutate(
+        rating = case_when(
+            round(rating) <= 2 ~ '<= 2',
+            round(rating) >= 4 ~ '>= 4',
+            .default = '3'
+        ),
+        rating = ordered(rating, levels = c('<= 2', '3', '>= 4'))
+    )
+model_ordinal = MASS::polr(rating ~ release_year, data = df_ordinal)
+
+
+# Plot the model
+p_dat = ggeffects::ggpredict(model_ordinal, terms = 'release_year[all]') |> 
+    as_tibble() |> 
+    mutate(response.level = factor(response.level, levels = c('<= 2', '3', '>= 4')))
+p_dat |>
+    ggplot(aes(x = x, y = predicted, group = response.level)) +
+    geom_line(aes(linetype = response.level), linewidth = 1) +
+    geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .15) +
+    scale_linetype_manual(values = c('dashed', 'solid', 'dotted')) +
+    annotate('text', x = median(p_dat$x), y = .5, label = '3', hjust = 0, size = 4) +
+    annotate('text', x = 2018, y = .35, label = '>= 4', hjust = 0, size = 4) +
+    annotate('text', x = 1988, y = .35, label = '<= 2', hjust = 0, size = 4) +
+    # facet_wrap(~ response.level) +    
+    scale_y_continuous(labels = scales::percent) +
+    labs(
+        title = 'Proportional Odds Model for Rating by Release Year',
+        caption = 'Predicted Probability (as percentage) of a rounded rating score: 2 or less, 3 or 4 or more.',
+        x = 'Release Year',
+        y = ''
+    ) +
+    theme(
+        legend.key.size = unit(1.5, 'cm'),
+        plot.caption = element_text(hjust = 0, size = 12)
+    )
+
+
+ggsave('img/data-ordinal_target.svg', width = 8, height = 6)
+```
+
+![Proportional Odds Model for Rating by Release Year](img/data-ordinal_target.svg){width=100% #fig-ordinal-target}
 
 Ordinality of a categorical outcome is largely ignored in machine learning applications. The outcome is either treated as numeric or multiclass classification. This is not necessarily a bad thing, especially if prediction is the primary goal. But if you need a categorical prediction, treating the target as numeric means you have to make an arbitrary choice to classify the predictions. And if you treat it as multiclass, you're ignoring the ordinality of the target, which may not work as well in terms of performance.
 
@@ -1153,6 +1202,7 @@ Here are some additional resources to help you learn more about the topics cover
 **Survival, Ordinal and Other Models**
 
 - Regression Modeling Strategies is a great resource for statistical modeling in general (@harrell_regression_2015)
+- Ordinal Regression Models in Psychology: A Tutorial is a great resource by the author of the best Bayesian modeling package [brms]{.pack}[^bestbayes] (@burkner_ordinal_2019)
 
 **Time Series**
 
@@ -1172,3 +1222,6 @@ There's a ton of stuff, but one of your humble authors has an applied treatment 
 
 
 We always need to inspect the data closely, and see if it matches our expectations. This is a critical part of the modeling process, and can often be the most time-consuming part. There are tools that can help with the validation process, and to that end, you might look at [pointblank]{.pack} in R or [y_data_profiling]{.pack} in Python as options to get started.
+
+
+[^bestbayes]: No, we're not qualifying that statement.

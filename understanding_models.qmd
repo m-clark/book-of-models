@@ -1402,7 +1402,35 @@ ggsave("img/knowing-model-select-training-loss.svg", width = 8, height = 6)
 
 
 
-- **Predictive Check**: This is a basic comparison of predicted vs. observed target values. We simulate the target based on the model parameter estimates and their uncertainty, and compare that distribution to the observed target distribution. If the two distributions are similar, then the model is doing a good job of capturing the target distribution. This plot is ubiquitous in Bayesian modeling, but can be used for any model that has uncertainty estimates or is otherwise able to generate random draws of the target distribution. For our regression model, our predictions match the target distribution well.
+- **Predictive Check**: This is a basic comparison of predicted vs. observed target values, and we may be getting ahead of ourselves to understand this completely yet, but it's worth knowing about. In the simplest case you can just examine your predictions vs. the observed values, and that's plenty for a quick assessment. 
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: r-regression-pp-check-simple
+
+p_pp_simple = tibble(
+    Predicted = fitted(model_lr_train),
+    Observed = df_train$rating
+) |>
+    pivot_longer(cols = c(Predicted, Observed), names_to = "Type", values_to = "Value") |>
+    ggplot(aes(x = Value, fill = Type)) +
+    geom_density(alpha = 0.5, color = NA) +
+    scale_fill_manual(values = c(okabe_ito[['darkblue']], okabe_ito[['orange']])) +
+    labs(
+        x = "Rating",
+        y = "Density",
+        title = "Posterior Predictive Check for a regression model"
+    )
+
+ggsave("img/knowing-model-pp-check-simple.svg", p_pp_simple, width = 8, height = 6)
+```
+
+![Simple Predictive Check for a regression model](img/knowing-model-pp-check-simple.svg){#fig-model-pp-check-simple}
+
+A proper posterior predictive check is a bit more involved, but there are packages that make it straightforward[^ppcpack]. The basic idea is that we simulate the target based on the model parameter estimates and their uncertainty, and with that we can simulate random draws of predicted values. We then compare that distribution to the observed target distribution. If the two distributions are similar, then the model is doing a good job of capturing the target distribution. This plot is ubiquitous in Bayesian modeling, but can be used for any model that has uncertainty estimates or is otherwise able to generate random draws of the target distribution. For our regression model, our predictions match the target distribution well.
+
+[^ppcpack]: The [performance]{.pack} package in R has a `check_predictions` function that can do this for you, but base R has a `simulate` function that can be used to generate random draws of the predictive distribution for `lm/glm`  models.
 
 :::{.content-visible when-format='html'}
 ```{r}
@@ -1426,7 +1454,7 @@ The following shows how to get a residuals vs. fitted plot and a posterior predi
 
 :::{.panel-tabset}
 
-##### R
+##### R {.unnumbered}
 
 ```{r}
 #| eval: false
@@ -1435,7 +1463,7 @@ The following shows how to get a residuals vs. fitted plot and a posterior predi
 performance::check_model(model_lr_train, check = c('linearity', 'pp_check'))
 ```
 
-##### Python
+##### Python {.unnumbered}
 
 ```{python}
 #| label: fig-python-regression-visualize
