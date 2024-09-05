@@ -241,27 +241,51 @@ Given our single feature model, we can easily plot the relationship between the 
 #| label: fig-word-count-linear-model
 #| fig-cap: Linear Model of Rating vs. Word Count
 
+library(geomtextpath)
+
 df_reviews |>
+    mutate(
+        preds = predict(model_lr_rating, newdata = data.frame(word_count = word_count)),
+        # txt = 
+    ) |>
     ggplot(aes(x = word_count, y = rating)) +
     geom_smooth(method = 'lm', se = FALSE, linewidth = 2) +
-    annotate(
-        'text', 
-        x = n_words,
-        y = predict(model_lr_rating, newdata = data.frame(word_count = n_words)),
+    geomtextpath::geom_textline(
+        aes(y = preds),
         label = glue::glue('Predicted rating = {intercept} + {wc_coef} * word count'),
-        hjust = 0, 
-        vjust = -2,
-        size  = 8,
-        color = 'gray25',
-        fontface = 'bold',
-        family = 'Roboto Condensed'
+        size = 8,
+        vjust = -1,
+        linewidth = 0
     ) +
-    lims(y = c(0, 5)) +
+    geom_point(
+        x = 0.1,
+        y = intercept, 
+        size = 5,
+        color = 'gray50'
+    ) +
+    # annotate(
+    #     'text', 
+    #     x = n_words,
+    #     y = predict(model_lr_rating, newdata = data.frame(word_count = n_words)),
+    #     label = glue::glue('Predicted rating = {intercept} + {wc_coef} * word count'),
+    #     hjust = 0, 
+    #     vjust = -2,
+    #     size  = 8,
+    #     color = 'gray25',
+    #     fontface = 'bold',
+    #     family = 'Roboto Condensed'
+    # ) +
+    lims(
+        x = c(0, max(df_reviews$word_count)),
+        y = c(0, 5)
+    ) +
     labs(
         # title = 'Rating vs. Word Count',
         x = 'Word Count',
-        y = 'Rating'
+        y = 'Rating',
+        caption = glue('Dot is the intercept, what the predicted rating is with zero words, line is slope of {wc_coef}')
     ) 
+
 
 ggsave('img/lm-word_count_linear_model.svg')
 ```
@@ -295,12 +319,12 @@ So at this point you have the basics of what a linear model is and how it works,
 ## What Do We Do with a Model? {#sec-lm-what-do-we-do}
 
 
-Once we have a working model, there are two primary ways we can use it.  One way to use a model is to help us understand the relationships between the features and our outcome of interest. In this way, the focus can be said to be on **explanation**, or interpreting the model results. The other way to use a model is to make estimates about the target for specific observations, often ones we haven't seen in our data. In this way the focus is on **prediction**. In practice, we often do both, but the focus is usually on one or the other. We'll cover both in detail eventually, but let's start with prediction.
+Once we have a working model, there are two primary ways we can use it.  One way to use a model is to help us understand the relationships between the features and our outcome of interest. In this way, the focus can be said to be on **explanation**, or interpreting the model results. The other way to use a model is to make estimates about the target for specific observations, often ones we haven't seen in our data. In this case, the focus is on **prediction**. In practice, we often do both, but the focus is usually on one or the other. We'll cover both in detail eventually, but let's start with prediction.
 
 
 ### Prediction {#sec-lm-prediction}
 
-It may not seem like much at first, but a model is of little use if it can't be used to make predictions about what we can expect in the world around us. Once our model has been *fit* to the data, we can obtain our predictions by plugging in values for the features that we are interested in, and, using the corresponding weights and other parameters that have been estimated, come to a guess about a specific observation. Let's go back to our results, shown in the following table.
+It may not seem like much at first, a model's utility often lies in its ability to make predictions about the world around us. Once our model has been *fit* to the data, we can obtain our predictions by plugging in values for the features that we are interested in, and, using the corresponding weights and other parameters that have been estimated, come to a guess about a specific observation. Let's go back to our results, shown in the following table.
 
 \small
 ```{r}
@@ -317,7 +341,7 @@ broom::tidy(model_lr_rating, conf.int = TRUE) |>
 
 \normalsize
 
-The table shows the **coefficient** for each feature including the intercept, which is our starting point.  In this case, the coefficient for word count is `r wc_coef`, which means that for every additional word in the review, the rating goes `r ifelse(sign(wc_coef) == 1, 'up', 'down')` by `r wc_coef` stars.  So if we had a review that was `r n_words` words long, we would *predict* a rating of `r paste(intercept)` + `r glue('{n_words}*{wc_coef}')` = `r round(predict(model_lr_rating, newdata = data.frame(word_count = n_words)), 1)` stars.  
+The table shows the **coefficient** for the feature and the intercept, which is our starting point.  In this case, the coefficient for word count is `r wc_coef`, which means that for every additional word in the review, the rating goes `r ifelse(sign(wc_coef) == 1, 'up', 'down')` by `r wc_coef` stars.  So if we had a review that was `r n_words` words long, we would *predict* a rating of `r paste(intercept)` + **`r glue('{n_words}*{wc_coef}')`** = `r round(predict(model_lr_rating, newdata = data.frame(word_count = n_words)), 1)` stars.  
 
 
 When we're talking about the predictions (or outputs) for a linear model, we usually will see this as the following mathematically:
@@ -327,7 +351,7 @@ $$
 $$ {#eq-lm-prediction}
 
 
-What is $\hat{y}$? The hat over the $y$ just means that it's a predicted value of the model, i.e. the output, rather than the target value we actually observe in the data. Our first equations that just used $y$ implicitly suggested that we would get a perfect rating value given the model, but that's not the case. We can only get an estimate. The $\hat{y}$ is also the linear predictor in our graphical version (@fig-graph-lm), which makes clear it is not the actual target, but a combination of the features that is related to the target.
+What is $\hat{y}$? The 'hat' over the $y$ just means that it's a predicted, or 'expected', value of the model, i.e. the output. This distinguishes it from the target value we actually observe in the data. Our first equations that just used $y$ implicitly suggested that we would get a perfect rating value given the model, but that's not the case. We can only get an estimate. The $\hat{y}$ is also the linear predictor in our graphical version (@fig-graph-lm), which makes clear it is not the actual target, but a combination of the features that is related to the target.
 
 
 To make our first equation (@eq-lm-basic) accurately reflect the relationship between the target and our features, we need to add what is usually referred to as an **error term**, $\epsilon$, to account for the fact that our predictions will not be perfect[^perfect_prediction].  So the full linear (regression) model is:
@@ -338,7 +362,7 @@ $$
 y = b_0 + b_1x_1 + b_2x_2 + ... + b_nx_n + \epsilon
 $$ {#eq-lm-observed}
 
-The error term is a random variable that represents the difference between the actual value and the predicted value, which comes from the weighted combination of features. We can't know what the error term is, but we can estimate parameters associated with it, just like we can the coefficients.  We'll talk more about that in the section on estimation (@sec-estimation).  
+The error term is a random variable that represents the difference between the actual value and the predicted value, which comes from the weighted combination of features. We can't know what the error term is, but we can estimate its values, often called **residuals** or just prediction errors, as well as parameters associated with it, just like we can the coefficients.  We'll talk more about that in the section on estimation (@sec-estimation).  
 
 Another way to write the model formally is:
 
@@ -360,20 +384,23 @@ $$
 $$ {#eq-lm-error}
 
 
-This makes explicit that the target is assumed to be **conditionally** normally distributed with a mean of based on the linear combination of the features, and a variance of $\sigma^2$. What do we mean by *conditionally*? It means that the target is normally distributed given the features in question and the estimated model parameters. This is the standard assumption for linear regression, and it's a good one to start with, but it's not our only option.  We'll talk more about this in the section on assumptions @sec-lm-assumptions, and see what we might do differently in @sec-glm. We will also see that we can estimate the model parameters without any explicit reference to a probability distribution @sec-estimation.
+This makes explicit that the target is assumed to be **conditionally** normally distributed with a mean of based on the linear combination of the features, and a variance of $\sigma^2$. What do we mean by *conditionally*? This means that, given the features and the estimated model parameters, the target follows a normal distribution. This is the standard assumption for linear regression, and it's a good one to start with, but it's not our only option.  We'll talk more about this later in this chapter (@sec-lm-assumptions), and see what we might do differently in @sec-glm. We will also see that we can estimate the model parameters without any explicit reference to a probability distribution @sec-estimation.
 
 
 :::{.callout type='note' title='Predictions by any other name...' collapse='true'}
-You'll often see predictions referred to as **fitted values**, but these imply we are only talking about the data the model was trained on or 'fit' to. Predictions can also be referred to as **expected values**, **estimates**, **outputs**, or **forecasts**, the latter is especially common in time series analysis. Within generalized linear models and others where there may ultimately be a transformation of the output, you may see it referred to as a **linear predictor**.
+You'll often see predictions referred to as **fitted values**, but these imply we are only talking about the observed data features the model was trained on or 'fit' to. Predictions can also be referred to as **expected values**, **estimates**, **outputs**, or **forecasts**, the latter is especially common in time series analysis. Within generalized linear models and others where there may ultimately be a transformation of the output, you may see it referred to as a **linear predictor**.
 :::
 
 ### What kinds of predictions can we get? {#sec-lm-prediction-types}
 
-What predictions we get depends on the type of model we are using.  For the linear model we have at present we can get predictions for the target, which is a **continuous variable**.  Very commonly, we also can get predictions for a **categorical target**, such as whether the rating is 'good' or 'bad'. This simple breakdown pretty much covers everything, as we typically would be predicting a continuous numeric variable or a categorical variable, or more of them, like multiple continuous variables, or a target with multiple categories, or sequences of categories (e.g. words). In our case, we can get predictions for the rating, which is a number between 1 and 5. Had our target been a binary good vs. bad rating, our predictions would still be numeric in most cases or at least amenable to such, and usually expressed as a probability between 0 and 1, say, for the 'good' category. Higher probabilities would mean we'd more likely predict the movie is good. We then would convert that probability to a class of good or bad depending on a chosen probability cutoff. We'll talk about how to get predictions for categorical targets later[^treepreds].
+What predictions we can get depends on the type of model we are using.  For the linear model we have at present, we can get predictions for the target, which is a **continuous variable**.  Very commonly, we also can get predictions for a **categorical target**, such as whether the rating is 'good' or 'bad'. This simple breakdown pretty much covers everything, as we typically would be predicting a continuous numeric variable or a categorical variable, or more of them, like multiple continuous variables, or a target with multiple categories, or sequences of categories (e.g. words).
 
-[^treepreds]: Some models such as the tree approaches outlined in @sec-ml-common-trees can directly predict categorical targets, but we still like and even prefer converting it to something like a probability.
+In our case, we can get predictions for the rating, which is a number between 1 and 5. Had our target been a binary good vs. bad rating, our predictions would still be numeric for most models, and usually expressed as a probability between 0 and 1, say, for the 'good' category, or in a initial form that is then transformed to a probability. For example, in the context of predicting a good rating, higher probabilities would mean we'd more likely predict the movie is good, and lower probabilities would mean we'd more likely predict the movie is bad. We then would convert that probability to a class of good or bad depending on a chosen probability cutoff. We'll talk about how to get predictions for categorical targets later[^treepreds].
 
-We previously saw a prediction for a single observation where the word count was 10 words, but we can also get predictions for multiple observations at once. In fact, we can get predictions for all observations in our dataset. Besides that, we can also get predictions for observations that we don't even have data for! Fun! The following shows how we can get predictions for all data, and for a single observation with a word count of [^tibble].
+[^treepreds]: Some models, such as the tree approaches outlined in @sec-ml-common-trees, can directly predict categorical targets, but we still like, and often\ prefer using a probability.
+
+
+We previously saw a prediction for a single observation where the word count was 10 words, but we can also get predictions for multiple observations at once. In fact, we can get predictions for all observations in our data. Besides that, we can also get predictions for observations that we don't even have data for, which is a very neat thing to be able to do! The following shows how we can get predictions for all data, and for a single observation with a word count of [^tibble].
 
 [^tibble]: Some not as familiar with R should be aware that tibbles are a type of data frame. The name distinguishes them from the standard data frame, and they have some additional features that make them more user friendly.
 
@@ -404,7 +431,7 @@ single_prediction = model_lr_rating.predict(df_prediction)
 
 
 Here is a plot of our predictions for the observed data versus the actual ratings[^jitter]. 
-The reference line is where the points would fall if we had perfect prediction. We can see that the predictions are definitely not perfect, but we don't expect this. They are not completely off base either, in that generally higher predicted scores are associated with higher observed values. We'll talk about how to assess the quality of our predictions later, but we can at least get a sense that we have a correspondence relationship between our predictions and target, which is definitely better than not having a relationship at all!
+The reference line is where the points would fall if we had perfect prediction. We can see that the predictions are definitely not perfect, but we don't expect this. They are not completely off base either, in that generally higher predicted scores are associated with higher observed values. We'll talk about how to assess the quality of our predictions later, but we can at least get a sense that we have a correspondence between our predictions and target, which is definitely better than not having a relationship at all!
 
 [^jitter]: Word count is **discrete**- it can only take whole numbers like 3 or 20, and it is our only feature.  Because of this, we can only make very limited predicted rating values, while the observed rating can take on many other values. Because of this, the raw plot would show a more banded result with many points overlapping, so we use a technique called **jittering** to move the points around a little bit so we can see them all. The points are still roughly in the same place, but they are moved around a little bit so we can see them all. 
 
@@ -438,11 +465,11 @@ p
 
 ggsave('img/lm-my-first-model-predictions-plot.svg', width = 8, height = 6)
 ```
-:::
 
-![Predicted vs. Observed Ratings](img/lm-my-first-model-predictions-plot.svg){#fig-my-first-model-predictions-plot}
 
-Now let's look at what our prediction looks like for a single observation, and we'll add in a few more- one for 10 words, and one for a 50 word review, which is beyond the length of any review in this dataset, and one for 12.3 words, which isn't even possible for this data, since words are only counted as whole values. To get these values we just use the same prediction approach as before, and we specify the word count value we want to predict for. 
+![Predicted vs. Observed Ratings](img/lm-my-first-model-predictions-plot.svg){#fig-my-first-model-predictions-plot width=75%}
+
+We saw what our prediction looks like for a single observation, and now we'll add in a few more- one for 10 words, and one for a 50 word review, which is beyond the length of any review in this dataset, and one for 12.3 words, which isn't even possible for this data, since words are only counted as whole values. To get these values we just use the same prediction approach as before, and we specify the word count value we want to predict for. 
 
 
 ```{r}
@@ -460,14 +487,14 @@ tibble(
 ```
 
 
-The values reflect the `r word_sign(wc_coef, c('positive', 'negative'))` coefficient from our model, showing `r word_sign(wc_coef, c('increasing', 'decreasing'))` ratings with increasing word counts. Furthermore, we see the power of the model's ability to make predictions for what we don't see in the data. Maybe we limited our data review size, but we know there are 50 word reviews out there, and we can still make a guess as to what the rating would be for such a review.  Maybe in another case, we know a group of people who have on average 12.3 word reviews, and we can make a guess as to what the average rating would be for that group. Our model doesn't know anything about the context of the data, but we can use our knowledge to make predictions about the world around us. This is a very powerful capability, and it's one of the main reasons we use models in the first place.  
+The values reflect the `r word_sign(wc_coef, c('positive', 'negative'))` coefficient from our model, showing `r word_sign(wc_coef, c('increasing', 'decreasing'))` ratings with increasing word counts. Furthermore, we see the power of the model's ability to make predictions for what we don't see in the data. Maybe we limited our data review size, but we know there are 50 word reviews out there, and we can still make a guess as to what the rating would be for such a review.  Maybe in another case, we know a group of people who have on average 12.3 word reviews, and we can make a guess as to what the predicted rating would be for that group. Our model doesn't literally know anything about the context of the data, but we can use our knowledge to make predictions that are meaningful to us. This is a very powerful capability, and it's one of the main reasons we use models in the first place.  
 
 
 ### Prediction error {#sec-lm-prediction-error}
 
-As we have seen, predictions are not perfect, and an essential part of the modeling endeavor is to better understand these errors and why they occur. In addition, error assessment is the fundamental way in which we assess a model's performance, and, by extension, compare that performance to other models. In general, prediction error is the difference between the actual value and the predicted value or some function of it, and in statistical models, is also often called the **residual**.  We can look at these individually, or we can look at them in aggregate with a single metric.
+As we have seen, predictions are not perfect, and an essential part of the modeling endeavor is to better understand these errors and why they occur. In addition, error assessment is the fundamental way in which we assess a model's performance, and, by extension, compare that performance to other models. In general, prediction error is the difference between the actual value and the predicted value or some function of it. In statistical models, it is also often called the **residual**.  We can look at these individually, or we can look at them in aggregate with a single metric.
 
-Let's start with looking at the residuals visually. Often the modeling package you use will have this as a default plotting method when doing a standard linear regression, so it's wise to take advantage of it. We plot both the distribution of raw error scores and the cumulative distribution of absolute prediction error. Here we see a couple things. First, the distribution is roughly normal, which is a good thing, since statistical linear regression assumes our error is normally distributed, and the prediction error serves as an estimate of that. Second, we see that the mean of the errors is zero, which is a consequence of linear regression, and the reason we look at other metrics when assessing model performance. We can also see that most of our predictions are within ±1 star rating. 
+Let's start with looking at the residuals visually. Often the modeling package you use will have this as a default plotting method when doing a standard linear regression, so it's wise to take advantage of it. We plot both the distribution of raw error scores and the cumulative distribution of absolute prediction error. Here we see a couple things. First, the distribution appears roughly normal, which is a good thing, since statistical linear regression assumes our error is normally distributed, and the prediction error serves as an estimate of that. Second, we see that the mean of the errors is zero, which is a property of linear regression, and the reason we look at other metrics besides a simple 'average error' when assessing model performance.  We can also see that our average *absolute* error is around, `r round(mean(abs(resid(model_lr_rating))), 1)`, most of our predictions (>90%) are within ±1 star rating. 
 
 
 :::{.content-visible when-format='html'}
@@ -477,11 +504,13 @@ Let's start with looking at the residuals visually. Often the modeling package y
 #| label: fig-my-first-model-error-plot
 #| fig-cap: Distribution of Prediction Errors
 #| out-width: 100%
+# not clear what after_stat actually does here ('count' by itself is not related to any count from the histogram), so 7 is a magic number to align the density with the histogram
 p_hist = tibble(
     error = resid(model_lr_rating)
 ) |>
     ggplot(aes(error)) +
     geom_histogram(alpha = .8) +
+    geom_density(aes(y = after_stat(count / 7)), color = okabe_ito['red'], linewidth = 1) +
     geom_vline(xintercept = 0, color = okabe_ito['darkblue'], size = 1.5, alpha = 1) +
     labs(
         x = 'Prediction Error',
@@ -491,7 +520,7 @@ p_hist = tibble(
     theme(
         plot.caption = element_text(vjust = -2)
     )
-
+    
 p_ecdf = tibble(res = abs(resid(model_lr_rating))) |>
     arrange(res) |>
     mutate(prop = 1 - row_number() / n()) |>
@@ -505,7 +534,7 @@ p_ecdf = tibble(res = abs(resid(model_lr_rating))) |>
         x = 'Absolute Prediction Error',
         y = 'Cumulative\nProportion',
         # title = 'Prediction Errors',
-        caption = "Vertical lines show mean absolute error and a '1 star' error."
+        caption = "Vertical lines show mean absolute error\nand a '1 star' error."
     ) +
     theme(
         plot.caption = element_text(vjust = -2)
@@ -553,7 +582,9 @@ worst_prediction |>
 
 ### Prediction uncertainty
 
-We can also look at the uncertainty of our predictions, which is a measure of how much we expect our predictions to vary. This is often expressed as an interval range of values that we expect our prediction to fall within, with a certain level of confidence. But! There are actually two types of intervals we can get, one is really about the mean prediction, or *expected value* we would get from the model at that observation. This is usually called a **confidence interval**. The other type of interval is based on the model's ability to predict new data, and is often called a **prediction interval**. This interval is about the actual prediction we would get from the model for any value, whether it was data we had seen before or not. Because of this, the prediction interval is always wider than the confidence interval, and it's the one we usually want to use when we're making predictions about new data.
+We can also look at the uncertainty of our predictions, which is a measure of how much we expect our predictions to vary. Not only are they off from the observed value, our predictions themselves are just a guess based on the data we have, and we'd like to know how much we can trust them.
+
+This trust is often expressed as an interval range of values that we expect our prediction to fall within, with a certain level of confidence. But! There are actually two types of intervals we can get. One is really about the mean prediction, or *expected value* we would get from the model at that observation. This is usually called a **confidence interval**. The other type of interval is based on the model's ability to predict new data, and is often called a **prediction interval**. This interval is about the actual prediction we would get from the model for any value, whether it was data we had seen before or not. Because of this, the prediction interval is always wider than the confidence interval, and it's the one we usually want to use when we're making predictions about new data.
 
 Here is how we can obtain these from our model.
 
@@ -568,7 +599,7 @@ Here is how we can obtain these from our model.
 prediction_CI = predict(
     model_lr_rating, 
     newdata = df_prediction, 
-    se.fit = TRUE, 
+    se.fit = TRUE,    # standard error of the fit
     interval = 'confidence'
 )
 
@@ -620,7 +651,7 @@ pred_intervals |>
     fmt_number(c('fit', 'lwr', 'upr'), decimals = 2)
 ```
 
-As expected our prediction interval is wider than our confidence interval, and we can see that the prediction interval is quite wide- from a rating of `r round(pred_intervals$lwr[2], 1)` to `r round(pred_intervals$upr[2], 1)`. This is a consequence of the fact that we have a lot of uncertainty in our predictions for new observations and we can't expect to get a very precise prediction from our model with only one feature. This is a common issue with many models, and one that having a better model can help remedy. We can also plot these intervals across a range of values to get a better sense of what they look like. Let's do so for all observed word counts.
+As expected, our prediction interval is wider than our confidence interval, and we can see that the prediction interval is quite wide- from a rating of `r round(pred_intervals$lwr[2], 1)` to `r round(pred_intervals$upr[2], 1)`. This is a consequence of the fact that we have a lot of uncertainty in our predictions for new observations, and we can't expect to get a very precise prediction from our model with only one feature. This is a common issue with many models, and one that having a better model can help remedy. We can also plot these intervals across a range of values to get a better sense of what they look like. Let's do so for all observed word counts.
 
 ```{r}
 #| echo: false
@@ -674,12 +705,12 @@ ggsave('img/lm-prediction-intervals-plot.svg', width = 8, height = 6)
 ![Prediction & Confidence Intervals Compared](img/lm-prediction-intervals-plot.svg){width=100% #fig-prediction-intervals}
 
 
-Once you move past simpler linear models as here or generalized linear models, obtaining uncertainty estimates for predictions is difficult, and tools to do so can be scarce. This is especially the case for models used in machine learning, and practically non-existent for deep learning approaches. In practice, you can use bootstrapping (@sec-estim-bootstrap) to get a sense of the uncertainty, but this is often not a good estimate in many data scenarios and can be computationally expensive. Bayesian approaches (@sec-estim-bayes) can also provide estimates of uncertainty, but likewise are computationally expensive, and require a good deal of expertise to implement for more complex settings. Quantile regression (@sec-lm-extend-quantile) can sometimes be appropriate to estimate predictions at different quantiles that can serve as a proxy for prediction intervals, but tools to do so for various models are uncommon. On the other hand, **conformal prediction** tools are becoming more popular, and can provide a more reliable estimate of prediction uncertainty for any type of model, but are, you guessed it, computationally expensive for more accurate estimates and good tools are only recently becoming available[^confpred].
+Once you move past simpler linear models and generalized linear models, obtaining uncertainty estimates for predictions is difficult, and tools to do so can be scarce. This is especially the case for models used in machine learning contexts, and relatively rare for deep learning approaches. In practice, you can use bootstrapping (@sec-estim-bootstrap) to get a sense of the uncertainty, but this is often not a good estimate in many data scenarios and can be computationally expensive. Bayesian approaches (@sec-estim-bayes) can also provide estimates of uncertainty, but likewise are computationally expensive, and require a good deal of expertise to implement for more complex settings. Quantile regression (@sec-lm-extend-quantile) can sometimes be appropriate to estimate predictions at different quantiles that can serve as a proxy for prediction intervals, but tools to do so for various models are uncommon. On the other hand, **conformal prediction** tools are becoming more popular, and can provide a more reliable estimate of prediction uncertainty for any type of model. Yet they too are computationally expensive for more accurate estimates, and good tools are only recently becoming available[^confpred].
 
-[^confpred]: For a good intro to conformal prediction, see @angelopoulos_gentle_2022.  The [mapie]{.pack} is a good tool for Python, and the [tidymodels family](https://www.tidymodels.org/learn/models/conformal-regression/) has recently added this functionality via the [probably]{.pack} package. Michael has a mostly complete blog post that got lost in the shuffle, but will be available at some point as well.
+[^confpred]: For a good intro to conformal prediction, see @angelopoulos_gentle_2022.  The [mapie]{.pack} is a good tool for Python, and the [tidymodels family](https://www.tidymodels.org/learn/models/conformal-regression/) has recently added this functionality via the [probably]{.pack} package. Michael has a mostly complete blog post on conformal prediction that got lost in the shuffle, but will be available at some point as well.
 
 
-So at this point you have the gist of prediction, prediction error, and uncertainty in a prediction, but there is still more to it!  We'll come back to global assessments of model error very shortly, and even more detail can be found in [Chapter -@sec-knowing] where we dive deeper into our models and how they work, and [Chapter -@sec-estimation], where we see how to estimate the parameters of our model by picking those that will reduce the prediction error the most. For now though, let's move on to the other main use of models, which is to help us understand the relationships between the features and the target, or **explanation**.
+So at this point you have the gist of prediction, prediction error, and uncertainty in a prediction, but there is still more to modeling!  We'll come back to global assessments of model error very shortly, and even more detail can be found in [Chapter -@sec-knowing] where we dive deeper into our models and how they work, and [Chapter -@sec-estimation], where we see how to estimate the parameters of our model by picking those that will reduce the prediction error the most. For now though, let's move on to the other main use of models, **explanation**, where the focus is on understanding the relationships between the features and the target.
 
 
 ## How Do We Interpret the Model? {#sec-lm-interpretation}
