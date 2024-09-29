@@ -7,6 +7,9 @@
 
 <!-- krantz will still number any panel tabset, even when expressly denoted unnumbered. Furthermore, it can't seem to decide whether to base the number on the previous higher level e.g. 4.3.1.1 or do a zero 4.3.0.1; it seems that if there is a 4.3.1, then it will do 4.3.1.1 even though it's not 4th level, otherwise, it will do 4.3.0.1 if there is no 4.3.1 header -->
 
+
+
+
 ```{r}
 #| label: setup-knowing-r-load-objects
 #| include: false
@@ -747,7 +750,7 @@ predicted_prob = model_class_train.predict(df_test)
 
 :::
 
-We are going to take those probability values and make a decision to convert everything above .5 to the positive class (a "good" review), which we can do simply by rounding. It is a bold assumption, but one that we will make at first!
+We are going to take those probability values and make a decision to convert everything above .5 to the positive class (a "good" review), which we can do simply by rounding, or with an if-else type of approach. It is a bold assumption, but one that we will make at first!
 
 :::{.panel-tabset}
 
@@ -756,6 +759,8 @@ We are going to take those probability values and make a decision to convert eve
 ```{r}
 #| label: r-classification-predictions
 predicted_class = round(predicted_prob)
+
+predicted_class = ifelse(predicted_prob > .5, 1, 0)
 ```
 
 
@@ -763,7 +768,7 @@ predicted_class = round(predicted_prob)
 
 ```{python}
 #| label: python-classification-predictions
-predicted_class = predicted_prob.round()
+predicted_class = predicted_prob.round().astype(int)
 ```
 
 :::
@@ -776,18 +781,23 @@ The confusion matrix is a table that shows the number of correct and incorrect p
 :::{.panel-tabset}
 
 ##### R
+
+We use [mlr3verse]{.pack} in the machine learning chapters, so we'll use it here for our confusion matrix. Though our predictions are 0/1, we need to convert it to a factor for this function.
+
 ```{r}
 #| echo: true
 #| label: r-classification-confusion-matrix
 # we'll use the mlr3verse in the machine learning demos also
 rating_cm = mlr3measures::confusion_matrix(
-    factor(df_test$rating_good),
+    factor(df_test$rating_good),  # requires factor
     factor(predicted_class),
-    positive = "1"
+    positive = "1"                # class 1 is 'good'
 )
 ```
 
 ##### Python
+
+We can get an extremely rudimentary confusion matrix by using the `confusion_matrix` function from `sklearn.metrics`. We'll use it here to get the basic table, but we'll use a more advanced function later.
 
 ```{python}
 #| echo: true
@@ -810,7 +820,7 @@ new_cm['1','1'] = paste0("TP: ", new_cm['1','1'])
 new_cm['0', '1'] = paste0("FN: ", new_cm['0', '1'])
 new_cm['1', '0'] = paste0("FP: ", new_cm['1', '0'])
 
-new_cm = new_cm[2:1,2:1]
+# new_cm = new_cm[2:1,2:1]
 
 class(new_cm) = "matrix" # strip table class
 
@@ -863,7 +873,7 @@ The **negative predictive value** is the proportion of negative predictions that
 
 [^precrec]: It's not clear why people started using things like recall/sensitivity and specificity, neither of them as clear as true positive rate and true negative rate. Why anyone thought 'precision' was a good name for any metric is beyond us, given how many metrics could generically be called as such.
 
-Now let's demystify this a bit and see how we'd do this ourselves. We'll create a basic confusion matrix then extract the values to create the metrics we need.
+Now let's demystify this a bit and see how we'd do this ourselves. Starting with a basic confusion matrix of counts, we'll then extract the values to create the metrics we need.
 
 :::{.panel-tabset}
 
@@ -871,44 +881,36 @@ Now let's demystify this a bit and see how we'd do this ourselves. We'll create 
 
 ```{r}
 #| label: r-cm-basic
+our_cm = rating_cm$matrix
 
-confusion_matrix = table(
-    predicted_class,
-    df_test$rating_good
-)
+TN = our_cm[2, 2]
+TP = our_cm[1, 1]
+FN = our_cm[2, 1]
+FP = our_cm[1, 2]
 
-TN = confusion_matrix[1, 1]
-TP = confusion_matrix[2, 2]
-FN = confusion_matrix[1, 2]
-FP = confusion_matrix[2, 1]
-
-acc = (TP + TN) / sum(confusion_matrix)  # accuracy
-tpr = TP / (TP + FN)  # sensitivity, true positive rate, recall
-tnr = TN / (TN + FP)  # specificity, true negative rate
-ppv = TP / (TP + FP)  # precision, positive predictive value
-npv = TN / (TN + FN)  # negative predictive value
+acc = (TP + TN) / sum(our_cm)  # accuracy
+tpr = TP / (TP + FN)           # true positive rate, sensitivity, recall
+tnr = TN / (TN + FP)           # true negative rate, specificity 
+ppv = TP / (TP + FP)           # positive predictive value, precision
+npv = TN / (TN + FN)           # negative predictive value
 ```
 
 ##### Python
 
 ```{python}
 #| label: python-cm-basic
+our_cm = rating_cm
 
-confusion_matrix = pd.crosstab(
-    predicted_class,
-    df_test.rating_good.reset_index(drop=True), 
-).to_numpy()
+TN = our_cm[0, 0]
+TP = our_cm[1, 1]
+FN = our_cm[1, 0]
+FP = our_cm[0, 1]
 
-TN = confusion_matrix[0, 0]
-TP = confusion_matrix[1, 1]
-FN = confusion_matrix[0, 1]
-FP = confusion_matrix[1, 0]
-
-acc = (TP + TN) / np.sum(confusion_matrix)  # accuracy
-tpr = TP / (TP + FN)  # sensitivity, true positive rate, recall
-tnr = TN / (TN + FP)  # specificity, true negative rate
-ppv = TP / (TP + FP)  # precision, positive predictive value
-npv = TN / (TN + FN)  # negative predictive value
+acc = (TP + TN) / np.sum(our_cm)  # accuracy
+tpr = TP / (TP + FN)              # true positive rate, sensitivity, recall
+tnr = TN / (TN + FP)              # true negative rate, specificity 
+ppv = TP / (TP + FP)              # positive predictive value, precision
+npv = TN / (TN + FN)              # negative predictive value
 ```
 
 :::
@@ -920,22 +922,13 @@ Now that we have a sense of some metrics, let's get a confusion matrix and stats
 
 ##### R
 
-We use [mlr3verse]{.pack} in the machine learning chapters, so we'll use it here too. Though our predictions are 0/1, we need to convert it to a factor for this function.
-
 ```{r}
 #| label: r-cm-summary
 #| output: false
-# note the columns and rows are reversed from our previous confusion matrix
-cm = mlr3measures::confusion_matrix(
-    factor(df_test$rating_good),  # requires a factor
-    factor(predicted_class),
-    positive = "1"  # class 1 is 'good'
-)
-
 tibble(
     metric = c('ACC', 'TPR', 'TNR', 'PPV', 'NPV'),
     ours = c(acc, tpr, tnr, ppv, npv),
-    package = cm$measures[c('acc', 'tpr', 'tnr', 'ppv', 'npv')]
+    package = rating_cm$measures[c('acc', 'tpr', 'tnr', 'ppv', 'npv')]
 )
 ```
 
@@ -949,16 +942,16 @@ We find [pycm]{.pack} to be a great package for this purpose, as practically eve
 
 from pycm import ConfusionMatrix
 
-cm = ConfusionMatrix(
+rating_cm = ConfusionMatrix(
     df_test.rating_good.to_numpy(), 
     predicted_class.to_numpy(), 
     digit = 3
 )
 
-# print(cm) # lots of stats!
+# print(rating_cm) # lots of stats!
 
 package_result = [
-    cm.class_stat[stat][1] # get results specific to class 1
+    rating_cm.class_stat[stat][1] # get results specific to class 1
     for stat in  ['ACC', 'TPR', 'TNR', 'PPV', 'NPV']
 ]
 
@@ -976,12 +969,12 @@ So now we have demystified some classification metrics as well! Your results may
 ```{r}
 #| echo: false
 #| label: tbl-class-metrics
-#| tbl-cap: Classification Results
+#| tbl-cap: Classification Results (based on R data/model)
 
 tibble(
     metric = c('ACC', 'TPR', 'TNR', 'PPV', 'NPV'),
     ours = c(acc, tpr, tnr, ppv, npv),
-    package = cm$measures[c('acc', 'tpr', 'tnr', 'ppv', 'npv')]
+    package = rating_cm$measures[c('acc', 'tpr', 'tnr', 'ppv', 'npv')]
 ) |> 
     gt(decimals = 3)
 ```
@@ -1084,7 +1077,7 @@ ggsave("img/knowing-roc_auc.svg", width = 8, height = 6)
 ![ROC curve and AUC value](img/knowing-roc_auc.svg){#fig-pretty-roc-auc}
 :::
 
-With ROC curves and AUC values in hand, now we can find the ideal cut-point for balancing the TPR and FPR. There are different ways to do this, but one common way is to use the Youden's J statistic, which both of the following do.
+With ROC curves and AUC values in hand, now we can find the ideal cut-point for balancing the TPR and FPR. There are different ways to do this, but one common way is to use the Youden's J statistic, which we do here.
 
 :::{.panel-tabset}
 
@@ -1112,8 +1105,8 @@ cm_new = mlr3measures::confusion_matrix(
 
 tibble(
     threshold = threshold,
-    TNR = cm_new$measures['tnr'],
-    TPR = cm_new$measures['tpr']
+    TPR = cm_new$measures['tpr'],
+    TNR = cm_new$measures['tnr']
 )
 ```
 
@@ -1125,8 +1118,8 @@ cut = thresholds[np.argmax(tpr - fpr)]
 
 pd.DataFrame({
     'threshold': [cut],
+    'TPR': [tpr[np.argmax(tpr - fpr)]],
     'TNR': [1 - fpr[np.argmax(tpr - fpr)]],
-    'TPR': [tpr[np.argmax(tpr - fpr)]]
 })
 ```   
 
@@ -1135,7 +1128,7 @@ pd.DataFrame({
 
 The result is a "best" decision cut-point for converting our predicted probabilities to classes, though again, there are different and equally valid ways of going about this. The take home point is that instead of being naive about setting our probability to .5, this will provide a cut-point that will lead to a more balanced result that recognizes other metrics that are important beyond accuracy. We will leave it to you to take that ideal cut-point value and update your metrics to see how much of a difference it will make[^stillpt5]. 
 
-[^stillpt5]: It is not lost on us that our R model actually chose ~ .5! 😆
+[^stillpt5]: It is not lost on us that our R model actually chose ~ .5! 😆 But even then you can see the sight difference in TPR/TNR.
 
 Note again that this only changes the metric values relative to one another, not the overall performance of the model - the actual predicted probabilities don't change after all. For example, accuracy may go down while recall increases. You'll need to match these metrics to your use case to see if the change is worth it.  Whether it is a meager, modest, or meaningful improvement is going to vary from situation to situation, as will how you determine if your model is "good" or "bad". Is this a good model? Are you more interested in correctly identifying the positive class, or the negative class? Are you more interested in avoiding false positives/negatives? These are all questions that you will need to answer depending on the modeling context.
 
@@ -1463,7 +1456,15 @@ ggsave("img/knowing-model-pp-check-simple.svg", p_pp_simple, width = 8, height =
 
 ![Simple Predictive Check for a regression model](img/knowing-model-pp-check-simple.svg){#fig-model-pp-check-simple}
 
-We may be getting ahead of ourselves to understand this completely yet, but it's worth knowing about **posterior predictive checks**.  A proper posterior predictive check is a bit more involved, but there are packages that make it straightforward[^ppcpack]. The basic idea is that we simulate the target based on the model parameter estimates and their uncertainty.  And with that distribution of estimates (e.g. regression coefficients), we can then simulate random draws of predicted values. We then compare that distribution of predictions to the observed target distribution. If the two distributions are similar, then the model is doing a good job of capturing the target distribution. 
+We may be getting ahead of ourselves to understand this completely yet, but it's worth knowing about ***posterior* predictive checks**, which are typically used with Bayesian models, but are not restricted to that case.  A proper posterior predictive check is a bit more involved, but there are packages that make it straightforward[^ppcpack]. The basic idea is that we simulate the target based on the model parameter estimates and their uncertainty.  And with that distribution of estimates (e.g. regression coefficients), we can then simulate random draws of predicted values. A step-by-step approach is as follows:
+
+1. Simulate the parameters following the assumed distribution, e.g., a normal distribution for the regression coefficients.
+2. For each simulated parameter set, make a model prediction.
+3. Repeat this process many times to get a distribution of predictions.
+4. Compare this distribution to the observed target distribution.
+
+
+In our final step, we compare that distribution of predictions to the observed target distribution. If the two distributions are similar, then the model is doing a good job of capturing the target distribution. 
 
 This plot is ubiquitous in Bayesian modeling, but can be used for any model that has uncertainty estimates or is otherwise able to generate random draws of the target distribution. For our regression model, our predictions match the target distribution well.
 
