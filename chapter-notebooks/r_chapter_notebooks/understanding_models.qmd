@@ -1,0 +1,260 @@
+---
+title: "Understanding the Model"
+format: html
+---
+
+## Regression metrics
+
+
+```{r}
+# all data found on github repo
+df_reviews = read_csv('https://tinyurl.com/moviereviewsdata')
+
+set.seed(123)
+
+initial_split = sample(
+    x = 1:nrow(df_reviews), 
+    size = nrow(df_reviews) * .75, 
+    replace = FALSE
+)
+
+df_train = df_reviews[initial_split, ]
+
+df_test = df_reviews[-initial_split, ]
+```
+
+
+```{r}
+model_lr_train = lm(
+    rating ~ 
+        review_year_0 
+        + release_year_0 
+        + age_sc 
+        + length_minutes_sc 
+        + total_reviews_sc 
+        + word_count_sc 
+        + genre 
+        ,
+        df_train
+)
+```
+
+
+```{r}
+predictions = predict(model_lr_train, newdata = df_test)
+```
+
+## R-squared
+
+```{r}
+residual_ss = sum((df_test$rating - predictions)^2)
+total_ss = sum((df_test$rating - mean(df_test$rating))^2)
+
+1 - residual_ss / total_ss
+
+yardstick::rsq_trad_vec(df_test$rating, predictions)
+
+# conceptually identical, but slight difference due
+# to how internal calculations are done (not shown)
+# cor(df_test$rating, predictions)^2 
+# yardstick::rsq_vec(df_test$rating, predictions)
+
+# exercise
+# cor(df_test$rating, predictions)^2  
+# cor(df_test$rating, predictions + 1)^2  # same
+# yardstick::rsq_trad_vec(df_test$rating, predictions + 1) # negative!
+```
+
+## Mean Squared Error (MSE)
+
+
+```{r}
+mse = mean((df_test$rating - predictions)^2)
+
+mse
+
+yardstick::rmse_vec(df_test$rating, predictions)^2
+
+sqrt(mse)
+
+yardstick::rmse_vec(df_test$rating, predictions)
+```
+
+## Mean Absolute Error (MAE)
+
+```{r}
+mean(abs(df_test$rating - predictions))
+
+yardstick::mae_vec(df_test$rating, predictions)
+```
+
+## Mean Absolute Percentage Error (MAPE)
+
+```{r}
+mean(
+    abs(df_test$rating - predictions) / 
+    df_test$rating
+) * 100
+
+yardstick::mape_vec(df_test$rating, predictions)
+```
+
+## Classification metrics
+
+
+
+```{r}
+model_class_train = glm(
+    rating_good ~ 
+        genre + review_year_0 
+        + release_year_0 
+        + age_sc 
+        + length_minutes_sc 
+        + total_reviews_sc 
+        + word_count_sc 
+        + genre     
+        , 
+        df_train, 
+        family = binomial
+)
+
+summary(model_class_train)
+
+# a numeric version to use later
+y_target_testing_bin = ifelse(df_test$rating_good == "good", 1, 0)
+```
+
+
+```{r}
+predicted_prob = predict(
+    model_class_train,
+    newdata = df_test,
+    type = "response"
+)
+```
+
+
+```{r}
+predicted_class = ifelse(predicted_prob >= .5 , 1, 0)
+```
+
+### Confusion matrix
+
+```{r}
+rating_cm = mlr3measures::confusion_matrix(
+    factor(df_test$rating_good),
+    factor(predicted_class),
+    positive = "1"
+)
+```
+
+### Accuracy and Other Metrics
+
+```{r}
+our_cm = rating_cm$matrix
+
+TN = our_cm[2, 2]
+TP = our_cm[1, 1]
+FN = our_cm[2, 1]
+FP = our_cm[1, 2]
+
+acc = (TP + TN) / sum(our_cm)  # accuracy
+tpr = TP / (TP + FN)           # true positive rate, sensitivity, recall
+tnr = TN / (TN + FP)           # true negative rate, specificity 
+ppv = TP / (TP + FP)           # positive predictive value, precision
+npv = TN / (TN + FN)           # negative predictive value
+```
+
+
+```{r}
+tibble(
+    metric = c('ACC', 'TPR', 'TNR', 'PPV', 'NPV'),
+    ours = c(acc, tpr, tnr, ppv, npv),
+    package = rating_cm$measures[c('acc', 'tpr', 'tnr', 'ppv', 'npv')]
+)
+```
+
+## ROC Curve
+
+
+```{r}
+roc = performance::performance_roc(model_class_train, new_data = df_test)
+roc
+
+# requires the 'see' package
+plot(roc) 
+```
+
+
+```{r}
+# produces the same value as before
+roc_ = pROC::roc(df_test$rating_good, predicted_prob)
+threshold = pROC::coords(roc_, "best", ret = "threshold")
+
+predictions = ifelse(
+    predict(model_class_train, df_test, type='response') >= threshold$threshold, 
+    1, 
+    0
+)
+
+cm_new = mlr3measures::confusion_matrix(
+    factor(df_test$rating_good), 
+    factor(predictions), 
+    positive = "1"
+)
+
+tibble(
+    threshold = threshold,
+    TPR = cm_new$measures['tpr'],
+    TNR = cm_new$measures['tnr']
+)
+```
+
+
+## Model Selection & Comparison
+
+
+
+```{r}
+# create the models
+model_lr_3feat = lm(
+    rating ~ review_year_0 + release_year_0 + age_sc,
+    df_train
+)
+
+model_lr_interact = lm(
+    rating ~ review_year_0 * genre + release_year_0 * genre + age_sc * genre, 
+    df_train
+)
+
+model_lr_train = lm(
+    rating ~ 
+        review_year_0 
+        + release_year_0 
+        + age_sc 
+        + length_minutes_sc 
+        + total_reviews_sc 
+        + word_count_sc 
+        + genre 
+        , 
+        df_train
+)
+
+# get the predictions, calculate RMSE
+result = map(
+    list(model_lr_3feat, model_lr_train, model_lr_interact), 
+    ~ predict(.x, newdata = df_test)
+    ) |> 
+    map_dbl(
+        ~ yardstick::rmse_vec(df_test$rating, .)
+    )
+```
+
+
+## Model Visualization
+
+Ridiculously easy to do with the `performance` package.
+
+```{r}
+performance::check_model(model_lr_train, check = c('linearity', 'pp_check'))
+```
