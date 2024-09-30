@@ -452,7 +452,7 @@ Marginal means are just about getting an average prediction for the levels of *c
 #| eval: false
 #| results: hide
 
-mm = map_df(
+marginal_means = map_df(
     unique(df_train$genre), 
     ~ tibble(
         genre = .x,
@@ -460,14 +460,15 @@ mm = map_df(
             model_class_train, 
             newdata = df_train |> 
                 mutate(genre = .x), 
-            type = "response"
+            type = "link"
         ) |> 
-            mean()
+            mean() |> # get the average log odds then transform
+            plogis()
     )
 )
 
-# mm 
-marginaleffects::avg_predictions(model_class_train, variables = "genre")
+# marginal_means 
+marginaleffects::avg_predictions(model_class_train, newdata = df_train, variables = "genre")
 ```
 
 ##### Python
@@ -476,10 +477,12 @@ marginaleffects::avg_predictions(model_class_train, variables = "genre")
 #| label: python-marginal-means-genre
 #| eval: false
 
+inv_logit = lambda x: 1 / (1 + np.exp(-x))
+
 marginal_means = pd.DataFrame({
     "genre": df_train.genre.unique(),
     "avg_pred": [
-        model_class_train.predict(df_train.assign(genre = g)).mean()
+        inv_logit(model_class_train.predict(df_train.assign(genre = g), which='linear')).mean()
         for g in df_train.genre.unique()
     ]
 })
@@ -507,7 +510,7 @@ marginaleffects::avg_predictions(model_class_train, variables = "genre") |> #as_
 
 These results suggest that we can expect a good review for comedy and drama, maybe not so much for the others, *on average*. It also seems that our probability of a good review is similar for Comedy and Drama, and the others kind of group together as well.
 
-:::{.callout-note title = 'Reminder', collapse = true}
+:::{.callout-note title="That's not what I got!" collapse='true'}
 Just a reminder that if you used a different seed for your split or are using Python vs. R, you will see slightly different results. This is normal and expected!
 :::
 
@@ -1712,6 +1715,7 @@ SHAP values can be useful for observational level interpretation under the right
 
 ```{r}
 #| echo: false
+#| eval: false
 #| label: get-mre-output-model-explore
 mre_table = broom::tidy(model_reviews_extra, conf.int = TRUE) |>
     janitor::clean_names() |>
@@ -1743,6 +1747,7 @@ mre_mae = round(performance::performance_mae(model_reviews_extra), 2)
 
 ```{r}
 #| echo: false
+#| eval: false
 #| label: model-metrics-model-explore
 # need to update later usage to use mr_metrics object or named with mr_prefix
 model_reviews = lm(rating ~ word_count, data = df_reviews)
@@ -1754,6 +1759,7 @@ rmse = round(mr_metrics$RMSE, 2)
 mae = round(performance::performance_mae(model_reviews), 2)
 aic = round(mr_metrics$AIC, 2)
 ```
+
 
 ## Feature Metrics for Classification
 
@@ -1790,7 +1796,7 @@ Let's put our model understanding that we've garnered in this and the previous c
 - Start by creating a model of your choosing that predicts happiness score. This can be the one you did for the previous exercise (@sec-lm-exercise).
 - Now create a simpler or more complex model for comparison. The simple model should just remove a feature, while the complex model should add features to your initial model.
 - Interpret the first model as a whole, then compare it to the simpler/more complex model. Did anything change in how you assessed the features they have in common?
-- Create a counterfactual prediction for 
+- Create a counterfactual prediction for an observation, either one from the observed data or one that is of interest to you.
 - Choose the 'best' model, and justify your reason for doing so, e.g. using a specific metric of your choosing. 
 - As a bonus, get feature importance metrics for your chosen model. If using R, we suggest using the [iml]{.pack} package ([example]()), and in Python, run the linear regression with [scikit-learn]{.pack} and use the permutation-based importance function.
 
