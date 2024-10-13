@@ -20,30 +20,6 @@ np.set_printoptions(formatter={'float': lambda x: '{0:0.4f}'.format(x)})
 pd.set_option('display.float_format', lambda x: '%.3f' % x)
 ```
 
-```{r}
-#| label: r-setup-data
-#| include: false
-#| echo: false
-#| cache: false
-
-# library(tidyverse)
-# load('linear_models/data/model_reviews.RData')
-# df_reviews = read_csv('data/movie_reviews.csv') |>
-#     drop_na()
-# df_happiness = read_csv('data/world_happiness_2018.csv') |>
-#     drop_na()
-
-# # df_happiness |> skimr::skim()
-
-# model_reviews = lm(rating ~ word_count_sc, data = df_reviews)
-
-# intercept = round(coef(model_reviews)[1], 2)
-# wc_coef   = round(coef(model_reviews)[2], 2)
-# sd_y      = round(sd(df_reviews$rating), 2)
-# sd_x      = round(sd(df_reviews$word_count), 2)
-# wc_ci     = round(confint(model_reviews)[2, ], 2)
-# n_char    = 50
-```
 
 ```{python}
 #| label: py-setup-data
@@ -169,7 +145,6 @@ For our purposes here, we'll drop any rows with missing values, and we'll use sc
 
 ```{r}
 #| label: r-happiness-data-setup
-#| eval: true
 df_happiness = read_csv('https://tinyurl.com/worldhappiness2018') |>
     drop_na() |> 
     rename(happiness = happiness_score) |> 
@@ -184,7 +159,6 @@ df_happiness = read_csv('https://tinyurl.com/worldhappiness2018') |>
 
 ```{python}
 #| label: py-happiness-data-setup
-#| eval: true
 import pandas as pd
 
 df_happiness = (
@@ -204,7 +178,6 @@ For the R examples, after the above nothing beyond base R is needed. For Python 
 
 ```{python}
 #| label: py-imports-estimation
-#| eval: false
 import pandas as pd
 import numpy as np
 
@@ -212,6 +185,7 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
 from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
 
 from scipy.optimize import minimize
 from scipy.stats import norm
@@ -651,7 +625,7 @@ our_ols_optim = optim(
     y   = df_happiness$happiness,
     method  = 'BFGS', # optimization algorithm
     control = list(   
-        tol   = 1e-6, # tolerance
+        reltol   = 1e-6, # tolerance
         maxit = 500   # max iterations
     )  
 )
@@ -865,6 +839,7 @@ our_max_like
 # logLik(model_lr_happy_life) # one way to extract the log likelihood from a model
 ```
 
+
 ##### Python
 
 ```{python}
@@ -1063,7 +1038,6 @@ Now let's add a parameter. If we have more than one parameter, we now have an ob
 ::: {.content-visible when-format='html'}
 ```{r}
 #| echo: false
-#| eval: true
 #| label: fig-r-likelihood-plot-3d
 #| fig-cap: Likelihood Surface for Happiness and Life Expectancy (interactive)
 
@@ -1469,7 +1443,7 @@ $$ {#eq-estim-lasso}
 
 So far, we've been assuming a continuous target, but what if we have a categorical target? Now we have to learn a bunch of new stuff for that situation, right? Actually, no! *When we want to model categorical targets, conceptually, nothing changes with our estimation approach*! We still have an objective function that maximizes or minimizes some goal, and we can use the same algorithms to estimate parameters. However, we need to think about how we can do this in a way that makes sense for the binary target, or generalize to the multi-class case.
 
-### Misclassification rate {#sec-estim-misclass}
+### Misclassification Error {#sec-estim-misclass}
 
 A straightforward correspondence to MSE is a function that minimizes classification error, or by the same token, maximizes accuracy. In other words, we can think of the objective function as the proportion of incorrect classifications. This is called the **misclassification rate**.  
 
@@ -1820,7 +1794,6 @@ batch_result = our_gd
 ##### Python
 
 ```{python}
-#| eval: true
 #| label: py-gradient-descent
 def gradient_descent(
     par, 
@@ -2482,7 +2455,6 @@ The approach bootstrap very flexible, and it can potentially be used with any mo
 
 ```{r}
 #| label: r-bootstrap
-#| eval: true
 #| results: hide
 bootstrap = function(X, y, nboot = 100, seed = 123) {
     
@@ -3119,7 +3091,6 @@ Let's now demonstrate the split-conformal method with our happiness model. We'll
 
 
 ```{r}
-#| eval: true
 #| label: split-conformal-r-function
 split_conformal = function(
     X,
@@ -3169,10 +3140,7 @@ split_conformal = function(
 #### Python
 
 ```{python}
-#| eval: true
 #| label: split-conformal-py-function
-from sklearn.linear_model import LinearRegression
-
 def split_conformal(X, y, new_data, alpha = .05, calibration_split = .5):
     # Splitting the data into training and calibration sets
     X_train, X_cal, y_train, y_cal = train_test_split(
@@ -3221,7 +3189,6 @@ With our functions in place, we can now use them to calculate the prediction int
 #### R
 
 ```{r}
-#| eval: true
 #| label: split-conformal-r-calculate
 #| results: hide
 # split data
@@ -3262,12 +3229,9 @@ tibble(
 #### Python
 
 ```{python}
-#| eval: true
 #| label: split-conformal-py-calculate
 #| results: hide
 # split data
-from sklearn.model_selection import train_test_split
-
 X = df_happiness[['life_exp_sc', 'corrupt_sc', 'gdp_pc_sc']]
 y = df_happiness['happiness']
 
