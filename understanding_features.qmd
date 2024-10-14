@@ -8,22 +8,23 @@ Assuming our model is adequate, let's now turn our attention to the features. Th
 
 - There are many ways to get to know your features, and though it can be challenging, it can also be very rewarding!
 - Visualizations can help you understand how your model is making predictions and which features are important.
-- Feature importance is very difficult to ascertain even in the simplest of models, but there are tools to help you understand how much each feature contributes to a prediction.
+- Feature importance is difficult to determine even in the simplest of model settings, but there are tools to help you understand how much each feature contributes to a prediction.
 
 
 ### Why this matters {#sec-knowing-feature-why}
 
-It's never good enough to simply get model results. You need to know how well your model is performing and how it is making predictions. You also should be comparing your model to other alternatives. Doing so provides more confidence in your model and helps you to understand how it is working, and just as importantly, where it fails. This is actionable knowledge.
+We often need to, or simply want to know why our predictions come about. What's driving them? What happens for specific observations? By exploring the features we can begin to better understand our model, and potentially improve it. We can also get a sense of what's important in our data, and what's not, and this can help us make better decisions.
+
 
 ### Helpful context {#sec-knowing-feature-good}
 
-This takes some of the things we see in other chapters on linear models and machine learning, so we'd suggest having the linear model basics down pretty well.
+We'd suggest having the linear model basics down pretty well, as much of what we explore here can be understood most easily in that setting. If you already have machine learning models down too, you're in good shape, as this can all apply in those modeling contexts as well. We'll be using the same data as we did in the previous chapters, so if you're following along, you should be good to go.
 
 
 
 ## Data Setup
 
-We'll use the same data as our with @sec-knowing, and this is just the key code from there.
+We'll use the movie review data as our with our previous chapters. Later on, we'll also use the world happiness data set to explore some more advanced concepts. For the movie review data, we'll split the data into training and testing sets, and then fit a linear regression model and a logistic regression model to the training data. We'll then use the testing data to evaluate the models.
 
 :::{.panel-tabset}
 
@@ -62,7 +63,7 @@ model_lr_train = lm(
 
 model_class_train = glm(
     rating_good ~ 
-        genre + review_year_0 
+        review_year_0 
         + release_year_0 
         + age_sc 
         + length_minutes_sc 
@@ -149,7 +150,7 @@ We also noted how we can get a bit more relative comparison by using standardize
 
 We can also look at the contribution of a feature to the model's explanatory power, namely through its predictions. To start our discussion, we don't want to lean too heavily on the phrase **feature importance** yet, because as we'll see later, trying to rank features by an importance metric is difficult at best, and a misguided endeavor at worst. We can however look at the **feature contribution** to the model's predictions, and we can come to a conclusion about whether we think a feature is practically important, but just we need to be careful about how we do it.
 
-Truly understanding feature contribution is a bit more complicated than just looking at the coefficient if using any model that isn't a linear regression, and there are many ways to go about it. We know we can't compare raw coefficients across features, because they are on different scales. But even when we put them on the same scale, it may be very easy for some features to move, e.g., one standard deviation, and very hard for others. Binary features can only be on or off, while numeric features can move around more, but numeric features may also be highly skewed. We also can't use statistical significance based on p-values, because they reflect sample size as much or more than effect size.
+Truly understanding feature contribution is a bit more complicated than just looking at the coefficient if we're using any model that isn't a linear regression, and there are many ways to go about it. We know we can't compare raw coefficients across features, because they are on different scales. But even when we put them on the same scale, it may be very easy for some features to move, e.g., one standard deviation, and very hard for others. Binary features can only be on or off, while numeric features can move around more, but numeric features may also be highly skewed. We also can't use statistical significance based on p-values, because they reflect sample size as much or more than effect size.
 
 So what are we to do? What you need to know to get started looking at a feature's contribution includes the following:
 
@@ -159,13 +160,13 @@ So what are we to do? What you need to know to get started looking at a feature'
 - target range and variability
 - feature interactions and correlations
 
-We can't necessarily do a whole lot about these aspects, but we can at least be aware of them, and just as importantly, we can be aware of the limitations of our understanding of these effects. In any case, let's try to get a sense of how we can understand the contribution of a feature to our model.
+We can't necessarily do a whole lot about these aspects, but we can at least be aware of them to help us understand any effects we want to explore. And just as importantly, knowing this sort of information can help us be aware of the limitations of our understanding of these effects. In any case, let's try to get a sense of how we can understand the contribution of a feature to our model.
 
 
 
 ## Marginal Effects {#sec-marginal-effects}
 
-One way to understand the contribution of a feature to the model is to look at the **marginal effect** of the feature, which conceptually attempts to boil a feature effect to something simple. Unfortunately, not everyone means the same thing when they use this term and it can be a bit confusing. Marginal effects *typically* refer to a partial derivative of the target with respect to the feature. Oh no! Math! However, as an example, this becomes very simple for standard linear models with no interactions and all linear effects as in linear regression. The derivative of our coefficient with respect to the feature is just the coefficient itself! But for more complicated models, even just a classification model like our logistic regression, we need to do a bit more work to get the marginal effect, or other so-called *average* effects.  Let's think about a couple common versions:
+One way to understand the contribution of a feature to the model is to look at the **marginal effect** of the feature, which conceptually attempts to boil a feature effect to something simple like an average. Unfortunately, not everyone means the same thing when they use this term and it can be a bit confusing. Marginal effects *typically* refer to a partial derivative of the target with respect to the feature. Oh no! Math! However, as an example, this becomes very simple for standard linear models with no interactions and all linear effects, as in linear regression. The derivative of our coefficient with respect to the feature is just the coefficient itself! But for more complicated models, even just a classification model like our logistic regression, we need to do a bit more work to get the marginal effect, or other so-called *average* effects.  Let's think about a couple common versions:
 
 - Average slope, Average Marginal Effect
 - Marginal effect at the mean
@@ -174,7 +175,12 @@ One way to understand the contribution of a feature to the model is to look at t
 
 ### Marginal effects at the mean {#sec-marginal-effects-mean}
 
-First let's think about an average slope. This is the average of the slopes across the feature's values or values of another feature it interacts with. But let's just look at the effect of word count first. A good question is, how do we visualize that? Here are two plots, and both are useful, neither is inherently wrong, and yet they both tell us something different. The first plot shows the predicted probability of a good review as word count changes, *with all other features at their mean* (or mode for categorical). The second plot shows what is called a **partial dependence plot**, which shows the *average predicted probability* of a good review as word count changes. In both cases we make predictions with imputed values- the left plot imputes the other features to be their mean or mode, while the right plot leaves the other features at their actual values, and then, using a range of values for word count, gets a prediction as if every observation had that value for word count. We then plot the average of the predictions for each value in the range.
+First let's think about an average slope. This is the average of the slopes across the feature's values, or values of another feature it interacts with. To begin, let's just look at the effect of word count first, and we'll do this for the logistic regression model to make things more interesting. A good question to start with is, how do we visualize the relationship/effect?
+
+Here are two plots, and both are useful, neither is inherently wrong, and yet they both tell us something different. The first plot shows the predicted probability of a good review as word count changes, *with all other features at their mean* (or mode for categorical features like genre). We can see that on the probability scale, this relationship is negative with a bit of a curve that gets steeper with higher word count values.
+
+
+
 
 :::{.content-visible when-format='html'}
 ```{r}
@@ -261,14 +267,83 @@ ggsave("img/knowing-mem-vs-pdp.svg", width = 8, height = 6)
 ![Marginal Effect at the Mean vs. Partial Dependence Plot](img/knowing-mem-vs-pdp.svg){#fig-r-mem-vs-pdp}
 :::
 
-When word count is zero, i.e. its mean and everything else is at its mean/mode, we'd predict a probability of a good review of about `r paste0(round(pred_0*100), '%')`. As such, we interpret this as 'when everything is typical', we have a pretty good chance of getting a good review. The average prediction we'd get if we predicted every observation as if it were the mean word count is more like 55%, which is notably less. Which is correct? Both, or neither!  They are telling us different things, either of which may be useful, or not.  If it's doubtful that the feature values used in the calculation are realistic (e.g. everything at its mean at the same time, or an average word count when length of a movie is at its minimum) then they may both be misleading. You have to know your features and your target to know best use the information.
+The second plot shows what is called a **partial dependence plot**, which shows the *average predicted probability* of a good review as word count changes. In both cases we make predictions with imputed values- the left plot imputes the other features to be their mean or mode, while the right plot leaves the other features at their actual values, and then, using a range of values for word count, gets a prediction as if every observation had that value for word count. We then plot the average of the predictions for each value in the range.
+
+Let's demystify this by calculating it ourselves.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-marginal-effects-word-count
+#| eval: false
+#| results: hide
+#| fig.cap: Average Slope of Word Count by Genre
+
+df_typical = tibble(
+    genre = names(which.max(table(df_train$genre))),
+    age_sc = mean(df_train$age_sc),
+    release_year_0 = mean(df_train$release_year_0),
+    length_minutes_sc = mean(df_train$length_minutes_sc),
+    total_reviews_sc = mean(df_train$total_reviews_sc),
+    word_count_sc = mean(df_train$word_count_sc),
+    review_year_0 = mean(df_train$review_year_0)
+)
+
+# avg prediction when everything is typical
+avg_pred = predict(model_class_train, newdata = df_typical, type = "response") |>
+    mean()
+
+# avg prediction when word count is at its mean
+avg_pred_0 = predict(
+    model_class_train, 
+    newdata = df_train |> mutate(word_count_sc = 0),
+    type = 'response'
+) |>
+    mean()
+
+c(avg_pred, avg_pred_0)
+```
+
+##### Python
+
+```{python}
+#| label: python-marginal-effects-word-count
+#| eval: false
+#| results: hide
+#| fig.cap: Average Slope of Word Count by Genre
+
+df_typical = pd.DataFrame({
+    "genre": df_train.genre.mode().values,
+    "age_sc": df_train.age_sc.mean(),
+    "release_year_0": df_train.release_year_0.mean(),
+    "length_minutes_sc": df_train.length_minutes_sc.mean(),
+    "total_reviews_sc": df_train.total_reviews_sc.mean(),
+    "word_count_sc": df_train.word_count_sc.mean(),
+    "review_year_0": df_train.review_year_0.mean()
+})
+
+# avg prediction when everything is typical
+avg_pred_typical = model_class_train.predict(df_typical).mean()
+
+# avg prediction when word count is at its mean
+avg_pred_0 = model_class_train.predict(
+    df_train.assign(word_count_sc = 0)
+).mean()
+
+avg_pred_typical.round(3), avg_pred_0.round(3)
+```
+:::
+
+When word count is zero, i.e. its mean and everything else is at its mean/mode, we'd predict a chance of a good review at about `r label_percent()(pred_0)`. As such, we interpret this as 'when everything is typical', we have a pretty good chance of getting a good review. The average prediction we'd get if we predicted every observation as if it were the mean word count is more like `r label_percent()(avg_pred_0)`, which is notably less. Which is correct? Both, or neither!  They are telling us different things, either of which may be useful, or not.  If it's doubtful that the feature values used in the calculation are realistic (e.g. everything at its mean at the same time, or an average word count when length of a movie is at its minimum), then they may both be misleading. You have to know your features and your target to know how best to use the information.
 
 
 ### Average marginal effects {#sec-avg-marginal-effects}
 
-Let's say we want to boil our understanding of the effect to a single number. In this case, the coefficient is fine if we're dealing with an entirely linear model. In this classification case, the raw coefficient tells us what we need to know, but on the log odds scale, which is not very intuitive for most folks. We can understand the probability scale, but this means things get nonlinear. As an example, a .1 to .2 change in the probability is doubling it, while a .8 to .9 change is a 12.5% increase in the probability. But is there any way we can stick with probabilities and get a single value to understand the change in the probability of a good review as word count changes by 1 unit?
+Let's say we want to boil our understanding of the feature-target relationship to a single number. In this case, the coefficient is fine if we're dealing with an entirely linear model. In this classification case, the raw coefficient tells us what we need to know, but on the log odds scale, which is not very intuitive for most folks. We can understand the probability scale, but this means things get nonlinear. As an example, a .1 to .2 change in the probability is doubling it, while a .8 to .9 change is a 12.5% increase in the probability. But is there any way we can stick with probabilities and get a single value to understand the change in the probability of a good review as word count changes by 1 unit?
 
-Yes! We can look at what's called the **average marginal effect** of word count. This is the average of the slope of the predicted probability of a good review as word count changes. This is a bit more complicated than just looking at the coefficient, but it's a bit more intuitive. How do we get it? By a neat little trick where we predict the target with the feature at two values, one with the observed value is changed by adding or subtracting a very small amount. Then we take the difference in the predictions. This results in the same thing as taking the derivative of the target with respect to the feature. 
+Yes! We can look at what's called the **average marginal effect** of word count. This is the average of the slope of the predicted probability of a good review as word count changes. This is a bit more complicated than just looking at the coefficient, but it's still intuitive, and moreso than a coefficient that regards odds. How do we get it? By a neat little trick where we predict the target with the feature at two values. We start with the observed value and then add or subtract a very small amount. Then we take the difference in the predictions for those two feature values. This results in the same thing as taking the derivative of the target with respect to the feature. 
 
 ```{r}
 #| echo: false
@@ -361,10 +436,10 @@ np.mean(fudge_plus - fudge_minus) / fudge_factor
 
 :::
 
-Our results suggests we're getting about a .09 drop in the expected probability of a good review for a 1 standard deviation increase in word count. This is a bit more intuitive than the coefficient or odds ratio based on it, and we probably don't want to ignore that sort of change. It also doesn't take much to get with the right package or even on our own. 
+Our results suggests we're getting about a `r round(mean(fudge_plus - fudge_minus) / fudge_factor, 1)` drop in the expected probability of a good review for a 1 standard deviation increase in word count. This is a bit more intuitive than the coefficient or odds ratio based on it, and we probably don't want to ignore that sort of change. It also doesn't take much to get with the right package, or even on our own. Another nice thing about this approach is that it can potentially be applied to any model, including ones that don't normally produce coefficients, like gradient boosting models or deep learning models.
+
 
 ### Marginal means
-
 
 Marginal means are just about getting an average prediction for the levels of *categorical features*. As an example, we can get the average predicted probability of a good review for each level of the genre feature, and then compare them. To do this we just have to make predictions as if every observation had a certain value for genre, and then average the predictions. This is also the exact same approach that produced the PDP for word count we saw earlier.
 
@@ -377,22 +452,23 @@ Marginal means are just about getting an average prediction for the levels of *c
 #| eval: false
 #| results: hide
 
-mm = map_df(
+marginal_means = map_df(
     unique(df_train$genre), 
     ~ tibble(
         genre = .x,
         avg_pred = predict(
-            model_lr_train, 
+            model_class_train, 
             newdata = df_train |> 
                 mutate(genre = .x), 
-            type = "response"
+            type = "link"
         ) |> 
-            mean()
+            mean() |> # get the average log odds then transform
+            plogis()
     )
 )
 
-# mm 
-marginaleffects::avg_predictions(model_lr_train, variables = "genre")
+# marginal_means 
+marginaleffects::avg_predictions(model_class_train, newdata = df_train, variables = "genre")
 ```
 
 ##### Python
@@ -401,10 +477,12 @@ marginaleffects::avg_predictions(model_lr_train, variables = "genre")
 #| label: python-marginal-means-genre
 #| eval: false
 
+inv_logit = lambda x: 1 / (1 + np.exp(-x))
+
 marginal_means = pd.DataFrame({
     "genre": df_train.genre.unique(),
     "avg_pred": [
-        model_lr_train.predict(df_train.assign(genre = g)).mean()
+        inv_logit(model_class_train.predict(df_train.assign(genre = g), which='linear')).mean()
         for g in df_train.genre.unique()
     ]
 })
@@ -419,8 +497,8 @@ marginal_means
 #| label: tbl-marginal-means-genre
 #| tbl-cap: Average Predicted Probability of a Good Review by Genre
 
-marginaleffects::avg_predictions(model_lr_train, variables = "genre") |> 
-    select(-(std.error:s.value)) |>
+marginaleffects::avg_predictions(model_class_train, variables = "genre") |> #as_tibble()
+    select(-c(p.value, s.value)) |>
     gt() |> 
     tab_footnote(
         "Select output from the R package marginaleffects."
@@ -430,18 +508,23 @@ marginaleffects::avg_predictions(model_lr_train, variables = "genre") |>
     )
 ```
 
+These results suggest that we can expect a good review for comedy and drama, maybe not so much for the others, *on average*. It also seems that our probability of a good review is similar for Comedy and Drama, and the others kind of group together as well.
+
+:::{.callout-note title="That's not what I got!" collapse='true'}
+Just a reminder that if you used a different seed for your split or are using Python vs. R, you will see slightly different results. This is normal and expected!
+:::
+
 
 ## Counterfactual Predictions {#sec-knowing-counterfactual-predictions}
 
 The nice thing about having a model is that we can make predictions for any set of feature values we want to explore. This is a great way to understand the contribution of a feature to the model. We can make predictions for a range of feature values, and then compare the predictions to see how much the feature contributes to the model. **Counterfactual predictions** allow us to ask "what if?" questions of our model, and see how it responds. As an example, we can get a prediction as if every review was made for a drama, and then see what we'd expect if every review pertained to a comedy. This is a very powerful approach, and often utilized in causal inference, but it's also a great way to understand the contribution of a feature to a model in general.
 
-Consider an experimental setting where we have lots of control over how the data is produced for different scenarios. Ideally we'd be able to look at the same instances under when everything about them was identical, but in one case, the instance was part of the control group, and in another, part of the treatment group. Unfortunately, not only is it impossible to have *everything* be identical, but it's also impossible to have the same instance be in two experimental group settings at the same time. Counterfactual predictions are the next best thing though, because once we have a model, we can predict an observation *as if* it was in the treatment, and then when it is a control. If we do this for all observations, we can get a sense of the **average treatment effect**, one of the main points of interest in causal inference.  
+Consider an experimental setting where we have lots of control over how the data is produced for different scenarios. Ideally we'd be able to look at the same instances under when everything about them was identical, but in one case, the instance was part of the control group, and in another, part of the treatment group. Unfortunately, not only is it impossible to have *everything* be identical, but it's also impossible to have the same instance be in two experimental group settings at the same time! Counterfactual predictions are the next best thing though, because once we have a model, we can predict an observation *as if* it was in the treatment, and then when it is a control. If we do this for all observations, we can get a sense of the **average treatment effect**, one of the main points of interest in causal inference.  
 
 
+But you don't need an experiment for this. In fact, we've been doing this all along with our marginal effects examples. Take the marginal means, where we looked at the average predicted probability of a good review as if every observation was a specific genre. We could have also looked at any specific observation's predictions to compare the two genre settings, instead of getting an average. This is very much in the spirit of a counterfactual prediction.
 
-<!-- TODO: as this is the only example in this chap to not use reviews, maybe rethink for consistency -->
-
-But you don't need an experiment for this. Let's try a new data set to help drive the point home.  We'll use some data at the global stage- the world happiness data set (@sec-dd-world-happiness-report). For our model we'll predict the happiness score for a country, considering freedom to make life choices, GDP and other things associated with it.  We'll then switch the freedom to make life choices and GDP values for the US and Russia, and see how the predictions change!
+Let's try a new data set to help drive the point home.  We'll use some data at the global stage- the world happiness data set (@sec-dd-world-happiness-report). For our model we'll predict the happiness score for a country, considering freedom to make life choices, GDP and other things associated with it.  We'll then switch the freedom to make life choices and GDP values for the US and Russia, and see how the predictions change!
 
 
 :::{.panel-tabset}
@@ -574,11 +657,11 @@ It's very easy even with base package functions to see some very interesting thi
 
 ## SHAP Values {#sec-knowing-shap-values}
 
-As we've suggested, most models are more complicated than can be explained by a simple coefficient, e.g. nonlinear effects in generalized additive models, or there may not even be feature-specific coefficients available, like gradient boosting models, or we may even have many parameters associated with a feature, as in deep learning. Such models typically won't come with statistical output like standard errors and confidence intervals either. But we'll still have some tricks up our sleeve to help us figure things out!
+As we've suggested, most models are more complicated than can be explained by a simple coefficient, e.g. nonlinear effects in generalized additive models. Or, there may not even be feature-specific coefficients available, like gradient boosting models. Or, we may even have many parameters associated with a feature, as in deep learning. Such models typically won't come with statistical output like standard errors and confidence intervals either. But we'll still have some tricks up our sleeve to help us figure things out!
 
 A very common interpretation tool is called a **SHAP value**. SHAP stands for **SHapley Additive exPlanations**, and it provides a means to understand how much each feature contributes to a specific prediction. It's based on a concept from game theory called the Shapley value, which is a way to understand how much each player contributes to the outcome of a game.  For our modeling context, SHAP values break down a prediction to show the impact of each feature. The reason we bring it up here is that it has a nice intuition in the linear model case, and seeing it in that context is a good way to get a sense of how it works. Furthermore, it builds on what we've been talking about with our various prediction approaches. 
 
-While the actual computations behind the scenes can be tedious, the basic idea is relatively straightforward- for a given prediction at a specific observation with set feature values, we can calculate *the difference between the prediction at that observation versus the average prediction for the model as a whole*. We can break this down for each feature, and see how much each contributes to the difference.  This provides us the **local effect** of the feature. The SHAP approach also has the benefit of being able to be applied to *any* model, whether a simple linear or deep learning model. Very cool! To demonstrate we'll use the simple model from our model comparison demo, but keep the features on the raw scale.
+While the actual computations behind the scenes can be tedious, the basic idea is relatively straightforward- for a given prediction at a specific observation with set feature values, we can calculate *the difference between the prediction at that observation versus the average prediction for the model as a whole*. We can break this down for each feature, and see how much each contributes to the difference.  This provides us the **local effect** of the feature, or how it plays out for a specific observation, as opposed to the whole data. The SHAP approach also has the benefit of being able to be applied to *any* model, whether a simple linear or deep learning model. Very cool! To demonstrate we'll use the simple model from our model comparison demo in the previous chapter, but keep the features on the raw scale.
 
 
 :::{.panel-tabset}
@@ -637,13 +720,13 @@ model_lr_3feat.save("data/models/knowing_models/model_lr_3feat.pkl")
 ```
 
 
-With our model in place let's look at the SHAP values for the features.  We'll start by choosing the instance we want to explain. Here we'll consider an observation where the release year is 2020, age of reviewer is 30, and a movie length of 110 minutes. To aid our understanding, we calculate the SHAP values at that observation by hand, and using a package. The by hand approach consists of the following steps. 
+With our model in place let's look at the SHAP values for the features.  We'll start by choosing the instance we want to explain. Here we'll consider an observation where the release year is 2020, age of reviewer is 30, and a movie length of 110 minutes. To aid our understanding, we calculate the SHAP values at that observation by hand, and using a package. The by-hand approach consists of the following steps. 
 
 1. Get the average prediction for the model
 2. Get the prediction for the feature at the value of interest for all observations, and average the predictions
 3. Calculate the SHAP value as the difference between the average prediction and the average prediction for the feature value of interest
 
-Note that this approach only works for our simple linear regression case, and we'd need to use a package incorporating an appropriate method for more complicated settings. But it helps get our bearings on what SHAP values tell us. Also be aware that our focus is a feature's *marginal contribution* at a *single observation*. Our coefficient already tells us the average contribution of a feature across all observations for this linear regression setting, i.e the AME discussed previously.
+Note that this approach only works for our simple linear regression case, and we'd need to use a package incorporating an appropriate method for more complicated settings. But this simplified approach helps get our bearings on what SHAP values tell us. Also, be aware that our focus is a feature's *marginal contribution* at a *single observation*. Our coefficient already tells us the average contribution of a feature across all observations for this linear regression setting, i.e the average marginal effect discussed previously.
 
 :::{.panel-tabset}
 
@@ -710,19 +793,19 @@ obs_of_interest = pd.DataFrame({
 # for all observations, and average them
 pred_age_30 = model_lr_3feat.predict(
     df_reviews.assign(
-        age = obs_of_interest['age']
+        age = obs_of_interest.loc['new_observation', 'age']
     )
 )
 
 pred_year_2022 = model_lr_3feat.predict(
     df_reviews.assign(
-        release_year = obs_of_interest['release_year']
+        release_year = obs_of_interest.loc['new_observation', 'release_year']
     )
 )
 
 pred_length_110 = model_lr_3feat.predict(
     df_reviews.assign(
-        length_minutes = obs_of_interest['length_minutes']
+        length_minutes = obs_of_interest.loc['new_observation', 'length_minutes']
     )
 )
 
@@ -732,7 +815,6 @@ shap_value_ours = pd.DataFrame({
     'release_year': pred_year_2022.mean() - avg_pred,
     'length_minutes': pred_length_110.mean() - avg_pred
 }, index = ['new_observation'])
-
 ```
 
 :::
@@ -828,7 +910,7 @@ rbind(
     gt(decimals = 3)
 ```
 
-And there you have it- we've demystified the SHAP value! Things get more complicated in nonlinear settings, dealing with correlated features, and other cases, but hopefully this provides you some context. SHAP values are useful because they tell us how much each feature contributes to the prediction for the observation under consideration. We can visualize these as well, via a **force plot** or **waterfall plot**, the latter of which is shown in the next plot. The dotted line at *E[f(x)]* represents the average prediction from our model (~`r round(mean(fitted(model_lr_3feat)), 2)`), and the prediction we have for the observation at *f(x)*, which is about `r round(mean(predict(model_lr_3feat, obs_of_interest)), 2)`.
+We can visualize these as well, via a **force plot** or **waterfall plot**, the latter of which is shown in the next plot. The dotted line at *E[f(x)]* represents the average prediction from our model (~`r round(mean(fitted(model_lr_3feat)), 2)`), and the prediction we have for the observation at *f(x)*, which is about `r round(mean(predict(model_lr_3feat, obs_of_interest)), 2)`.
 
 With the average prediction as our starting point, we add the SHAP values for each feature to get the prediction for the observation. First we add the SHAP value for age, which bumps the value by `r round(shap_value_ours[['age']], 3)`, then the SHAP value for movie length, which `r word_sign(shap_value_ours[['length_minutes']], c('increases', 'decreases'))` the prediction `r round(shap_value_ours[['length_minutes']], 3)`, and finally the SHAP value for release year, which brings us to the final predicted value by `r word_sign(shap_value_ours[['release_year']], c('increasing', 'decreasing'))` the prediction `r round(shap_value_ours[['release_year']], 3)`.
 
@@ -876,7 +958,7 @@ wf = sv_waterfall(
 ) +
     labs(
         x = "Contribution to Prediction",
-        title = "SHAP Waterfall"
+        title = "SHAP Waterfall Plot"
     )
 
 # bd / wf +
@@ -889,13 +971,15 @@ wf
 #     xlab("Importance")
 ```
 
+And there you have it- we've demystified the SHAP value! Things get more complicated in nonlinear settings, dealing with correlated features, and other cases, but hopefully this provides you some context. SHAP values are useful because they tell us how much each feature contributes to the prediction for the observation under consideration.
+
 Pretty neat huh? So for any observation we want to inspect, and more importantly, for any model we might use, we can get a sense of how features contribute to that prediction.  We also can get a sense of how much each feature contributes to the model as a whole by aggregating these values across all observations in our data, and this potentially provides a measure of **feature importance**, but we'll come back to that in a bit.
 
 
 
 ## Related Visualizations {#sec-knowing-related-viz}
 
-We've seen how we can get some plots for predictions in different ways previously with what's called a **partial dependence plot** (@fig-r-mem-vs-pdp). A PDP shows the average prediction of a feature on the target across the feature values, which is in fact what we were just doing to calculate our SHAP value, and for the linear case, the PDP has a direct correspondence to the SHAP. As we saw, the SHAP value is the  difference between the average prediction and the point on the PDP for a feature at a specific feature value.  With regard to the PDP, this is the difference between the point on the PDP and the average prediction for the model at that feature value, denoted in the PDP.
+We've seen how we can get some plots for predictions in different ways previously with what's called a **partial dependence plot** (@fig-r-mem-vs-pdp). In essence, a PDP shows the average prediction of a feature on the target across the feature values. This is also what we were just doing to calculate our SHAP value, and for the linear case, the PDP has a direct correspondence to the SHAP. In this setting, the SHAP value is the  difference between the average prediction and the point on the PDP for a feature at a specific feature value. As an example, for a movie of 110 minutes, the line in the plot below corresponds to the value in the previous waterfall plot (@fig-shap-viz-r).
 
 :::{.content-visible when-format='html'}
 ```{r}
@@ -991,6 +1075,7 @@ pdp = FeatureEffect$new(p_init, 'length_minutes', method = "pdp")$plot() +
 ice = FeatureEffect$new(p_init, 'length_minutes', method = "pdp+ice")$plot() +
     # scale_color_manual(values = okabe_ito[5]) + 
     labs(subtitle = 'ICE', x = 'Length in Minutes') # y is ignored??
+
 ale = FeatureEffect$new(p_init, 'length_minutes', grid.size=100)$plot() + 
     labs(subtitle = 'ALE', x = 'Length in Minutes')
 
@@ -1011,9 +1096,9 @@ ggsave("img/knowing-pdp-ice-ale.svg", p, width = 10, height = 10)
 
 
 
-We can also look at the **individual conditional expectation** (ICE) plot, which is a PDP plot for a single observation, but across all values of a select feature. By looking at several observations, as in the second plot, we can get a sense of the variability in the feature's effect. As we can see, there is not much to tell beyond a PDP when we have a simple linear model, but it becomes more interesting when we have interactions or other nonlinearities in our model.
+We can also look at the **individual conditional expectation** (ICE) plot, which is a PDP for a single observation, but across all values of a select feature. By looking at several observations, as in the second plot, we can get a sense of the variability in the feature's effect. As we can see, there is not much to tell beyond a PDP when we have a simple linear model, but it becomes more interesting when we have interactions or other nonlinear relationships in our model.
 
-In addition, there are other plots that are similar to the PDP and ICE, such as the **accumulated local effect** (ALE) plot, shown last, which is more robust to correlated features than the PDP plot, while also showing the general feature-target relationship. Where the PDP and ICE plots show the average effect of a feature on the target, the ALE plot focuses on average *differences* in predictions for the feature at a specific value, versus predictions at feature values nearby, and then centers the result so that the average difference is zero. In general, all our plots reflect the positive linear relationship between movie length and rating.
+In addition, there are other plots that are similar to the PDP and ICE, such as the **accumulated local effect** (ALE) plot, shown last, which is more robust to correlated features than the PDP, while also showing the general feature-target relationship. Where the PDP and ICE plots show the average effect of a feature on the target, the ALE plot focuses on average *differences* in predictions for the feature at a specific value, versus predictions at feature values nearby, and then centers the result so that the average difference is zero. In general, all our plots reflect the positive linear relationship between movie length and rating.
 
 
 
@@ -1080,7 +1165,7 @@ p_init +
 ```
 
 
-:::{.callout type='note' title='Visualization Tools' collapse='true'}
+:::{.callout-note title='Visualization Tools' collapse='true'}
 The waterfall plot was created using [DALEX]{.pack}, but the [shap]{.pack} python package will also provide this. For PDP, ICE and ALE plots in R, you can look to the [iml]{.pack} package, and in Python, the [shap]{.pack} or [scikit-learn]{.pack} package. Many others are available though, so feel free to explore!
 :::
 
@@ -1127,10 +1212,9 @@ map2_df(
 
 ## Global Assessment of Feature Importance {#sec-knowing-feature-importance}
 
+Everything we've shown so far provides specific information about how a feature impacts a prediction for a specific observation. But more generally we often will ask - how important is a feature? It's a common question, and one that is often asked of models, but the answer ranges from 'it depends' and 'it doesn't matter'. Let's start with some hard facts:
 
-How important is a feature? It's a common question, and one that is often asked of models, but the answer ranges from 'it depends' and 'it doesn't matter'. Let's start with some hard facts:
-
-- There is no single definition of importance for any given model.
+- There is no single definition or metric of importance for any given model.
 - There is no single metric for any model that will conclusively tell you how important a feature is relative to others in all data/model contexts.
 - There are multiple metrics of importance for a given model that are equally valid, but which may come to different conclusions.
 - Any non-zero feature contribution is potentially 'important', however small.
@@ -1140,11 +1224,11 @@ How important is a feature? It's a common question, and one that is often asked 
 - It rarely makes sense to drop features based on importance alone, and doing so will typically drop performance as well.
 - In the end, what will you do with the information? 
 
-As we noted previously, if I want to know how a feature relates to a target, I have to know how a feature moves, and I need to know what types of feature values are more likely than others, and what a typical movement in its range of values would be. If a feature is skewed, then the mean may not be the best value to use for prediction, and basing 'typical' movement on its standard deviation may be misguided. If a unit movement in a feature results in a movement in the target of 2 units, what does that mean? Is it a large movement? If I don't know the target very well I can't answer that. As an example, if the target is in dollars, a $2 movement is nothing for salary, but might be large for a stock price. We have to know the target as well as we do the feature predicting it.
+As we noted previously, if I want to know how a feature relates to a target, I have to know how a feature moves, and I need to know what types of feature values are more likely than others, and what a typical movement in its range of values would be. If a feature is skewed, then the mean may not be the best value to use for prediction, and basing 'typical' movement on its standard deviation may be misguided. If a unit movement in a feature results in a movement in the target of 2 units, what does that mean? Is it a large movement? If I don't know the target very well, I can't answer that. As an example, if the target is in dollars, a $2 movement is nothing for salary, but might be large for a stock price. We have to know the target as well as we do the feature predicting it.
 
-On top of all this, we need to know how the feature interacts with other features. If a feature is highly correlated with another feature, then it may not be adding much to the model even if some metrics would indicate a notable contribution. In addition, some approaches will either spread the contribution of correlated features across them, or just pick one of them to include in the model. It may be mostly arbitrary which one is included, or you might miss both if the weights are split.
+On top of all this, we need to know how the feature interacts with other features. If a feature is highly correlated with another feature, then it may not be adding much to the model even if some metrics would indicate a notable contribution. In addition, some approaches will either spread the contribution of correlated features across them, or just pick one of them as being important to the model. It may be mostly arbitrary which one is included, or you might miss both if the importance values are split.
 
-*If a feature interacts with another feature, then there really is no way to say how much it contributes to the model without knowing the value of the other feature*. Full stop. Synergistic effects cannot be understood by pretending they don't exist. A number of metrics will still be provided for a single feature, either by trying to include its overall contribution or averaging over the values of the other feature, but this is a problematic approach because it still ignores the other feature values. As an example, if a drug doesn't work for your age group or for someone with your health conditions, do you really care if it works 'in general' or 'on average'?
+*If a feature interacts with another feature, then there really is no way to say how much it contributes to the model without knowing the value of the other feature*. Full stop. Synergistic effects cannot be understood by pretending they don't exist. A number of metrics will still be provided for a single feature, either by trying to include its overall contribution or averaging over the values of the other feature. But this is a problematic approach because it still ignores the other feature values. As an example, if a drug doesn't work for your age group or for someone with your specific health conditions, do you really care if it works 'in general' or 'on average'?
 
 To help us further understand this issue, consider the following two plots. On the left we show an interaction between two binary features. If we were to look at the contribution of each feature without the interaction, their respective coefficients would be estimated as essentially zero[^interexplain]. On the right we show a feature that has a strong relationship with the target, but only for a certain range of values. If we were to look at a single 'effect' of the feature, we would likely underestimate how strong it is with smaller values and overestimate the relationship at the upper range. 
 
@@ -1245,7 +1329,7 @@ All this is to say, as we get into measures of feature importance, we need to be
 
 To show just how difficult measuring feature importance is, we only have to stick with our simple linear regression. Think again about R^2^: it tells us the proportion of the target explained by our features. An ideal measure of importance would be able to tell us how much each feature contributes to that proportion, or in other words, one that *decomposes* R^2^ into the relative contributions of each feature. One of the most common measures of importance in linear models is the **standardized coefficient** we have demonstrated previously. You know what it doesn't do? It doesn't decompose R^2^ into relative feature contributions. Even the more complicated SHAP approach will not do this.
 
-The easiest situation we could hope for with regard to feature importance is the basic linear regression model we've been using. Everything is linear, with no interactions or other things going on, as in our demonstration model. And yet there are many logical ways to determine feature importance, and some even break down R^2^ into relative contributions, but they won't necessarily agree with each other in ranking or relative differences. If you can get a measure of statistical difference between whatever metric you choose, it's often the case that 'top' features will not be statistically different from other features. So what do we do? We'll show a few methods here, but the main point is that there is no single answer, and it's important to understand what you're trying to do with the information.
+The easiest situation we could hope for with regard to feature importance is the basic linear regression model we've been using. Everything is linear, with no interactions or other things going on, as in our demonstration model. And yet there are many logical ways to determine feature importance.  Some metrics even break down R^2^ into relative feature contributions, but they won't necessarily agree with each other in ranking or relative differences. If you can get a measure of statistical difference between whatever metric you choose, it's often the case that 'top' features will not be statistically different from other features. So what do we do? We'll show a few methods here, but the main point is that there is no single answer, and it's important to understand what you're trying to do with the information.
 
 Let's start things off by using one of our previous linear regression models with several features, but which has no interactions or other complexity (@sec-lm-multiple-features). It's just a model with simple linear relationships and nothing else. We even remove categorical features to avoid having to aggregate group effects. In short, it doesn't get any easier than this!
 
@@ -1290,7 +1374,9 @@ model_importance = smf.ols(
 ```
 :::
 
-Our first metric available for us to use is just the raw coefficient value, but they aren't comparable because the features are on very different scales- moving a unit in length is not the same as moving a unit in age. We can standardize them which helps in this regard, and you might start there. Another approach we can use comes from the SHAP value, which, as we saw, provides a measure of contribution of a feature to the prediction. These can be positive or negative and are specific to the observation. But If we take the **average absolute SHAP value** for each feature, we get a sense of the typical contribution size for the features. We can then rank order them accordingly. Here we see that the most important features here are the number of reviews and the length of the movie. Note that we can't speak to direction here, only magnitude.  We can also see that word count is relatively less important. 
+Our first metric available for us to use is just the raw coefficient value, but they aren't comparable because the features are on very different scales- moving one unit in movie length is not the same as moving a unit in age. We can standardize them which helps in this regard, and you might start there.
+
+Another approach we can use comes from the SHAP value, which, as we saw, provides a measure of contribution of a feature to the prediction. These can be positive or negative and are specific to the observation. But if we take the **average absolute SHAP value** for each feature, we can maybe get a sense of the typical contribution size for the features. We can then rank order them accordingly. Here we see that the most important features here are the number of reviews and the length of the movie. Note that we can't speak to direction here, only magnitude.  We can also see that word count is relatively less important. 
 
 :::{.content-visible when-format='html'}
 ```{r}
@@ -1388,7 +1474,9 @@ ggsave("img/knowing-shap-importance.svg", width = 8, height = 5)
 ![SHAP Importance](img/knowing-shap-importance.svg){#fig-shap-importance}
 :::
 
-Now here are some additional methods[^relaimpo]. Some of these decompose R^2^ into the relative contributions to it from each feature (car, lmg, and pratt). The others do not (SHAP, permutation-based, standardized coefficient squared). On the left, values represent the proportion of the R^2^ value that is attributable to the feature- their sum is equal to the overall R^2^ = `r round(summary(model_importance)$r.sq, 2)`. These are in agreement for the most part and seem to think more highly of word count as a feature. The others on the right suggest word count and age should rank lower, and length and review year higher. Which is best? Which is correct? Any of them. But by looking at a few of these, we can at least get a sense that total reviews, word count, release year, and length in minutes are probably useful features to our model, while age, review year, and children in the home are less so, *at least in the context of the model we have*.
+Now here are some additional methods[^relaimpo]. Some of these decompose R^2^ into the relative contributions to it from each feature (car, lmg, and pratt). The others do not (SHAP, permutation-based, standardized coefficient squared). On the left, values represent the proportion of the R^2^ value that is attributable to the feature- their sum is equal to the overall R^2^ = `r round(summary(model_importance)$r.sq, 2)`. These are in agreement for the most part and seem to think more highly of word count as a feature, but they aren't actually the same value. 
+
+The others on the right suggest word count and age should rank lower, and length and review year higher. Which is best? Which is correct? Any of them. But by looking at a few of these, we can at least get a sense that total reviews, word count, release year, and length in minutes are probably useful features to our model, while age, review year, and children in the home are less so, *at least in the context of the model we have*.
 
 
 
@@ -1417,7 +1505,7 @@ imp_permute = FeatureImp$new(predictor, loss = r2_loss, compare = 'difference') 
 # check
 # c(-imp_permute$original.error, summary(model_importance)$r.squared)
 df_imp_permute = imp_permute$results
- 
+
 # plot(imp_permute, type = "bar")
 
 
@@ -1618,8 +1706,8 @@ All of the metrics shown have uncertainty in their estimate, and some packages m
 
 The take home message is that in the best of circumstances, there is no automatic way of saying one feature is more important than another. It's nice that we can use approaches like SHAP and permutation methods for more complicated models like boosting and deep learning models, but they're not perfect, and they still suffer from most of the same issues as the linear model. In the end, understanding a feature's role within a model is ultimately a matter of context, and highly dependent on what you're trying to do with the information.
 
-:::{.callout type='note' title='SHAP as a Global Metric' collapse='true'}
-SHAP values can be useful for observational level interpretation under the right circumstances, but they really shouldn't be used for importance. The mean of its absolute value is not a good measure of importance except in the unlikely case you have purely balanced/symmetric features of the exact same scale, and which do not correlate with each other (or have any interactions). 
+:::{.callout-note title='SHAP as a Global Metric' collapse='true'}
+SHAP values can be useful for observational level interpretation under the right circumstances, but they really shouldn't be used for importance. The mean of the absolute values is not a good measure of importance except in the very unlikely case you have purely balanced/symmetric features of the exact same scale, and which do not correlate with each other, or have any interactions. But if you had such a setting, you actually could just use the standardized coefficients. 
 :::
 
 
@@ -1627,6 +1715,7 @@ SHAP values can be useful for observational level interpretation under the right
 
 ```{r}
 #| echo: false
+#| eval: false
 #| label: get-mre-output-model-explore
 mre_table = broom::tidy(model_reviews_extra, conf.int = TRUE) |>
     janitor::clean_names() |>
@@ -1658,6 +1747,7 @@ mre_mae = round(performance::performance_mae(model_reviews_extra), 2)
 
 ```{r}
 #| echo: false
+#| eval: false
 #| label: model-metrics-model-explore
 # need to update later usage to use mr_metrics object or named with mr_prefix
 model_reviews = lm(rating ~ word_count, data = df_reviews)
@@ -1670,14 +1760,15 @@ mae = round(performance::performance_mae(model_reviews), 2)
 aic = round(mr_metrics$AIC, 2)
 ```
 
+
 ## Feature Metrics for Classification
 
-All of what's been demonstrated for feature metrics applies to classification models. Counterfactual predictions, average marginal effects, SHAP, and permutation-based methods for feature importance would be done in the exact same way. The only real difference is the reference target - our results would be in terms of probabilities and using a different loss metric to determine importance, that sort of thing. But in general, everything we've talked about holds for classification settings as well.
+All of what's been demonstrated for feature metrics applies to classification models, some of which were explicitly demonstrated. In general, counterfactual predictions, average marginal effects, SHAP, and permutation-based methods for feature importance would be done in the exact same way. The only real difference is the reference target - our results would be in terms of probabilities and using a different loss metric to determine importance, that sort of thing. But in general, everything we've talked about holds for both regression and binary classification settings as well.
 
 
 ## Wrapping Up {#sec-knowing-feature-wrap}
 
-It's generally a good idea to look at which features are pulling the most weight in your model to better understand how predictions are being made. It takes a lot of work to trust what a model is telling you.
+It's generally a good idea to look at which features are pulling the most weight in your model to better understand how predictions are being made. But it takes a lot of work to trust what a model is telling you.
 
 ### The common thread {#sec-knowing-feature-thread}
 
@@ -1697,7 +1788,7 @@ We also recommend checking out Christoph Molnar's book, [Interpretable Machine L
 The [marginal effects zoo](https://marginaleffects.com/), written by the [marginaleffects]{.pack} package author, is your goto for getting started with marginal effects, but we also recommend the [excellent blog post by Andrew Heiss](https://www.andrewheiss.com/blog/2022/05/20/marginalia/) as a very nifty overview and demonstration.
 
 
-## Exercise {#sec-knowing-exercise}
+## Guided Exploration {#sec-knowing-exercise}
 
 Let's put our model understanding that we've garnered in this and the previous chapter to the test. You'll use the world happiness data set.
 
@@ -1705,7 +1796,7 @@ Let's put our model understanding that we've garnered in this and the previous c
 - Start by creating a model of your choosing that predicts happiness score. This can be the one you did for the previous exercise (@sec-lm-exercise).
 - Now create a simpler or more complex model for comparison. The simple model should just remove a feature, while the complex model should add features to your initial model.
 - Interpret the first model as a whole, then compare it to the simpler/more complex model. Did anything change in how you assessed the features they have in common?
-- Create a counterfactual prediction for 
+- Create a counterfactual prediction for an observation, either one from the observed data or one that is of interest to you.
 - Choose the 'best' model, and justify your reason for doing so, e.g. using a specific metric of your choosing. 
 - As a bonus, get feature importance metrics for your chosen model. If using R, we suggest using the [iml]{.pack} package ([example]()), and in Python, run the linear regression with [scikit-learn]{.pack} and use the permutation-based importance function.
 
