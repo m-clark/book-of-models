@@ -1,0 +1,751 @@
+---
+title: "Model Estimation and Optimization"
+format: html
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+## Data Setup
+
+```{r}
+#| label: r-happiness-data-setup
+df_happiness = read_csv('https://tinyurl.com/worldhappiness2018') |>
+    drop_na() |> 
+    rename(happiness = happiness_score) |> 
+    select(
+        country,
+        happiness,
+        contains('_sc')
+    )
+```
+
+
+## Prediction Error 
+
+```{r}
+#| label: r-error
+y = df_happiness$happiness
+
+# Calculate the error for the guess of 4
+prediction = min(df_happiness$happiness) + 1*df_happiness$life_exp_sc
+mse_model_A = mean((y - prediction)^2)
+
+# Calculate the error for our other guess
+prediction = mean(y) + .5 * df_happiness$life_exp_sc
+mse_model_B = mean((y - prediction)^2)
+
+tibble(
+    Model = c('A', 'B'),
+    MSE = c(mse_model_A, mse_model_B)
+)
+```
+
+
+## Ordinary Least Squares
+
+```{r}
+#| label: r-ols
+# for later comparison
+model_lr_happy = lm(happiness ~ life_exp_sc, data = df_happiness)
+
+ols = function(X, y, par) {
+    # add a column of 1s for the intercept
+    X = cbind(1, X)
+
+    # Calculate the predicted values
+    y_hat = X %*% par  # %*% is matrix multiplication
+
+    # Calculate the error
+    error = y - y_hat
+
+    # Calculate the value as mean squared error
+    value = sum(error^2) / nrow(X)
+
+    # Return the objective value
+    return(value)
+}
+```
+
+```{r}
+#| label: grid-guess-r
+# create a grid of guesses
+guesses = crossing(
+    b0 = seq(1, 7, 0.1),
+    b1 = seq(-1, 1, 0.1)
+)
+
+# Example for one guess
+ols(
+    X = df_happiness$life_exp_sc,
+    y = df_happiness$happiness,
+    par = unlist(guesses[1, ])
+)
+```
+
+```{r}
+#| label: r-ols-get-best-guess
+# Calculate the function value for each guess, mapping over
+# each combination of b0 and b1
+guesses = guesses |>
+    mutate(
+        objective = map2_dbl(
+            guesses$b0, 
+            guesses$b1,
+            \(b0, b1) ols(
+                par = c(b0, b1), 
+                X = df_happiness$life_exp_sc, 
+                y = df_happiness$happiness
+            )
+        )
+    )
+
+min_loss = guesses |> filter(objective == min(objective))
+
+min_loss
+```
+
+```{r}
+#| label: r-ols-lm
+
+model_lr_happy_life = lm(happiness ~ life_exp_sc, data = df_happiness)
+
+c(coef(model_lr_happy_life), performance::performance_mse(model_lr_happy_life))
+```
+
+## Optimization
+
+```{r}
+#| label: r-optim-ols
+our_ols_optim = optim(
+    par = c(1, 0),    # initial guess for the parameters
+    fn  = ols,
+    X   = df_happiness$life_exp_sc,
+    y   = df_happiness$happiness,
+    method  = 'BFGS', # optimization algorithm
+    control = list(   
+        reltol = 1e-6, # tolerance
+        maxit = 500   # max iterations
+    )  
+)
+
+our_ols_optim
+```
+
+## Maximum Likelihood 
+
+
+
+```{r}
+#| label: r-demo-Likelihood
+
+# two example life expectancy scores, at the mean (0) and 1 sd above
+life_expectancy = c(0, 1)
+
+# observed happiness scores
+happiness = c(4, 5.2)
+
+# predicted happiness with rounded coefs
+mu = 5 + 1 * life_expectancy
+
+# just a guess for sigma
+sigma = .5
+
+# likelihood for each observation
+L = dnorm(happiness, mean = mu, sd = sigma)
+L
+```
+
+
+
+```{r}
+#| label: r-likelihood
+max_likelihood = function(par, X, y) {
+
+    # setup
+    X = cbind(1, X)     # add a column of 1s for the intercept
+    beta = par[-1]      # coefficients
+    sigma = exp(par[1]) # error sd, exp keeps positive
+    N = nrow(X)
+
+    LP = X %*% beta     # linear predictor
+    mu = LP             # identity link in the glm sense
+
+    # calculate (log) likelihood
+    ll = dnorm(y, mean = mu, sd = sigma, log = TRUE)
+
+    value = -sum(ll)    # negative for minimization
+
+    return(value)
+}
+
+our_max_like = optim(
+    par = c(1, 0, 0),   # first param is sigma
+    fn  = max_likelihood,
+    X   = df_happiness$life_exp_sc,
+    y   = df_happiness$happiness
+)
+
+our_max_like
+# logLik(model_lr_happy_life) # one way to extract the log likelihood from a model
+```
+
+
+## Penalized Objectives 
+
+```{r}
+#| label: r-ridge
+ridge = function(par, X, y, lambda = 0) {
+    # add a column of 1s for the intercept
+    X = cbind(1, X)
+    
+    mu = X %*% par # linear predictor
+
+    # Calculate the value as sum squared error
+    error = sum((y - mu)^2)
+
+    # Add the penalty
+    value = error + lambda * sum(par^2)
+
+    return(value)
+}
+
+X = df_happiness |>
+    select(-happiness, -country) |> 
+    as.matrix()
+
+our_ridge = optim(
+    par = c(0, 0, 0, 0),
+    fn = ridge,
+    X = X,
+    y = df_happiness$happiness,
+    lambda = 0.1,
+    method = 'BFGS'
+)
+
+our_ridge$par
+```
+
+## Classification
+
+### Misclassification Error 
+
+```{r}
+#| label: r-misclassification
+misclassification = function(par, X, y, class_threshold = .5) {
+    X = cbind(1, X)
+
+    # Calculate the 'linear predictor'
+    mu = X %*% par
+
+    # Convert to a probability ('sigmoid' function)
+    p = 1 / (1 + exp(-mu))
+
+    # Convert to a class
+    predicted_class = as.integer(
+        ifelse(p > class_threshold, 'good', 'bad')
+    )
+
+    # Calculate the mean error
+    value = mean(y - predicted_class)
+
+    return(value)
+}
+```
+
+## Log Loss
+
+```{r}
+#| label: r-logloss
+log_loss = function(par, X, y) {
+    X = cbind(1, X)
+
+    # Calculate the predicted values on the raw scale
+    y_hat = X %*% par
+
+    # Convert to a probability ('sigmoid' function)
+    y_hat = 1 / (1 + exp(-y_hat))
+
+    # likelihood
+    ll = y * log(y_hat) + (1 - y) * log(1 - y_hat)
+
+    # alternative
+    # dbinom(y, size = 1, prob = y_hat, log = TRUE)
+
+    value = -sum(ll)
+
+    return(value)
+}
+```
+
+
+
+```{r}
+#| label: r-logloss-apply
+#| results: 'hide'
+df_happiness_bin = df_happiness |>
+    mutate(happiness = ifelse(happiness > 5.5, 1, 0))
+
+model_logloss = optim(
+    par = c(0, 0, 0, 0),
+    fn = log_loss,
+    X = df_happiness_bin |>
+        select(life_exp_sc:gdp_pc_sc) |>
+        as.matrix(),
+    y = df_happiness_bin$happiness
+)
+
+model_glm = glm(
+    happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc,
+    data   = df_happiness_bin,
+    family = binomial
+)
+
+model_logloss$par
+```
+
+
+## Optimization Algorithms 
+
+
+### Gradient descent
+
+```{r}
+#| echo: False
+#| eval: False
+#| label: r-gradient-descent-plot
+
+# NOTE: we also took out the adapt and verbose options from models by estimation code since not used here nor necessary.
+
+        # if (adapt):
+        #     stepsize = np.where(
+        #         loss[iter] < loss[iter - 1], 
+        #         stepsize * 1.2, 
+        #         stepsize * .8
+        #     )
+
+        # if (verbose and iter % 10 == 0):
+        #     print('Iteration:', iter)
+
+# removed from function but left if we want to plot afterward
+    # if (plotLoss) {
+    #     p = tibble(mse) |>
+    #         mutate(iter = 1:n()) |>
+    #         ggplot(aes(iter, mse)) +
+    #         geom_hline(yintercept = 0) +
+    #         geom_line() +
+    #         scale_x_continuous(breaks = seq(0, 50, 10)) +
+    #         scale_y_continuous(breaks = seq(0, round_any(max(mse), 10), 5)) +
+    #         labs(x = 'Iteration', y = 'MSE')
+    #     print(p)
+    # }
+```
+```{r}
+#| label: r-gradient-descent
+gradient_descent = function(
+    par,
+    X,
+    y,
+    tolerance = 1e-3,
+    maxit = 1000,
+    learning_rate = 1e-3
+) {
+    
+    X = cbind(1, X) # add a column of 1s for the intercept
+    N = nrow(X)
+
+    # initialize
+    beta = par
+    names(beta) = colnames(X)
+    mse = crossprod(X %*% beta - y) / N  # crossprod provides sum(x^2)
+    tol = 1
+    iter = 1
+
+    while (tol > tolerance && iter < maxit) {
+        LP = X %*% beta
+        grad = t(X) %*% (LP - y)
+        betaCurrent = beta - learning_rate * grad
+        tol = max(abs(betaCurrent - beta))
+        beta = betaCurrent
+        mse = append(mse, crossprod(LP - y) / N)
+        iter = iter + 1
+    }
+
+    output = list(
+        par    = beta,
+        loss   = mse,
+        MSE    = crossprod(LP - y) / nrow(X),
+        iter   = iter,
+        predictions = LP
+    )
+
+    return(output)
+}
+
+X = df_happiness |>
+    select(life_exp_sc:gdp_pc_sc) |>
+    as.matrix()
+
+our_gd = gradient_descent(
+    par = c(0, 0, 0, 0),
+    X = X,
+    y = df_happiness$happiness,
+    learning_rate = 1e-3
+)
+```
+
+
+### Stochastic gradient descent
+
+
+```{r}
+#| label: r-stochastic-gradient-descent
+#| results: 'hide'
+
+stochastic_gradient_descent = function(
+    par, # parameter estimates
+    X,   # model matrix
+    y,   # target variable
+    learning_rate = 1, # the learning rate
+    stepsize_tau = 0,   # if > 0, a check on the LR at early iterations
+    seed = 123
+) {
+    # initialize
+    set.seed(seed)
+
+    # shuffle the data
+    idx = sample(1:nrow(X), nrow(X))
+    X = X[idx, ]
+    y = y[idx]
+
+    X = cbind(1, X)
+    beta = par
+
+    # Collect all estimates
+    betamat = matrix(0, nrow(X), ncol = length(beta))
+
+    # Collect fitted values at each point))
+    fits = NA
+
+    # Collect loss at each point
+    loss = NA
+
+    # adagrad per parameter learning rate adjustment
+    s = 0
+
+    # a smoothing term to avoid division by zero
+    eps = 1e-8
+
+    for (i in 1:nrow(X)) {
+        Xi = X[i, , drop = FALSE]
+        yi = y[i]
+
+        # matrix operations not necessary here,
+        # but makes consistent with previous gd func
+        LP = Xi %*% beta
+        grad = t(Xi) %*% (LP - yi)
+        s = s + grad^2  # adagrad approach
+
+        # update
+        beta = beta - learning_rate / 
+            (stepsize_tau + sqrt(s + eps)) * grad
+        betamat[i, ] = beta
+
+        fits[i] = LP
+        
+        loss[i] = crossprod(LP - yi)
+        
+    }
+
+    LP = X %*% beta
+    lastloss = crossprod(LP - y)
+
+    output = list(
+        par = beta,           # final estimates
+        par_chain = betamat,  # estimates at each iteration
+        MSE = sum(lastloss) / nrow(X),
+        predictions = LP
+    )
+    
+    return(output)
+}
+
+X = df_happiness |>
+    select(life_exp_sc, corrupt_sc, gdp_pc_sc) |>
+    as.matrix()
+
+y = df_happiness$happiness
+
+our_sgd = stochastic_gradient_descent(
+    par = c(mean(df_happiness$happiness), 0, 0, 0),
+    X = X,
+    y = y,
+    learning_rate = .15,
+    stepsize_tau = .1
+)
+
+c(our_sgd$par, our_sgd$MSE)
+```
+
+## Estimating Uncertainty
+
+
+### Standard Frequentist
+
+```{r}
+#| label: r-frequentist
+model = lm(happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc, data = df_happiness)
+
+confint(model)
+
+predict(model, interval = 'confidence')  # for an average prediction
+predict(model, interval = 'prediction')  # for a future observation (always wider)
+```
+
+
+### Monte Carlo
+
+
+```{r}
+#| label: r-monte-carlo
+
+# we'll use the model from the previous section
+model = lm(happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc, data = df_happiness)
+
+# number of simulations
+mc_predictions = function(
+    model,
+    nsim = 2500,
+    seed = 42
+) {
+    set.seed(seed)
+
+    params_est = coef(model)
+    params = mvtnorm::rmvnorm(
+        n = nsim,
+        mean = params_est,
+        sigma = vcov(model)
+    )
+
+    sigma = summary(model)$sigma
+    X = model.matrix(model)
+
+    y_hat = X %*% t(params) + rnorm(n = nrow(X) * nsim, sd = sigma)
+
+    pred_int = apply(y_hat, 1, quantile, probs = c(.025, .975))
+
+    return(pred_int)
+}
+
+our_mc = mc_predictions(model)
+```
+
+
+### Bootstrap 
+
+
+```{r}
+#| label: r-bootstrap
+#| eval: true
+#| results: hide
+bootstrap = function(X, y, nboot = 100, seed = 123) {
+    
+    N = nrow(X)
+    p = ncol(X) + 1 # add one for intercept
+
+    # initialize
+    beta = matrix(NA, p*nboot, nrow = nboot, ncol = p)
+    colnames(beta) = c('Intercept', colnames(X))
+    mse = rep(NA, nboot)
+
+    # set seed
+    set.seed(seed)
+
+    for (i in 1:nboot) {
+        # sample with replacement
+        idx = sample(1:N, N, replace = TRUE)
+        Xi = X[idx,]
+        yi = y[idx]
+
+        # estimate model
+        mod = lm(yi ~., data = Xi)
+
+        # save results
+        beta[i, ] = coef(mod)
+        mse[i] = sum((mod$fitted - yi)^2) / N
+    }
+
+    # given mean estimates, calculate MSE
+    y_hat = cbind(1, as.matrix(X)) %*% colMeans(beta)
+    final_mse = sum((y - y_hat)^2) / N
+
+    output = list(
+        par = as_tibble(beta),
+        MSE = mse,
+        final_mse = final_mse
+    )
+
+    return(output)
+}
+
+X = df_happiness |>
+    select(life_exp_sc:gdp_pc_sc)
+
+y = df_happiness$happiness
+
+our_boot = bootstrap(
+    X = X,
+    y = y,
+    nboot = 1000
+)
+```
+
+### Bayesian Estimation
+
+
+```{r}
+#| label: bayesian-demo-r
+pk = c(
+    'goal','goal','goal','miss','miss',
+    'goal','goal','miss','goal','goal'
+)
+
+# convert to numeric, arbitrarily picking goal=1, miss=0
+
+N = length(pk)               # sample size
+n_goal = sum(pk == 'goal')   # number of pk made
+n_miss = sum(pk == 'miss')   # number of those miss
+
+# grid of potential theta values
+theta = seq(
+    from = 1 / (N + 1),
+    to = N / (N + 1),
+    length = 10
+)
+
+### prior distribution
+# beta prior with mean = .5, but fairly diffuse
+# examine the prior
+# theta = rbeta(1000, 5, 5)
+# hist(theta, main = 'Prior Distribution', xlab = 'Theta', col = 'lightblue')
+p_theta = dbeta(theta, 5, 5)
+
+# Normalize so that values sum to 1
+p_theta = p_theta / sum(p_theta) 
+
+# likelihood (binomial)
+p_data_given_theta = choose(N, n_goal) * theta^n_goal * (1 - theta)^n_miss
+
+# posterior (combination of prior and likelihood)
+# p_data is the marginal probability of the data used for normalization
+p_data = sum(p_data_given_theta * p_theta)
+
+p_theta_given_data = p_data_given_theta*p_theta / p_data  # Bayes theorem
+
+# final estimate
+theta_est = sum(theta * p_theta_given_data)
+theta_est
+```
+
+The model as it was run with `brms`.
+```{r}
+# bayes_mod = brms::brm(
+#     happiness ~ life_exp_sc + gdp_pc_sc + corrupt_sc, 
+#     data = df_happiness,
+#     prior = c(
+#         brms::prior(normal(0, 1), class = 'b')
+#     ),
+#     thin = 8,
+# )
+```
+
+### Conformal Methods
+
+
+```{r}
+#| label: split-conformal-r-function
+split_conformal = function(
+    X,
+    y,
+    new_data,
+    alpha = .05,
+    calibration_split = .5
+) {
+    # Splitting the data into training and calibration sets
+    idx = sample(1:nrow(X), size = floor(nrow(X) / 2))
+    
+    train_data = X |> slice(idx)
+    cal_data   = X |> slice(-idx)
+    train_y = y[idx]
+    cal_y   = y[-idx]
+
+    N = nrow(train_data)
+
+    # Train the base model
+    model = lm(train_y ~ ., data = train_data)
+
+    # Calculate residuals on calibration set
+    cal_preds = predict(model, newdata = cal_data)
+    residuals = abs(cal_y - cal_preds)
+
+    # Sort residuals and find the quantile corresponding to (1-alpha)
+    residuals = sort(residuals)
+    quantile  = quantile(residuals, (1 - alpha) * (N / (N + 1)))
+
+    # Make predictions on new data and calculate prediction intervals
+    preds = predict(model, newdata = new_data)
+    lower_bounds = preds - quantile
+    upper_bounds = preds + quantile
+
+    # Return predictions and prediction intervals
+    return(
+        list(
+            cp_error     = quantile, 
+            preds        = preds, 
+            lower_bounds = lower_bounds, 
+            upper_bounds = upper_bounds
+        )
+    )
+}
+```
+
+
+
+```{r}
+#| label: split-conformal-r-calculate
+# split data
+set.seed(123)
+
+idx_train = sample(nrow(df_happiness), nrow(df_happiness) * .8)
+idx_test = setdiff(1:nrow(df_happiness), idx_train)
+
+df_train = df_happiness |> 
+    slice(idx_train) |> 
+    select(happiness, life_exp_sc, gdp_pc_sc, corrupt_sc)
+
+y_train = df_happiness$happiness[idx_train]
+
+df_test = df_happiness |> 
+    slice(idx_test) |> 
+    select(life_exp_sc, gdp_pc_sc, corrupt_sc)
+
+y_test = df_happiness$happiness[idx_test]
+
+cp_error = split_conformal(
+    df_train |> select(-happiness),
+    y_train,
+    df_test,
+    alpha = .1
+)
+
+# cp_error[['cp_error']]
+
+tibble(
+    preds = cp_error[['preds']],
+    lower_bounds = cp_error[['lower_bounds']],
+    upper_bounds = cp_error[['upper_bounds']]
+) |> 
+    head()
+```

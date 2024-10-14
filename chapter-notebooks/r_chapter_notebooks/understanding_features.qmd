@@ -1,0 +1,305 @@
+---
+title: "Understanding the Features"
+format: html
+---
+
+## Data Setup
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+# all data found on github repo
+df_reviews = read_csv('https://tinyurl.com/moviereviewsdata')
+
+set.seed(123)
+
+initial_split = sample(
+    x = 1:nrow(df_reviews), 
+    size = nrow(df_reviews) * .75, 
+    replace = FALSE
+)
+
+df_train = df_reviews[initial_split, ]
+
+df_test = df_reviews[-initial_split, ]
+
+model_lr_train = lm(
+    rating ~ 
+        review_year_0 
+        + release_year_0 
+        + age_sc 
+        + length_minutes_sc 
+        + total_reviews_sc 
+        + word_count_sc 
+        + genre 
+        ,
+        df_train
+)
+
+model_class_train = glm(
+    rating_good ~ 
+        review_year_0 
+        + release_year_0 
+        + age_sc 
+        + length_minutes_sc 
+        + total_reviews_sc 
+        + word_count_sc 
+        + genre     
+        , 
+        df_train, 
+        family = binomial
+)
+```
+
+## Basic Model parameters
+
+
+```{r}
+modelsummary::modelsummary(
+    model_lr_train,
+    statistic = c('std.error', 'p.value', 'conf.low', 'conf.high'),
+    shape =  term ~ model + statistic
+)
+```
+
+## Marginal Effects
+
+### Marginal effects at the mean
+
+```{r}
+df_typical = tibble(
+    genre = names(which.max(table(df_train$genre))),
+    age_sc = mean(df_train$age_sc),
+    release_year_0 = mean(df_train$release_year_0),
+    length_minutes_sc = mean(df_train$length_minutes_sc),
+    total_reviews_sc = mean(df_train$total_reviews_sc),
+    word_count_sc = mean(df_train$word_count_sc),
+    review_year_0 = mean(df_train$review_year_0)
+)
+
+# avg prediction when everything is typical
+avg_pred = predict(model_class_train, newdata = df_typical, type = "response") |>
+    mean()
+
+# avg prediction when word count is at its mean
+avg_pred_0 = predict(
+    model_class_train, 
+    newdata = df_train |> mutate(word_count_sc = 0),
+    type = 'response'
+) |>
+    mean()
+
+c(avg_pred, avg_pred_0)
+```
+
+### Average marginal effects
+
+```{r}
+fudge_factor = 1e-3
+
+fudge_plus = predict(
+    model_class_train, 
+    newdata = df_train |> mutate(word_count_sc = word_count_sc + fudge_factor/2),
+    type = "response"
+)
+
+fudge_minus = predict(
+    model_class_train, 
+    newdata = df_train |> mutate(word_count_sc = word_count_sc - fudge_factor/2),
+    type = "response"
+)
+
+# compare
+mean(fudge_plus - fudge_minus) / fudge_factor
+
+marginaleffects::avg_slopes(
+    model_class_train, 
+    variables = "word_count_sc", 
+    type = 'response'
+)
+```
+
+### Marginal means
+
+```{r}
+marginal_means = map_df(
+    unique(df_train$genre), 
+    ~ tibble(
+        genre = .x,
+        avg_pred = predict(
+            model_class_train, 
+            newdata = df_train |> 
+                mutate(genre = .x), 
+            type = "link"
+        ) |> 
+            mean() |> # get the average log odds then transform
+            plogis()
+    )
+)
+
+marginal_means 
+marginaleffects::avg_predictions(model_class_train, variables = "genre")
+```
+
+## Counterfactual Predictions
+
+```{r}
+# data available on repo (full link in appendix)
+df_happiness_2018 = read_csv('https://tinyurl.com/worldhappiness2018')
+
+model_happiness = lm(
+    happiness_score ~ 
+    log_gdp_per_capita 
+    + healthy_life_expectancy_at_birth
+    + generosity 
+    + freedom_to_make_life_choices
+    + confidence_in_national_government, 
+    data = df_happiness_2018
+)
+
+df_us_russia = df_happiness_2018 |> 
+    filter(country %in% c('United States', 'Russia'))
+
+happiness_gdp_freedom_values = df_us_russia  |> 
+    arrange(country) |> 
+    select(log_gdp_per_capita, freedom_to_make_life_choices)
+
+base_predictions = predict(
+    model_happiness, 
+    newdata = df_us_russia
+)
+
+# switch up their GDP and freedom!
+df_switch = df_us_russia |> 
+    mutate(
+        log_gdp_per_capita = rev(log_gdp_per_capita),
+        freedom_to_make_life_choices = rev(freedom_to_make_life_choices)
+    )
+
+switch_predictions = predict(
+    model_happiness, 
+    newdata = df_switch
+)
+
+tibble(
+    country = c('Russia', 'USA'),
+    base_predictions,
+    switch_predictions
+) |> 
+    mutate(
+        diff_in_happiness = switch_predictions - base_predictions
+    )
+```
+
+## SHAP Values
+
+```{r}
+model_lr_3feat = lm(
+    rating ~
+    age
+    + release_year
+    + length_minutes,
+    data = df_reviews
+)
+
+# inspect if desired
+# summary(model_lr_3feat)
+```
+
+```{r}
+# first we need to get the average prediction
+avg_pred = mean(predict(model_lr_3feat))
+
+# observation of interest we want shap values for
+obs_of_interest = tibble(
+    age = 30,
+    length_minutes = 110,
+    release_year = 2020
+)
+
+# then we need to get the prediction for the feature value of interest
+# for all observations, and average them
+pred_age_30 = predict(
+    model_lr_3feat,
+    newdata = df_reviews |> mutate(age = obs_of_interest$age) 
+)
+
+pred_year_2022 = predict(
+    model_lr_3feat,
+    newdata = df_reviews |> mutate(release_year = obs_of_interest$release_year) 
+)
+
+pred_length_110 = predict(
+    model_lr_3feat,
+    newdata = df_reviews |> mutate(length_minutes = obs_of_interest$length_minutes) 
+)
+
+# then we can calculate the shap values
+shap_value_ours = tibble(
+    age    = mean(pred_age_30) - avg_pred,
+    release_year   = mean(pred_year_2022) - avg_pred,
+    length_minutes = mean(pred_length_110) - avg_pred
+)
+```
+
+```{r}
+# we'll use the DALEX package for this
+explainer = DALEX::explain(model_lr_3feat, verbose = FALSE)
+
+shap_value_package = DALEX::predict_parts(
+    explainer,
+    obs_of_interest,
+    type = 'shap'
+)
+
+rbind(
+    shap_value_ours,
+    shap_value_package[c('age', 'release_year', 'length_minutes'), 'contribution']
+)
+```
+
+## Related Visualizations
+```{r}
+library(shapviz)
+
+sv_waterfall(shapviz(shap_value_package))
+```
+
+
+```{r}
+library(iml)
+p_init = Predictor$new(model_lr_3feat, df_reviews)
+
+FeatureEffect$new(p_init, 'length_minutes', method = "pdp")$plot()
+FeatureEffect$new(p_init, 'length_minutes', method = "pdp+ice")$plot()
+FeatureEffect$new(p_init, 'length_minutes', method = "ale")$plot()
+```
+
+
+## Global Feature Importance
+
+```{r}
+model_importance = lm(
+    rating ~
+        word_count
+        + age
+        + review_year
+        + release_year
+        + length_minutes
+        + children_in_home
+        + total_reviews,
+    data = df_reviews
+)
+```
+
+```{r}
+metrics = c("lmg", "betasq", "pratt", "car")
+
+relaimpo::calc.relimp(
+    model_importance,
+    type = metrics,
+    rela = FALSE
+)
+```

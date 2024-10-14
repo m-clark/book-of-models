@@ -1,0 +1,134 @@
+---
+title: "The Foundation"
+format: html
+---
+
+
+```{r}
+library(tidyverse)
+```
+
+
+## THE Linear Model
+
+
+```{r}
+# all data found on github repo
+df_reviews = read_csv('https://tinyurl.com/moviereviewsdata')
+
+model_lr_rating = lm(rating ~ word_count, data = df_reviews)
+
+summary(model_lr_rating)
+```
+
+### What kinds of predictions can we get?
+
+```{r}
+all_predictions = predict(model_lr_rating)
+
+df_prediction = tibble(word_count = 5)
+single_prediction = predict(model_lr_rating, newdata = df_prediction)
+```
+
+### Prediction uncertainty
+
+
+```{r}
+prediction_CI = predict(
+    model_lr_rating, 
+    newdata = df_prediction, 
+    se.fit = TRUE,    # standard error of the fit
+    interval = 'confidence'
+)
+
+prediction_PI = predict(
+    model_lr_rating, 
+    newdata = df_prediction, 
+    se.fit = TRUE, 
+    interval = 'prediction'
+)
+
+pred_intervals = bind_rows(
+    as_tibble(prediction_CI$fit),
+    as_tibble(prediction_PI$fit),
+) |> mutate(
+    interval = c('confidence', 'prediction'),
+    type = c('mean', 'observation')
+)
+
+pred_intervals
+```
+
+
+#### Predictions versus observed
+
+```{r}
+predictions = predict(model_lr_rating)
+y = df_reviews$rating
+
+ggplot(
+    data = data.frame(y = y, predictions = predictions), 
+    aes(x = y, y = predictions)
+) +
+    geom_point() +
+    labs(x = 'Predicted', y = 'Observed')
+```
+
+### Model Metrics
+
+```{r}
+# summary(model_lr_rating) # 'Residual standard error' is approx RMSE
+summary(model_lr_rating)$sigma   # We can extract it directly
+```
+
+## Adding Complexity
+
+```{r}
+model_lr_rating_extra = lm(
+    rating ~
+        word_count
+        + age
+        + review_year
+        + release_year
+        + length_minutes
+        + children_in_home
+        + total_reviews,
+    data = df_reviews
+)
+
+summary(model_lr_rating_extra)
+```
+
+
+```{r}
+predict_observation = tibble(
+    word_count = 12,
+    age = 30,
+    children_in_home = 1,
+    review_year = 2020,
+    release_year = 2015,
+    length_minutes = 100,
+    total_reviews = 10000
+)
+
+predict(
+    model_lr_rating_extra,
+    newdata = predict_observation
+)
+```
+
+### Categorical features
+
+```{r}
+model_lr_cat = lm(
+    rating ~ word_count + season,
+    data = df_reviews
+)
+
+summary(model_lr_cat)
+```
+
+
+```{r}
+anova(model_lr_cat)
+```
