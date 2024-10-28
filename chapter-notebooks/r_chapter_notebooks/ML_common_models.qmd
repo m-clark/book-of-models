@@ -3,6 +3,7 @@ title: "Common Models in Machine Learning"
 format: html
 ---
 
+## Data Setup
 
 ```{r}
 library(tidyverse)
@@ -17,6 +18,9 @@ X = df_heart_num |>
     as_tibble() |> 
     mutate(heart_disease = factor(heart_disease)) |> 
     janitor::clean_names() # remove some symbols
+
+prevalence = mean(df_heart_num$heart_disease)
+majority = pmax(prevalence, 1 - prevalence)
 ```
 
 
@@ -156,6 +160,142 @@ model_boost_cv_tune$train(tsk_model_boost_cv_tune, row_ids = split$train)
 model_boost_cv_tune$predict(tsk_model_boost_cv_tune, row_ids = split$test)$score(msr("classif.acc"))
 ```
 
+
+## Comparing Models
+
+This is one approach to comparing models with mlr3. As mentioned in the text, your results may vary depending on the data and the settings you choose, and will definitely be a little different from the depicted Python results.
+
+```{r}
+library(mlr3verse)
+library(mlr3torch)
+
+set.seed(1234)
+split_prop = .8
+split = rsample::initial_split(X, prop = split_prop)
+
+df_train = rsample::training(split)
+df_test  = rsample::testing(split)
+
+tuner = tnr("random_search")
+cv = rsmp("cv", folds = 10)
+metric = msr("classif.acc")
+
+task = as_task_classif(
+    df_train,
+    target = "heart_disease"
+)
+
+# Tune and setup glmnet
+lrn_glmnet = lrn(
+    "classif.cv_glmnet",
+    predict_type = "prob",
+    alpha = to_tune(0, 1.0), # mixing
+    s = to_tune(1e-3, 1e-1) # penalty
+)
+
+lrn_glmnet_tune = AutoTuner$new(
+    learner = lrn_glmnet,
+    resampling = cv,
+    measure = metric,
+    tuner = tnr("random_search"),
+    terminator = trm("evals", n_evals = 10)
+)
+
+lrn_glmnet_tune$train(task)
+
+lrn_glmnet_tune$tuning_result$learner_param_vals
+
+lrn_glmnet = lrn(
+    "classif.glmnet",
+    predict_type = "prob"
+)
+
+lrn_glmnet$param_set$values = lrn_glmnet_tune$tuning_result$learner_param_vals[[1]]
+
+
+# Tune and setup lgbm
+lrn_lgbm = lrn(
+    "classif.lightgbm",
+    predict_type = "prob",
+    num_iterations = to_tune(c(250, 500, 1000)),
+    learning_rate = to_tune(1e-3, 1e-1),
+    max_depth = to_tune(c(2, 3, 5, 7, 9)),
+    min_data_in_leaf = to_tune(c(1, 5, 10)),
+    feature_fraction = to_tune(0.75, 1.0),
+    lambda_l1 = to_tune(0, 1.0),
+    lambda_l2 = to_tune(0, 1.0)
+)
+
+lrn_lgbm_tune = AutoTuner$new(
+    learner = lrn_lgbm,
+    resampling = cv,
+    measure = metric,
+    tuner = tnr("random_search"),
+    terminator = trm("evals", n_evals = 10)
+)
+
+lrn_lgbm_tune$train(task)
+
+lrn_lgbm = lrn(
+    "classif.lightgbm",
+    predict_type = "prob"
+)
+
+lrn_lgbm$param_set$values = lrn_lgbm_tune$tuning_result$learner_param_vals[[1]]
+
+# Tune and setup MLP
+library(mlr3torch)
+
+learner_mlp = lrn(
+    "classif.mlp",
+    # defining network parameters
+    layers = to_tune(2, 3),
+    d_hidden = to_tune(c(100, 200)),
+    # training parameters
+    batch_size = 16,
+    epochs = 200,
+    # Defining the optimizer, loss, and callbacks
+    optimizer = t_opt("adam", lr = 1e-3),
+    loss = t_loss("cross_entropy"),
+    # Measures to track
+    measures_train = msrs(c("classif.logloss")),
+    measures_valid = msrs(c("classif.logloss", "classif.ce")),
+    # predict type (required by logloss)
+    predict_type = "prob"
+)
+
+lrn_mlp_tune = AutoTuner$new(
+    learner = learner_mlp,
+    resampling = cv,
+    measure = metric,
+    tuner = tnr("random_search"),
+    terminator = trm("evals", n_evals = 10)
+)
+
+lrn_mlp_tune$train(task)
+
+
+lrn_mlp = lrn(
+    "classif.mlp",
+    predict_type = "prob"
+)
+
+lrn_mlp$param_set$values = lrn_mlp_tune$tuning_result$learner_param_vals[[1]]
+```
+
+```{r}
+benchmark_grid = benchmark_grid(
+    task, 
+    c(lrn_lgbm, lrn_glmnet, lrn_mlp), 
+    rsmp("cv", folds = 10)
+)
+
+bmr = benchmark(benchmark_grid, store_models = FALSE)
+```
+
+```{r}
+bmr$aggregate(msr("classif.acc"))
+```
 
 ## Feature Importance
 

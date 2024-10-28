@@ -3,7 +3,7 @@
 
 ![](img/chapter_gp_plots/gp_plot_7.svg){width=75%}
 
-Before really getting into some machine learning models, let's get one thing straight from the outset: **any model may be used in machine learning**, from a standard linear model to a deep neural network. The key focus in ML is on performance, and generally we'll go with what works. This means that the modeler is often less concerned with the interpretation of the model, and more with the ability of the model to predict well on new data, but as we'll see we can do both if desired. In this chapter, we will explore some of the more common machine learning models and techniques. 
+Before really getting into some machine learning models, let's get one thing straight from the outset: **any model may be used in machine learning**, from a standard linear model to a deep neural network. The key focus in ML is on performance, and generally we'll go with what works for the situation. This means that the modeler is often less concerned with the interpretation of the model, and more with the ability of the model to predict well on new data. But, as we'll see, we can do both if desired. In this chapter, we will explore some of the more common machine learning models and techniques. 
 
 
 ```{r}
@@ -21,6 +21,7 @@ from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 from sklearn.model_selection import cross_validate, KFold, cross_val_score
 from sklearn.metrics import accuracy_score
 ```
+
 
 ## Key Ideas {#sec-ml-common-key-ideas}
 
@@ -41,30 +42,30 @@ Having the right tools in data science saves time and improves results, and usin
 Before diving in, it'd be helpful to be familiar with the following:
 
 - Linear models, esp. linear and logistic regression (@sec-foundation, @sec-glm)
-- Basic machine learning concepts as outlined in the ML Concepts chapter (@sec-ml-core-concepts)
-- Model estimation as outlined in the Estimation chapter (@sec-estimation)
+- Basic machine learning concepts as outlined in @sec-ml-core-concepts
+- Model estimation as outlined in  @sec-estimation
 
 
 
 ## General Approach {#sec-ml-common-general-approach}
 
-Let's start with a general approach to machine learning to help us get some bearings. Here is an example outline of the process we could take. This incorporates some of the ideas we also cover in other chapters, and we'll demonstrate most of this in the following sections.
+Let's start with a general approach to machine learning to help us get some bearings. Here is an example outline of the process we could typically take. It incorporates some of the ideas we also cover in other chapters, and we'll demonstrate most of this in the following sections.
 
 - Define the problem, including the target variable(s)
 - Select the model(s) to be used, including one baseline model
 - Define the performance objective and metric(s) used for model assessment
 - Define the search space (parameters, hyperparameters) for those models
 - Define the search method (optimization)
-- Implement some sort of validation technique and collect the corresponding performance metrics
-- Evaluate the results on unseen data with the chosen model
+- Implement a validation technique and collect the corresponding performance metrics
+- Evaluate the chosen model on unseen data
 - Interpret the results
 
 Here is a more concrete example:
 
 - Define the problem: predict the probability of heart disease given a set of features
-- Select the model(s) to be used: ridge regression, standard regression with no penalty as baseline
+- Select the model(s) to be used: ridge regression (main model), standard regression with no penalty (baseline)
 - Define the objective and performance metric(s): RMSE, R-squared
-- Define the search space (parameters, hyperparameters) for those models: penalty parameter 
+- Define the search space (parameters, hyperparameters) for those models: ridge penalty parameter
 - Define the search method (optimization): grid search
 - Implement some sort of cross-validation technique: 5-fold cross-validation
 - Evaluate the results on unseen data: RMSE on test data
@@ -97,27 +98,30 @@ majority = pmax(prevalence, 1 - prevalence)
 
 For our demonstration here, we'll use the heart disease dataset. This is a popular ML binary classification problem, where we want to predict whether a patient has heart disease, given information such as age, sex, resting heart rate etc (@sec-dd-heart-disease-uci).  
 
-*There are two forms of the data* - one which is mostly in raw form, and one that is purely numeric, where the categorical features are dummy coded and where numeric variables have been standardized (@sec-data-transformations). The purely numeric version will allow us to forgo any additional data processing for some model/package implementations. We have also dropped the handful of rows with missing values. This form of the data will allow us to use any model and make direct comparisons later.
-
-In this data, roughly `r scales::percent(prevalence)` suffered from heart disease, so that is an initial baseline if we're interested in accuracy- we could get `r scales::percent(majority)` correct by just guessing the majority class of no disease. Hopefully we can do better than that!
+*There are two forms of the data that we'll use* - one which is mostly in raw form, and one that is purely numeric, where the categorical features are dummy coded and where numeric variables have been standardized (@sec-data-transformations). The purely numeric version will allow us to forgo any additional data processing for some model/package implementations (like penalized regression). We have also dropped the handful of rows with missing values, even though some techniques, like tree-based models, naturally handle missing values. This form of the data will allow us to use any model and make direct comparisons among them later.
 
 
 :::{.panel-tabset}
 
 ##### Python
 
+For python we'll go ahead and do all the imports needed for this chapter.
+
 ```{python}
 #| label: setup-imports-py
+# Basic data packages
 import pandas as pd
 import numpy as np
 
+# Models
 from sklearn.linear_model import LogisticRegression
+from lightgbm import LGBMClassifier
+from sklearn.neural_network import MLPClassifier
+
+# Metrics and more
 from sklearn.model_selection import cross_validate, RandomizedSearchCV, train_test_split
 from sklearn.metrics import accuracy_score
 from sklearn.inspection import PartialDependenceDisplay
-from sklearn.neural_network import MLPClassifier
-
-from lightgbm import LGBMClassifier
 ```
 
 ```{python}
@@ -126,8 +130,8 @@ df_heart = pd.read_csv('https://tinyurl.com/heartdiseaseprocessed')
 df_heart_num = pd.read_csv('https://tinyurl.com/heartdiseaseprocessednumeric')
 
 # convert appropriate features to categorical
-for col in df_heart.select_dtypes(include='object').columns:
-    df_heart[col] = df_heart[col].astype('category')
+non_num_cols = df_heart.select_dtypes(exclude='number').columns
+df_heart[non_num_cols] = df_heart[non_num_cols].astype('category')
 
 X = df_heart_num.drop(columns=['heart_disease']).to_numpy()
 y = df_heart_num['heart_disease'].to_numpy()
@@ -153,11 +157,16 @@ X = df_heart_num |>
     as_tibble() |> 
     mutate(heart_disease = factor(heart_disease)) |> 
     janitor::clean_names() # remove some symbols
+
+prevalence = mean(df_heart_num$heart_disease)
+majority = pmax(prevalence, 1 - prevalence)
 ```
 
 :::
 
-One last thing, as we go along, performance metrics will vary depending on your setup (e.g. Python vs. R), package versions used, and other things. As such your results may not look exactly like these, and that's okay! The important thing is to understand the concepts and how to apply them to your own data.
+In this data, roughly `r scales::percent(prevalence)` suffered from heart disease, so if we're interested in accuracy- we could get `r scales::percent(majority)` correct by just guessing the majority class of no disease. Hopefully we can do better than that!
+
+One last thing, as we go along, performance metrics will vary depending on your setup (e.g. Python vs. R), package versions used, and other things. As such your results may not look exactly like these, and that's okay! Your results should still be similar, and the important thing is to understand the concepts and how to apply them to your own data.
 
 
 ## Beat the Baseline {#sec-ml-common-baseline}
@@ -194,20 +203,22 @@ ggsave("img/ml-beat_the_baseline.svg", width = 8, height = 6, dpi = 300)
 
 ![Hypothetical Model Comparison](img/ml-beat_the_baseline.svg){width=75%}
 
-Before getting carried away with models, we should have a good reference point for performance - a **baseline** model. The baseline model should serve as a way to gauge how much better your model performs over one that is simpler, probably more computationally efficient, more interpretable, and is still *viable*. It could also be a model that is sufficiently complex to capture something about the data you are exploring, but not as complex as the models you're also interested in. Take a classification model for example, where we often use a logistic regression as a baseline. It is a viable model to begin answering some questions, but is often too simple to be adequately performant for many situations. We should be able to get better performance with more complex models, or there is little justification for using them.
+Before getting carried away with models, we should have a good reference point for performance - a **baseline model**. The baseline model should serve as a way to gauge how much better your model performs over one that is simpler, probably more computationally efficient, more interpretable, and is still *viable*. It could also be a model that is sufficiently complex to capture something about the data you are exploring, but not as complex as the models you're also interested in.
+
+Take a classification model for example. In this case we might use a logistic regression as a baseline. It is a viable model to begin answering some questions, and get a sense of performance possibilities.  But is often too simple to be adequately performant for many situations. We should be able to do better with more complex models, or if we can't, there is little justification for using them.
 
 
 ### Why do we do this? {#sec-ml-common-baseline-why}
 
 Having a baseline model can help you avoid wasting time and resources implementing more complex tools, and to avoid mistakenly thinking performance is better than expected. It is probably rare, but sometimes relationships for the chosen features and target are mostly or nearly linear and have little interaction. In this case, no amount of fancy modeling will make complex feature targets exist if they don't already. Furthermore, if our baseline is a more complex model that actually incorporates nonlinear relationships and interactions (e.g. a GAMM), you'll often find that the more complex models often don't significantly improve on it. As a last example, in time series settings, a *moving average* can often be a difficult baseline to beat, and so can be a good starting point. 
 
-So in general, you may find that the initial baseline model is good enough for present purposes, and you can then move on to other problems to solve, like acquiring data that is more predictive. This is especially true if you are working in a business setting where you have limited time and resources, but should be of mind in many other settings as well
+So in general, you may find that the initial baseline model is good enough for present purposes, and you can then move on to other problems to solve, like acquiring data that is more predictive. This is especially true if you are working in a situation with limited time and resources, but should be of mind generally.
 
 ### How much better? {#sec-ml-common-baseline-how-much}
 
-In many settings, it often isn't enough to merely beat the baseline model. Your model should perform *statistically* better. For instance, if your advanced model accuracy is 75% and your baseline model's accuracy is 73%, that's great. But, it's good  to check if this 2% difference is statistically significant. Remember, accuracy and other metrics are *estimates* and come with uncertainty[^ifonlystatdiff]. This means you can get a ranged estimate for them, as well as test whether they are different from one another (see @tbl-prop-test-r). If the difference is not statistically significant, then it's possible that there is no difference, and you should probably stick with the baseline model, or maybe try a different approach.  Such a result means that the next time you run the model, the baseline may actually perform better, or at least you can't be sure that it won't.
+In many settings, it often isn't enough to merely beat the baseline model. Your model should perform *statistically* better. For instance, if your advanced model accuracy is 75% and your baseline model's accuracy is 73%, that's great. But, it's good  to check if this 2% difference is statistically significant. Remember, accuracy and other metrics are *estimates* and come with uncertainty[^ifonlystatdiff]. This means you can get a ranged estimate for them, as well as test whether they are different from one another.  @tbl-prop-test-r shows an example comparison of 75% vs. 73% accuracy at different sample sizes. If the difference is not statistically significant, then it's possible you should stick with the baseline model, or maybe try a different approach to compete with it. This is because such a result means that the next time you run the model on new data, the baseline may actually perform better, or at least you can't be sure that it won't.
 
-[^ifonlystatdiff]: There would be far less hype and wasted time if those in ML and DL research simply did this rather than just reporting the chosen metric of their model 'winning' against other models. It's not that hard to do, yet most do not provide any ranged estimate for their metric, let alone test statistical differences from other models. You don't even have to bootstrap many common metric estimates for binary classification since they are just proportions. It'd also be nice if they used a more meaningful baseline than logistic regression, but that's a different story. And one more thing, ranks also have uncertainty. So just saying you're #1 isn't enough to prove it.
+[^ifonlystatdiff]: There would be far less hype and wasted time if those in ML and DL research simply did this rather than just reporting the chosen metric of their model 'winning' against other models. It's not that hard to do, yet many do not provide a ranged estimate for their metric, let alone test statistical comparisons among models. You don't even have to bootstrap many common metric estimates for binary classification, since they are just proportions. It'd also be nice if they used a more meaningful baseline than logistic regression, but that's a different story. And one more thing, although many papers also rank the competing models, ranks and mean ranks also have uncertainty, and ranks are typically very noisy.
 
 
 ```{r}
@@ -216,16 +227,16 @@ In many settings, it often isn't enough to merely beat the baseline model. Your 
 #| tbl-cap: Interval Estimates for Accuracy
 
 # Sample size of 1000
-n_1000 = prop.test(x = c(730, 750), n = c(1000, 1000), correct = FALSE)$conf.int
+n_1000 = prop.test(x = c(750, 730), n = c(1000, 1000), correct = FALSE)$conf.int
 
 # Sample size of 10000
-n_10000 = prop.test(x = c(7300, 7500), n = c(10000, 10000), correct = FALSE)$conf.int
+n_10000 = prop.test(x = c(7500, 7300), n = c(10000, 10000), correct = FALSE)$conf.int
 
 # Test for difference in two values at sample size of 1000
-n_1000_diff = prop.test(x = c(730, 750), n = c(1000, 1000), correct = FALSE)$p.value
+n_1000_diff = prop.test(x = c(750, 730), n = c(1000, 1000), correct = FALSE)$p.value
 
 # Test for difference in two values at sample size of 10000
-n_10000_diff = prop.test(x = c(7300, 7500), n = c(10000, 10000), correct = FALSE)$p.value
+n_10000_diff = prop.test(x = c(7500, 7300), n = c(10000, 10000), correct = FALSE)$p.value
 
 # Combine results
 tibble(
@@ -237,16 +248,15 @@ tibble(
     gt() |>
     cols_label(Sample_Size = "Sample Size", Lower = "Lower Bound", Upper = "Upper Bound", p_value = "p-value") |> 
     tab_footnote(
-        "Confidence intervals are for the difference in proportions at values of .73 and .75, and p-values are for the difference in proportions."
+        md("Confidence intervals are for the difference in proportions at values of .75 and .73,\n\nand p-values are for the difference in proportions.")
+
     ) |> 
     tab_options(
-        footnotes.font.size =  6
+        footnotes.font.size =  9
     )
 ```
 
-That said, in some situations *any* performance increase is worth it, and even if we can't be certain a result is statistically better, any sign of improvement is worth pursuing. For example, if you are trying to predict the next word in a sentence, and your baseline is 10% accurate, and your complex model is 12% accurate, that's a 20% increase over the baseline, and which may be significant in terms of user experience. You should still try and show that this is a consistent increase and not a fluke. 
-
-In other settings, you'll need to make sure the cost is worth it. Is 2% worth millions of dollars? Six months of research? These are among many of the practical considerations you may have to make as well.
+That said, in some situations *any* performance increase is worth it, and even if we can't be certain a result is statistically better, any sign of improvement is worth pursuing. For example, if you are trying to predict the next word in a sentence, and your baseline is 70% accurate, and your new model is 72% accurate, that may be significant in terms of user experience. You should still try and show that this is a consistent increase and not a fluke if possible. In other settings, you'll need to make sure the cost is worth it. Is 2% worth millions of dollars? Six months of research? These are among many of the practical considerations you may have to make as well.
 
 
 ## Penalized Linear Models {#sec-ml-common-penalized}
@@ -256,7 +266,7 @@ So let's get on with some models already! Let's use the classic linear model as 
 
 ### Elastic Net {#sec-ml-common-elasticnet}
 
-Another common linear model approach is **elastic net**, which we also saw in @sec-ml-core-concepts. It combines two techniques: lasso and ridge regression.  We demonstrate the lasso and ridge penalties in @sec-estim-penalty, but all you have to know is that elastic net combines the two penalties- one for lasso and one for ridge, along with a standard objective function for a numeric or categorical target. The relative proportion of the two penalties is controlled by a mixing parameter, and the optimal value for it is determined by cross-validation.  So for example, you might end up with a 75% lasso penalty and 25% ridge penalty. In the end though, we're just going to do a slightly fancier logistic regression!
+Another common linear model approach is **elastic net**, which we also saw in @sec-ml-core-concepts. It combines two techniques: lasso and ridge regression.  We demonstrate the lasso and ridge penalties in @sec-estim-penalty, but all you have to know is that elastic net combines the two penalties- one for lasso and one for ridge, along with a standard objective function for a numeric or categorical target. The relative proportion of the two penalties is controlled by a mixing parameter, and the optimal value for it is determined by cross-validation.  So for example, you might end up with a 75% lasso penalty and 25% ridge penalty. In the end though, it's just a slightly fancier logistic regression!
 
 Let's apply this to the heart disease data. We are only doing simple cross-validation here to get a better performance assessment, but you are more than welcome to tune both the penalty parameter and the mixing ratio as we have demonstrated before (@sec-ml-tuning). We'll revisit hyperparameter tuning towards the end of this chapter.
 
@@ -360,14 +370,14 @@ library(glue)
 model_elastic_cv = readRDS('ml/data/elasticnet-r-results.rds')
 
 # Evaluate
-acc_inc = round(model_elastic_cv$aggregate(msr('classif.acc')) / prevalence - 1, 3)
+acc_inc = round(model_elastic_cv$aggregate(msr('classif.acc')) / majority - 1, 3)
 
 glue("Training Accuracy: {round(model_elastic_cv$aggregate(msr('classif.acc')), 3)}\nGuessing: {round(majority, 3)}")
 ```
 
 :::
 
-So we're starting off with what seems to be a good model. Our average accuracy across the validation sets is definitely doing better than guessing, an increase of almost `r scales::label_percent()(acc_inc)`! Now let's see if we can do better with other models!
+So we're starting off with what seems to be a good model. Our average accuracy across the validation sets is definitely doing better than guessing, with a performance increase of more than `r scales::label_percent()(round(acc_inc, 1))`! 
 
 
 
@@ -387,17 +397,17 @@ So we're starting off with what seems to be a good model. Our average accuracy a
 
 ### Additional thoughts {#sec-ml-common-penalized-additional}
 
-Using penalized regression is a very good default method in the tabular data setting, and is something to strongly consider for more interpretative model settings like determining causal effects. These approaches predict better on new data than their standard, non-regularized complements, so they provide a nice balance between interpretability and predictive power. However, in general they are not going to be as strong of a method as others typically used in the machine learning world, and may not even be competitive without a lot of feature engineering. If prediction is all you care about, you'll likely want to try something else.
+Using penalized regression is a very good default method in the tabular data setting, and is something to strongly consider for more interpretation-focused model settings. These approaches predict better on new data than their standard, non-regularized complements, so they provide a nice balance between interpretability and predictive power. However, in general they are not going to be as strong of a method as others typically used in the machine learning world, and may not even be competitive without a lot of feature engineering. If prediction is all you care about, you'll likely need something else. Now let's see if we can do better with other models!
 
 
 ## Tree-based Models {#sec-ml-common-trees}
 
-Let's move beyond standard linear models and get into a notably different type of approach. Tree-based methods are a class of models that are very popular in machine learning, and for good reason, they work *very* well. To get a sense of how they work, consider the following classification example where we want to predict a binary target as 'Yes' or 'No'.
+Let's move beyond standard linear models and get into a notably different type of approach. Tree-based methods are a class of models that are very popular in machine learning contexts, and for good reason, they work *very* well. To get a sense of how they work, consider the following classification example where we want to predict a binary target as 'Yes' or 'No'.
 
 ```{r}
 #| echo: false
 #| eval: false
-#| label: tree-graph-setup
+#| label: fig-tree-graph-setup
 g = DiagrammeR::grViz('img/tree.dot')
 
 g |> 
@@ -406,17 +416,19 @@ g |>
     rsvg::rsvg_svg("img/tree.svg")
 ```
 
-![A simple classification tree](img/tree.svg){width=40%}
+![A simple classification tree](img/tree.svg){#fig-tree width=40%}
 
-We have two numeric features, $X_1$ and $X_2$. At the start, we take $X_1$ and make a split at the value of 5. Any observation less than 5 on $X_1$ goes to the right with a prediction of *No*. Any observation greater than or equal to 5 goes to the left, where we then split based on values of $X_2$, and specifically at the value of 3. Any observation less than 3 (and greater than or equal to 5 on $X_1$) goes to the right with a prediction of *Yes*. Any observation greater than or equal to 3 (and greater than or equal to 5 on $X_1$) goes to the left with a prediction of *No*. So in the end, we see that an observation that is relatively lower on $X_1$, or relatively higher on both, results in a prediction of *No*. On the other hand, an observation that is high on $X_1$ and low on $X_2$ results in a prediction of *Yes*.
+We have two numeric features, $X_1$ and $X_2$. At the start, we take $X_1$ and make a split at the value of 5. Any observation less than 5 on $X_1$ goes to the right with a prediction of *No*. Any observation greater than or equal to 5 goes to the left, where we then split based on values of $X_2$. Any observation less than 3 goes to the right with a prediction of *Yes*. Any observation greater than or equal to 3 goes to the left with a prediction of *No*. So in the end, we see that an observation that is relatively lower on $X_1$, or relatively higher on both, results in a prediction of *No*. On the other hand, an observation that is high on $X_1$ and low on $X_2$ results in a prediction of *Yes*.
 
 This is a simple example, but it illustrates the core idea of a tree-based model, where the **tree** reflects the total process, and **branches** are represented by the splits going down, ultimately ending at **leaves** where predictions are made. We can also think of the tree as a series of `if-then` statements, where we start at the top and work our way down until we reach a leaf node, which is a prediction for all observations that qualify for that leaf.
 
-If we just use a single tree, this would be the most interpretable model we could probably come up with. It also incorporates nonlinearities (multiple branches on a single feature), interactions (branches across features), and feature selection all in one (some features may not result in useful splits for the objective). However, a single tree is not a very stable model unfortunately, and so does not generalize well. For example, just a slight change in data, or even just starting with a different feature, might produce a very different tree[^cartbase]. 
+A single tree would likely be the most interpretable model we could probably come up with. Furthermore, it incorporates nonlinearities through multiple branches on a single feature, interactions by branching across different features, and feature selection by excluding features that do not result in useful splits for the objective, all in one.
+
+However, a single tree is not a very stable model unfortunately, and so does not generalize well. For example, just a slight change in data, or even just starting with a different feature, might produce a very different tree[^cartbase]. Even though predictions could be similar, model interpretation would be very different.
 
 [^cartbase]: A single regression/classification tree actually could serve as a decent baseline model, especially given the interpretability, and modern methods try to make them more stable.
 
-The solution to that problem is straightforward though - by using the power of a bunch of trees, we can get predictions for each observation from each tree, and then average the predictions, resulting in a most stable estimate. This is the concept behind both **random forests** and **gradient boosting**, which can be seen as different algorithms to produce a bunch of trees. They are also considered types of **ensemble models**, which are models that combine the predictions of multiple models, to ultimately produce a single prediction for each observation. In this case each tree serves as a model.
+The solution to that problem is straightforward though - by using the power of a bunch of trees, we can get predictions for each observation from each tree, and then average the predictions, resulting in a much more stable estimate. This is the concept behind both **random forests** and **gradient boosting**, which can be seen as different algorithms to produce a bunch of trees. They are also considered types of **ensemble models**, which are models that combine the predictions of multiple models, to ultimately produce a single prediction for each observation. In this case each tree serves as a model.
 
 Random forests (RF) and boosting methods (GB) are very easy to implement, to a point. However, there are typically several hyperparameters to consider for tuning. Here are just a few to think about:
 
@@ -428,26 +440,30 @@ Random forests (RF) and boosting methods (GB) are very easy to implement, to a p
 - Regularization parameters (GB)
 - Out-of-bag sample size (RF)
 
+The number of trees is simply how many trees you want to build, and is a key parameter setting for both RF and GB. For boosting models, the number of trees and learning rate play off of each other. Having more trees allows for a smaller rate[^gblr], which might improve the model but will take longer to train. However, it can lead to overfitting if other steps are not taken. 
 
-For these models, the number of trees and learning rate play off of each other. Having more trees allows for a smaller rate[^learningrate], which might improve the model but will take longer to train. However, it can lead to overfitting if other steps are not taken. 
+[^gblr]: For boosting models, the learning rate is a scaling factor for the contribution of each tree to the overall model. A smaller learning rate means that each tree contributes less to the overall model, and so you'll need more trees to get the same performance, all else being equal.
 
-[^learningrate]: This is pretty much the same concept as with stochastic gradient in general. Larger learning rates allow for quicker parameter exploration, but may overshoot the optimal value. Smaller learning rates are more conservative, but may take longer to find the optimal value.
 
-The depth of each tree refers to how many levels we allow the model to branch out, and is a crucial parameter. It controls the complexity of each tree, and thus the complexity of the overall model- less depth helps to avoid overfitting, but if the depth is too shallow, you won't be able to capture the nuances of the data.  The minimum number of observations in each leaf is also important for similar reasons. 
+The depth of each tree refers to how many levels we allow the model to branch out, and is a crucial parameter. It controls the complexity of each tree, and thus the complexity of the overall model- less depth helps to avoid overfitting, but if the depth is too shallow, you won't be able to capture the nuances of the data.  The minimum number of observations required for each leaf is also important for similar reasons - a lower number will allow for more complex trees, while a higher number will result in simpler trees.
 
-It's also generally a good idea to take a random sample of features for each tree (or possibly even each branch), to also help reduce overfitting, but it's not obvious what proportion to take. The regularization parameters are typically less important in practice, but help reduce overfitting as in other modeling circumstances. As with hyperparameters in other model settings, you'll use something like cross-validation to settle on  final values.
+It's also generally a good idea to take a random sample of features for each tree (or possibly even each branch), to also help reduce overfitting, but it's not obvious what proportion to take. The regularization parameters[^gbl1l2] are typically less important in practice, but can help reduce overfitting as in other modeling circumstances we've talked about. As with hyperparameters in other model settings, you'll use something like cross-validation to settle on  final values.
+
+[^gbl1l2]: For boosting models, the regularization parameters are basically penalties regarding to the weights of the leaves. For example, a smaller value would reduce the contribution of that leaf to the overall model, and so would help to reduce overfitting.
 
 
 ### Example with LightGBM {#sec-ml-common-trees-lightgbm}
 
 
-Here is an example of gradient boosting with the heart disease data. Although boosting methods are available in [scikit-learn]{.pack} for Python, in general we recommend using the [lightgbm]{.pack} or [xgboost]{.pack} packages directly for boosting implementation, which have a sklearn API anyway (as demonstrated). Also, they both provide R and Python implementations of the package, making it easy to not lose your place when switching between languages.  We'll use [lightgbm]{.pack} here, but [xgboost]{.pack} is also a very good option [^nomeow].
-
-[^nomeow]: Some also prefer [catboost]{.pack}. The authors have not actually been able to practically implement catboost in a setting where it was more predictive or as efficient/speedy as [xgboost]{.pack} or [lightgbm]{.pack}, but some have had notable success with it. 
+Here is an example of gradient boosting with the heart disease data. We'll explicitly set some of the parameters, and use 5-fold cross-validation to estimate performance.
 
 :::{.panel-tabset}
 
 ##### Python
+
+Although boosting methods are available in [scikit-learn]{.pack} for Python, in general we recommend using the [lightgbm]{.pack} or [xgboost]{.pack} packages directly for boosting, as both have a sklearn API (as demonstrated). Also, they both provide R and Python implementations of the package, making it easy to not lose your place when switching between languages.  We'll use [lightgbm]{.pack} here[^nomeow].
+
+[^nomeow]: Some also prefer [catboost]{.pack}. Your humble authors have not actually been able to practically implement catboost in a setting where it was more predictive or as efficient/speedy as [xgboost]{.pack} or [lightgbm]{.pack} to get to the same performance level, but some have had notable success with it. 
 
 ```{python}
 #| label: boost-py
@@ -496,9 +512,8 @@ print(
 
 ##### R
 
-Note that as of writing, the mlr3 implementation of lightgbm doesn't seem to handle factors even though the lightgbm R package does. So we'll use the numeric version of the data here.
+Note that as of writing, the [mlr3]{.pack} requires one of the extended packages for its implementation of lightgbm, and so we'll use the [mlr3extralearners]{.pack} package.
 
-<!-- it's not clear that lgbm will work without the GH version-->
 
 ```{r}
 #| eval: false
@@ -506,11 +521,11 @@ Note that as of writing, the mlr3 implementation of lightgbm doesn't seem to han
 library(mlr3verse)
 
 # for lightgbm, you need mlr3extralearners and lightgbm package installed
-# mlr3extralearners available from github
+# it is available from github via:
 # remotes::install_github("mlr-org/mlr3extralearners@*release")
 library(mlr3extralearners) 
 
-set.seed(1234)
+set.seed(42)
 
 # Define task
 # For consistency we use X, but lgbm can handle factors and missing data 
@@ -524,8 +539,8 @@ tsk_boost = as_task_classif(
 model_boost = lrn(
     "classif.lightgbm",
     num_iterations = 1000,
-    max_depth = 5,
-    learning_rate = 1e-3
+    learning_rate = 1e-3,
+    max_depth = 5
 )
 
 # Cross-validation
@@ -561,7 +576,7 @@ glue("Training Accuracy: {round(model_boost_cv$aggregate(msr('classif.acc')), 3)
 :::
 
 
-So here we have a model that is also performing well, though not significantly better or worse than our elastic net model. For most situations, we'd expect boosting to do better, but this shows why we want a good baseline or simpler model for comparison. We'll revisit hyperparameter tuning using this model later.  
+So here we have a model that is also performing well, though not significantly better or worse than our elastic net model. For most tabular data situations, we'd expect boosting to do better, but this shows why we want a good baseline or simpler model for comparison. We'll revisit hyperparameter tuning using this model later.  
 
 
 <!-- If you'd like to see an example of how we could implement a form  boosting by hand, see @app-boosting. -->
@@ -575,12 +590,12 @@ Random forests and boosting methods, though not new, are still 'state of the art
 **Strengths**
 
 - A single tree is highly interpretable.
-- Easily incorporates features of different types (the scale of numeric features, or using categorical features*, doesn't matter).
+- Easily incorporates features of different types (the scale of numeric features, or using categorical features, doesn't matter).
 - Tolerance to irrelevant features.
 - Some tolerance to correlated inputs.
 - Handling of missing values. Missing values are just another value to potentially split on[^defaultmiss].
 
-[^defaultmiss]: It's not clear why most model functions still have no default for this sort of thing in `r lubridate::year(Sys.Date())`.
+[^defaultmiss]: It's not clear why most model functions still have no default for this sort of thing in `r lubridate::year(Sys.Date())`. Is it that hard to drop or impute them with an informative message?
 
 **Weaknesses**
 
@@ -608,11 +623,15 @@ g |>
 
 ![A neural network](img/nn_basic.svg){#fig-basic-nn width=50%}
 
-**Deep learning has fundamentally transformed the world of data science, and the world itself**. It has been used to solve problems in image detection, speech recognition, natural language processing, and more, from assisting with cancer diagnosis to summarizing entire novels. As of now, it is not a panacea for every problem, and is not always the best tool for the job, but it is an approach that should be in your toolbox. Here we'll provide a brief overview of the key concepts behind neural networks, the underlying approach to deep learning, and then demonstrate how to implement a simple neural network to get things started.
+**Deep learning has fundamentally transformed the world of data science, and, in many ways, the world itself**. It has been used to solve problems in image detection, speech recognition, natural language processing, and more, from assisting with cancer diagnosis, to writing entire novels, providing self-driving cars, and even helping the formerly blind see. It has also been used to create deep fakes, and to manipulate elections. It is an extremely powerful tool.
+
+
+For tabular data however, the story is a bit different. Here, deep learning has consistently struggled to outperform models like boosting and even penalized regression in many cases. But while it is not always the best tool for the job, it is an approach that should be in your toolbox, if only because it potentially can be the most performant model, and may well become the dominant model for tabular data in the future. Here we'll provide a brief overview of the key concepts behind neural networks, the underlying approach to deep learning, and then demonstrate how to implement a simple neural network to get things started.
+
 
 ### What is a neural network? {#sec-ml-common-nnet}
 
-Neural networks form the basis of deep learning models. They have actually been around a while - [computationally and conceptually going back decades](https://cs.stanford.edu/people/eroberts/courses/soco/projects/neural-networks/History/history1.html)[^neuralbasis][^cogneuron]. Like other models, they are computational tools that help us understand how to get outputs from inputs. However, they weren't quickly adopted due to computing limitations, similar to the slow adoption of Bayesian methods. But now neural networks, or deep learning more generally, have recently become the go-to method for many problems. 
+**Neural networks** form the basis of deep learning models. They have actually been around a while - [computationally and conceptually going back decades](https://cs.stanford.edu/people/eroberts/courses/soco/projects/neural-networks/History/history1.html)[^neuralbasis]^,^ [^cogneuron]. Like other models, they are computational tools that help us understand how to get outputs from inputs. However, they weren't quickly adopted due to computing limitations, similar to the slow adoption of Bayesian methods. But now, neural networks, or deep learning more generally, have recently become the go-to method for many problems. 
 
 [^neuralbasis]: Most consider the scientific origin with @mcculloch_logical_1943.
 [^cogneuron]: On the conceptual side, they served as a rudimentary model of neuronal functioning in the brain, and a way to understand how the brain processes information. The models sprung from the cognitive revolution, a backlash against the behaviorist approach to psychology, and used the computer as [a metaphor for how the brain might operate](https://en.wikipedia.org/wiki/Connectionism).
@@ -620,12 +639,12 @@ Neural networks form the basis of deep learning models. They have actually been 
 
 ### How do they work? {#sec-ml-common-nnet-how}
 
-At its core, a neural network can be seen as a series of matrix multiplications and other operations to produce combinations of features, and ultimately a desired output. We've been talking about inputs and outputs since the beginning (@sec-lm-relationships), but neural networks like to put a lot more in between the inputs and outputs than we've seen with other models. However, the core operations are often no different than what we've done with a basic linear model, and sometimes even simpler! But the combinations of features they produce can represent many aspects of the data that are not easily captured by simpler models.
+At its core, a neural network can be seen as a series of matrix multiplications and other operations to produce combinations of features, and ultimately a desired output. We've been talking about inputs and outputs since the beginning (@sec-lm-relationships), but neural networks like to put a lot more in between the inputs and outputs than we've seen with other models. However, the key operations are often no different than what we've done with a basic linear model, and sometimes even simpler! But the combinations of features they produce can represent many aspects of the data that are not easily captured by simpler models.
 
 
-One notable difference from models we've been seeing is that neural networks implement *multiple combinations of features*, where each combination is referred to as hidden **nodes** or units[^hidden]. In a neural network, each feature has a weight, just like in a linear model. These features are multiplied by their weights and then added together. But we actually create multiple such combinations, as depicted in the 'H' or 'hidden' nodes in the following visualization.
+One notable difference from models we've been seeing is that neural networks implement *multiple combinations of features*, where each combination is referred to as a hidden **node** or unit[^hidden]. In a neural network, each feature has a weight (or coefficient), just like in a linear model of the type we've used before. These features are multiplied by their weights and then added together. But we actually create multiple such combinations, as depicted in the 'H' or 'hidden' nodes in the following visualization.
 
-[^hidden]: The term 'hidden' is used because these nodes are between the input or output. It does not imply a latent/hidden variable in the sense it is used in structural equation or measurement models, but there is a lot of common ground. See the connection with principal components analysis for example(@sec-ml-more-pca-as-net).
+[^hidden]: The term 'hidden' is used because these nodes are between the input or output. It does not imply a latent/hidden variable in the sense it is used in structural equation or measurement models, state space models, and similar, but there is a lot of common ground. See the connection with principal components analysis for example (@sec-ml-more-pca-as-net).
 
 
 
@@ -649,7 +668,7 @@ g |>
 
 The next phase is where things can get more interesting. We take those hidden units and add in nonlinear transformations before moving deeper into the network. The transformations applied are typically referred to as **activation functions**[^relu]. So, the output of the current (typically linear) part is transformed in a way that allows the model to incorporate nonlinearities. While this might sound new, this is just like how we use link functions in generalized linear models (@sec-glm-distributions). Furthermore, these multiple combinations also allow us to incorporate interactions between features.
 
-[^relu]:  We have multiple options for our activation functions, and probably the most common activation function in deep learning is the **rectified linear unit** or [ReLU](https://en.wikipedia.org/wiki/Rectifier_(neural_networks)), and its more recent variants. Others commonly used are the [sigmoid function](https://en.wikipedia.org/wiki/Sigmoid_function), which is exactly the same as what we used in logistic regression, the hyperbolic tangent function, and of course the linear/identity function, which does not do any transformation at all.
+[^relu]:  We have multiple options for our activation functions, and probably the most common activation function in deep learning is the **rectified linear unit** or [ReLU](https://en.wikipedia.org/wiki/Rectifier_(neural_networks)), and its more recent variants. Others used include the [sigmoid function](https://en.wikipedia.org/wiki/Sigmoid_function), which is exactly the same as what we used in logistic regression, the hyperbolic tangent function, and of course the linear/identity function, which does not do any transformation at all.
 
 
 ```{r}
@@ -668,7 +687,7 @@ g |>
 ![Activation function applied to a node's output before passing it as input to next layer](img/nn_activation2.svg){#fig-activate width=33%}
 
 
-But we can go even further! We can add more layers, and more nodes in each layer, to create a **deep neural network**. We can also add components specific to certain types of processing, have some parts only connected to certain other parts and more. The complexity really is only limited by our imagination, and computational power! This is what helps make neural networks so powerful - given enough nodes and layers they can potentially approximate ***any*** function.  Ultimately though, the feature inputs become an output or multiple outputs that can then be assessed in the similar ways as other models. 
+But we can go even further! We can add more layers, and more nodes in each layer, to create a **deep neural network**. We can also add components specific to certain types of processing, have some parts of the network only connected to certain other parts, apply specific computations to specific components, and more. The complexity really is only limited by our imagination, *and computational capacity*! This is what helps make neural networks so powerful - given enough nodes, layers, and components, they can approximate ***any*** function, which could include the true function that connects our features to the target. Practically though, the feature inputs become an output or multiple outputs that can then be assessed in the similar ways as other models. 
 
 ```{r}
 #| echo: false
@@ -700,7 +719,7 @@ g |>
 ```
 
 
-Before getting carried away, let's simplify things a bit by returning to some familiar ground. Consider a logistic regression model. There we take the linear combination of features and weights, and then apply the sigmoid function (inverse logit) to it, and that is the output of the model that we compare to our observed target.
+Before getting too carried away, let's simplify things a bit by returning to some familiar ground. Consider a logistic regression model. There we take the linear combination of features and weights, and then apply the sigmoid function (inverse logit) to it, and that is the output of the model that we compare to our observed target.
 
 We can revisit a plot we saw earlier (@fig-graph-logistic) to make things more concrete. The input features are $X_1$, $X_2$, and $X_3$, and the output is the probability of a positive outcome of a binary target. The weights are $w_1$, $w_2$, and $w_3$, and the bias[^biascs] is $w_0$. The hidden node is just our linear predictor which we can create via matrix multiplication of the feature matrix and weights. The sigmoid function is the activation function, and the output is the probability of the chosen label.
 
@@ -725,28 +744,26 @@ g |>
 This shows that we can actually think of logistic regression as a very simple neural network, with a  linear combination of the inputs as a single hidden node and a sigmoid activation function adding the nonlinear transformation. Indeed, the earliest **multilayer perceptron** models were just composed of multiple layers of logistic regressions! 
 
 :::{.callout-note title="GAMs and Neural Networks" collapse='true'} 
-As noted, you can think of neural networks as nonlinear extensions of linear models. Regression approaches like GAMs and gaussian process regression can be seen as [approximations to neural networks](https://arxiv.org/abs/1711.00165) (see also @rasmussen_gaussian_2005), bridging the gap between the simpler, and more interpretable linear model and black box of a deep neural network. This brings us back to having a good baseline. If you know some simpler tools that can approximate more complex ones, you can often get 'good enough' results with the simpler models.
+You can think of neural networks as nonlinear extensions of linear models. Regression approaches like GAMs and gaussian process regression can be seen as [approximations to neural networks](https://arxiv.org/abs/1711.00165) (see also @rasmussen_gaussian_2005), bridging the gap between the simpler, and more interpretable linear model, and black box of a deep neural network. This brings us back to having a good baseline. If you know some simpler tools that can approximate more complex ones, you can often get 'good enough' results with the simpler models.
 :::
 
 
 ### Trying it out {#sec-ml-common-dl-nn-try}
 
 
-For simplicity we'll use similar tools as before. Our model is a **multi-layer perceptron** (MLP), which is a model like the one we've been depicting. It consists of multiple hidden layers of varying sizes, and we can incorporate activation functions as we see fit.
+Our neural network model is a **multi-layer perceptron** (MLP), which is a model like the one we've been depicting. It consists of multiple hidden layers of potentially varying sizes, and we can incorporate activation functions as we see fit. Be aware that this would be considered a bare minimum approach for a neural network, and generally you'd need to do more. To begin with, you'd want to tune the **architecture**, or structure of hidden layers. For example, you might want to try more layers, as well as 'wider' layers, or more nodes per layer. Also, we'd usually want to use **embeddings**  for categorical features as opposed to the one-hot approach used here (@sec-data-cat)[^fastaitab].
 
-Do know this would be considered a bare minimum approach for a neural network, and generally you'd need to do more. To begin with, you'd want to tune the **architecture**, or structure of hidden layers. For example, you might want to try more layers, as well as 'wider' layers, or more nodes per layer. Also, as noted in the data discussion, we'd usually want to use **embeddings**  for categorical features as opposed to the one-hot approach used here (@sec-data-cat)[^fastaitab].
-
-[^fastaitab]: A really good tool for a standard MLP type approach with automatic categorical embeddings is `fastai`'s tabular learner. 
+[^fastaitab]: A really good tool for a standard MLP type approach with automatic categorical embeddings is [fastai]{.pack}'s tabular learner. For a more flexible, roll-your-own type of approach, consider the recent [torch_frame]{.pack}.
 
 
-For our example, we'll use the data with one-hot encoded features. For our architecture, we'll use three hidden layers with 200 nodes each. As noted, these and other settings are hyperparameters that you'd normally prefer to tune. 
+For our demo, we'll use the numeric heart disease data with one-hot encoded features. For our architecture, we'll use three hidden layers with 200 nodes each. As noted, these and other settings are hyperparameters that you'd normally prefer to tune. 
 
 
 :::{.panel-tabset}
 
 ##### Python
 
-For our demonstration we'll use `sklearn`'s builtin `MLPClassifier`. We set the learning rate to 0.001. We'll also use a validation set of 20% of the data to help with early stopping. We set an **adaptive learning rate**, which is a way to automatically adjust the learning rate as the model trains. The ReLU activation function is default.  We'll also use the **nesterov momentum** approach, which is a way to help the model avoid local minima. We use a **warm start**, which allows us to train the model in stages, which is useful for early stopping. We'll also set the **validation fraction**, which is the proportion of data to use for the validation set. And finally, we'll use **shuffle** to randomly select observations for each batch.
+For our demonstration we'll use [sklearn]{.pack}'s builtin `MLPClassifier`. We set the learning rate to 0.001. We'll also use a validation set of 20% of the data to help with early stopping. We set an **adaptive learning rate**, which is a way to automatically adjust the learning rate as the model trains. The ReLU activation function is default.  We'll also use the **nesterov momentum** approach, which is a way to help the model avoid local minima. We use a **warm start**, which allows us to train the model in stages, which is useful for early stopping. We'll also set the **validation fraction**, which is the proportion of data to use for the validation set. And finally, we'll use **shuffle** to randomly select observations for each batch.
 
 
 ```{python}
@@ -799,7 +816,7 @@ print(
 
 ##### R
 
-For R, we'll use `mlr3torch`, which calls `pytorch` directly under the hood. We'll use the same architecture as was done with the Python example. It uses the **ReLU** activation function as a default. We'll also use **adam** as the optimizer, which is a popular choice and the default for the `sklearn` approach also. We'll also use **cross entropy** as the loss function, which is the same as the log loss objective function used in logistic regression and other ML classification models.  We use a **batch size** of 16, which is the number of observations to use for each [batch of training](https://stats.stackexchange.com/questions/153531/what-is-batch-size-in-neural-network). We'll also use **epochs** of 200, which is the number of times to train on the entire dataset. We'll also use **predict type** of **prob**, which is the type of prediction to make. Finally, we'll use both **logloss** and **accuracy** as the metrics to track. As specified, this took over a minute.
+For R, we'll use [mlr3torch]{.pack}, which calls [pytorch]{.pack} directly under the hood. We'll use the same architecture as was done with the Python example. It uses the **ReLU** activation function as a default. We'll also use the **adam** SGD variant as the optimizer, which is a popular choice in deep learning models, and the default for the [sklearn]{.pack} approach. We'll use **cross entropy** as the loss function, which is the same as the log loss objective function used in logistic regression and other ML classification models.  We use a **batch size** of 16. Batch size is the number of observations to use for each [batch of training](https://stats.stackexchange.com/questions/153531/what-is-batch-size-in-neural-network). We'll also use **epochs** of 50, which is the number of times to train on the entire dataset (probably way more than necessary). We'll also use **predict type** of **prob**, which is the type of prediction to make. Finally, we'll use both **logloss** and **accuracy** as the metrics to track. As specified, this took over a minute.
 
 
 ```{r}
@@ -811,8 +828,7 @@ library(mlr3torch)
 learner_mlp = lrn(
     "classif.mlp",
     # defining network parameters
-    layers = 3,
-    d_hidden = 200,
+    neurons = c(200, 200, 200),
     # training parameters
     batch_size = 16,
     epochs = 50,
@@ -821,6 +837,7 @@ learner_mlp = lrn(
     loss = t_loss("cross_entropy"),
     # Measures to track
     measures_train = msrs(c("classif.logloss")),
+    validate = .1,
     measures_valid = msrs(c("classif.logloss", "classif.ce")),
     # predict type (required by logloss)
     predict_type = "prob",
@@ -865,11 +882,11 @@ glue('Training Accuracy: {round(model_mlp_cv$aggregate(msr("classif.acc")), 3)}\
 :::
 
 
-This neural network model actually did pretty well, and we're on par with our accuracy as we were with the other two models. This is somewhat surprising given the nature of the data- small number of observations with different data types- a type of situation in which neural networks don't usually do as well as others. Just goes to show, you never know until you try! 
+This model actually did pretty well, and we're on par with our accuracy as we were with the other two models. This is somewhat surprising given the nature of the data- small number of observations with different data types- a type of situation in which neural networks don't usually do as well as others. Just goes to show, you never know until you try! 
 
 :::{.callout-note title='Deep and Wide' collapse='true'}
 
-A now relatively old question in deep learning is what is the better approach: deep networks, with more layers, or extremely wide (lots of neurons) and fewer layers? The answer is that it can depend on the problem, but in general, deep networks are more efficient and easier to train, and [will generalize better](https://stats.stackexchange.com/questions/222883/why-are-neural-networks-becoming-deeper-but-not-wider).  Deeper networks have the ability to build upon what the previous layers have learned, basically compartmentalizing different parts of the task to learn. More important is creating an architecture that is able to learn the appropriate aspects of the data and generalize well.
+A now relatively old question in deep learning is what is the better approach: deep networks, with more layers, or extremely wide (lots of neurons) and fewer layers? The answer is that it can depend on the problem, but in general, deep networks are more efficient and easier to train, and [will generalize better](https://stats.stackexchange.com/questions/222883/why-are-neural-networks-becoming-deeper-but-not-wider).  Deeper networks have the ability to build upon what the previous layers have learned, basically compartmentalizing different parts of the task to learn. More important to the task is creating an architecture that is able to learn the appropriate aspects of the data, and generalize well.
 :::
 
 
@@ -880,7 +897,7 @@ A now relatively old question in deep learning is what is the better approach: d
 - Good prediction generally.
 - Incorporates the predictive power of different combinations of inputs.
 - Some tolerance to correlated inputs.
-- Can be added as a component to other deep learning models.
+- Can be added as a component to other deep learning models (e.g. LLMs that are handling text input).
 
 **Weaknesses**
 
@@ -893,7 +910,7 @@ A now relatively old question in deep learning is what is the better approach: d
 
 We noted in the chapter on machine learning concepts that there are often multiple hyperparameters we are concerned with for a given model (@sec-ml-tuning). We had hyperparameters for each of the models in this chapter also. For the elastic net model, we might want to tune the penalty parameters and the mixing ratio. For the boosting method, we might want to tune the number of trees, the learning rate, the maximum depth of each tree, the minimum number of observations in each leaf, and the number of features to consider at each tree/split. And for the neural network, we might want to tune the number of hidden layers, the number of nodes in each layer, the learning rate, the batch size, the number of epochs, and the activation function. There is plenty to explore!
 
-Here is an example using the boosting model. We'll tune the number of trees, the learning rate, the minimum number of observations in each leaf, and the maximum depth of each tree. We'll use a **randomized search** across the parameter space to sample from the set of hyperparameters, rather than searching every possible combination as in a **grid search**. This is a good approach when you have a lot of hyperparameters to tune, and/or when you have a lot of data.
+Here is an example of a hyperparameter search using the boosting model. We'll tune the number of trees, the learning rate, the minimum number of observations in each leaf, and the maximum depth of each tree. We'll use a **randomized search** across the parameter space to sample from the set of hyperparameters, rather than searching every possible combination as in a **grid search**. This is a good approach when you have a lot of hyperparameters to tune, and/or when you have a lot of data.
 
 :::{.panel-tabset}
 
@@ -997,12 +1014,10 @@ print(
 #| eval: false
 set.seed(1234)
 
-library(mlr3verse)
-library(rsample)
-
 tsk_model_boost_cv_tune = as_task_classif(
     df_heart,
-    target = "heart_disease"
+    target = "heart_disease",
+    positive = "yes"
 )
 
 split = partition(tsk_model_boost_cv_tune, ratio = .8)
@@ -1060,7 +1075,7 @@ glue("Test Accuracy: {round(test_acc, 3)}\nGuessing: {round(majority, 3)}")
 
 :::
 
-Looks like we've done a lot better than guessing. Even if we don't do better than our previous model, we should feel better that we've done our due diligence in trying to find the best set of underlying parameters, rather than just going with defaults or what *seems* to work best.
+Looks like we've done a lot better than guessing. Even if we don't do better than our previously untuned model, we should feel better that we've done our due diligence in trying to find the best set of underlying parameters, rather than just going with defaults or what *seems* to work best.
 
 
 
@@ -1229,7 +1244,17 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 # Define models
 model_glmnet = LogisticRegression(solver='saga', max_iter=10000, random_state=42)
 model_boost = LGBMClassifier(random_state=42, verbosity=-1)
-model_mlp = MLPClassifier(max_iter=10000, random_state=42)
+model_mlp = MLPClassifier(
+    learning_rate = 'adaptive',
+    learning_rate_init = 0.001,
+    shuffle = True,
+    warm_start = True,
+    nesterovs_momentum = True,
+    validation_fraction =  .2,
+    verbose = False,
+    max_iter=10000,
+    random_state=42
+)
 
 # Define parameter space for each model
 param_glmnet = {
@@ -1239,10 +1264,10 @@ param_glmnet = {
 }
 
 param_boost = {
-    'n_estimators': [250, 500, 1000],
+    'n_estimators': [250, 500],
     'learning_rate': [1e-3, 0.01, 0.1, 0.5],
     'max_depth': [2, 3, 5, 7],
-    'min_child_samples': [1, 5, 10],
+    'min_child_samples': [1, 5, 10, 50],
     'colsample_bytree': [0.75, 1.0],
     'reg_alpha': [0.0, 1],
     'reg_lambda': [0.0, 1]
@@ -1250,14 +1275,14 @@ param_boost = {
 
 param_mlp = {
     'hidden_layer_sizes': [(100, 100), (200, 200), (100, 100, 100), (200, 200, 200)],
-    'activation': ['relu', 'tanh'],
+    # 'activation': ['relu', 'tanh'],
     'alpha': [0.0001, 0.001, 0.01]
 }
 
 # Perform hyperparameter tuning
-search_glmnet = RandomizedSearchCV(model_glmnet, param_glmnet, cv=10, scoring='accuracy')
-search_boost = RandomizedSearchCV(model_boost, param_boost, cv=10, scoring='accuracy')
-search_mlp = RandomizedSearchCV(model_mlp, param_mlp, cv=10, scoring='accuracy')
+search_glmnet = RandomizedSearchCV(model_glmnet, param_glmnet, cv=10, scoring='accuracy', random_state=42)
+search_boost = RandomizedSearchCV(model_boost, param_boost, cv=10, scoring='accuracy', random_state=42)
+search_mlp = RandomizedSearchCV(model_mlp, param_mlp, cv=10, scoring='accuracy', random_state=42)
 
 # Fit the grid searches
 search_glmnet.fit(X_train, y_train)
@@ -1476,7 +1501,7 @@ diff_interval = prop.test(
 # quantile(bootstrap_results$t, c(0.025, 0.975))
 ```
 
-When we look at the performance on the holdout set with our tuned models in the following table[^modcompare], we see something you might be surprised about - the simplest model does really well! In this case, we'd probably declare it the winner given the combination of ease of use and interpretability. Again, your results may vary depending on whether you used a seed, R vs. Python, and possibly other aspects of your environment.
+When we look at the performance on the holdout set with our tuned models in the following table[^modcompare], we see something that might suprise you - the simplest model does really well! In this case, we'd probably declare it the winner given the combination of ease of use and interpretability. Again, your results may vary depending on whether you used a seed, R vs. Python, and possibly other aspects of your environment.
 
 [^modcompare]: This table was based on Python randomized CV search, but the R approach produced similar results, but they can both vary quite a bit even with just a random seed change due to the small sample size.
 
@@ -1524,7 +1549,6 @@ df_metrics_cv = tibble(
 #| echo: false
 
 df_metrics_cv = read_csv('ml/data/ml-common-py_model_comparison.csv')
-
 max_cols = map_int(df_metrics_cv |> select(-model), \(x) which.max(x))
 max_cols2 = map(df_metrics_cv |> select(-model) |> slice(-1), \(x) which.max(x))
 
@@ -1547,25 +1571,25 @@ df_metrics_cv |>
     )
 ```
 
- It's important to note that none of these results are *statistically different* from each other. As an example, the elastic net model had an accuracy of `r round(acc_interval_enet$estimate, 2)`, but the interval estimate for such a small holdout sample is very wide - from `r round(acc_interval_enet$conf.int[1], 2)` to `r round(acc_interval_enet$conf.int[2], 2)`. The interval estimate for the *difference* in accuracy between the elastic net and boosting models is from `r round(diff_interval$conf.int[1], 2)` to `r round(diff_interval$conf.int[2], 2)`[^proptest]. Again, don't take this result too far, we're dealing with a small data set and it is difficult to detect potentially complex relationships in such a setting. In addition, we could have done more to explore the parameter space of the models, but we'll leave that for another time. But this was a good example of the importance of having an adequate baseline, and where complexity didn't really help much, though all our approaches did well. In this case, any of these models would be a good choice for future prediction.
+ It's important to note that none of these results are *statistically different* from each other. As an example, the elastic net model had an accuracy of `r round(acc_interval_enet$estimate, 2)`, but the interval estimate for such a small holdout sample is very wide - from `r round(acc_interval_enet$conf.int[1], 2)` to `r round(acc_interval_enet$conf.int[2], 2)`. The interval estimate for the *difference* in accuracy between the elastic net and boosting models is from `r round(diff_interval$conf.int[1], 2)` to `r round(diff_interval$conf.int[2], 2)`[^proptest]. Again, we shouldn't take this result too far, as we're dealing with a small data set and it is difficult to detect potentially complex relationships in such a setting. In addition, we could have done more to explore the parameter space of the models, but we'll leave that for another time. But this was a good example of the importance of having an adequate baseline, and where complexity didn't really help much, though all our approaches did well. In this case, any of these models would be a good choice for future prediction.
 
 [^proptest]: We just used the `prop.test` function in R for these values with the key question of whether these proportions are different. A lot of the metrics people look at from confusion matrices are proportions.
 
 
 
 :::{.callout-note title='Test metrics better than training?' collapse='true'}
-Some may wonder how the holdout results can be better than the cross-validation results, as they are for the elastic net model. This can definitely happen, and at least in this case probably just reflects the small sample size. The holdout set is a random sample of 20% of the complete data, which is `r round(nrow(X)*.8)` examples. Just a couple different predictions could result in a several percentage point difference in accuracy. Also, this could happen just by chance. In general though, you'd expect the holdout results to be a bit, or even significantly, worse than the cross-validation results.
+Some may wonder how the holdout results can be better than training, which you might have seen in playing around with the models for this data. This can definitely happen, and at least in this case, would probably just reflect the small sample size. The holdout set is a random sample of 20% of the complete data, which is `r round(nrow(df_heart)*.2)` examples. Just slightly different predictions could result in a several percentage point difference in accuracy. In general though, you'd expect the holdout results to be a bit, or even significantly, worse than the training results.
 :::
 
 
 ## Interpretation {#sec-ml-common-interpret}
 
-When it comes to machine learning, many models we use don't have an easy interpretation, like with coefficients in a linear model. However, that doesn't mean we can't still figure out what's going on. Let's use the boosting model as an example.
+When it comes to machine learning, many models we use don't have an easy interpretation, like with coefficients in a linear regression model. However, that doesn't mean we can't still figure out what's going on. Let's use the boosting model as an example.
 
 
 ### Feature Importance {#sec-ml-common-feat-imp}
 
-The default importance metric for a lightgbm model is the number of splits in which a feature is used across trees, and this will depend a lot on the chosen parameters of the best model. But there are other ways to think about what importance means that will be specific to a model, data setting, and ultimate goal of the modeling process. For this data and the model, depending on the settings, you might see that the most important features are age, cholesterol, and max heart rate.
+The default importance metric for a lightgbm model is the number of splits in which a feature is used across trees, and this will depend a lot on the chosen parameters of the best model. For the table below, we show the top 4 features from the tuned model and values rescaled to be between 0 and 1 for easier comparison. But there are other ways to think about what importance means that will be specific to a model, data setting, and the ultimate goal of the modeling process. 
 
 :::{.panel-tabset}
 
@@ -1577,13 +1601,24 @@ The default importance metric for a lightgbm model is the number of splits in wh
 #| echo: true
 # Get feature importances
 best_model = model_boost_cv_tune.best_estimator_
-best_model.feature_importances_
+best_model.feature_importances_ # seriously, no feature names?
 
-# you remember which feature is which, right? if not, do this:
+# if it's not obvious which of these values belongs to which feature, do this:
 pd.DataFrame({
     'Feature': best_model.feature_name_,
     'Importance': best_model.feature_importances_
 }).sort_values('Importance', ascending=False)
+```
+
+```{python}
+#| label: imp-py-save
+#| eval: false
+#| echo: false
+
+pd.DataFrame({
+    'Feature': best_model.feature_name_,
+    'Importance': best_model.feature_importances_
+}).sort_values('Importance', ascending=False).to_csv('ml/data/tune-boost-py-importances.csv', index=False)
 ```
 
 ##### R
@@ -1610,12 +1645,18 @@ model_boost_cv_tune$learner$importance()
 #| tbl-cap: Top 4 features from a tuned LGBM model.
 
 # load the tuned model
-load("ml/data/tune-boost-r-results.RData")
+# load("ml/data/tune-boost-r-results.RData")
 
-model_boost_cv_tune$learner$importance() |> 
-    as_tibble(rownames = "Feature")  |> 
+# model_boost_cv_tune$learner$importance() |> 
+#     as_tibble(rownames = "Feature")  |> 
+#     head(4) |> 
+#     gt()
+df_imp = read_csv('ml/data/tune-boost-py-importances.csv')
+df_imp |> 
+    mutate(Importance = rescale(Importance)) |>
     head(4) |> 
     gt()
+
 ```
 
 Now let's think about a visual display to aid our understanding. Here we show a partial dependence plot (@sec-knowing-related-viz) to see the effects of cholesterol and being male. From this we can see that males are expected to have a higher probability of heart disease, and that cholesterol has a positive relationship with heart disease, though this occurs mostly after midpoint for cholesterol (shown by vertical line). The plot shown is a prettier version of what you'd get with the following code, but the model predictions are the same.
@@ -1767,18 +1808,22 @@ When you research classical machine learning models for the kind of data we've b
 - Some, like k-nearest neighbors regression, generally don't predict as well as other models.
 - Others, like linear discriminant analysis, make strong assumptions about how the data is distributed.
 - Some models, like SVM, tend to work well only with 'clean' and well-structured data of the same type.
-- Many of these models are computationally demanding, making them less practical for large datasets.
+- Many of these models' standard approach is computationally demanding, making them less practical for large datasets.
 - Lastly, some of these models are less interpretable, making it hard to understand their predictions without an obvious gain in performance.
 
 While some of these classical models might still work well in unique situations, when you have tools that can handle a lot of data complexity and predict very well (and usually better) like tree-based methods, there's not much reason to use the historical alternatives. If you're interested in learning more about them or think one of them is just 'neat', you could potentially use it as a baseline model. Alternatively, you could maybe employ them as part of an ensemble or **stacked** model, where you combine the predictions of multiple models to produce a single prediction. This is a common approach in machine learning, and is often used in Kaggle competitions. 
 
-There are also other methods that are more specialized, such as those for text, image, and audio data. We will provide an overview of these elsewhere (@sec-ml-more). As of this writing, the main research effort for new models for tabular data regards deep learning methods like large language models (LLMs). While typically used for text data, they can be adapted for tabular data as well. They are very powerful, but also computationally expensive. The issue is primarily whether a model can be devised that can consistently beat boosting and other approaches, and while it hasn't happened yet, there is a good chance it will in the near future. For now, the best approach is to use the best model that works for your data, and to be open to new methods as they come along. 
+There are also other methods that are more specialized, such as those for text, image, and audio data. We will provide an overview of these elsewhere (@sec-ml-more). As of this writing, the main research effort for new models for tabular data regards deep learning methods like large language models (LLMs). While typically used for text data, they can be adapted for tabular data as well. They are very powerful, but also computationally expensive. The issue is primarily whether a model can be devised that can consistently beat boosting and other approaches that already do very well. While it hasn't happened yet, there is a good chance it will in the near future. For now, the best approach is to use the best model that works for your data, and to be open to new methods as they come along.
 
+
+:::{.callout-info title='SOTA Deep Learning for Tabular Data' collapse='true'}
+As of this writing, the current state-of-the-art (SOTA) for deep learning on tabular data appears to be techniques like TabR (@gorishniy_tabr_2023) and Modern NCA (@ye_modern_2024). These are very new and not yet widely used, but they are showing promise in some benchmarks. They still do not consistently beat boosting methods, but they appear to be on par with them.
+:::
 
 
 ## Wrapping Up {#sec-ml-common-wrap}
 
-In this chapter we've provided a few common and successful models you can implement with much success in machine learning.  You don't really need much beyond these for tabular data unless your unique data condition somehow requires it. But a couple things are worth mentioning before moving on...
+In this chapter we've provided a few common and successful models you can implement with much success in machine learning.  You don't really need much beyond these for tabular data unless your unique data condition somehow requires it. But a couple things are worth mentioning before moving on from models in machine learning...
 
 > **Feature engineering will typically pay off more in performance than the model choice.**
 
@@ -1786,29 +1831,29 @@ In this chapter we've provided a few common and successful models you can implem
 
 > **The best model is simply the one that works best for your situation.**
 
-You'll always get more payoff by coming up with better features to use in the model, as well as just using better data that's been 'fixed' because you've done some good exploratory data analysis. Thinking harder about the problem means you will waste less time going down dead ends, and you typically can find better data to use to solve the problem by thinking more clearly about the question at hand. And finally, it's good to not be stuck on one model, and be willing to use whatever it takes to get things done efficiently.
+You'll always get more payoff by coming up with better features to use in the model, as well as just using better data that's been 'fixed' because you've done some good exploratory data analysis. Thinking harder about the problem means you will waste less time going down dead ends. You also can find better data to use to solve the problem by thinking more clearly about the question at hand. And finally, it's good to not be stuck on one model, and be willing to use something new to get the job done.
 
 
 ### The common thread {#sec-ml-common-thread}
 
-When it comes to machine learning, you can use any model you feel like, and this could be standard statistical models like we've covered elsewhere. Both boosting and neural networks, like GAMs and related techniques, can be put under a common heading of basis function models. GAMs with certain types of smooth functions are approximations of gaussian processes, and gaussian processes are equivalent to a neural network with an infinitely wide hidden layer (@neal_priors_1996).
-Even the most complicated deep learning model typically has components that involve feature combinations and transformations that we use in far simpler models.
+When it comes to machine learning, you can use any model you feel like, and this could be standard statistical models like we've covered elsewhere. Both boosting and neural networks, like GAMs and related techniques, can be put under a common heading of *basis function models*. GAMs with certain types of smooth functions are approximations of gaussian processes, and gaussian processes are equivalent to a neural network with an infinitely wide hidden layer (@neal_priors_1996).
+Even the most complicated deep learning model typically has components that involve feature combinations and transformations that we use in far simpler models like linear regression.
 
 ### Choose your own adventure {#sec-ml-common-choose}
 
 If you haven't had much exposure to statistical approaches we suggest heading to any chapter before chapter [-@sec-ml-core-concepts]. Otherwise, consider an overview of more machine learning techniques (@sec-ml-more), data (@sec-data), or causal modeling (@sec-causal).
 
-### Additional resources {#sec-ml-common-resources}
 
+### Additional resources {#sec-ml-common-resources}
 
 Additional resources include those mentioned in @sec-ml-resources, but here are some more to consider:
 
-- [Google's Course Decision Forests](https://developers.google.com/machine-learning/decision-forests)
 - [Interpretable ML](https://christophm.github.io/interpretable-ml-book/)  (@molnar_interpretable_2023)
 - Interpretable Machine Learning with Python (@masis_interpretable_2023)
 - [Machine Learning Q & AI](https://substack.com/redirect/84b123ee-9f41-4b96-be90-5e38028c2424?j=eyJ1IjoiMXR6aHdpIn0.5Ipuq5Kqxxiat2G2fMY0hl7pUnbdbCGq1J3hhzg1FeU) (@raschka_machine_2023)
+- [Google's Course on Decision Forests](https://developers.google.com/machine-learning/decision-forests)
 
-Deep Learning:
+For deep learning specifically:
 
 - [Common activation functions](https://ml-cheatsheet.readthedocs.io/en/latest/activation_functions.html)
 - An overview of deep learning applications for tabular data by Michael (@clark_this_2021, @clark_deep_2022)
@@ -1820,3 +1865,114 @@ Deep Learning:
 ## Guided Exploration {#sec-ml-common-exercise}
 
 Tune a model of your choice to predict whether a movie is good or bad with the [movie review data](https://tinyurl.com/moviereviewsdata). Use the categorical target, and use one-hot encoded features if needed. Make sure you use a good baseline model for comparison!
+
+:::{.panel-tabset}
+
+##### Python
+
+```{python}
+#| label: exercise-py
+#| eval: false
+df_reviews = pd.read_csv('https://tinyurl.com/moviereviewsdata')
+
+df_reviews_sub = df_reviews[[
+    'review_year',
+    'age',
+    'children_in_home',
+    'education',
+    'work_status',
+    'genre',
+    'release_year',
+    'word_count',
+    'rating_good'
+]]
+
+
+X_train, X_test, y_train, y_test = train_test_split(
+    df_reviews_sub.drop(columns='rating_good'), 
+    df_heart_num['rating_good'],
+    test_size = ???,
+    random_state = 42
+)
+
+model_boost = LGBMClassifier(
+    verbose = -1
+)
+
+param_grid = {
+    'n_estimators': ???,
+    'learning_rate': ???,
+    'max_depth': ???,
+    'min_child_samples': ???,
+}
+
+# this will take a few seconds
+model_boost_cv_tune = RandomizedSearchCV(
+    model_boost, 
+    param_grid, 
+    n_iter = 10,
+    cv = ???, 
+    scoring = ????, 
+    n_jobs = -1,
+    random_state = 42
+)
+
+model_boost_cv_tune.fit(X_train, y_train)
+
+test_predictions = model_boost_cv_tune.predict(X_test)
+accuracy_score(y_test, test_predictions)
+```
+
+##### R
+
+```{r}
+#| label: exercise-r
+#| eval: false
+
+df_reviews = read_csv('https://tinyurl.com/moviereviewsdata')
+
+df_reviews_sub = df_reviews %>%
+    select(
+        review_year,
+        age,
+        children_in_home,
+        education,
+        work_status,
+        genre,
+        release_year,
+        word_count,
+        rating_good
+    ) |> 
+    mutate(
+        across(where(is.character), \(x) as.factor(x))
+    )
+
+set.seed(42)
+
+tsk_model_boost_cv_tune = as_task_classif(
+    df_reviews_sub,
+    target = "rating_good"
+)
+
+split = partition(tsk_model_boost_cv_tune, ratio = ??)
+
+lrn_lgbm = lrn(
+    "classif.lightgbm",
+    num_iterations = to_tune(c(???, ???)),
+    learning_rate = to_tune(1e-3, 1e-1, logscale = TRUE),
+    max_depth = to_tune(c(???, ???)),
+    min_data_in_leaf = to_tune(c(???, ???))
+)
+
+model_boost_cv_tune = auto_tuner(
+    tuner = tnr("random_search"),
+    learner = lrn_lgbm,
+    resampling = rsmp("cv", folds = ???),
+    measure = msr("classif.acc"),
+    terminator = trm("evals", n_evals = ???)
+)
+
+model_boost_cv_tune$train(tsk_model_boost_cv_tune, row_ids = split$train)
+model_boost_cv_tune$predict(tsk_model_boost_cv_tune, row_ids = split$test)$score(msr("classif.acc"))
+```
+:::
