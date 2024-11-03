@@ -1,0 +1,162 @@
+---
+title: "Generalized Linear Models"
+format: html
+---
+
+## Logistic Regression
+
+### The Binomial Distribution
+
+```{r}
+#| label: binom-demo-r
+set.seed(123)
+
+# produces a count whose mean is n*p
+rbinom(n = 6, size = 100, prob = .75)
+
+# produces a binary 0, 1 as seen in logistic regression target (with mean p)
+rbinom(n = 6, size = 1, prob = .75)
+```
+
+
+### Odds Ratios
+
+
+```{r}
+#| label: calculate-odds-ratio-r
+calculate_odds_ratio = function(p_1, p_2) {
+    odds_1 = p_1 / (1 - p_1)
+    odds_2 = p_2 / (1 - p_2)
+    odds_ratio = odds_2 / odds_1
+    
+    tibble(
+        value    = c('1', '2'),
+        p        = c(p_1, p_2),
+        odds     = c(odds_1, odds_2),
+        log_odds = log(odds),
+        odds_ratio = c(NA, odds_ratio)
+    )
+}
+
+result_A = calculate_odds_ratio(.5, .6)
+result_B = calculate_odds_ratio(.1, .2)
+result_C = calculate_odds_ratio(.9, .8)  # inverse of the .1, .2 example 
+
+result_A
+```
+
+### Logistic Regression Model
+
+```{r}
+#| label: import-data-model-logistic-r
+df_reviews = read_csv('https://tinyurl.com/moviereviewsdata')
+
+model_logistic = glm(
+    rating_good ~ word_count + gender, 
+    data = df_reviews,
+    family = binomial
+)
+
+summary(model_logistic)
+```
+
+## Poisson Regression
+
+### Poisson Distribution
+```{r}
+#| label: create-poss-pronoun-r
+df_reviews$poss_pronoun = stringr::str_count(
+    df_reviews$review_text, 
+    '\\bI\\b|\\bme\\b|\\b[Mm]y\\b|\\bmine\\b|\\bmyself\\b'
+)
+
+hist(df_reviews$poss_pronoun)
+```
+
+
+### Poisson Regression Model
+
+```{r}
+#| label: model-poisson-r
+model_poisson = glm(
+    poss_pronoun ~ word_count + gender,
+    data = df_reviews,
+    family = poisson
+)
+
+summary(model_poisson)
+```
+
+
+```{r}
+exp(coef(model_poisson))
+```
+
+## How Did We Get Here?
+
+
+```{r}
+#| label: glm-ml-r
+glm_simple = function(par, X, y, family = 'binomial') {
+    # add a column for the intercept
+    X = cbind(1, X)
+
+    # Calculate the linear predictor
+    mu = X %*% par # %*% is matrix multiplication
+
+    # get the likelihood for the binomial or poisson distribution
+    if (family == 'binomial') {
+        # Convert to a probability ('logit' link/inverse)
+        p = 1 / (1 + exp(-mu))
+        L = dbinom(y, size = 1, prob = p, log = TRUE)
+    }
+    else if (family == 'poisson') {
+        # Convert to a count ('log' link/inverse)
+        p = exp(mu)
+        L = dpois(y, lambda = p, log = TRUE)
+    }
+
+    # return the negative sum of the log-likelihood (for minimization)
+    value = -sum(L) 
+
+    return(value)
+}
+```
+
+
+```{r}
+#| label: logreg-ml-r-run
+X = df_reviews |> 
+    select(word_count, male = gender) |> 
+    mutate(male = ifelse(male == 'male', 1, 0)) |> 
+    as.matrix()
+
+y = df_reviews$rating_good
+
+init = rep(0, ncol(X) + 1)
+
+names(init) = c('intercept', 'b1', 'b2')
+
+our_logistic = optim(
+    par = init,
+    fn = glm_simple,
+    X = X,
+    y = y,
+    control = list(reltol = 1e-8)
+)
+
+our_logistic$par
+```
+
+```{r}
+#| label: model-poisson-r-by-hand
+our_poisson = optim(
+    par = c(0, 0, 0),
+    fn = glm_simple,
+    X = X,
+    y = df_reviews$poss_pronoun,
+    family = 'poisson'
+)
+
+our_poisson$par
+```
