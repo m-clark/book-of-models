@@ -5,13 +5,15 @@ format: html
 
 ```{r}
 library(tidyverse)
+
+library(mlr3)
+library(mlr3measures)
+library(mlr3learners)
 ```
 
 ## Performance Metrics
 
 ```{r}
-library(mlr3measures)
-
 # convert rating_good to factor for some metric inputs
 df_reviews = read_csv('https://tinyurl.com/moviereviewsdata') |> 
     mutate(rating_good = factor(rating_good, labels = c('bad', 'good'))) 
@@ -62,7 +64,7 @@ recall    = recall(df_reviews$rating_good, y_pred_logreg, positive = 'good')
 
 ```{r}
 # create a train and test set
-library(rsample) # for cross validation
+library(rsample)
 
 set.seed(123)
 
@@ -102,8 +104,6 @@ tibble(
 
 
 ```{r}
-library(mlr3learners)
-
 X = df_reviews |>  
     select(matches('_sc|good'))  # grab the standardized features/target
 
@@ -136,7 +136,7 @@ model_logistic_l2$aggregate(msr('classif.acc'))
 
 ```{r}
 # Load necessary libraries
-library(mlr3tuning) # for tuning
+library(mlr3tuning)    # for tuning
 
 X = df_reviews |> 
     mutate(rating_good = as.factor(rating_good)) |> 
@@ -218,4 +218,37 @@ preds$score(msr('classif.acc'))
 
 # Save pipeline
 # saveRDS(logistic_cv_pipeline, 'pipeline.rds')
+```
+
+
+## Guided exploration
+
+
+```{r}
+# task = TaskClassif$new('movie_reviews', df_reviews, target = 'rating_good')
+# split = partition(task, ratio = 0.75) # set train/test split
+
+# # Define learner
+# learner = lrn(
+#     'classif.rpart', 
+#     predict_type = 'prob', # get predicted probabilities
+#     cp = to_tune(1e-04, 1e-1, logscale = TRUE)
+# )
+
+# pipeline = ??? # see the text example
+
+# at = auto_tuner(
+#     tuner = tnr('random_search'),
+#     learner = pipeline,
+#     resampling = rsmp ('cv', folds = 5),
+#     measure = msr('classif.???'),  # change ??? e.g. try auc, recall, logloss
+#     term_evals = 10
+# )
+
+# #
+# at$train(task, row_ids = split$train)
+
+# at$model$learner$param_set$values # get the best parameter
+
+# at$predict(task, row_ids = split$test)$score(msr('classif.???')) # change ???
 ```
