@@ -88,6 +88,7 @@ model_boost_cv = resample(
 
 ## Neural Network Model
 
+There's no simple MLP model in the R world, so we use pytorch via mlr3torch. It is also an experimental package, and we can't promise how well it might work for you (we had many issues, and it's documentation is not very helpful).
 
 ```{r}
 library(mlr3torch)
@@ -95,16 +96,16 @@ library(mlr3torch)
 learner_mlp = lrn(
     "classif.mlp",
     # defining network parameters
-    layers = 3,
-    d_hidden = 200,
+    neurons = c(200, 200, 200),
     # training parameters
     batch_size = 16,
     epochs = 50,
     # Defining the optimizer, loss, and callbacks
     optimizer = t_opt("adam", lr = 1e-3),
     loss = t_loss("cross_entropy"),
-    # # Measures to track
+    # Measures to track
     measures_train = msrs(c("classif.logloss")),
+    validate = .1, # Proportion of data to use for validation
     measures_valid = msrs(c("classif.logloss", "classif.ce")),
     # predict type (required by logloss)
     predict_type = "prob",
@@ -164,6 +165,12 @@ model_boost_cv_tune$predict(tsk_model_boost_cv_tune, row_ids = split$test)$score
 ## Comparing Models
 
 This is one approach to comparing models with mlr3. As mentioned in the text, your results may vary depending on the data and the settings you choose, and will definitely be a little different from the depicted Python results.
+
+For the MLP, there doesn't appear a way to tune over a list of layer values, so we search the space of them in an admittedly convoluted way. See the following link for details:
+
+https://mlr3book.mlr-org.com/chapters/chapter4/hyperparameter_optimization.html#sec-tune-trafo
+
+
 
 ```{r}
 library(mlr3verse)
@@ -243,14 +250,24 @@ lrn_lgbm = lrn(
 
 lrn_lgbm$param_set$values = lrn_lgbm_tune$tuning_result$learner_param_vals[[1]]
 
-# Tune and setup MLP
-library(mlr3torch)
+# Tune and setup MLP (will take a couple minutes for each eval)
+
+search_space = ps(
+    ## p_int for integer valued parameters
+    nodes = p_int(100, 200),
+    layers = p_int(lower = 2, upper = 2),
+    .extra_trafo = function(x, param_set) {
+        x$neurons = rep(x$nodes, x$layers)
+        x$nodes = x$layers = NULL
+        return(x)
+    }
+)
+
 
 learner_mlp = lrn(
     "classif.mlp",
     # defining network parameters
-    layers = to_tune(2, 3),
-    d_hidden = to_tune(c(100, 200)),
+    # neurons = c(c(100, 100), c(200, 200)), 
     # training parameters
     batch_size = 16,
     epochs = 200,
@@ -259,6 +276,7 @@ learner_mlp = lrn(
     loss = t_loss("cross_entropy"),
     # Measures to track
     measures_train = msrs(c("classif.logloss")),
+    validate = .1, # Proportion of data to use for validation
     measures_valid = msrs(c("classif.logloss", "classif.ce")),
     # predict type (required by logloss)
     predict_type = "prob"
@@ -268,6 +286,7 @@ lrn_mlp_tune = AutoTuner$new(
     learner = learner_mlp,
     resampling = cv,
     measure = metric,
+    search_space = search_space,
     tuner = tnr("random_search"),
     terminator = trm("evals", n_evals = 10)
 )
@@ -277,7 +296,8 @@ lrn_mlp_tune$train(task)
 
 lrn_mlp = lrn(
     "classif.mlp",
-    predict_type = "prob"
+    predict_type = "prob",
+    validate = .1
 )
 
 lrn_mlp$param_set$values = lrn_mlp_tune$tuning_result$learner_param_vals[[1]]
@@ -296,6 +316,7 @@ bmr = benchmark(benchmark_grid, store_models = FALSE)
 ```{r}
 bmr$aggregate(msr("classif.acc"))
 ```
+
 
 ## Feature Importance
 
