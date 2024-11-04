@@ -8,22 +8,24 @@
 :::
 
 
-Causal inference is a very important topic in machine learning and statistics, and it is also a very difficult one to understand well, or consistently, because *not everyone agrees on how to define a cause in the first place*. Our focus here is merely practical- we just want to show some of the common model approaches used when attempting to answer causal questions. But causal modeling in general is such a rabbit hole that we won't be able to go into much detail, but we will try to give you a sense of the landscape, and some of the key ideas.
+Causal inference is a very important topic in machine learning and statisticals modeling approaches, and it is also a very difficult one to understand well, or consistently, because *not everyone agrees on how to define a cause in the first place*. Our focus here is merely practical- we just want to discuss some of the common modeling approaches that are commonly used when attempting to answer causal questions. But causal modeling in general is such a rabbit hole that we won't be able to go into much detail as the topic deserves. However we will try to give you a sense of the landscape, and some of the key ideas.
 
 
 ## Key Ideas {#sec-causal-key-ideas}
 
 - No model can tell you whether a relationship is causal or not. Causality is inferred, not proven, based on the available evidence.
-- The exact same models would be used for similar data settings to answer a causal question or a purely predictive question. The primary difference is in the interpretation of the results.
+- The exact same models would be used for similar data settings to answer a causal question or a purely predictive question. A key difference is in the interpretation of the results.
 - Experimental design, such as randomized control trials, are the gold standard for causal inference. But the gold standard is often not practical, and not without its limitations even when it is.
 - Causal inference is often done with observational data, which is often the only option, and that's okay.
 - Counterfactual thinking is at the heart of causal inference, but is useful for all modeling contexts.
 - Several models exist which are typically employed to answer a more causal-oriented question. These include structural equation models, graphical models, uplift modeling, and more.
-- Interactions are the norm, if not the reality. Causal inference generally regards a single effect. If the normal setting is that such an effect would always vary depending on other features, you should question why you want to aggregate your results to a single 'effect', since that effect would be potentially misleading.
+- Interactions are the norm for most modeling scenarios. Causal inference generally regards a single effect. If the normal setting is that such an effect would always vary depending on other features, you should be wary trying to aggregate your results to a single 'effect', since that effect would be potentially misleading.
 
 ### Why it matters {#sec-causal-why}
 
-Often we need a precise statement about the feature-target relationship, not just whether there is some relationship. For example, we might want to know whether a drug works well, or whether showing an advertisement results in a certain amount of new sales. Whether or not random assignment was used, we generally need to know whether the effect is real, and the size of the effect, and often, the uncertainty in that estimate. Causal modeling is, like machine learning, more of an approach than a specific model, and that approach may involve the design or implementing models we've already seen in a different way to answer the key question. Without more precision in our understanding, we could miss the effect, or overstate it, and make bad decisions as a result.
+Often we need a precise statement about the feature-target relationship, not just a declaration that there is 'some' relationship. For example, we might want to know whether a drug works well, or show that an advertisement results in a certain amount of new sales. Whether or not random assignment was used, we generally need to know whether the effect is real, and the size of the effect, and often, the uncertainty in that estimate. 
+
+Causal modeling is, like machine learning, more of an approach than a specific model, and that approach may involve the design or implementation of models we've already seen, but in a different way to answer the key question. Without more precision in our understanding, we could miss the effect, or overstate it, and make bad decisions as a result.
 
 
 ### Helpful context {#sec-causal-good-to-know}
@@ -69,7 +71,140 @@ ggsave('img/causal-dag.svg', width = 8, height = 6)
 ```
 
 
-![A Causal DAG](img/causal-dag.svg){width=75% #fig-causal-dag}
+<!-- ![A Causal DAG](img/causal-dag.svg){width=75% #fig-causal-dag} -->
+
+
+
+
+## Prediction and Explanation Revisited {#sec-causal-prediction-explanation}
+
+We introduced the idea of prediction and explanation in the context of linear models in @sec-lm-prediction-vs-explanation, and it's worth revisiting here. One attribute of a causal model is an intense focus on the explanatory power of the model.  We want to demonstrate that there is a relationship between usually a single feature and the target, and we want to know the precise manner of this relationship as much as possible. Even if we use complex models, e.g., as with meta-learners, the endeavor is to explain the specifics.
+
+
+```{r}
+#| echo: false
+#| label: prediction-vs-explanation-demo
+set.seed(42)
+n = 10000
+x = rnorm(n)
+y_num = rbinom(n, 1, plogis(.05*x))
+y = factor(y_num)
+
+model = glm(y ~ x, family = 'binomial')
+x_OR = round(exp(coef(model)['x']), 2)
+# summary(model)
+
+
+# summary(model)
+#confint(model)['x',]
+y_pred0 = predict(model, data.frame(x=0), type='response')
+y_pred1 = predict(model, data.frame(x=1), type='response')
+
+prob_diff = label_percent()(y_pred1 - y_pred0)
+
+pred_class = factor(as.integer(predict(model, type = 'response') > .5))
+base_rate = label_percent()(mean(y == '1'))
+# mlr3measures::confusion_matrix(y, pred_class, positive = '1') 
+
+x_new = data.frame(x = rnorm(100))
+y_new = factor(rbinom(100, 1, plogis(.05 * x_new$x)))
+pred_class_new = factor(as.integer(predict(model, newdata = x_new, type = 'response') > .5))
+# mean(y_new == '1')
+# mlr3measures::confusion_matrix(y_new, pred_class_new, positive = '1') 
+causal_power = readRDS('data/causal_power.rds')
+```
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: prediction-vs-explanation-demo-power
+get_power = function(reps = 1000) {
+    pvals = replicate(reps, {
+        y = rbinom(n, 1, plogis(.05*x))
+        model = glm(y ~ x, family = 'binomial')
+        summary(model)$coefficients['x', 4]
+    })
+    mean(pvals < .05)
+}
+causal_power = scales::label_percent()(get_power())
+
+saveRDS(causal_power, 'data/causal_power.rds')
+```
+
+
+
+Let's say that we used some particular causal modeling approach to explain a feature-target relationship in a classification setting.  We have 10,000 observations, and the baseline rate of the target is about ~`r base_rate`. We have a model that predicts the target `y` based on the feature of interest `x`, and we may have used something like propensity score weighting or some other technique to help control for confounding. 
+
+The coefficient, though small with an odds ratio of `r x_OR`, is statistically significant (take our word for it), and we can see a slight positive relationship. Under certain settings, such as this where we are interested in causal effects and where we have controlled for various other factors to obtain this result, we might be satisfied with interpreting this positive relationship. 
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: fig-prediction-vs-explanation-demo-plot
+#| fig-cap: Results from a hypothetical causal model
+#| out-width: 100%
+pdat = plot(ggeffects::ggpredict(model, terms = 'x'))$data
+ggeffects::ggpredict(model, terms = 'x') |> 
+    plot(use_theme = FALSE) +
+    geom_segment(
+        # aes(
+            x = 0,
+            xend = 1,
+            y = y_pred0,
+            yend = y_pred1,
+        # ),
+        color = okabe_ito[['darkblue']],
+        linewidth = 1.5
+    ) +
+    geom_segment(
+        x = 0,
+        xend = min(pdat$x),
+        y = y_pred0,
+        yend = y_pred0,
+        color = okabe_ito[['darkblue']],
+        arrow = arrow(type = 'closed', angle = 30, length = unit(0.1, 'inches'))
+    ) +
+    geom_segment(
+        x = 1,
+        xend = min(pdat$x),
+        y = y_pred1,
+        yend = y_pred1,
+        color = okabe_ito[['darkblue']],
+        arrow = arrow(type = 'closed', angle = 30, length = unit(0.1, 'inches'))
+    ) +
+    labs(
+        title = '',
+        caption = 'The model does not predict well but suggests a small positive effect.',
+    ) +
+    scale_y_continuous(breaks = c(seq(.4, .6, .05), seq(.5, .55, .01)), labels = scales::label_percent())
+
+ggsave('img/causal-prediction-vs-explanation-demo-plot.svg', width = 8, height = 6)
+```
+
+![Results from a hypothetical causal model](img/causal-prediction-vs-explanation-demo-plot.svg){width=100% #fig-prediction-vs-explanation-demo-plot}
+
+But if we are interested in predictive performance, we would be disappointed with this model. It predicts the target at about the same rate as guessing, even on the data it's fit on, and does even worse with new data. Even the effect as shown is quite small by typical standards, as it would take a standard deviation change in the feature to get a ~`r prob_diff` change in the probability of the target (x is standardized).
+
+If we are concerned solely with explanation, we now would want to ask ourselves first if we can trust our result based on the data, model, and various issues that went into producing it. If so, we can then see if the effect is large enough to be of interest, and if the result is useful in making decisions[^seedsofchange]. It may very well be, maybe the target concerns the rate of survival, where any increase is worthwhile. Or perhaps the data circumstances demand such interpretation, because it is extremely costly to obtain more. For more exploratory efforts however, this sort of result would likely not be enough to come to any strong conclusion even if explanation is the only goal. 
+
+[^seedsofchange]: This is a contrived example, but it is definitely something that you might see in the wild. The relationship is weak, and though statistically significant, the model can't predict the target well at all. The **statistical power** is actually decent in this case, roughly `r causal_power`, but this is mainly because the sample size is so large and it is a very simple model setting. <br> This is a common issue in many academic fields, and it's why we always need to be careful about how we interpret our models. In practice, we would generally need to consider other factors, such as the cost of a false positive or false negative, or the cost of the data and running the model itself, to determine if the model is worth using.
+
+As another example, consider the world happiness data we've used in previous demonstrations. We want to explain the association of country level characteristics and the population's happiness. We likely aren't going to be as interested in predicting next year's happiness score, but rather what attributes are correlated with a happy populace in general. In this election year (2024) in the U.S., we'd be interested in specific factors related to presidential elections, of which there are relatively very few data points. In these cases, explanation is the focus, and we may not even need a model at all to come to our conclusions.
+
+So we can understand that in some settings we may be more interested in understanding the underlying mechanisms of the data, as with these examples, and in others we may be more interested in predictive performance, as in our demonstrations of machine learning. However, the distinction between prediction and explanation in the end is a bit problematic, not the least of which is that we often want to do both.
+
+Although it's often implied as such, *prediction is not just what we do with new data*. It is the very means by which we get any explanation of effects via coefficients, marginal effects, visualizations, and other model results. Additionally, where the focus is on predictive performance, if we can't explain the results we get, we will typically feel dissatisfied, and may still question how well the model is actually doing.
+
+Here are some ways we might think about different modeling contexts:
+
+- **Descriptive Analysis**: A description of data with no modeling focus. We'll use descriptive statistics and visualizations to understand the data. An end product may be an infographic or a report. Even here we may still use models to aid visualizations or otherwise to help us understand the data better.
+- **Exploratory Modeling**: When using models for exploration, focus should probably be on both prediction and explanation. The former can help inform the strength of the results for future exploration, while the latter will often provide useful insights.
+- **Causal Modeling**: Using models to understand causal effects. We focus on explanation, and prediction on the current data. We may very well be interested in predictive performance also, and often are in industry.
+- **Generalization**: When our goal is generalizing to unseen data, the focus is always on predictive performance. This does not mean we can't use the model to understand the data though, and explanation could possibly be as important.
+
+Depending on the context, we may be more interested explanation or predictive performance, but in practice we often, and usually, want both. It is crucial to remind yourself why you are interested in the problem, what a model is capable of telling you about it, and to be clear about what you want to get out of the result.
+
+
 
 ## Classic Experimental Design {#sec-causal-classic}
 
@@ -77,7 +212,7 @@ ggsave('img/causal-dag.svg', width = 8, height = 6)
 ```{r}
 #| eval: false
 #| echo: false
-#| label: r-random-assignment
+#| label: r-random-assignment-HTML
 #| fig-cap: Random Assignment
 #| 
 # Load the necessary library
@@ -86,7 +221,7 @@ ggsave('img/causal-dag.svg', width = 8, height = 6)
 # Create a data frame with random assignments
 set.seed(123)
 N = 250
-df <- data.frame(
+df = data.frame(
     x = rnorm(250, sd = .1),
     y = rnorm(250, sd = .1),
     group = sample(c('A', 'B'), 250, replace = TRUE),
@@ -162,8 +297,8 @@ design <- '
     p_groups/
     p_waff) +
     plot_layout(width = c(1, 2, 2), design = design) &
-    scale_color_brewer(palette = 'Set1', aesthetics = c('fill', 'color'))# + set1 supposedly print friendly
-    # scale_color_manual(values = unname(okabe_ito), aesthetics = c('fill', 'color')) 
+    # scale_color_brewer(palette = 'Set1', aesthetics = c('fill', 'color'))# + set1 supposedly print friendly
+    scale_color_manual(values = unname(okabe_ito), aesthetics = c('fill', 'color')) 
 
 ggsave(
     'img/causal-random-assignment.svg', 
@@ -173,15 +308,134 @@ ggsave(
 )   
 ```
 
+
+
+```{r}
+#| eval: false
+#| echo: false
+#| label: r-random-assignment-PDF
+#| fig-cap: Random Assignment
+#| 
+# Load the necessary library
+
+
+# Create a data frame with random assignments
+set.seed(123)
+N = 250
+df = data.frame(
+    x = rnorm(250, sd = .1),
+    y = rnorm(250, sd = .1),
+    group = sample(c('A', 'B'), 250, replace = TRUE),
+    col_group = sample(rainbow(5), 250, replace = TRUE)
+)
+
+dot_size = 5
+
+# Plot the data as a single cluster
+p_all = ggplot(df, aes(x, y)) +
+    geom_point(
+        aes(shape = col_group),  
+        fill = 'white', 
+        size = dot_size, 
+        show.legend = FALSE, 
+        alpha = 1
+    ) +
+    labs(
+        title = 'Random Assignment to Groups A and B',
+    ) +
+    theme_void() +
+    theme(
+        plot.title = element_text(size = 30, hjust = 0.5, margin = margin(.5, .5, .5, .5, 'cm'))
+    )
+# p_all
+
+# Plot the data separated into groups A and B
+p_groups = ggplot(df, aes(x, y)) +
+    geom_point(
+        aes(shape = col_group),  
+        fill = 'white', 
+        size = dot_size, 
+        show.legend = FALSE, 
+        alpha = 1
+    ) +
+    facet_wrap(~ group) +
+    labs(
+        # title = 'Random Assignment to Groups A and B',
+    ) +
+    theme_void() +
+    theme(
+        strip.text = element_text(size = 36, margin = margin(.5, .5, .5, .5, 'cm')),
+        panel.border =  element_rect(color = 'gray25', fill=NA),
+        panel.spacing = unit(2, 'cm'),
+        plot.margin = margin(1, 1, 1, 1, 'cm')
+    )
+
+library(ggpattern)
+
+pch_values <- c(1:3, 5:6)
+shape_labels <- c("\u25A1", "\u25CB", "\u25B3", "\u25C7", "\u25BD")  # Square, Circle, Triangle, Diamond, Inverted Triangle (all open)
+
+p_waff = df  |> 
+    count(group, col_group)  |> 
+    mutate(col_group = factor(col_group, levels = unique(col_group), labels = shape_labels)) |>
+    ggplot( aes()) +
+    geom_col(aes(x = col_group, shape = col_group, y = n), alpha = .05) +
+    # geom_col_pattern(aes(x = col_group, pattern = col_group, y = n), alpha = .05) +
+    facet_wrap(~group) +
+    theme_void()  +
+    labs(
+        x = '',
+    ) +
+    theme(
+        strip.text = element_text(size = 36, margin = margin(.5, .5, .5, .5, 'cm')),
+        axis.text.x = element_text(size = 12, color = 'gray50'),
+        # panel.border =  element_rect(color = 'black', fill=NA),
+        panel.spacing = unit(2, 'cm'),
+
+        plot.margin = margin(1, 1, 1, 1, 'cm')
+    )
+
+p_waff
+# mc thinks we're 
+
+design <- '
+    ##11##
+    222222
+    333333
+'
+
+(p_all /
+    p_groups/
+    p_waff) +
+    plot_layout(width = c(1, 2, 2), design = design) &
+    # scale_color_brewer(palette = 'Set1', aesthetics = c('fill', 'color'))# + set1 supposedly print friendly
+    # scale_color_manual(values = unname(okabe_ito), aesthetics = c('fill', 'color')) 
+    scale_shape_manual(values = c(1:3, 5:6, 12))
+
+ggsave(
+    'img/causal-random-assignment-pdf.svg', 
+    width = 9, 
+    height = 12,
+    dpi = 300
+)   
+```
+
+
+:::{.content-visible when-format="html"}
 ![Random Assignment](img/causal-random-assignment.svg){width=40% #fig-random-assignment}
+:::
+:::{.content-visible when-format="pdf"}
+![Random Assignment](img/causal-random-assignment-pdf.svg){width=40% #fig-random-assignment}
+:::
+
 
 Many are familiar with the basic idea of an experiment, where we have a **treatment** group and a **control** group, and we want to measure the difference between the two groups. The 'treatment' could regard a new drug, a marketing campaign, or a new app's feature.  If we randomly assign our observational units to the two groups, say, one that gets the new app feature and the other doesn't, we can be more confident that the two groups are essentially the same aside from the treatment, and that any difference in the outcome, for example, customer satisfaction with the app, is due to the treatment. 
 
-This is the basic idea behind a **randomized control trial**, or **RCT**.  We can randomly assign the groups in a variety of ways, but you can think of it as flipping a coin, and assigning each sample to the treatment when the coin comes up on one side, and to the control when it comes up on the other. The idea is that the only difference between the two groups is the treatment, and so any difference in the outcome can be attributed to the treatment. This is visualized in @fig-random-assignment, where the colors represent different groups, and the groups are essentially the same aside from the treatment.
+This is the basic idea behind a **randomized control trial**, or **RCT**.  We can randomly assign the groups in a variety of ways, but you can think of it as flipping a coin, and assigning each sample to the treatment when the coin comes up on one side, and to the control when it comes up on the other. The idea is that the only difference between the two groups is the treatment, and so any difference in the outcome can be attributed to the treatment. This is visualized in @fig-random-assignment, where the color/shading represent different groups, and the groups are essentially the same aside from the treatment.
 
-Many of those who have taken a statistics course have been exposed to the simple t-test to determine whether two groups are different. The t-test tells us whether the difference in means between the two groups is *statistically* significant. However, it definitely *does not* tell us whether the treatment itself caused the difference, whether the effect is large, nor whether the effect is real, or even if the treatment is a good idea to do in the first place. It just tells us whether the two groups are statistically different.
+Many of those who have taken a statistics course have been exposed to the simple **t-test** to determine whether two groups are different. For many this is their first introduction to statistical modeling. The t-test tells us whether the difference in means between the two groups is *statistically* significant. However, it definitely *does not* tell us whether the treatment itself caused the difference, whether the effect is large, nor whether the effect is real, or even if the treatment is a good idea to do in the first place. It just tells us whether the two groups are statistically different.
 
-Turns out, a t-test is just a linear regression model. It's a special case of linear regression where there is only one independent variable, and it is a categorical variable with two levels. The coefficient from the linear regression would tell you the mean difference of the outcome between the two groups. Under the same conditions, the t-statistic from the linear regression and the t-test would have identical statistical results.
+It turns out that a t-test is just a linear regression model. It's a special case of linear regression where there is only one independent variable, and it is a categorical variable with two levels. The coefficient from the linear regression would tell you the mean difference of the outcome between the two groups. Under the same conditions, the t-statistic from the linear regression and the t-test from a separate function would have identical statistical results.
 
 Analysis of variance, or **ANOVA**, allows the t-test to be extended to more than two groups, and multiple features, and is also commonly employed to analyze the results of experimental design settings.  But ANOVA is still just a linear regression. Even when we get into more complicated design settings such as repeated measures and mixed design, it's still just a linear regression, we'd just be using mixed models (@sec-lm-extend-mixed-models). 
 
@@ -525,135 +779,6 @@ Note that there are many models that would fall under the umbrella of causal inf
 In general, any modeling technique might be employed as part of a causal modeling approach. To actually make causal statements, you'll generally need to ensure that the assumptions for those claims are tenable. 
 
 [^gcomp]: The G-computation approach and S-learners are essentially the same approach, but came about from different domain contexts.
-
-
-## Prediction and Explanation Revisited {#sec-causal-prediction-explanation}
-
-We introduced the idea of prediction and explanation in the context of linear models in @sec-lm-prediction-vs-explanation, and it's worth revisiting here. One attribute of a causal model is an intense focus on the explanatory power of the model.  We want to demonstrate that there is a relationship between usually a single feature and the target, and we want to know the precise manner of this relationship as much as possible. Even if we use complex models, e.g., as with meta-learners, the endeavor is to explain the specifics.
-
-
-```{r}
-#| echo: false
-#| label: prediction-vs-explanation-demo
-set.seed(42)
-n = 10000
-x = rnorm(n)
-y_num = rbinom(n, 1, plogis(.05*x))
-y = factor(y_num)
-
-model = glm(y ~ x, family = 'binomial')
-x_OR = round(exp(coef(model)['x']), 2)
-# summary(model)
-
-
-# summary(model)
-#confint(model)['x',]
-y_pred0 = predict(model, data.frame(x=0), type='response')
-y_pred1 = predict(model, data.frame(x=1), type='response')
-
-prob_diff = label_percent()(y_pred1 - y_pred0)
-
-pred_class = factor(as.integer(predict(model, type = 'response') > .5))
-base_rate = label_percent()(mean(y == '1'))
-# mlr3measures::confusion_matrix(y, pred_class, positive = '1') 
-
-x_new = data.frame(x = rnorm(100))
-y_new = factor(rbinom(100, 1, plogis(.05 * x_new$x)))
-pred_class_new = factor(as.integer(predict(model, newdata = x_new, type = 'response') > .5))
-# mean(y_new == '1')
-# mlr3measures::confusion_matrix(y_new, pred_class_new, positive = '1') 
-causal_power = readRDS('data/causal_power.rds')
-```
-
-```{r}
-#| echo: false
-#| eval: false
-#| label: prediction-vs-explanation-demo-power
-get_power = function(reps = 1000) {
-    pvals = replicate(reps, {
-        y = rbinom(n, 1, plogis(.05*x))
-        model = glm(y ~ x, family = 'binomial')
-        summary(model)$coefficients['x', 4]
-    })
-    mean(pvals < .05)
-}
-causal_power = scales::label_percent()(get_power())
-
-saveRDS(causal_power, 'data/causal_power.rds')
-```
-
-
-
-Let's say that we used some particular causal modeling approach to explain a feature-target relationship in a classification setting.  We have 10,000 observations, and the baseline rate of the target is about ~`r base_rate`. We have a model that predicts the target `y` based on the feature of interest `x`, and we may have used something like propensity score weighting or some other technique to help control for confounding. 
-
-The coefficient, though small with an odds ratio of `r x_OR`, is statistically significant (take our word for it), and we can see a slight positive relationship. Under certain settings, such as this where we are interested in causal effects and where we have controlled for various other factors to obtain this result, we might be satisfied with interpreting this positive relationship. 
-
-```{r}
-#| echo: false
-#| eval: false
-#| label: fig-prediction-vs-explanation-demo-plot
-#| fig-cap: Results from a hypothetical causal model
-#| out-width: 100%
-pdat = plot(ggeffects::ggpredict(model, terms = 'x'))$data
-ggeffects::ggpredict(model, terms = 'x') |> 
-    plot(use_theme = FALSE) +
-    geom_segment(
-        # aes(
-            x = 0,
-            xend = 1,
-            y = y_pred0,
-            yend = y_pred1,
-        # ),
-        color = okabe_ito[['darkblue']],
-        linewidth = 1.5
-    ) +
-    geom_segment(
-        x = 0,
-        xend = min(pdat$x),
-        y = y_pred0,
-        yend = y_pred0,
-        color = okabe_ito[['darkblue']],
-        arrow = arrow(type = 'closed', angle = 30, length = unit(0.1, 'inches'))
-    ) +
-    geom_segment(
-        x = 1,
-        xend = min(pdat$x),
-        y = y_pred1,
-        yend = y_pred1,
-        color = okabe_ito[['darkblue']],
-        arrow = arrow(type = 'closed', angle = 30, length = unit(0.1, 'inches'))
-    ) +
-    labs(
-        title = '',
-        caption = 'The model does not predict well but suggests a small positive effect.',
-    ) +
-    scale_y_continuous(breaks = c(seq(.4, .6, .05), seq(.5, .55, .01)), labels = scales::label_percent())
-
-ggsave('img/causal-prediction-vs-explanation-demo-plot.svg', width = 8, height = 6)
-```
-
-![Results from a hypothetical causal model](img/causal-prediction-vs-explanation-demo-plot.svg){width=100% #fig-prediction-vs-explanation-demo-plot}
-
-But if we are interested in predictive performance, we would be disappointed with this model. It predicts the target at about the same rate as guessing, even on the data it's fit on, and does even worse with new data. Even the effect as shown is quite small by typical standards, as it would take a standard deviation change in the feature to get a ~`r prob_diff` change in the probability of the target (x is standardized).
-
-If we are concerned solely with explanation, we now would want to ask ourselves first if we can trust our result based on the data, model, and various issues that went into producing it. If so, we can then see if the effect is large enough to be of interest, and if the result is useful in making decisions[^seedsofchange]. It may very well be, maybe the target concerns the rate of survival, where any increase is worthwhile. Or perhaps the data circumstances demand such interpretation, because it is extremely costly to obtain more. For more exploratory efforts however, this sort of result would likely not be enough to come to any strong conclusion even if explanation is the only goal. 
-
-[^seedsofchange]: This is a contrived example, but it is definitely something that you might see in the wild. The relationship is weak, and though statistically significant, the model can't predict the target well at all. The **statistical power** is actually decent in this case, roughly `r causal_power`, but this is mainly because the sample size is so large and it is a very simple model setting. <br> This is a common issue in many academic fields, and it's why we always need to be careful about how we interpret our models. In practice, we would generally need to consider other factors, such as the cost of a false positive or false negative, or the cost of the data and running the model itself, to determine if the model is worth using.
-
-As another example, consider the world happiness data we've used in previous demonstrations. We want to explain the association of country level characteristics and the population's happiness. We likely aren't going to be as interested in predicting next year's happiness score, but rather what attributes are correlated with a happy populace in general. In this election year (2024) in the U.S., we'd be interested in specific factors related to presidential elections, of which there are relatively very few data points. In these cases, explanation is the focus, and we may not even need a model at all to come to our conclusions.
-
-So we can understand that in some settings we may be more interested in understanding the underlying mechanisms of the data, as with these examples, and in others we may be more interested in predictive performance, as in our demonstrations of machine learning. However, the distinction between prediction and explanation in the end is a bit problematic, not the least of which is that we often want to do both.
-
-Although it's often implied as such, *prediction is not just what we do with new data*. It is the very means by which we get any explanation of effects via coefficients, marginal effects, visualizations, and other model results. Additionally, where the focus is on predictive performance, if we can't explain the results we get, we will typically feel dissatisfied, and may still question how well the model is actually doing.
-
-Here are some ways we might think about different modeling contexts:
-
-- **Descriptive Analysis**: A description of data with no modeling focus. We'll use descriptive statistics and visualizations to understand the data. An end product may be an infographic or a report. Even here we may still use models to aid visualizations or otherwise to help us understand the data better.
-- **Exploratory Modeling**: When using models for exploration, focus should probably be on both prediction and explanation. The former can help inform the strength of the results for future exploration, while the latter will often provide useful insights.
-- **Causal Modeling**: Using models to understand causal effects. We focus on explanation, and prediction on the current data. We may very well be interested in predictive performance also, and often are in industry.
-- **Generalization**: When our goal is generalizing to unseen data, the focus is always on predictive performance. This does not mean we can't use the model to understand the data though, and explanation could possibly be as important.
-
-Depending on the context, we may be more interested explanation or predictive performance, but in practice we often, and usually, want both. It is crucial to remind yourself why you are interested in the problem, what a model is capable of telling you about it, and to be clear about what you want to get out of the result.
 
 
 
