@@ -42,7 +42,7 @@ library(ggdag)
 
 
 #  using more R-like syntax to create the same DAG
-tidy_ggdag <- dagify(
+tidy_ggdag = dagify(
     target ~ x + z2 + w2 + w1,
     x ~ z1 + w1 + w2,
     z1 ~ w1 + v,
@@ -78,7 +78,7 @@ ggsave('img/causal-dag.svg', width = 8, height = 6)
 
 ## Prediction and Explanation Revisited {#sec-causal-prediction-explanation}
 
-We introduced the idea of prediction and explanation in the context of linear models in @sec-lm-prediction-vs-explanation, and it's worth revisiting here. One attribute of a causal model is an intense focus on the explanatory power of the model.  We want to demonstrate that there is a relationship between usually a single feature and the target, and we want to know the precise manner of this relationship as much as possible. Even if we use complex models, e.g., as with meta-learners, the endeavor is to explain the specifics.
+We introduced the idea of prediction and explanation in the context of linear models in @sec-lm-prediction-vs-explanation, and it's worth revisiting here. One attribute of a causal model is an intense focus on the explanatory power of the model.  We want to demonstrate that there is a relationship between (usually) a single feature and the target, and we want to know the precise manner of this relationship as much as possible. Even if we use complex models, the endeavor is to explain the specifics.
 
 
 ```{r}
@@ -120,7 +120,7 @@ causal_power = readRDS('data/causal_power.rds')
 #| label: prediction-vs-explanation-demo-power
 get_power = function(reps = 1000) {
     pvals = replicate(reps, {
-        y = rbinom(n, 1, plogis(.05*x))
+        y = rbinom(n, 1, plogis(.05*x))  # -3 + .05*x for lower base rate ~5%
         model = glm(y ~ x, family = 'binomial')
         summary(model)$coefficients['x', 4]
     })
@@ -135,7 +135,7 @@ saveRDS(causal_power, 'data/causal_power.rds')
 
 Let's say that we used some particular causal modeling approach to explain a feature-target relationship in a classification setting.  We have 10,000 observations, and the baseline rate of the target is about ~`r base_rate`. We have a model that predicts the target `y` based on the feature of interest `x`, and we may have used something like propensity score weighting or some other technique to help control for confounding. 
 
-The coefficient, though small with an odds ratio of `r x_OR`, is statistically significant (take our word for it), and we can see a slight positive relationship. Under certain settings, such as this where we are interested in causal effects and where we have controlled for various other factors to obtain this result, we might be satisfied with interpreting this positive relationship. 
+The coefficient, though small with an odds ratio of `r x_OR`, is statistically significant (take our word for it), and we can see a slight positive relationship. Under certain settings such as this, where we are interested in causal effects and where we have controlled for various other factors to obtain this result, we might be satisfied with interpreting this positive relationship. 
 
 ```{r}
 #| echo: false
@@ -143,7 +143,8 @@ The coefficient, though small with an odds ratio of `r x_OR`, is statistically s
 #| label: fig-prediction-vs-explanation-demo-plot
 #| fig-cap: Results from a hypothetical causal model
 #| out-width: 100%
-pdat = plot(ggeffects::ggpredict(model, terms = 'x'))$data
+pdat = plot(ggeffects::ggpredict(model, terms = 'x [-4:4]'))$data
+
 ggeffects::ggpredict(model, terms = 'x') |> 
     plot(use_theme = FALSE) +
     geom_segment(
@@ -176,7 +177,9 @@ ggeffects::ggpredict(model, terms = 'x') |>
         title = '',
         caption = 'The model does not predict well but suggests a small positive effect.',
     ) +
-    scale_y_continuous(breaks = c(seq(.4, .6, .05), seq(.5, .55, .01)), labels = scales::label_percent())
+    scale_y_continuous(breaks = c(seq(.4, .6, .05), seq(.49, .52, .01)), labels = scales::label_percent()) +
+    scale_x_continuous(breaks = seq(-4, 4, 1), labels = scales::label_number(), limits = range(x)) +
+    coord_cartesian(x = range(x)) 
 
 ggsave('img/causal-prediction-vs-explanation-demo-plot.svg', width = 8, height = 6)
 ```
@@ -187,22 +190,24 @@ But if we are interested in predictive performance, we would be disappointed wit
 
 If we are concerned solely with explanation, we now would want to ask ourselves first if we can trust our result based on the data, model, and various issues that went into producing it. If so, we can then see if the effect is large enough to be of interest, and if the result is useful in making decisions[^seedsofchange]. It may very well be, maybe the target concerns the rate of survival, where any increase is worthwhile. Or perhaps the data circumstances demand such interpretation, because it is extremely costly to obtain more. For more exploratory efforts however, this sort of result would likely not be enough to come to any strong conclusion even if explanation is the only goal. 
 
-[^seedsofchange]: This is a contrived example, but it is definitely something that you might see in the wild. The relationship is weak, and though statistically significant, the model can't predict the target well at all. The **statistical power** is actually decent in this case, roughly `r causal_power`, but this is mainly because the sample size is so large and it is a very simple model setting. <br> This is a common issue in many academic fields, and it's why we always need to be careful about how we interpret our models. In practice, we would generally need to consider other factors, such as the cost of a false positive or false negative, or the cost of the data and running the model itself, to determine if the model is worth using.
+[^seedsofchange]: This is a contrived example, but it is definitely something that you might see in the wild. The relationship is weak, and though statistically significant, the model can't predict the target well at all. The **statistical power** is actually decent in this case, roughly `r causal_power`, but this is mainly because the sample size is so large and it is a very simple model setting. The same coefficient with a base rate of around 5% would have a power of around 20%. <br> This is a common issue in many academic fields, and it's why we always need to be careful about how we interpret our models. In practice, we would generally need to consider other factors, such as the cost of a false positive or false negative, or the cost of the data and running the model itself, to determine if the model is worth using.
 
-As another example, consider the world happiness data we've used in previous demonstrations. We want to explain the association of country level characteristics and the population's happiness. We likely aren't going to be as interested in predicting next year's happiness score, but rather what attributes are correlated with a happy populace in general. In this election year (2024) in the U.S., we'd be interested in specific factors related to presidential elections, of which there are relatively very few data points. In these cases, explanation is the focus, and we may not even need a model at all to come to our conclusions.
+As another example, consider the world happiness data we've used in previous demonstrations. We want to explain the association of country level characteristics and the population's happiness. We likely aren't going to be as interested in predicting next year's happiness score, but rather what attributes are correlated with a happy populace in general. In the recent election year in the U.S., we might be interested in specific factors related to presidential elections, of which there are relatively very few data points. In these cases, explanation is the focus, and we may not even need a model at all to come to our conclusions.
 
-So we can understand that in some settings we may be more interested in understanding the underlying mechanisms of the data, as with these examples, and in others we may be more interested in predictive performance, as in our demonstrations of machine learning. However, the distinction between prediction and explanation in the end is a bit problematic, not the least of which is that we often want to do both.
+So we can see that in some settings we may be more interested in understanding the underlying mechanisms of the data,  and in others we may be more interested in predictive performance. However, the distinction between prediction and explanation in the end is a bit problematic, not the least of which is that we often want to do both.
 
-Although it's often implied as such, *prediction is not just what we do with new data*. It is the very means by which we get any explanation of effects via coefficients, marginal effects, visualizations, and other model results. Additionally, where the focus is on predictive performance, if we can't explain the results we get, we will typically feel dissatisfied, and may still question how well the model is actually doing.
+Although it's often implied as such, *prediction is not just what we do with new data*. It is the very means by which we get any explanation of effects via coefficients, marginal effects, visualizations, and other model results. Additionally, when the focus is on predictive performance, if we can't explain the results we get, we will typically feel dissatisfied, and may still question how well the model is actually doing.
 
 Here are some ways we might think about different modeling contexts:
 
-- **Descriptive Analysis**: A description of data with no modeling focus. We'll use descriptive statistics and visualizations to understand the data. An end product may be an infographic or a report. Even here we may still use models to aid visualizations or otherwise to help us understand the data better.
+- **Descriptive Analysis**: A description of data with no modeling focus. We'll use descriptive statistics and visualizations to understand the data. An end product may be an infographic or a highly visual report. Even here, we might use models to aid visualizations, or otherwise to help us understand the data better, but their specific implementation or result is not of much interest.
 - **Exploratory Modeling**: When using models for exploration, focus should probably be on both prediction and explanation. The former can help inform the strength of the results for future exploration, while the latter will often provide useful insights.
 - **Causal Modeling**: Using models to understand causal effects. We focus on explanation, and prediction on the current data. We may very well be interested in predictive performance also, and often are in industry.
-- **Generalization**: When our goal is generalizing to unseen data, the focus is always on predictive performance. This does not mean we can't use the model to understand the data though, and explanation could possibly be as important.
+- **Generalization**: When our goal is generalizing to unseen data as we have discussed elsewhere, the focus is always on predictive performance[^transport]. This does not mean we can't use the model to understand the data though, and explanation could possibly be as important.
 
-Depending on the context, we may be more interested explanation or predictive performance, but in practice we often, and usually, want both. It is crucial to remind yourself why you are interested in the problem, what a model is capable of telling you about it, and to be clear about what you want to get out of the result.
+[^transport]: In causal modeling, there is the notion of **transportability**, which is the idea that a model can be used in, or generalize to, a different setting than it was trained on. For example, you may see an effect for one demographic group and wish to know whether it holds for another. It is closely related to the notion of external validity, and is also related to the concepts we've hit on in our discussion of interaction (@sec-lm-extend-interactions).
+
+Depending on the context, we may be more interested explanation or predictive performance, but in practice we often want both. It is crucial to remind yourself why you are interested in the problem, what a model is capable of telling you about it, and to be clear about what you want to get out of the result.
 
 
 
@@ -233,9 +238,8 @@ dot_size = 3
 # Plot the data as a single cluster
 p_all = ggplot(df, aes(x, y)) +
     geom_point(
-        aes(color = col_group),  
+        aes(color = col_group, shape = col_group),  
         fill = 'white', 
-        pch=21, 
         size = dot_size, 
         show.legend = FALSE, 
         alpha = 1
@@ -252,10 +256,10 @@ p_all = ggplot(df, aes(x, y)) +
 # Plot the data separated into groups A and B
 p_groups = ggplot(df, aes(x, y)) +
     geom_point(
-        aes(color = col_group),  
+        aes(color = col_group,  shape = col_group),  
         fill = 'white', 
         # border = 5,
-        pch=21, 
+        # pch=21, 
         size = dot_size, 
         show.legend = FALSE, 
         alpha = 1
@@ -287,7 +291,7 @@ p_waff = df  |>
         plot.margin = margin(1, 1, 1, 1, 'cm')
     )
     
-design <- '
+design = '
     ##11##
     222222
     333333
@@ -372,8 +376,8 @@ p_groups = ggplot(df, aes(x, y)) +
 
 library(ggpattern)
 
-pch_values <- c(1:3, 5:6)
-shape_labels <- c("\u25A1", "\u25CB", "\u25B3", "\u25C7", "\u25BD")  # Square, Circle, Triangle, Diamond, Inverted Triangle (all open)
+pch_values = c(1:3, 5:6)
+shape_labels = c("\u25A1", "\u25CB", "\u25B3", "\u25C7", "\u25BD")  # Square, Circle, Triangle, Diamond, Inverted Triangle (all open)
 
 p_waff = df  |> 
     count(group, col_group)  |> 
@@ -398,7 +402,7 @@ p_waff = df  |>
 p_waff
 # mc thinks we're 
 
-design <- '
+design = '
     ##11##
     222222
     333333
@@ -431,21 +435,21 @@ ggsave(
 
 Many are familiar with the basic idea of an experiment, where we have a **treatment** group and a **control** group, and we want to measure the difference between the two groups. The 'treatment' could regard a new drug, a marketing campaign, or a new app's feature.  If we randomly assign our observational units to the two groups, say, one that gets the new app feature and the other doesn't, we can be more confident that the two groups are essentially the same aside from the treatment, and that any difference in the outcome, for example, customer satisfaction with the app, is due to the treatment. 
 
-This is the basic idea behind a **randomized control trial**, or **RCT**.  We can randomly assign the groups in a variety of ways, but you can think of it as flipping a coin, and assigning each sample to the treatment when the coin comes up on one side, and to the control when it comes up on the other. The idea is that the only difference between the two groups is the treatment, and so any difference in the outcome can be attributed to the treatment. This is visualized in @fig-random-assignment, where the color/shading represent different groups, and the groups are essentially the same aside from the treatment.
+This is the basic idea behind a **randomized control trial**, or **RCT**.  We can randomly assign the groups in a variety of ways, but you can think of it as flipping a coin, and assigning each sample to the treatment when the coin comes up on one side, and to the control when it comes up on the other. The idea is that the only difference between the two groups is the treatment, and so any difference in the outcome can be attributed to the treatment. This is visualized in @fig-random-assignment, where the color/shapes represent different groups, and the groups are essentially the same aside from the treatment.
 
 Many of those who have taken a statistics course have been exposed to the simple **t-test** to determine whether two groups are different. For many this is their first introduction to statistical modeling. The t-test tells us whether the difference in means between the two groups is *statistically* significant. However, it definitely *does not* tell us whether the treatment itself caused the difference, whether the effect is large, nor whether the effect is real, or even if the treatment is a good idea to do in the first place. It just tells us whether the two groups are statistically different.
 
 It turns out that a t-test is just a linear regression model. It's a special case of linear regression where there is only one independent variable, and it is a categorical variable with two levels. The coefficient from the linear regression would tell you the mean difference of the outcome between the two groups. Under the same conditions, the t-statistic from the linear regression and the t-test from a separate function would have identical statistical results.
 
-Analysis of variance, or **ANOVA**, allows the t-test to be extended to more than two groups, and multiple features, and is also commonly employed to analyze the results of experimental design settings.  But ANOVA is still just a linear regression. Even when we get into more complicated design settings such as repeated measures and mixed design, it's still just a linear regression, we'd just be using mixed models (@sec-lm-extend-mixed-models). 
+Analysis of variance, or **ANOVA**, allows the t-test to be extended to more than two groups, and multiple features, and is also commonly employed to analyze the results of experimental design settings.  But ANOVA is still just a linear regression. Even when we get into more complicated design settings such as repeated measures and mixed design, it's still just a linear model, we'd just be using mixed models (@sec-lm-extend-mixed-models). 
 
-If linear regression didn't suggest any notion of causality to you before, it certainly shouldn't now either. The model is *identical* whether there was an experimental design with random assignment or not. The only difference is that the data was collected in a different way, and the theoretical assumptions and motivations are different. Even the statistical assumptions are the same whether you use random assignment or there are one or more groups, or whether the treatment is continuous or categorical. 
+If linear regression didn't suggest any notion of causality to you before, it shouldn't now either. The model is *identical* whether there was an experimental design with random assignment or not. The only difference is that the data was collected in a different way, and the theoretical assumptions and motivations are different. Even the statistical assumptions are the same whether you use random assignment or there are one or more groups, or whether the treatment is continuous or categorical. 
 
-Experimental design[^exprand] can give us more confidence in the causal explanation of model results, whatever model is used, and this is why we like to use it when we can. It helps us control for the unobserved factors that might otherwise be influencing the results. If we can be fairly certain the observations are essentially the same *except* for the treatment, then we can be more confident that the treatment is the cause of the difference, and we can be more confident in the causal interpretation of the results. But it doesn't change the model itself, and the results of a model don't prove a causal relationship by themselves. Your experimental study will also be limited by the quality of the data, and the population it generalizes to. Even with strong design and modeling, if care isn't taken in the modeling process to even assess the generalization of the results (@sec-ml-generalization), you may find they don't hold up[^explimits].
+Experimental design[^exprand] can give us more confidence in the causal explanation of model results, whatever model is used, and this is why we like to use it when we can. It helps us control for the unobserved factors that might otherwise be influencing the results. If we can be fairly certain the observations are essentially the same *except* for the treatment, then we can be more confident that the treatment is the cause of the difference, as well as a causal interpretation of it. But it doesn't change the model itself, and the results of a model don't prove a causal relationship by themselves. Your experimental study will also be limited by the quality of the data, and the population it generalizes to. Even with strong design and modeling, if care isn't taken in the modeling process to even assess the generalization of the results (@sec-ml-generalization), you may find they don't hold up[^explimits].
 
 [^exprand]: Note that experimental design is not just any setting that uses random assignment, but more generally how we introduce *control* in the sample settings.
 
-[^explimits]: Many experimental design settings involve sometimes very small samples due to the cost of the treatment implementation and other reasons. This often limits exploration of more complex relationships (e.g. interactions), and it is relatively rare to see any assessment of performance generalization. It would probably worry many to know how many experimental results are based on p-values with small data, and this is the part of the problem seen with the [replication crisis](https://en.wikipedia.org/wiki/Replication_crisis) in science.
+[^explimits]: Many experimental design settings involve sometimes very small samples due to the cost of the treatment implementation and other reasons. This often limits exploration of more complex relationships (e.g. interactions), and it is relatively rare to see any assessment of performance generalization. It would probably worry many to know how many important experimental results are based on p-values with small data, and this is the part of the problem seen with the [replication crisis](https://en.wikipedia.org/wiki/Replication_crisis) in science.
 
 
 :::{.callout-note title='A/B Testing' collapse='true'}
@@ -527,11 +531,11 @@ model_data = covid_us |>
 
 
 # Model death data
-death_model <- gam(deaths_per_mi ~ s(date), data = model_data |> mutate(date = as.numeric(date)))
-death_derivatives <- derivatives(death_model, term = 's(date)')
+death_model = gam(deaths_per_mi ~ s(date), data = model_data |> mutate(date = as.numeric(date)))
+death_derivatives = derivatives(death_model, term = 's(date)')
 # Model vaccination data
-vax_model <- gam(people_vaccinated_million ~ s(date), data = model_data |> mutate(date = as.numeric(date)))
-vax_derivatives <- derivatives(vax_model, term = 's(date)')
+vax_model = gam(people_vaccinated_million ~ s(date), data = model_data |> mutate(date = as.numeric(date)))
+vax_derivatives = derivatives(vax_model, term = 's(date)')
 
 # Plot death derivatives
 # draw(death_derivatives)
@@ -562,20 +566,144 @@ vax_derivatives |>
 
 
 
-As we noted, random assignment or a formal experiment is not always possible or practical to implement. But sometimes we get to do it anyway, or at least we can get pretty close! Sometimes, the world gives us a **natural experiment**, where the assignment to the groups is essentially random, or where there is clear break before and after some event occurs, such that we examine the change as we would in pre-post design. 
+As we noted, random assignment or a formal experiment is not always possible or practical to implement. But sometimes we get to do it anyway, or at least we can get pretty close! Occasionally, the world gives us a **natural experiment**, where the assignment to the groups is essentially random, or where there is clear break before and after some event occurs, such that we examine the change as we would in pre-post design. 
 
-For example, the covid pandemic allowed us to potentially examine vaccination effects, governmental policy effects, the effectiveness of remote work, and more. This was not a tightly controlled experiment, but it's something we can treat very similar to an experiment, and we can compare the differences in various outcomes before and after the pandemic to see what changes took place. 
+The COVID-19 pandemic provides an example of a natural experiment. The pandemic introduced sudden and widespread changes, such as lockdowns, remote work, and vaccination campaigns, that were not influenced by individuals' prior characteristics or behaviors. The randomness in the timing and implementation of these changes allows researchers to compare outcomes before and after the policy implementation or pandemic, or between different regions with varying policies, to infer causal effects. 
+
+For instance, we could compare states or counties that had mask mandates to those that didn't at the same time or with similar characteristics. Or we might compare areas that had high vaccination rates to those nearby that didn't. We'd need to control for as many additional factors that might influence the results, e.g. population density, age, wealth and so on, and eventually we might still get a pretty good idea of the causal impact of these interventions.
 
 
 ## Causal Inference {#sec-causal-inference}
 
-Reasoning about causality is a very old topic, philosophically dating back millennia, and more formally [hundreds of years](https://plato.stanford.edu/entries/causation-medieval/). Random assignment is a relatively new idea, say [150 years old](https://plato.stanford.edu/entries/peirce/), but was posited even before Wright, Fisher, and Neyman and the 20th century rise of statistics. But with stats and random assignment we had a way to start using models to help us reason about causal relationships. [Pearl and others](https://muse.jhu.edu/pub/56/article/867087/summary) came along to provide a perspective from computer science, and things have been progressing along. We were actually using programming approaches to do causal inference back in the 1970s even! Economists got into the game too (e.g., Heckman), and eventually most scientific academic disciplines were well acquainted with causal inference in some fashion.
+Reasoning about causality is a very old topic, philosophically dating back millennia, and more formally [hundreds of years](https://plato.stanford.edu/entries/causation-medieval/). Random assignment is a relatively new idea, say [150 years old](https://plato.stanford.edu/entries/peirce/), but was posited even before Wright, Fisher, and Neyman, and the 20th century rise of statistics. But with stats and random assignment we had a way to start using models to help us reason about causal relationships. [Pearl and others](https://muse.jhu.edu/pub/56/article/867087/summary) came along to provide an algorithmic perspective from computer science, and things have been progressing along since. We were actually using programming approaches to do causal inference back in the 1970s even! Economists got into the game too (e.g., Heckman), and eventually most scientific academic disciplines were well acquainted with causal inference in some fashion.
 
-Now we can use recently developed modeling approaches to help us reason about causal relationships, which can be both a blessing and a curse. Our models can be more complex, and we can use more data, which can potentially give us more confidence in our conclusions. But we can still be easily fooled by our models, as well as by ourselves. So we'll need to be careful in how we go about things, but let's see what some of our options are!
+### Key assumptions of causal inference
+
+TODO: introduce a bit more
+Causal inference relies on several key assumptions to identify and estimate causal effects. The main assumptions include:
+
+- **Consistency**: The potential outcome under the observed treatment is the same as the observed outcome. This suggests there is no interference between units, and there are no hidden variations of the treatment. 
+- **Exchangeability** (No Unmeasured Confounding): The treatment assignment is independent of the potential outcomes, given the observed covariates. In other words, the treatment assignment is as good as random after conditioning on the covariates.
+- **Positivity** : Every individual has a positive probability of receiving each treatment level.
+
+It can be difficult to meet these assumptions, and there is not always a clear path to a solution. As an example, say we want to assess a new curriculum's effect on student performance. We can randomly assign students, but they can interact with one another both in and outside of the classroom. Those who receive the treatment may be more likely to talk to one another, and this could affect the outcome, enhancing its effects if it is beneficial. Would violate our assumption of no interference between units.
+
+The following demonstrates a common assumption that is regularly guarded against in causal modeling - confounding. In this case our confounder `U` affects both treatment `X` and target `Y`. We'll generate some synthetic data with a confounder, and fit two models, one with the confounder and one without. We'll compare the coefficients of the feature of interest in both models.
+
+:::{.panel-tabset}
+
+##### R
+
+```{r}
+#| label: r-causal-assumptions
+#| eval: false
+simulate_confounding = function(n, nreps, true = 1) {
+    results = replicate(nreps, {
+        U = rnorm(n)                 # Unmeasured confounder
+        X = 0.5 * U + rnorm(n)       # Treatment influenced by U
+        Y = true * X + U + rnorm(n)  # Outcome influenced by X and U
+        
+        data = data.frame(X = X, Y = Y)
+
+        # Fit a linear regression model with and 
+        # without adjusting for the unmeasured confounder
+        model = lm(Y ~ X, data = data)
+        model2 = lm(Y ~ X + U, data = data)
+        c(coef(model)['X'], coef(model2)['X'])
+    })
+    
+    results = rowMeans(results)
+
+    data.frame(
+        true = true,
+        estimate_1 = results[1],
+        estimate_2 = results[2]
+    )
+}
+
+simulate_confounding(n = 1000, nreps = 500)
+```
 
 
+
+##### Python
+
+```{python}
+#| label: py-causal-assumptions
+#| eval: false
+from numpy.random import normal as rnorm
+import pandas as pd
+import statsmodels.api as sm
+
+def simulate_confounding(n, nreps, true=1):
+    results = []
+    for _ in range(nreps):
+        U = rnorm(size=n)                 # Unmeasured confounder
+        X = 0.5 * U + rnorm(size=n)       # Treatment influenced by U
+        Y = true * X + U + rnorm(size=n)  # Outcome influenced by X and U
+
+        data = pd.DataFrame({'X': X, 'U': U, 'Y': Y})
+
+        # Fit a linear regression model with and
+        # without adjusting for the unmeasured confounder
+        model = sm.OLS(data['Y'], sm.add_constant(data['X'])).fit()
+        model2 = sm.OLS(data['Y'], sm.add_constant(data[['X', 'U']])).fit()
+        results.append([model.params['X'], model2.params['X']])
+
+    results = np.mean(results, axis=0)
+
+    return pd.DataFrame({
+        'true': true,
+        'estimate_1': results[0],
+        'estimate_2': results[1],        
+    }, index=['X']).round(3)
+        
+        
+simulate_confounding(n=1000, nreps=500)
+```
+
+:::
+
+Results suggest that the coefficient of `X` is different in the two models. If we don't include the confounder, the feature's relationship with the target is biased upwardly. The nature of the bias depends on the relationship between the confounder and the treatment and target. 
+
+```{r}
+#| label: tbl-r-causal-assumptions
+
+simulate_confounding = function(n, nreps, true = 1) {
+    results = replicate(nreps, {
+        U = rnorm(n)                 # Unmeasured confounder
+        X = 0.5 * U + rnorm(n)       # Treatment influenced by U
+        Y = true * X + U + rnorm(n)  # Outcome influenced by X and U
+
+        # Create a tibble
+        data = tibble(X = X, Y = Y)
+
+        # Fit a linear regression model with and 
+        # without adjusting for the unmeasured confounder
+        model = lm(Y ~ X, data = data)
+        model2 = lm(Y ~ X + U, data = data)
+        c(coef(model)['X'], coef(model2)['X'])
+    })
+    
+    results = rowMeans(results)
+
+    tibble(
+        true = true,
+        estimate_1 = results[1],
+        estimate_2 = results[2]
+    )
+}
+
+as_tibble(simulate_confounding(n = 1000, nreps = 500)) |> 
+    gt()
+```
+
+Though a simple demonstration, it shows why we need to be careful in our modeling and analysis, and if we are interested in causal relationships, we need to be aware of our assumptions and help make them plausible. In this case, if we suspect something is a confounder, we can include it in our model to get a more accurate estimate of the effect of the treatment.
 
 ## Models for Causal Inference {#sec-causal-models}
+
+We can use recently developed modeling approaches to help us reason about causal relationships, and this can be both a blessing and a curse. Our models can be more complex, and we can use more data, which can potentially give us more confidence in our conclusions. But we can still be easily fooled by our models, as well as by ourselves. So we'll need to be careful in how we go about things, but let's see what some of our options are!
+
 
 Any model can be used to answer a causal question, and which one you use will depend on the data setting and the question you are asking. The following covers a few models that might be seen in various academic and professional settings.
 
