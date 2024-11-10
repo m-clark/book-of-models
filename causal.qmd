@@ -8,67 +8,30 @@
 :::
 
 
-Causal inference is a very important topic in machine learning and statisticals modeling approaches, and it is also a very difficult one to understand well, or consistently, because *not everyone agrees on how to define a cause in the first place*. Our focus here is merely practical- we just want to discuss some of the common modeling approaches that are commonly used when attempting to answer causal questions. But causal modeling in general is such a rabbit hole that we won't be able to go into much detail as the topic deserves. However we will try to give you a sense of the landscape, and some of the key ideas.
+Causal inference is a very important topic in machine learning and statistical modeling approaches. It is also a very difficult one to understand well, or consistently, because *not everyone agrees on how to define a cause in the first place*. Our focus here is merely practical- we just want to discuss some of the modeling approaches commonly used when attempting to answer causal questions. But causal modeling in general is such a deep topic that we won't be able to go into as much detail as it deserves. However, we will try to give you a sense of the landscape and some of the key ideas.
 
 
 ## Key Ideas {#sec-causal-key-ideas}
 
 - No model can tell you whether a relationship is causal or not. Causality is inferred, not proven, based on the available evidence.
-- The exact same models would be used for similar data settings to answer a causal question or a purely predictive question. A key difference is in the interpretation of the results.
-- Experimental design, such as randomized control trials, are the gold standard for causal inference. But the gold standard is often not practical, and not without its limitations even when it is.
+- The same models could be used for similar data settings to answer a causal question or a purely predictive question. A key difference is in the interpretation of the results.
+- Experimental design, such as randomized control trials, are considered the gold standard for causal inference. But the gold standard is often not practical, and not without its limitations even when it is.
 - Causal inference is often done with observational data, which is often the only option, and that's okay.
-- Counterfactual thinking is at the heart of causal inference, but is useful for all modeling contexts.
-- Several models exist which are typically employed to answer a more causal-oriented question. These include structural equation models, graphical models, uplift modeling, and more.
-- Interactions are the norm for most modeling scenarios. Causal inference generally regards a single effect. If the normal setting is that such an effect would always vary depending on other features, you should be wary trying to aggregate your results to a single 'effect', since that effect would be potentially misleading.
+- Counterfactual thinking is at the heart of causal inference, but can be useful for all modeling contexts.
+- Several models exist which are typically employed to answer a more causal-oriented question. These include graphical models, uplift modeling, and more.
+- Interactions are the norm for most modeling scenarios, while causal inference generally regards a single effect. If an effect varies depending on other features, you should be cautious trying to aggregate your results to a single effect, since that effect would be potentially misleading.
+
 
 ### Why it matters {#sec-causal-why}
 
-Often we need a precise statement about the feature-target relationship, not just a declaration that there is 'some' relationship. For example, we might want to know whether a drug works well, or show that an advertisement results in a certain amount of new sales. Whether or not random assignment was used, we generally need to know whether the effect is real, and the size of the effect, and often, the uncertainty in that estimate. 
+Often we need a precise statement about the feature-target relationship, not just a declaration that there is 'some' relationship. For example, we might want to know how well a drug works and for whom, or show that an advertisement results in a certain amount of new sales. We generally need to know whether the effect is real, and the size of the effect, and often, the uncertainty in that estimate. 
 
-Causal modeling is, like machine learning, more of an approach than a specific model, and that approach may involve the design or implementation of models we've already seen, but in a different way to answer the key question. Without more precision in our understanding, we could miss the effect, or overstate it, and make bad decisions as a result.
+Causal modeling is, like machine learning, more of an approach than a specific model, and that approach may involve the design or implementation of models we've already seen, but conducted in a different way to answer the key question. Without more precision in our understanding, we could miss the effect, or overstate it, and make bad decisions as a result.
 
 
 ### Helpful context {#sec-causal-good-to-know}
 
 This section is pretty high level, and we are not going to go into much detail here, so even just some understanding of correlation and modeling would likely be enough.
-
-
-```{r}
-#| echo: false
-#| eval: false
-#| label: fig-causal-dag
-#| fig-cap: A Causal DAG
-library(ggdag)
-
-
-#  using more R-like syntax to create the same DAG
-tidy_ggdag = dagify(
-    target ~ x + z2 + w2 + w1,
-    x ~ z1 + w1 + w2,
-    z1 ~ w1 + v,
-    z2 ~ w2 + v,
-    w1 ~ ~w2, # bidirected path
-    exposure = 'x',
-    outcome = 'target'
-) |>
-    tidy_dagitty()
-
-# ggdag(tidy_ggdag, label_col = okabe_ito_colors[1], text_color = 'black')
-tidy_ggdag |> 
-    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-    geom_dag_edges(
-        edge_width = 1, 
-        edge_color = 'grey92',
-        arrow_directed = grid::arrow(length = grid::unit(10, 'pt'), type = 'closed')
-    ) +
-    geom_dag_point(aes(), show.legend = FALSE, color = okabe_ito[1], size = 25) +
-    geom_dag_text(size = 5) +
-    theme_void()
-    # theme_dag() +
-    # theme_clean()
-
-ggsave('img/causal-dag.svg', width = 8, height = 6)
-```
 
 
 
@@ -131,9 +94,9 @@ saveRDS(causal_power, 'data/causal_power.rds')
 
 
 
-Let's say that we used some particular causal modeling approach to explain a feature-target relationship in a classification setting.  We have 10,000 observations, and the baseline rate of the target is about ~`r base_rate`. We have a model that predicts the target `y` based on the feature of interest `x`, and we may have used something like propensity score weighting or some other technique to help control for confounding. 
+Let's say that we used some particular causal modeling approach to explain a feature-target relationship in a classification setting.  We have 10,000 observations, and the baseline rate of the target is about ~`r base_rate`. We have a model that predicts the target `y` based on the feature of interest `x`, and we may have used some causal technique like propensity score weighting or some other approach to help control for confounding (we'll discuss these later). 
 
-The coefficient, though small with an odds ratio of `r x_OR`, is statistically significant (take our word for it), and we can see a slight positive relationship. Under certain settings such as this, where we are interested in causal effects and where we have controlled for various other factors to obtain this result, we might be satisfied with interpreting this positive relationship. 
+The coefficient, though small with an odds ratio of `r x_OR`, is statistically significant (take our word for it), so we have a slight positive relationship. Under certain settings such as this, where we are interested in causal effects and where we have controlled for various other factors to obtain this result, we might be satisfied with interpreting this relationship as is. 
 
 ```{r}
 #| echo: false
@@ -171,11 +134,21 @@ ggeffects::ggpredict(model, terms = 'x') |>
         color = okabe_ito[['darkblue']],
         arrow = arrow(type = 'closed', angle = 30, length = unit(0.1, 'inches'))
     ) +
+    geom_polygon(
+        data = pdat[1:4,], # just make some data the right length
+        aes(x = c(0, 0, 1, 1), y = c(.4, y_pred0, y_pred1, .4)),
+        fill = okabe_ito[['darkblue']],
+        alpha = .05
+    ) +
     labs(
         title = '',
         caption = 'The model does not predict well but suggests a small positive effect.',
     ) +
-    scale_y_continuous(breaks = c(seq(.4, .6, .05), seq(.49, .52, .01)), labels = scales::label_percent()) +
+    scale_y_continuous(
+        breaks = c(seq(.4, .6, .05), seq(.49, .52, .01)),
+        labels = scales::label_percent(),
+        limits = c(.4, .6)
+    ) +
     scale_x_continuous(breaks = seq(-4, 4, 1), labels = scales::label_number(), limits = range(x)) +
     coord_cartesian(x = range(x)) 
 
@@ -186,11 +159,11 @@ ggsave('img/causal-prediction-vs-explanation-demo-plot.svg', width = 8, height =
 
 But if we are interested in predictive performance, we would be disappointed with this model. It predicts the target at about the same rate as guessing, even on the data it's fit on, and does even worse with new data. Even the effect as shown is quite small by typical standards, as it would take a standard deviation change in the feature to get a ~`r prob_diff` change in the probability of the target (x is standardized).
 
-If we are concerned solely with explanation, we now would want to ask ourselves first if we can trust our result based on the data, model, and various issues that went into producing it. If so, we can then see if the effect is large enough to be of interest, and if the result is useful in making decisions[^seedsofchange]. It may very well be, maybe the target concerns the rate of survival, where any increase is worthwhile. Or perhaps the data circumstances demand such interpretation, because it is extremely costly to obtain more. For more exploratory efforts however, this sort of result would likely not be enough to come to any strong conclusion even if explanation is the only goal. 
+If we are concerned solely with explanation, we now would want to ask ourselves first if we can trust our result based on the data, model, and various issues that went into producing it. If so, we can then see if the effect is large enough to be of interest, and if the result is useful in making decisions[^seedsofchange]. It may very well be, maybe the target concerns the rate of survival, where any increase is worthwhile. Or perhaps the data circumstances demand such interpretation, because it is costly to obtain more. For more exploratory efforts however, this sort of result would likely not be enough to come to any strong conclusion, even if explanation is the only goal. 
 
-[^seedsofchange]: This is a contrived example, but it is definitely something that you might see in the wild. The relationship is weak, and though statistically significant, the model can't predict the target well at all. The **statistical power** is actually decent in this case, roughly `r causal_power`, but this is mainly because the sample size is so large and it is a very simple model setting. The same coefficient with a base rate of around 5% would have a power of around 20%. <br> This is a common issue in many academic fields, and it's why we always need to be careful about how we interpret our models. In practice, we would generally need to consider other factors, such as the cost of a false positive or false negative, or the cost of the data and running the model itself, to determine if the model is worth using.
+[^seedsofchange]: This is a contrived example, but it is definitely something that you might see in the wild. The relationship is weak, and though statistically significant, the model can't predict the target well at all. The **statistical power** is actually decent in this case, roughly `r causal_power`, but this is mainly because the sample size is so large and it is a very simple model setting. The same coefficient with a base rate of around 5% would have a power of around 20%. <br> This is a common issue, and it's why we always need to be careful about how we interpret our models. In practice, we would generally need to consider other factors, such as the cost of a false positive or false negative, or the cost of the data and running the model itself, to determine if the model is worth using.
 
-As another example, consider the world happiness data we've used in previous demonstrations. We want to explain the association of country level characteristics and the population's happiness. We likely aren't going to be as interested in predicting next year's happiness score, but rather what attributes are correlated with a happy populace in general. In the recent election year in the U.S., we might be interested in specific factors related to presidential elections, of which there are relatively very few data points. In these cases, explanation is the focus, and we may not even need a model at all to come to our conclusions.
+As another example, consider the world happiness data we've used in previous demonstrations. We want to explain the association of country level characteristics and the population's happiness. We likely aren't going to be as interested in predicting next year's happiness score, but rather what attributes are correlated with a happy populace in general. For another example, in the U.S., we might be interested in specific factors related to presidential elections, of which there are relatively very few data points. In these cases, explanation is the focus, and we may not even need a model at all to come to our conclusions.
 
 So we can see that in some settings we may be more interested in understanding the underlying mechanisms of the data,  and in others we may be more interested in predictive performance. However, the distinction between prediction and explanation in the end is a bit problematic, not the least of which is that we often want to do both.
 
@@ -198,12 +171,12 @@ Although it's often implied as such, *prediction is not just what we do with new
 
 Here are some ways we might think about different modeling contexts:
 
-- **Descriptive Analysis**: A description of data with no modeling focus. We'll use descriptive statistics and visualizations to understand the data. An end product may be an infographic or a highly visual report. Even here, we might use models to aid visualizations, or otherwise to help us understand the data better, but their specific implementation or result is not of much interest.
+- **Descriptive Analysis**: Here we have an exploration of data with no modeling focus. We'll use descriptive statistics and visualizations to help us understand what's going on. An end product may be an infographic or a highly visual report. Even here, we might use models to aid visualizations, or otherwise to help us understand the data better, but their specific implementation or result is not of much interest.
 - **Exploratory Modeling**: When using models for exploration, focus should probably be on both prediction and explanation. The former can help inform the strength of the results for future exploration, while the latter will often provide useful insights.
-- **Causal Modeling**: Using models to understand causal effects. We focus on explanation, and prediction on the current data. We may very well be interested in predictive performance also, and often are in industry.
-- **Generalization**: When our goal is generalizing to unseen data as we have discussed elsewhere, the focus is always on predictive performance[^transport]. This does not mean we can't use the model to understand the data though, and explanation could possibly be as important.
+- **Causal Modeling**: Here the focus is on understanding causal effects. We focus on explanation, and prediction on the current data. We may very well be interested in predictive performance also, and often are in industry.
+- **Generalization**: When our goal is generalizing to unseen data as we have discussed elsewhere, the focus is mostly on predictive performance[^transport], as we need something to help us predict things in the future. This does not mean we can't use the model to understand the data though, and explanation could still possibly be as important depending on the context.
 
-[^transport]: In causal modeling, there is the notion of **transportability**, which is the idea that a model can be used in, or generalize to, a different setting than it was trained on. For example, you may see an effect for one demographic group and wish to know whether it holds for another. It is closely related to the notion of external validity, and is also related to the concepts we've hit on in our discussion of interaction (@sec-lm-extend-interactions).
+[^transport]: In causal modeling, there is the notion of **transportability**, which is the idea that a model can be used in, or generalize to, a different setting than it was trained on. For example, you may see an effect for one demographic group and want to know whether it holds for another. It is closely related to the notion of external validity, and is also related to the concepts we've hit on in our discussion of interactions(@sec-lm-extend-interactions).
 
 Depending on the context, we may be more interested explanation or predictive performance, but in practice we often want both. It is crucial to remind yourself why you are interested in the problem, what a model is capable of telling you about it, and to be clear about what you want to get out of the result.
 
@@ -222,13 +195,13 @@ Depending on the context, we may be more interested explanation or predictive pe
 
 
 # Create a data frame with random assignments
-set.seed(123)
+set.seed(1234)
 N = 250
 df = data.frame(
-    x = rnorm(250, sd = .1),
-    y = rnorm(250, sd = .1),
-    group = sample(c('A', 'B'), 250, replace = TRUE),
-    col_group = sample(rainbow(5), 250, replace = TRUE)
+    x = rnorm(N, sd = .1),
+    y = rnorm(N, sd = .1),
+    group = sample(c('A', 'B'), N, replace = TRUE),
+    col_group = sample(rainbow(5), N, replace = TRUE)
 )
 
 dot_size = 3
@@ -322,13 +295,13 @@ ggsave(
 
 
 # Create a data frame with random assignments
-set.seed(123)
+set.seed(1234)
 N = 250
 df = data.frame(
-    x = rnorm(250, sd = .1),
-    y = rnorm(250, sd = .1),
-    group = sample(c('A', 'B'), 250, replace = TRUE),
-    col_group = sample(rainbow(5), 250, replace = TRUE)
+    x = rnorm(N, sd = .1),
+    y = rnorm(N, sd = .1),
+    group = sample(c('A', 'B'), N, replace = TRUE),
+    col_group = sample(rainbow(5), N, replace = TRUE)
 )
 
 dot_size = 5
@@ -397,7 +370,7 @@ p_waff = df  |>
         plot.margin = margin(1, 1, 1, 1, 'cm')
     )
 
-p_waff
+# p_waff
 # mc thinks we're 
 
 design = '
@@ -431,19 +404,22 @@ ggsave(
 :::
 
 
-Many are familiar with the basic idea of an experiment, where we have a **treatment** group and a **control** group, and we want to measure the difference between the two groups. The 'treatment' could regard a new drug, a marketing campaign, or a new app's feature.  If we randomly assign our observational units to the two groups, say, one that gets the new app feature and the other doesn't, we can be more confident that the two groups are essentially the same aside from the treatment, and that any difference in the outcome, for example, customer satisfaction with the app, is due to the treatment. 
+Many are familiar with the basic idea of an experiment, where we have a **treatment** group and a **control** group, and we want to measure the difference between the two groups. The 'treatment' could regard a new drug, a marketing campaign, or a new app's feature.  If we randomly assign our observational units to the two groups, say, one that gets the new app feature and the other doesn't, we can be more confident that the two groups are essentially the same aside from the treatment. Furthemore, any difference we see in the outcome, for example, customer satisfaction with the app, is probably due to the treatment.
 
-This is the basic idea behind a **randomized control trial**, or **RCT**.  We can randomly assign the groups in a variety of ways, but you can think of it as flipping a coin, and assigning each sample to the treatment when the coin comes up on one side, and to the control when it comes up on the other. The idea is that the only difference between the two groups is the treatment, and so any difference in the outcome can be attributed to the treatment. This is visualized in @fig-random-assignment, where the color/shapes represent different groups, and the groups are essentially the same aside from the treatment.
+This is the basic idea behind a **randomized control trial**, or **RCT**.  We can randomly assign the groups in a variety of ways, but you can think of it as flipping a coin, and assigning each sample to the treatment when the coin comes up on one side, and to the control when it comes up on the other. The idea is that the only difference between the two groups is the treatment, and so any difference in the outcome can be attributed to the treatment. This is visualized in @fig-random-assignment, where the color/shapes represent different groups that are the same. Their distribution is roughly similar after assignment to the treatment groups, and would become more so with more data.
+
+
+### Analysis of Experiments {#sec-causal-experiments}
 
 Many of those who have taken a statistics course have been exposed to the simple **t-test** to determine whether two groups are different. For many this is their first introduction to statistical modeling. The t-test tells us whether the difference in means between the two groups is *statistically* significant. However, it definitely *does not* tell us whether the treatment itself caused the difference, whether the effect is large, nor whether the effect is real, or even if the treatment is a good idea to do in the first place. It just tells us whether the two groups are statistically different.
 
 It turns out that a t-test is just a linear regression model. It's a special case of linear regression where there is only one independent variable, and it is a categorical variable with two levels. The coefficient from the linear regression would tell you the mean difference of the outcome between the two groups. Under the same conditions, the t-statistic from the linear regression and the t-test from a separate function would have identical statistical results.
 
-Analysis of variance, or **ANOVA**, allows the t-test to be extended to more than two groups, and multiple features, and is also commonly employed to analyze the results of experimental design settings.  But ANOVA is still just a linear regression. Even when we get into more complicated design settings such as repeated measures and mixed design, it's still just a linear model, we'd just be using mixed models (@sec-lm-extend-mixed-models). 
+Analysis of variance, or **ANOVA**, allows the t-test to be extended to more than two groups, and multiple features, and is also commonly employed to analyze the results of experimental design settings.  But ANOVA is still just a linear regression. Even when we get into more complicated design settings such as repeated measures and mixed design, it's still just a linear model, we'd just be using mixed models (@sec-lm-extend-mixed-models). In general, we're going to use similar tools to analyze the results of our experiments as we would for other modeling settings.
 
-If linear regression didn't suggest any notion of causality to you before, it shouldn't now either. The model is *identical* whether there was an experimental design with random assignment or not. The only difference is that the data was collected in a different way, and the theoretical assumptions and motivations are different. Even the statistical assumptions are the same whether you use random assignment or there are one or more groups, or whether the treatment is continuous or categorical. 
+If linear regression didn't suggest any notion of causality to you before, it shouldn't now either. The model is *identical* whether there was an experimental design with random assignment or not. The only difference is that the data was collected in a different way, and the theoretical assumptions and motivations are different. Even the statistical assumptions are the same whether you use random assignment, or there are more than two groups, or whether the treatment is continuous or categorical. 
 
-Experimental design[^exprand] can give us more confidence in the causal explanation of model results, whatever model is used, and this is why we like to use it when we can. It helps us control for the unobserved factors that might otherwise be influencing the results. If we can be fairly certain the observations are essentially the same *except* for the treatment, then we can be more confident that the treatment is the cause of the difference, as well as a causal interpretation of it. But it doesn't change the model itself, and the results of a model don't prove a causal relationship by themselves. Your experimental study will also be limited by the quality of the data, and the population it generalizes to. Even with strong design and modeling, if care isn't taken in the modeling process to even assess the generalization of the results (@sec-ml-generalization), you may find they don't hold up[^explimits].
+Experimental design[^exprand] can give us more confidence in the causal explanation of model results, whatever model is used, and this is why we like to use it when we can. It helps us control for the unobserved factors that might otherwise be influencing the results. If we can be fairly certain the observations are essentially the same *except* for the treatment, then we can be more confident that the treatment is the cause of an differences we see, and be more confident in a causal interpretation of the results. But it doesn't change the model itself, and the results of a model don't prove a causal relationship on their own. Your experimental study will also be limited by the quality of the data, and the population it generalizes to. Even with strong design and modeling, if care isn't taken in the modeling process to even assess the generalization of the results (@sec-ml-generalization), you may find they don't hold up[^explimits].
 
 [^exprand]: Note that experimental design is not just any setting that uses random assignment, but more generally how we introduce *control* in the sample settings.
 
@@ -567,64 +543,31 @@ vax_derivatives |>
 
 As we noted, random assignment or a formal experiment is not always possible or practical to implement. But sometimes we get to do it anyway, or at least we can get pretty close! Occasionally, the world gives us a **natural experiment**, where the assignment to the groups is essentially random, or where there is clear break before and after some event occurs, such that we examine the change as we would in pre-post design. 
 
-The COVID-19 pandemic provides an example of a natural experiment. The pandemic introduced sudden and widespread changes, such as lockdowns, remote work, and vaccination campaigns, that were not influenced by individuals' prior characteristics or behaviors. The randomness in the timing and implementation of these changes allows researchers to compare outcomes before and after the policy implementation or pandemic, or between different regions with varying policies, to infer causal effects. 
+The COVID-19 pandemic provides an example of a natural experiment. The pandemic introduced sudden and widespread changes that were not influenced by individuals' prior characteristics or behaviors, such as lockdowns, remote work, and vaccination campaigns. The randomness in the timing and implementation of these changes allows researchers to compare outcomes before and after the policy implementation or pandemic, or between different regions with varying policies, to infer causal effects. 
 
-For instance, we could compare states or counties that had mask mandates to those that didn't at the same time or with similar characteristics. Or we might compare areas that had high vaccination rates to those nearby that didn't. We'd need to control for as many additional factors that might influence the results, e.g. population density, age, wealth and so on, and eventually we might still get a pretty good idea of the causal impact of these interventions.
+For instance, we could compare states or counties that had mask mandates to those that didn't at the same time or with similar characteristics. Or we might compare areas that had high vaccination rates to those nearby that didn't. But these still aren't true experiments. So we'd need to control for as many additional factors that might influence the results, e.g. population density, age, wealth and so on, and eventually we might still get a pretty good idea of the causal impact of these interventions.
 
 
 ## Causal Inference {#sec-causal-inference}
 
-While we all have a natural intuition about causality, it can be a fairly elusive notion to grasp. Reasoning about causality is a very old topic, philosophically dating back millennia, and more formally [hundreds of years](https://plato.stanford.edu/entries/causation-medieval/). Random assignment is a relatively new idea, say [150 years old](https://plato.stanford.edu/entries/peirce/), and was posited even before Wright, Fisher, and Neyman, and the 20th century rise of statistics. But with stats and random assignment we had a way to start using models to help us reason about causal relationships. [Pearl and others](https://muse.jhu.edu/pub/56/article/867087/summary) came along to provide an algorithmic perspective from computer science, and economists like Heckman also got into the game too. We were even using programming approaches to do causal inference back in the 1970s! Eventually most scientific academic disciplines were well acquainted with causal inference in some fashion, and things have been progressing along for some time.
+While we all have a natural intuition about causality, it can actually be a fairly elusive notion to grasp. Causality is a very old topic, philosophically dating back millennia, and more formally [hundreds of years](https://plato.stanford.edu/entries/causation-medieval/). Random assignment is a relatively new idea, say [150 years old](https://plato.stanford.edu/entries/peirce/), and was posited even before Wright, Fisher, and Neyman, and the 20th century rise of statistics. But with stats and random assignment we had a way to start using models to help us reason about causal relationships. [Pearl and others](https://muse.jhu.edu/pub/56/article/867087/summary) came along to provide an algorithmic perspective from computer science, and economists like Heckman also got into the game too. We were even using programming approaches to do causal inference back in the 1970s! Eventually most scientific academic disciplines were well acquainted with causal inference in some fashion, and things have been progressing along for some time.
 
 Because of its long history, causal inference is a broad field, and there are many ways to approach it. We've already discussed some of the basics, but there are many other ways to reason about causality. And of course, we can use models to help us understand the causal effects we are interested in.
 
 
-### Key assumptions of causal inference
+### Key assumptions of causal inference {#sec-causal-assumptions}
 
 Causal inference at its core is the process of identifying and estimating causal effects. But like other scientific and modeling endeavors, it relies on several key assumptions to identify and estimate those effects. The main assumptions include:
 
-- **Consistency**: The *potential* outcome under the observed treatment is the same as the *observed* outcome. This suggests there is no interference between units, and there are no hidden variations of the treatment. 
-- **Exchangeability** (No Unmeasured Confounding): The treatment assignment is independent of the potential outcomes, given the observed covariates. In other words, the treatment assignment is as good as random after conditioning on the covariates.
+- **Consistency**: The *potential* outcome under the observed treatment is the same as the *observed* outcome. This suggests there is *no interference* between units, and that there are *no hidden variations of the treatment*. 
+- **Exchangeability**: The treatment assignment is independent of the potential outcomes, given the observed covariates. In other words, the treatment assignment is as good as random after conditioning on the covariates. This is often referred to as *no unmeasured **confounding***.
 - **Positivity** : Every individual has a positive probability of receiving each treatment level.
 
-It can be difficult to meet these assumptions, and there is not always a clear path to a solution. As an example, say we want to assess a new curriculum's effect on student performance. We can randomly assign students, but they can interact with one another both in and outside of the classroom. Those who receive the treatment may be more likely to talk to one another, and this could affect the outcome, enhancing its effects if it is beneficial. This would violate our assumption of no interference between units, and we'd need to maybe choose an alternative design or model to account for this.
+It can be difficult to meet these assumptions, and there is not always a clear path to a solution. As an example, say we want to assess a new curriculum's effect on student performance. We can randomly assign students, but they can interact with one another both in and outside of the classroom. Those who receive the treatment may be more likely to talk to one another, and this could affect the outcome, enhancing its effects if it is beneficial. This would violate our assumption of no interference between units, and we'd need to maybe choose an alternative design or outcome to account for this.
 
-The following demonstrates a common assumption that is regularly guarded against in causal modeling - **confounding**. In this case our confounder `U`, is a variable that affects both treatment `X` and target `Y`. We'll generate some synthetic data with a confounder, and fit two models, one with the confounder and one without. We'll compare the coefficients of the feature of interest in both models.
+The following demonstrates a common assumption that is regularly guarded against in causal modeling - confounding. The confounder `U`, is a variable that affects both treatment `X` and target `Y`. We'll generate some synthetic data with a confounder, and fit two models, one with the confounder and one without. We'll compare the coefficients of the feature of interest in both models.
 
 :::{.panel-tabset}
-
-##### R
-
-```{r}
-#| label: r-causal-assumptions
-#| eval: false
-simulate_confounding = function(n, nreps, true = 1) {
-    results = replicate(nreps, {
-        U = rnorm(n)                 # Unmeasured confounder
-        X = 0.5 * U + rnorm(n)       # Treatment influenced by U
-        Y = true * X + U + rnorm(n)  # Outcome influenced by X and U
-        
-        data = data.frame(X = X, Y = Y)
-
-        # Fit a linear regression model with and 
-        # without adjusting for the unmeasured confounder
-        model = lm(Y ~ X, data = data)
-        model2 = lm(Y ~ X + U, data = data)
-        c(coef(model)['X'], coef(model2)['X'])
-    })
-    
-    results = rowMeans(results)
-
-    data.frame(
-        true = true,
-        estimate_1 = results[1],
-        estimate_2 = results[2]
-    )
-}
-
-simulate_confounding(n = 1000, nreps = 500)
-```
-
 
 
 ##### Python
@@ -636,20 +579,23 @@ from numpy.random import normal as rnorm
 import pandas as pd
 import statsmodels.api as sm
 
-def simulate_confounding(n, nreps, true=1):
+def get_coefs(n = 100, true = 1):
+    U = rnorm(size=n)                 # Unmeasured confounder
+    X = 0.5 * U + rnorm(size=n)       # Treatment influenced by U
+    Y = true * X + U + rnorm(size=n)  # Outcome influenced by X and U
+
+    data = pd.DataFrame({'X': X, 'U': U, 'Y': Y})
+
+    # Fit a linear regression model with and 
+    # without adjusting for the unmeasured confounder
+    model = sm.OLS(data['Y'], sm.add_constant(data['X'])).fit()
+    model2 = sm.OLS(data['Y'], sm.add_constant(data[['X', 'U']])).fit()
+    return model.params['X'], model2.params['X']
+
+def simulate_confounding(nreps = 100, n = 100, true=1):
     results = []
     for _ in range(nreps):
-        U = rnorm(size=n)                 # Unmeasured confounder
-        X = 0.5 * U + rnorm(size=n)       # Treatment influenced by U
-        Y = true * X + U + rnorm(size=n)  # Outcome influenced by X and U
-
-        data = pd.DataFrame({'X': X, 'U': U, 'Y': Y})
-
-        # Fit a linear regression model with and
-        # without adjusting for the unmeasured confounder
-        model = sm.OLS(data['Y'], sm.add_constant(data['X'])).fit()
-        model2 = sm.OLS(data['Y'], sm.add_constant(data[['X', 'U']])).fit()
-        results.append([model.params['X'], model2.params['X']])
+        results.append(get_coefs(n, true))
 
     results = np.mean(results, axis=0)
 
@@ -663,29 +609,69 @@ def simulate_confounding(n, nreps, true=1):
 simulate_confounding(n=1000, nreps=500)
 ```
 
-:::
 
-Results suggest that the coefficient of `X` is different in the two models. If we don't include the confounder, the feature's relationship with the target is biased upwardly. The nature of the bias depends on the relationship between the confounder and the treatment and target, but in this case it's pretty clear!
+##### R
 
 ```{r}
-#| label: tbl-r-causal-assumptions
+#| label: r-causal-assumptions
+#| eval: false
+
+get_coefficients = function(n = 100, true = 1) {
+    U = rnorm(n)                 # Unmeasured confounder
+    X = 0.5 * U + rnorm(n)       # Treatment influenced by U
+    Y = true * X + U + rnorm(n)  # Outcome influenced by X and U
+    
+    data = data.frame(X = X, Y = Y)
+
+    # Fit a linear regression model with and 
+    # without adjusting for the unmeasured confounder
+    model = lm(Y ~ X, data = data)
+    model2 = lm(Y ~ X + U, data = data)
+    c(coef(model)['X'], coef(model2)['X'])
+}
+
+simulate_confounding = function(nreps, n, true) { 
+    results = replicate(nreps,  get_coefficients(n, true))
+    
+    results = rowMeans(results)
+
+    data.frame(
+        true = true,
+        estimate_1 = results[1],
+        estimate_2 = results[2]
+    )
+}
+
+simulate_confounding(nreps = 500, n = 1000, true = 1)
+```
+
+:::
+
+Results suggest that the coefficient for `X` is different in the two models. If we don't include the confounder, the feature's relationship with the target is biased upwardly. The nature of the bias depends on the relationship between the confounder and the treatment and target, but in this case it's pretty clear!
+
+```{r}
 #| echo: false
+#| label: tbl-r-causal-assumptions
+#| tbl-cap: Coefficients with and without the confounder
 
 simulate_confounding = function(n, nreps, true = 1) {
-    results = replicate(nreps, {
-        U = rnorm(n)                 # Unmeasured confounder
-        X = 0.5 * U + rnorm(n)       # Treatment influenced by U
-        Y = true * X + U + rnorm(n)  # Outcome influenced by X and U
+    results = replicate(
+        nreps, 
+        {
+            U = rnorm(n)                 # Unmeasured confounder
+            X = 0.5 * U + rnorm(n)       # Treatment influenced by U
+            Y = true * X + U + rnorm(n)  # Outcome influenced by X and U
 
-        # Create a tibble
-        data = tibble(X = X, Y = Y)
+            # Create a tibble
+            data = tibble(X = X, Y = Y)
 
-        # Fit a linear regression model with and 
-        # without adjusting for the unmeasured confounder
-        model = lm(Y ~ X, data = data)
-        model2 = lm(Y ~ X + U, data = data)
-        c(coef(model)['X'], coef(model2)['X'])
-    })
+            # Fit a linear regression model with and 
+            # without adjusting for the unmeasured confounder
+            model = lm(Y ~ X, data = data)
+            model2 = lm(Y ~ X + U, data = data)
+            c(coef(model)['X'], coef(model2)['X'])
+        }
+    )
     
     results = rowMeans(results)
 
@@ -715,11 +701,11 @@ Any model can potentially be used to answer a causal question, and which one you
 
 ### Linear regression {#sec-causal-lm}
 
-Yep, [linear regression](https://matheusfacure.github.io/python-causality-handbook/05-The-Unreasonable-Effectiveness-of-Linear-Regression.html). The old standby is possibly the mostly widely used model for causal inference, historically speaking and even today. We've seen linear regression as a graphical model @fig-graph-lm, and in that sense, it can serve as the starting point for structural equation models and others that we'll talk about next that many consider to be true causal models. It can also be used as a baseline model for other more complex causal model approaches. 
+Yep, [linear regression](https://matheusfacure.github.io/python-causality-handbook/05-The-Unreasonable-Effectiveness-of-Linear-Regression.html). The old standby is possibly the mostly widely used model for causal inference, historically speaking and even today. We've seen linear regression as a kind of graphical model @fig-graph-lm, and in that sense, it can serve as the starting point for structural equation models and others that we'll talk about next that many consider to be true causal models. It can also be used as a baseline model for other more complex causal model approaches. 
 
-Linear regression can potentially tell us for any particular feature, what that feature's relationship with the target is, holding the other features constant. This **ceteris paribus** interpretation - 'all else being equal' - already gets us into a causal mindset. If we had randomization and no confounding, and the feature-target relationship was linear, we could interpret the coefficient of the feature as the causal effect of that feature on the target.
+Linear regression can potentially tell us for any particular feature, what that feature's relationship with the target is, holding the other features constant. This **ceteris paribus** interpretation - 'all else being equal' - already gets us into a causal mindset. If we had randomization and no confounding, and the feature-target relationship was linear, we could interpret the coefficient of the feature as the causal effect.
 
-However, your standard linear model doesn't care where the data came from or what the underlying structure *should* be. It only does what you ask of it, and will tell you about group differences whether they come from a randomized experiment or not. For example, if you don't include  potential confounders, you could get a biased estimate of the effect, as we saw earlier[^biasedcause]. Basic linear regression also cannot tell you whether X is the effect of Y or vice versa. So linear regression by itself cannot save us from the difficulties of causal inference, nor really can be considered a causal model. But it can be useful as a starting point in conjunction with other approaches.
+However, your standard linear model doesn't care where the data came from or what the underlying structure *should* be. It only does what you ask of it, and will tell you about group differences whether they come from a randomized experiment or not. For example, as we saw earlier, if you don't include  potential confounders, you could get a biased estimate of the effect[^biasedcause]. It also cannot tell you whether X effects Y or vice versa. So linear regression by itself cannot save us from the difficulties of causal inference, nor really can be considered a causal model. But it can be useful as a starting point in conjunction with other approaches.
 
 [^biasedcause]: A reminder that a conclusion of 'no effect' is also a causal statement, and can also be a biased one. Also, you can come to the same *practical* conclusion with a biased estimate as with an unbiased one.
 
@@ -791,9 +777,9 @@ As we can see from this simple demo, linear regression by itself cannot save us 
 
 
 :::{.callout-note title='Weighting and Sampling Methods' collapse='true'}
-Common techniques for traditional statistical models used for causal inference include a variety of **weighting** or **sampling** methods. These methods are used to adjust the data so that the 'treatment' groups are more similar, and its effect can be more accurately estimated. Sampling methods include techniques such as stratification and matching, which focus on the selection of the sample as a means to balance treatment and control groups. Weighting methods include inverse probability weighting and propensity score weighting, which focus on adjusting the weights of the observations to make the groups more similar.
+Common techniques for traditional statistical models used for causal inference include a variety of **weighting** or **sampling** methods. These methods are used to adjust the data so that the 'treatment' groups are more similar, and a causal effect can be more accurately estimated. Sampling methods include techniques such as **stratification** and **matching**, which focus on the selection of the sample as a means to balance treatment and control groups. Weighting methods include **inverse probability weighting** and **propensity score weighting**, which focus on adjusting the weights of the observations to make the groups more similar. They have extensions to continuous treatments as well.
 
-These methods are not models themselves, and potentially can be used with just about any model that attempts to estimate the effect of a treatment. An nice overview of using such methods vs. standard regression/ML can be found on [Cross Validated](https://stats.stackexchange.com/a/544958).
+Sampling and weighting methods are not models themselves, and potentially can be used with just about any model that attempts to estimate the effect of a treatment. An nice overview of using such methods vs. standard regression/ML can be found on [Cross Validated](https://stats.stackexchange.com/a/544958).
 :::
 
 
@@ -801,19 +787,103 @@ These methods are not models themselves, and potentially can be used with just a
 ### Graphical models & structural equation models {#sec-causal-graphical-sem}
 
 
-<!-- TODO: maybe replace with a latent variable sem model image -->
+```{r}
+#| echo: false
+#| eval: false
+#| label: fig-causal-dag
+#| fig-cap: A Causal DAG
+library(ggdag)
+
+
+#  using more R-like syntax to create the same DAG
+tidy_ggdag = dagify(
+    target ~ x + z,
+    x ~ z + w,
+    z ~ w,
+    # z1 ~ w1 + v,
+    # z2 ~ w2 + v,
+    # w1 ~ ~w2, # bidirected path
+    exposure = 'x',
+    outcome = 'target',
+    labels = c(x = 'Phys.\nAct.', z = 'Diet.\nHabit', w = 'Access', target = 'Cholesterol')
+)
+    
+
+# ggdag(
+#     tidy_ggdag, 
+#     node_size = 25,
+#     use_labels = "label", 
+#     label_col = okabe_ito[3],
+#     point_col = 'blue',
+#     text = FALSE,
+#     stylized = FALSE
+# ) + 
+#     geom_dag_edges(
+#         edge_width = 1.5, 
+#         edge_color = okabe_ito[2],
+#         edge_alpha = 0.5,
+#         arrow_directed = grid::arrow(length = grid::unit(10, 'pt'), type = 'closed')
+#     ) +
+#     geom_dag_point(color = okabe_ito[1])
+
+# tidy_ggdag |> 
+#     ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+p = tidy_dagitty(tidy_ggdag, layout = 'nicely') |> 
+    ggdag(label_col = okabe_ito[1], text = FALSE)
+p +
+    geom_dag_edges(
+        edge_width = 1.5, 
+        edge_color = okabe_ito[2],
+        edge_alpha = 0.5,
+        arrow_directed = grid::arrow(length = grid::unit(15, 'pt'), type = 'closed'),
+    ) +
+    # add focus to physical activity
+    geom_point(
+        data = p$data |> filter(name=='x', to == 'target') |> slice(1) ,
+        aes(x, y),
+        color = okabe_ito[2], 
+        alpha = 1,
+        size = 28
+    ) +
+    geom_point(
+        data = p$data |> filter(name=='target') ,
+        aes(x, y),
+        color = okabe_ito[6], 
+        alpha = 1,
+        size = 28
+    ) +
+    geom_dag_point(aes(), show.legend = FALSE, color = okabe_ito[1], fill = NA, size = 25) +
+    geom_dag_label(aes(label = label), size = 3) +
+    theme_void()
+    
+
+ggsave('img/causal-dag.svg')
+```
+
+
 ![A Causal DAG](img/causal-dag.svg){width=75% #fig-causal-dag}
 
 
-**Graphical and Structural Equation Models (SEM)** are flexible approaches to regression and classification, and have one of the longest histories of formal statistical modeling, dating back over a century[^wright]. They are widely employed in the social sciences, and are often used to model both observed *and* latent variables (@sec-data-latent), with either serving as features or targets. They are also used to model causal relationships, to the point that historically they were even called 'causal graphical models' or 'causal structural models'. SEMs are a special case of **graphical models**, which are common tools in computer science and non-social science disciplines, and for causal modeling.
+**Graphical and Structural Equation Models (SEM)** are flexible approaches to regression and classification, and have one of the longest histories of formal statistical modeling, dating back over a century[^wright].  As an example, @fig-causal-dag shows a *directed acyclic graph* (DAG) that represents a causal model. The arrows indicate the direction of the causal relationship, and each node is a feature or target, and some features are influenced by others. 
 
-[^wright]: [Wright](https://en.wikipedia.org/wiki/Sewall_Wright) is credited with coming up with what would be called **path analysis** in the 1920s, which is a precursor to and part of SEM. 
+[^wright]: [Wright](https://en.wikipedia.org/wiki/Sewall_Wright) is credited with coming up with what would be called **path analysis** in the 1920s, which is a precursor to and part of SEM and form of graphical model.
 
-Formal graphical models like SEM provide a much richer set of tools for controlling various confounding, interaction, and indirect effects than simpler linear models. For this reason, they can be very useful for causal inference. Unfortunately for those looking for causal effects, the basic input for SEM is a correlation matrix, and the basic output is a correlation matrix. Insert your favorite modeling quote here - you know which one! The point is that SEM, like linear regression, can no more tell you whether a relationship is causal than the linear regression or t-test could[^sembias]. And compared to other graphical modeling techniques like directed acyclic graphs (DAGs), SEMs will typically have more assumptions[^semass].
+In that graph, our focal treatment, or 'exposure', is physical activity, and we want to see its effect on a health outcome like cholesterol levels. However, dietary habits would also affect the outcome, and affect how much physical activity one does. Both dietary habits and physical activity may in part reflect access to healthy food. The target in question does not affect any other nodes, and in fact the causal flow is in one direction, so there is no cycle in the graph (i.e., it is 'acyclic').
 
-[^sembias]: Your authors have to admit some bias here. We've spent a lot of our past dealing with SEMs, and almost every application we saw had too little data and too little generalization, and were grossly overfit. Many SEM programs even added multiple ways to overfit the data even further, and it is difficult to trust the results reported in many papers that used them. But that's not the fault of SEM in general- it can be a useful tool when used correctly, and it can help answer causal questions, but it doesn't make anyone look fancier by using it.
+One thing to note relative to the other graphical model depictions we've seen, is that the arrows directly flow to a target or set of targets, as opposed to just producing an 'output' that we then compare with the target. In graphical causal models, we're making clear the direction and focus of the causal relationships, i.e., the causal structure, as opposed to the model structure. Also, in graphical causal models, the effects for any given feature are adjusted for the other features in the model in a particular way, so that we can think about them in isolation, rather than as a collective set of features that are all influencing the target[^graphout]. 
+
+[^graphout]: If we were to model this in an overly simple fashion with linear regressions for any variable with an arrow to it, you could say physical activity and dietary habits would basically be the output of their respective models. It isn't that simple in practice though, such that we can just run separate regressions and feed in the results to the next one, thought that's how they used to do it back in the day. We have to take more care in how we adjust for all features in the model, as well as correctly account for the uncertainty if we do take a multi-stage approach.
+
+
+Structural equation models are widely employed in the social sciences and education, and are often used to model both observed and *latent* variables (@sec-data-latent), with either serving as features or targets[^sembias]. They are also used to model causal relationships, to the point that historically they were even called 'causal graphical models' or 'causal structural models'. SEMs are actually a special case of the graphical models just described, which are more common in non-social science disciplines. Compared to other graphical modeling techniques like DAGs, SEMs will typically have more assumptions, and these are often difficult to meet[^semass]. 
+
+
+[^sembias]: Your authors have to admit some bias here, but we hope the presentation for SEM is balanced. We've spent a lot of our past dealing with SEMs, and almost every application we saw had too little data and were grossly overfit. Many SEM programming approaches even added multiple ways to overfit the data even further, and it is difficult to trust the results reported in many papers that used them. But that's not the fault of SEM in general- it can be a useful tool when used correctly, and it can help answer causal questions.  But it can easily be misused by those not familiar with its assumptions and limitations.
 
 [^semass]: @vanderweele_invited_2012 provides a nice overview of the increased assumptions of SEM relative to other methods.
+
+The following shows a relatively simple SEM, a latent variable **mediation model** involving social support and self esteem, and with depression as the outcome of interest (@fig-sem). Each latent variable has three observed measures, e.g., item scores collected from a psychological inventory or personal survey. The observed variables are *caused* by the latent, i.e., *unseen* or *hidden*, variables. In other words, the observed item score is a less than perfect reflection of the true underlying latent variable, which is what we're really interested in. The effects of the latent constructs of social support and self esteem on depression may be of equal interest in this setting. For social support, we'd be interested in the direct effect on depression, as well as the indirect effect through self esteem.
+
 
 ```{r}
 #| label: r-causal-sem-plot
@@ -827,6 +897,10 @@ g |>
 ```
 
 ![SEM with latent and observed variables](img/sem.svg){width=75% #fig-sem}
+
+
+Formal graphical models provide a much richer set of tools for controlling various confounding, interaction, and indirect effects than simpler linear models. For this reason, they can be very useful for causal inference. It may be cautionary to note that models like linear regression can be seen as a special case, and we know that linear regression by itself is not a causal model. So in order for these tools to provide valid causal estimates, they need to be used in a way that is consistent with the assumptions of both the underlying causal model as well as the model estimation approach.
+
 
 :::{.callout-note title='Causal Language' collapse='true'}
 It's often been suggested that we keep certain phrasing (e.g. feature X has an *effect* on target Y) only for the causal model setting. But the model we use can only tell us that the data is consistent with the effect we're trying to understand, not that it actually exists. In everyday language, we often use causal language whenever we think the relationship is or should be causal, and that's fine, and we think that's okay in a modeling context too, as long as you are clear about the limits of your generalizability.
@@ -853,7 +927,7 @@ What are we to make of this? Which ad is better? **A** seems to be, but maybe Pr
 
 Let's say ad A is the new one, i.e., our treatment group, and B is the status quo ad, our control group. Without randomization, our real question can't be answered by a simple test of whether means or predictions are different among the two groups, as this estimate would be biased if the groups are already different in some way to start with. The real effect is whether, for those who saw ad A, what the difference in the outcome would be if they hadn't seen it.
 
-From a prediction stand point, we can get an initial estimate straightforwardly. We demonstrated counterfactual predictions before in @sec-knowing-counterfactual-predictions, but we can revisit it briefly here. For those in the treatment, we can just plug in their feature values with treatment set to ad A. Then we just make a prediction with treatment set to ad B. This approach is basically the **S-Learner** approach to meta-learning, which we'll discuss in a bit, as well as a simplified form of G-computation, widely used in causal inference
+From a prediction stand point, we can get an initial estimate straightforwardly. We demonstrated counterfactual predictions before in @sec-knowing-counterfactual-predictions, but we can revisit it briefly here. For those in the treatment, we can just plug in their feature values with treatment set to ad A. Then we just make a prediction with treatment set to ad B. This approach is basically the **S-Learner** approach to meta-learning, which we'll discuss in a bit, as well as a simple form of **G-computation**, widely used in causal inference.
 
 :::{.panel-tabset}
 
@@ -877,14 +951,14 @@ predict(model, X |> mutate(treatment = 'A')) -
 
 :::
 
-With counterfactual thinking explicitly in mind, we can see that the difference in predictions is the difference in the potential outcomes of the treatment. This is a very simple demo to illustrate how easy it is to start getting some counterfactual results from our models. But it's typically not quite that simple in practice, and there are many ways to get this estimate wrong as well. As in other circumstances, the data, or our assumptions about the problem can potentially lead us astray. But, assuming those aspects of our modeling endeavor are in order, this is one way to get an estimate of the causal effect of the treatment.
+With counterfactual thinking explicitly in mind, we can see that the difference in predictions is the difference in the potential outcomes of the treatment. This is a very simple demo to illustrate how easy it is to start getting some counterfactual results from our models. But it's typically not quite that simple in practice, and there are many ways to get this estimate wrong as well. As in other circumstances, the data and our assumptions about the problem can potentially lead us astray. But, assuming those aspects of our modeling endeavor are in order, this is one way to get an estimate of a causal effect.
 
 
 ### Uplift modeling {#sec-causal-uplift}
 
 ![A sleeping dog](img/causal-sleeping_dog.jpeg){width=25%}
 
-The counterfactual prediction we just did provides a result that can be called the **uplift** or **gain** from the treatment, particularly when compared to a baseline metric. **Uplift modeling** is a general term applied to models where counterfactual thinking is at the forefront, especially in a marketing context. Uplift modeling is not a specific model per se, but any model that is used to answer a question about the potential outcomes of a treatment. The key question is what is the gain, or uplift, in applying a treatment vs. not?  Typically any statistical model can be used to answer this question, and often the model is a classification model, for example, whether Roy from the previous section bought the product or not. 
+The counterfactual prediction we just did provides a result that can be called the **uplift** or **gain** from the treatment, particularly when compared to a baseline metric. **Uplift modeling** is a general term applied to models where counterfactual thinking is at the forefront, especially in a marketing context. Uplift modeling is not a specific model per se, but any model that is used to answer a question about the potential outcomes of a treatment. The key question is what is the gain, or uplift, in applying a treatment vs. the baseline?  Typically any statistical model can be used to answer this question, and often the model is a classification model, for example, whether Roy from the previous section bought the product or not. 
 
 It is common in uplift modeling to distinguish certain types of individuals or instances, and we think it's useful to extend this to other modeling contexts as well. In the context of our previous example they are:
 
@@ -908,25 +982,31 @@ There are more widely used tools for uplift modeling and meta-learners in Python
 
 
 - **S-learner** - **s**ingle model for both groups; predict the (counterfactual) difference as when all observations are treated vs when all are not, similar to our previous demonstrations of counterfactual predictions.
-- **T-learner** - **t**wo models, one for each of the control and treatment groups respectively; predict the values as if all observations are 'treated' versus when all are 'control' using both models, and take the difference.
-- **X-learner** - a more complicated modification to the T-learner also using a multi-step approach.
+- **T-learner** - **t**wo models, one for each of the control and treatment groups respectively; get predictions as if all observations are 'treated' (i.e., using the treatment model) versus when all are 'control' (using the control model), and take the difference.
+- **X-learner** - a more complicated modification to the T-learner using a multi-step approach.
+- **R-learner** - also called (Double) Debiased ML. An approach that uses a **r**esidual-based model to adjust for the treatment effect[^fancypath].
+
+[^fancypath]: As a simple overview, think of it this way with Y outcome, T treatment and X confounders/other features. Y and T are each regressed on X via some ML model, and the residuals from both are used in a subsequent model, $Y_{res} \sim T_{res}$, to estimate the treatment effect. Or, if you know how path analysis works, or even standard linear regression, it's pretty much just that with ML. As an exercise, start with a linear regression for the target on all features, then just do a linear regression for a chosen focal feature predicted by the non-focal features. Next, regress the target on the non-focal features. Finally, just do a linear regression with the residuals from both models. The resulting coefficient will be what you started with for the focal feature in the first regression.
 
 
-Some additional variants of these models exist, and they can be used in a variety of settings, and are very common in  uplift modeling. As elsewhere, the key idea is to use the model to predict the potential outcomes of the treatment levels to estimate the causal effect.
+Some variants of these models exist also. As elsewhere, the key idea is to use the model to predict the potential outcomes of the treatment levels to estimate the causal effect. Most models traditionally used in a machine learning context, e.g., random forests, boosted trees, or neural networks, are not designed to accurately estimate causal effects, nor correctly estimate the uncertainty in those effects. Meta-learners attempt to address the issue with regard to the effect, but you'll typically still have your work cut out for you to understand the uncertainty in that effect.
+
+
 
 :::{.callout-note title='Meta-Learners vs. Meta-Analysis' collapse='true'}
-Meta-learners are not to be confused with **meta-analysis**, which is also related to understanding causal effects. Meta-analysis attempts to combine the results of multiple *studies* to get a better estimate of the true effect. The studies are typically conducted by different researchers and in different settings.  The term **meta-learning** has also been used to refer to what is more commonly called **ensemble learning**, the approach used in random forests and boosting. It is also used by other people that don't bother to look things up before naming their technical terms.
+Meta-learners are not to be confused with **meta-analysis**, which is also related to understanding causal effects. Meta-analysis attempts to combine the results of multiple *studies* to get a better estimate of the true effect. The studies are typically conducted by different researchers and in different settings.  The term **meta-learning** has also been used to refer to what is more commonly called **ensemble learning**, the approach used in random forests and boosting. It is also probably used by other people that don't bother to look things up before naming their technical terms.
 :::
 
 ### Others models used for causal inference {#sec-causal-others}
 
-Note that there are many models that would fall under the umbrella of causal inference, but typically these models are only a special application of some of the ones we've already become well acquainted with. So you should feel good about trying them out. Here are a few you might come across specific to the causal modeling domain:
+Note that there are many models that would fall under the umbrella of causal inference. But typically these models are only a special application of some of the ones we've already become well acquainted with, so you should feel good about trying them out. Here are a few you might come across specific to the causal modeling domain:
 
 - G-computation, doubly robust estimation, targeted maximum likelihood estimation[^gcomp]
 - Marginal structural models[^marginal]
 - Instrumental variables and two-stage least squares[^iv]
 - Propensity score matching/weighting
-- Regression discontinuity design
+- Regression discontinuity design[^regdisc]
+- Difference-in-differences[^diffindiff]
 - Mediation/moderation analysis[^semass]
 - Meta-analysis[^semass]
 - Bayesian networks
@@ -938,9 +1018,13 @@ In general, any modeling technique can be employed as part of a causal modeling 
 
 [^marginal]: Very common in epidemiology, and a nice introduction can be found in @robins_marginal_2000.
 
+[^regdisc]: Regression discontinuity design is a quasi-experimental design that is used when comparing an outcome on either side of a threshold, such as a cutoff for a program or policy. The idea is that those just above the threshold are similar to those just below, and the difference in the outcome can be attributed to the program or policy. This is at its core just a pre-post type of analysis.
+
+[^diffindiff]: Difference-in-differences just involves an interaction of a treatment with something else, typically time. 
+
 [^iv]: Instrumental variables are used in econometrics, and are a way to get around the problem of unmeasured confounding.
 
-[^semass]: Mediation/moderation are special cases of SEM. SEM are more common in psychology and education, though less widely used these days in general.
+[^semass]: Mediation/moderation are special applications of structural equation modeling.
 
 
 
@@ -950,7 +1034,7 @@ We've been pretty loose in our presentation here, and glossed over many details 
 
 Models used in statistical analysis and machine learning are not causal models, but when we take a causal model from the realm of ideas and apply it to the real world, a causal model becomes a statistical/ML model with more assumptions, and with additional steps taken to address those assumptions[^assume]. These assumptions are required in order to make stronger causal statements, but neither the assumptions, data, nor model can prove that the underlying theory is causally correct. Things like random assignment, sampling, a complex model and good data can possibly help the situation, but they can't save you from a fundamental misunderstanding of the problem, or data that may still be consistent with that misunderstanding. Nothing about employing a causal model inherently makes better predictions either.
 
-Causal modeling is hard, and most of the difficulty lies outside of the realm of models and data. The model implemented reflects the causal theory, which can be a correct or incorrect idea about how the world works. In the end, the main thing is that when we want to make causal statements, we'll make do with what data we have, and be careful that we rule out some of the other obvious explanations and issues. The better we can control the setting, or the better we can do things from a modeling standpoint, the more confident we can be in making causal claims. Causal modeling is an exercise in reasoning, which makes it such an interesting endeavor.
+Causal modeling is hard, and most of the difficulty lies outside of the realm of models and data. The model implemented reflects the causal theory, which can be a correct or incorrect idea about how the world works. In the end, the main thing is that when we want to make causal statements, we'll make do with what data we have, and be careful that we rule out some of the other obvious explanations and issues. The better we can control the setting, or the better we can do things from a modeling standpoint, the more confident we can be in making causal claims. Causal modeling is really an exercise in *reasoning*, which makes it such an interesting endeavor!
 
 [^assume]: Gentle reminder that making an assumption does not mean the assumption is correct, or even provable.
 
@@ -958,7 +1042,7 @@ Causal modeling is hard, and most of the difficulty lies outside of the realm of
 
 ### The common thread {#causal-common}
 
-Engaging in causal modeling may not even require you to learn any new models, but you will typically have to do more to be able to make causal statements. The key is to think about the problem in a different way, and to be more careful about the assumptions you are making. You may need to do more to ensure that your data and model are consistent with the assumptions you are making.
+Engaging in causal modeling may not even require you to learn any new models, but you will typically have to do more to be able to make causal statements. The key is to think about the problem in a different way, and to be more clear and careful about the assumptions you are making. You may need to do more work to ensure that your data and chosen model are consistent with the assumptions you are making.
 
 
 ### Choose your own adventure {#causal-adventure}
@@ -970,50 +1054,24 @@ From here you might revisit some of the previous models and think about how you 
 
 We have only scratched the surface here, and there is a lot more to learn. Here are some resources to get you started:
 
-- [Causal Inference in R](https://www.r-causal.org/) @barrett_causal_2024
+- [Causal Inference in R](https://www.r-causal.org/) @barrett_causal_2024[^mbreview]
 - [Causal Inference The Mixtape](https://mixtape.scunning.com/) @cunningham_causal_2023
 - [Causal Inference for the Brave and True](https://matheusfacure.github.io/python-causality-handbook/) @facure_alves_causal_2022
 - [Applied Causal Inference Powered by ML and AI](https://arxiv.org/abs/2403.02467) @chernozhukov_applied_2024
+- [Metalearners for estimating heterogeneous treatment effects using machine learning](https://www.pnas.org/doi/abs/10.1073/pnas.1804597116) @kunzel_metalearners_2019
 - [The C-Word](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5888052/) @hernan_c-word_2018
 
+[^mbreview]: Malcolm Barrett was kind enough to give us a review of the content in this chapter, and their text was a great resource for much of it. As a result, it's much better than it would have been, and we definitely recommend it for a more in-depth look at causal inference.
 
 
 ## Guided Exploration {#causal-exercise}
 
 If you look into causal modeling, you'll find mention of problematic covariates such as [colliders](https://en.wikipedia.org/wiki/Collider_(statistics)) or [confounders](https://en.wikipedia.org/wiki/Confounding). We've talked about confounders already. A **collider** is a variable that is caused by two other variables, and when you condition on it, it can induce a spurious relationship between those two variables.
 
-In this exercise, we'll look at a simple example of a collider in the manner we did the confounder. First, run the available code to see what you get. Then, change it to the simulation approach we used for the confounder example, and change some of the relevant coefficients around.
+In this exercise, we'll look at a simple example of a collider in the manner we did the confounder. First, run the available code to see what you get. Then, attempt to incorporate the simulation approach we used for the confounder example (@sec-causal-assumptions), and change some of the relevant coefficients around.
 
 :::{.panel-tabset}
 
-##### R
-
-```{r}
-#| label: r-demo-collider
-#| eval: false
-# Set seed for reproducibility
-library(tidyverse)
-
-set.seed(42)
-
-# Generate synthetic data
-n = 2500
-x = rnorm(n)          # the feature
-y = rnorm(n)          # the target (no relation to x)
-z = x + y + rnorm(n)  # the collider
-
-data = tibble(x = x, y = y, z = z)
-
-# Fit linear models
-model_without_z = lm(y ~ x, data = data)
-model_with_z = lm(y ~ x + z, data = data)
-
-# Compare x coefficients
-tibble(
-    estimate_1 = coef(model_without_z)['x'],
-    estimate_2 = coef(model_with_z)['x']
-)
-```
 
 ##### Python
 
@@ -1047,5 +1105,34 @@ pd.DataFrame({
 }, index=['x']).round(3)
 ```
 
+
+##### R
+
+```{r}
+#| label: r-demo-collider
+#| eval: false
+# Set seed for reproducibility
+library(tidyverse)
+
+set.seed(42)
+
+# Generate synthetic data
+n = 2500
+x = rnorm(n)          # the feature
+y = rnorm(n)          # the target (no relation to x)
+z = x + y + rnorm(n)  # the collider
+
+data = tibble(x = x, y = y, z = z)
+
+# Fit linear models
+model_without_z = lm(y ~ x, data = data)
+model_with_z = lm(y ~ x + z, data = data)
+
+# Compare x coefficients
+tibble(
+    estimate_1 = coef(model_without_z)['x'],
+    estimate_2 = coef(model_with_z)['x']
+)
+```
 :::
 
