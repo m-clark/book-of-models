@@ -8,7 +8,7 @@
 df_reviews = read_csv("https://tinyurl.com/moviereviewsdata")
 ```
 
-It's an inescapable fact that models need data to work. One of the dirty secrets in data science is that getting the data right will do more for your model than any fancy algorithm or hyperparameter tuning.  Data is messy, and there are a lot of ways it can be messy. In addition, dealing with a target variable on its terms can lead to more interesting results. In this chapter we'll discuss some of the most common data issues and things to consider. There's a lot to know about data before you ever get into modeling your own, so we'll give you some things to think about it in this chapter. 
+It's an inescapable fact that models need data to work. One of the dirty secrets in data science is that getting the data right will do more for your model than any fancy algorithm or hyperparameter tuning.  Data is messy, and there are a lot of ways it can be messy. In addition, dealing with a target variable on its terms can lead to more interesting results. In this chapter we'll discuss some of the most common data issues and things to consider. There's a lot to know about data before you ever get into modeling it, so we'll give you some things to think about in this chapter. 
 
 
 ## Key Ideas {#sec-data-key-ideas}
@@ -32,18 +32,18 @@ We're talking very generally about data here, so not much background is needed. 
 
 ## Feature & Target Transformations {#sec-data-transformations}
 
-Transforming variables from one form to another provides several benefits in modeling, whether applied to the target, features, or both, and *should regularly be used for most model situations*. Some of these benefits include:
+Transforming variables from one form to another provides several benefits in modeling, whether applied to the target, features, or both. *Transformation should be used in most model situations*. Just some of these benefits include:
 
 - More comparable feature effects and related parameters
 - Faster estimation
 - Easier convergence
 - Helping with heteroscedasticity
 
-For example, just centering features, i.e. subtracting the mean, provides a more interpretable intercept that will fall within the actual range of the target variable. After centering, the intercept tells us what the value of the target variable is when the features are at their means (or reference value if categorical). Centering also puts the intercept within the expected range of the target, which often makes for easier parameter estimation. So even if easier interpretation isn't a major concern, variable transformations can help with convergence and speed up estimation, so can always be of benefit.
+For example, just **centering** features, i.e. subtracting their respective means, provides a more interpretable intercept that will fall within the actual range of the target variable in a standard linear regression. After centering, the intercept tells us what the value of the target variable is when the features are at their means (or reference value if categorical). Centering also puts the intercept within the expected range of the target, which often makes for easier parameter estimation. So even if easier interpretation isn't a major concern, variable transformations can help with convergence and speed up estimation, so can always be of benefit.
 
 ### Numeric variables {#sec-data-numeric}
 
-The following table shows the interpretation of some very common transformations applied to numeric variables- logging and standardizing to mean zero, standard deviation of one[^scaletoany].
+The following table shows the interpretation of some very common transformations applied to numeric variables - logging, and standardizing to mean zero, standard deviation of one[^scaletoany]. Note that for logging, these are approximate interpretations.
 
 [^scaletoany]: Scaling to a mean of zero and standard deviation of one is not the only way to scale variables. You can technically scale to any mean and standard deviation you want, but in tabular data settings you will have some different and possibly less interpretability, and may lose something in model estimation performance (convergence). For deep learning, the actual normalization may be adaptive applied across iterations.
 
@@ -73,8 +73,8 @@ tab = tibble(
     Target = c("y", "log(y)", "log(y)", "y", "scale(y)"),
     Feature = c("x", "x", "log(x)", "scale(x)", "scale(x)"),
     `Change in X` = c("1 unit", "1 unit", "1% change", "1 standard deviation", "1 standard deviation"),
-    `Change in Y` = c("B unit", "100 * (exp(B) -1) ", "B% change", "B unit", "B standard deviation"),
-    Benefits = c("Interpretation", "Heteroscedasticity in y", "Interpretation, deal with feature extremes", "Interpretation, estimation", "Interpretation, estimation"),
+    `Change in Y` = c("B unit", "100 * (exp(B) -1)%", "B%", "B unit", "B standard deviation"),
+    Benefits = c("Interpretation", "Heteroscedasticity in y", "Interpretation, help with feature extremes", "Interpretation, estimation", "Interpretation, estimation"),
 )
 
 ```
@@ -103,9 +103,9 @@ tab |> select(-Benefits) |> gt()
 
 :::
 
-For example, it is very common to use **standardized** variables, or simply 'scaling' them. Some also call this **normalizing**, as with **batch or layer normalization** in deep learning, but [this term can mean a lot of things](https://en.wikipedia.org/wiki/Normalization_(statistics)), so one should be clear in their communication. If $y$ and $x$ are both standardized, a one unit (i.e. one standard deviation) change in $x$ leads to a $\beta$ standard deviation change in $y$. So, if $\beta$ was .5, a standard deviation change in $x$ leads to a half standard deviation change in $y$. In general, there is nothing to lose by standardizing, so you should employ it often.
+For example, it is very common to use **standardized** or **scaled** variables. Some also call this **normalizing**, as with **batch or layer normalization** in deep learning, but [this term can mean a lot of things](https://en.wikipedia.org/wiki/Normalization_(statistics)), so one should be clear in their communication. If $y$ and $x$ are both standardized, a one unit (i.e. one standard deviation) change in $x$ leads to a $\beta$ standard deviation change in $y$. So, if $\beta$ was .5, a standard deviation change in $x$ leads to a half standard deviation change in $y$. In general, there is nothing to lose by standardizing, so you should employ it often.
 
-Another common transformation, particularly in machine learning, is **min-max scaling**. This involves changing variables to range from some minimum value to some maximum value, and usually this means zero and one respectively. This transformation can make numeric and categorical indicators more comparable, or at least put them on the same scale for estimation purposes, and so can help with convergence and speed up estimation. 
+Another common transformation, particularly in machine learning, is **min-max scaling**. This involves changing variables to range from a chosen minimum value to a chosen maximum value, and usually this means zero and one respectively. This transformation can make numeric and categorical indicators more comparable, or at least put them on the same scale for estimation purposes, and so can help with convergence and speed up estimation. The following demonstrates how we can employ such approaches.
 
 
 :::{.panel-tabset}
@@ -155,9 +155,7 @@ minmax_scaled_data = apply(data, 2, function(x) {
 ```
 :::
 
-Using a **log** transformation for numeric targets and features is straightforward, and [comes with several benefits](https://stats.stackexchange.com/questions/107610/what-is-the-reason-the-log-transformation-is-used-with-right-skewed-distribution). For example, it can help with **heteroscedasticity**, which is when the variance of the target is not constant across the range of the predictions[^notnormal] (demonstrated below). It can also help to keep predictions positive after transformation, allows for interpretability gains, and more. One issue with logging is that it is not a linear transformation, which can help capture nonlinear feature-target relationships, but can also make some post-modeling transformations less straightforward. Also if you have a lot of zeros, 'log plus one' transformations are not going to be enough to help you overcome that hurdle[^logp1]. Logging also won't help much when the variables in question have few distinct values, like ordinal variables, which we'll discuss later in @sec-data-ordinal.
-
-[^logp1]: That doesn't mean you won't see many people try (and fail).
+Using a **log** transformation for numeric targets and features is straightforward, and [comes with several benefits](https://stats.stackexchange.com/questions/107610/what-is-the-reason-the-log-transformation-is-used-with-right-skewed-distribution). For example, it can help with **heteroscedasticity**, which is when the variance of the target is not constant across the range of the predictions[^notnormal]. It can also help to keep predictions positive after transformation, allows for interpretability gains, and more. 
 
 :::{.content-visible when-format='html'}
 ```{r}
@@ -222,10 +220,16 @@ ggsave(
 ![Log transformation and heteroscedasticity](img/data-log_transformation_heteroscedasticity.svg){width=100% #fig-log-transformation-heteroscedasticity}
 :::
 
-[^notnormal]: For the bazillionth time, logging does not make data 'normal' so that you can meet your normality assumption in linear regression. The only time that would work is if your data is log-normally distributed to begin with.
+
+One issue with logging is that it is not a linear transformation. While this can help capture nonlinear feature-target relationships, it can also make some post-modeling transformations less straightforward. Also if you have a lot of zeros, 'log plus one' transformations are not going to be enough to help you overcome that hurdle[^logp1]. Logging also won't help much when the variables in question have few distinct values, like ordinal variables, which we'll discuss later in @sec-data-ordinal.
+
+[^logp1]: That doesn't mean you won't see many people try (and fail).
+
+
+[^notnormal]: For the bazillionth time, logging does not make data 'normal' so that you can meet your normality assumption in linear regression.
 
 :::{.callout-note title='Categorizing continuous variables' collapse='true'}
-It is rarely necessary or a good idea to transform a numeric feature or target to a categorical one. Doing so potentially throws away useful information by making the feature a less reliable measure of the underlying construct. For example, discretizing age to 'young' and 'old' does not help your model, and you can always get predictions for what you would consider 'young' and 'old' after the fact. Though extremely common, particularly in machine learning contexts when applied to target variables, it's just not a statistically or practically sound thing to do, and can ultimately hinder interpretation.
+It is rarely necessary or a good idea to transform a numeric feature or target to a categorical one. Doing so potentially throws away useful information by making the feature a less reliable measure of the underlying construct. For example, discretizing age to 'young' and 'old' does not help your model, and you can always get predictions for what you would consider 'young' and 'old' after the fact. It is extremely common to see, particularly in machine learning contexts when applied to target variables so that a classification approach can be used. But it's just not a statistically or practically sound thing to do, and can ultimately hinder interpretation.
 :::
 
 
@@ -257,14 +261,14 @@ As an example, in the case of the `season` feature, if the dropped category is `
 In other models, we include all categories in the model. The model learns how to use them best and might only consider some or one of them at a time.
 :::
 
-When we encode categories for statistical analysis, we can summarize their impact on the target variable single measure. For a model with only categorical features, we can use an **ANOVA** (@sec-lm-categorical-anova) for this. But a similar approach can also be used for mixed models, splines, and other models. Techniques like SHAP also provide a way to summarize the total effect of a categorical feature.
+When we encode categories for statistical analysis, we can summarize their impact on the target variable in a single result for all categories. For a model with only categorical features, we can use an **ANOVA** (@sec-lm-categorical-anova) for this. But a similar approach can also be used for mixed models, splines, and other models to summarize categorical, spline, and other effects. Techniques like SHAP also provide a way to summarize the total effect of a categorical feature (@sec-knowing-shap-values).
 
 
 #### Text embeddings {#sec-data-embeddings}
 
-When it comes to other string representations like text, we use other methods to represent them numerically. One important way to encode text is through an **embedding**.  This is a way of representing the text as a vector of numbers, at which point the numeric embedding feature is used in the model like anything else. The way to do this usually involves a model itself, one that learns the best way to represent the text or categories numerically. This is commonly used in deep learning and natural language processing in particular. However, embeddings can also be used as a preprocessing step in any modeling situation.
+When it comes to other string representations like sentence and paragraphs, we can use other methods to represent them numerically. One important way to encode text is through an **embedding**.  This is a way of representing the text as a vector of numbers, at which point the numeric embedding feature is used in the model like any other. The way to do this usually involves a model or a specific part of the model's architecture, one that learns the best way to represent the text or categories numerically. This is commonly used in deep learning, and natural language processing in particular. However, embeddings can also be used as a preprocessing step in *any* modeling situation.
 
-To understand how embeddings work, consider a one-hot encoded matrix for a categorical variable. This matrix then connects to a hidden layer of a neural network, and the weights of that layer are the embeddings for the categorical variable. While this isn't the exact method used (there are more efficient methods that don't require the actual matrix), the concept is the same. In addition, we normally don't even use whole words. Instead, we break the text into smaller units called **tokens**, like characters or subwords, and then use embeddings for those units. [Tokenization](https://huggingface.co/learn/nlp-course/en/chapter6/5) is used in many of the most successful models for natural language processing, including those such as [ChatGPT](https://www.youtube.com/watch?v=zduSFxRajkE).
+To understand how embeddings work, consider a one-hot encoded matrix for a categorical variable. This matrix then connects to a hidden layer of a neural network. The weights learned for that layer are the embeddings for the categorical variable. While this isn't the exact method used (there are more efficient methods that don't require the actual matrix), the concept is the same. In addition, we normally don't even use whole words. Instead, we break the text into smaller units called **tokens**, like characters or subwords, and then use embeddings for those units. [Tokenization](https://huggingface.co/learn/nlp-course/en/chapter6/5) is used in many of the most successful models for natural language processing, including those such as [ChatGPT](https://www.youtube.com/watch?v=zduSFxRajkE).
 
 
 
@@ -309,16 +313,16 @@ tibble(
     cols_align("center")
 ```
 
-With Bayesian tools, it's common to use the **[categorical distribution](https://en.wikipedia.org/wiki/Categorical_distribution)**, which is a different generalization of the Bernoulli distribution to more than two classes. Unlike the multinomial, it is not a count distribution, but an actual distribution over categories. 
+With Bayesian tools, it's common to use the **[categorical distribution](https://en.wikipedia.org/wiki/Categorical_distribution)**, which is a different generalization of the Bernoulli distribution to more than two classes. Unlike the bi/multinomial distribution, it is not a count distribution, but an actual distribution over discrete values. 
 
-In the machine learning context, we can use a variety of models we'd use for binary classification. How the model is actually implemented will depend on the tool, but one of the more popular methods is to use **one-vs-all** or **one-vs-one** strategies, where you treat each class as the target in a binary classification problem. In the first case of one vs. all, you would have a model for each class that predicts whether an observation is in that class or not. In the second case, you would have a model for each pair of classes. You should generally be careful with either approach if interpretation is important, as it can make the feature effects very difficult to understand.  As an example, we can't expect feature X to have the same effect on the target in a model for class A vs B, as it does in a model for class A vs. (B & C) or A & C. As such, it can be misleading when the models are conducted as if the categories are independent.
+In the machine learning context, we can use a variety of models we'd use for binary classification. How the model is actually implemented will depend on the tool, but one of the more popular methods is to use **one-vs-all** or **one-vs-one** strategies, where you treat each class as the target in a binary classification problem. In the first case of one vs. all, you would have a model for each class that predicts whether an observation is in that class versus the other classes. In the second case, you would have a model for each pair of classes. You should generally be careful with either approach if interpretation is important, as it can make the feature effects very difficult to understand.  As an example, we can't expect feature X to have the same effect on the target in a model for class A vs B, as it does in a model for class A vs. (B & C) or A & C. As such, it can be misleading when the models are conducted as if the categories are independent.
 
-Regardless of the context, interpretation is now spread across multiple target outputs, and so it can be difficult to understand the overall effect of a feature on the target. Even in the statistical setting, you now have coefficients that regard *relative* effects for one class versus a reference group, and so they cannot tell you a general effect of a feature on the target. This is where tools like marginal effects and SHAP can be useful (@sec-knowing).
+Regardless of the context, interpretation is now spread across multiple target outputs, and so it can be difficult to understand the overall effect of a feature on the target. Even in the statistical model setting (e.g. a multinomial regression), you now have coefficients that regard *relative* effects for one class versus a reference group, and so they cannot tell you a *general* effect of a feature on the target. This is where tools like marginal effects and SHAP can be useful (@sec-knowing-feature).
 
 
 #### Multilabel targets {#sec-data-multilabel}
 
-Multilabel targets are a bit more complicated, and are not as common as multiclass targets. In this case, each observation can have multiple labels. For example, if we wanted to predict genre based on the movie review data, we could choose to allow a movie to be both a comedy and action film, a sci-fi horror, or a romantic comedy. In this setting, labels are not mutually exclusive. If there are not too many unique label settings, we can treat the target as we would other multiclass targets, but if there are many, we might need to use a different model to go about things more efficiently.
+Multilabel targets are a bit more complicated, and are not as common as multiclass targets. In this case, each observation can have multiple labels. For example, if we wanted to predict genre based on the movie review data, we could choose to allow a movie to be both a comedy and action film, a sci-fi horror, or a romantic comedy. In this setting, labels are not mutually exclusive. If there are not too many unique label settings, we can treat the target as we would other multiclass targets. But if there are many, we might need to use a different model to go about things more efficiently.
 
 
 :::{.callout-note title='Categorical Objective Functions' collapse='true'}
@@ -328,13 +332,15 @@ In many situations where you have a categorical target you will use a form of **
 
 ### Ordinal variables {#sec-data-ordinal}
 
-So far in our discussion of categorical data, it's assumed to have no order. But it's quite common to have labels like "low", "medium", and "high", or "very bad", "bad", "neutral", "good", "very good", or simply are a few numbers, like ratings from 1 to 5. **Ordinal data** is categorical data that has a known ordering, but which still has arbitrary labels. Let us repeat that, *ordinal data is categorical data*.  
+So far in our discussion of categorical data, the categories are assumed to have no order. But it's quite common to have labels like "low", "medium", and "high", or "very bad", "bad", "neutral", "good", "very good", or simply are a few numbers, like ratings from 1 to 5. **Ordinal data** is categorical data that has a known ordering, but which still has arbitrary labels. Let us repeat that, *ordinal data is categorical data*.  
 
 #### Ordinal features {#sec-data-ordinal-features}
 
-The simplest way to treat ordinal features is as if they were numeric. If you do this, then you're just pretending that it's not categorical, but in practice this is usually fine for features. Most of the transformations we mentioned previously aren't going to be as useful, but you can still use them if you want. For example, logging ratings 1-5 isn't going to do anything for you model-wise, but it technically doesn't hurt anything. But you should know that typical statistics like means and standard deviations don't really make sense for ordinal data, so the main reason for treating them as numeric is for modeling convenience.  
+The simplest way to treat ordinal features is as if they were numeric. If you do this, then you're just pretending that it's not categorical. In practice this is usually fine for features. Most of the transformations we mentioned previously aren't going to be as useful, but you can still use them if you want. For example, logging ratings 1-5 isn't going to do anything for you model-wise, but it technically doesn't hurt anything. You should know that typical statistics like means and standard deviations don't really make sense for ordinal data, so the main reason for treating them as numeric is for modeling convenience.  
 
-If you choose to treat an ordinal feature as categorical, you can ignore the ordering and do the same as you would with categorical data.  This would allow for some nonlinearity since the category means will be whatever they need to be. There are some specific techniques to coding ordinal data for use in linear models, but they are not commonly used, and they generally aren't going to help the model performance or interpreting the feature, so we do not recommend them. You could however use old-school **effects coding** that you would incorporate traditional ANOVA models, but again, you'd need a good reason to do so.
+If you choose to treat an ordinal feature as categorical, you can ignore the ordering and do the same as you would with categorical data.  This would allow for some nonlinearity since the category means will be whatever they need to be. There are some specific techniques to coding ordinal data for use in linear models, but they are not commonly used, and they generally aren't going to help the model performance or interpreting the feature, so we do not recommend them. You could however use old-school **effects coding** that you would incorporate traditional ANOVA models, but again, you'd need a good reason to do so[^helm].
+
+[^helm]: Try [Helmert coding](https://en.wikipedia.org/wiki/Helmert_transformation) for instance! No, don't do that.
 
 The take home message for ordinal features is generally simple. Treat them as you would numeric features or non-ordered categorical features. Either is fine.
 
@@ -343,9 +349,11 @@ The take home message for ordinal features is generally simple. Treat them as yo
 
 Ordinal targets can be trickier to deal with. If you treat them as numeric, you're assuming that the difference between 1 and 2 is the same as the difference between 2 and 3, and so on.  This is probably not true.  If you treat them as categorical and use standard models for that setting, you're assuming that there is no connection between categories. So what should you do?  
 
-There are a number of ways to model ordinal targets, but probably the most common is the **proportional odds model**.  This model can be seen as a generalization of the logistic regression model, and is very similar to it, and actually identical if you only had two categories. It basically is a model of 2 vs. 1, 3 vs. (2, 1), 4 vs. (3, 2, 1), etc. But other models beyond proportional odds are also possible, and your results could return something that gives coefficients for the model for the 1-2 category change, the 2-3 category change, and so on.
+There are a number of ways to model ordinal targets, but probably the most common is the **proportional odds model**.  This model can be seen as a generalization of the logistic regression model, and is very similar to it, and actually identical if you only had two categories. It basically is a model of category 2 vs. category 1, 3 vs. (2 or 1), 4 vs. (3, 2, 1), etc. But other models beyond proportional odds are also possible. As an example, one approach would concern subsequent categories, the 1-2 category change, the 2-3 category change, and so on.
 
-As an example, here are predictions from an ordinal model. In this case, we categorize rounded movie ratings as 2 or less, 3, or 4 or more, and predict the probability of each category based on the release year of the movie. So we get three sets of predicted probabilities, one for each category. In this example, we see that the probability of a movie being rated 4 or more has increased over time, while the probability of a movie being rated 2 or less has decreased. The probability of a movie being rated 3 has remained relatively constant.
+As an example, here are predictions from an ordinal model. In this case, we categorize[^dontcat] rounded movie ratings as 2 or less, 3, or 4 or more, and predict the probability of each category based on the release year of the movie. So we get three sets of predicted probabilities, one for each category. In this example, we see that the probability of a movie being rated 4 or more has increased over time, while the probability of a movie being rated 2 or less has decreased. The probability of a movie being rated 3 has remained relatively constant, and is most likely.
+
+[^dontcat]: This is just for demonstration purposes. You should not categorize a continuous variable unless you have a very good reason to do so.
 
 ```{r}
 #| echo: false
@@ -399,7 +407,7 @@ Ordinality of a categorical outcome is largely ignored in machine learning appli
 
 #### Rank data {#sec-data-rank}
 
-Though ranks are ordered, with rank data we are referring to cases where the observations are uniquely ordered. An ordinal vector of 1-6 with numeric labels could be something like [2, 1, 1, 3, 4, 2], whereas rank data would be [2, 1, 3, 4, 5, 6], each being unique (unless you allow for ties).  For example, in sports, a ranking problem would regard predicting the actual finish of the runners. Assuming you have a modeling tool that actually handles this situation, the objective will be different from other scenarios. Statistical modeling methods include using the Plackett-Luce distribution (or the simpler variant Bradley-Terry model). In machine learning, you might use so-called [learning to rank methods](https://en.wikipedia.org/wiki/Learning_to_rank), like the [RankNet and LambdaRank algorithms](https://icml.cc/Conferences/2015/wp-content/uploads/2015/06/icml_ranking.pdf), and other variants for [deep learning models](https://github.com/tensorflow/ranking).
+Though ranks are ordered, with rank data we are referring to cases where the observations are uniquely ordered. An ordinal vector of 1-6 with numeric labels could be something like [2, 1, 1, 3, 4, 2], where no specific value is required and any value could be repeated.In contrast, rank data would be [2, 1, 3, 4, 5, 6], each being unique (unless you allow for ties). For example, in sports, a ranking problem would regard predicting the actual finish of the runners. Assuming you have a modeling tool that actually handles this situation, the objective will be different from other scenarios. Statistical modeling methods include using the Plackett-Luce distribution (or the simpler variant Bradley-Terry model). In machine learning, you might use so-called [learning to rank methods](https://en.wikipedia.org/wiki/Learning_to_rank), like the [RankNet and LambdaRank algorithms](https://icml.cc/Conferences/2015/wp-content/uploads/2015/06/icml_ranking.pdf), and other variants for [deep learning models](https://github.com/tensorflow/ranking).
 
 
 
@@ -436,37 +444,38 @@ Missing data is a common challenge in data science, and there are a number of wa
 
 ### Complete case analysis {#sec-data-missing-complete}
 
-The first way to deal with missing data is the simplest - **complete case analysis**. Here we only use observations that have no missing data and drop the rest.  Unfortunately, this can lead to a lot of lost data, and can lead to biased statistical results if the data is not **missing completely at random**.  There are special cases of some models that by their nature can ignore the missingness under an assumption of **missing at random**, but even those models would likely benefit from some sort of imputation. If you don't have much missing data though, dropping the missing data is fine for practical purposes[^dropmiss]. How much is too much? Unfortunately that depends on the context, but if you have more than 10% missing, you should probably be looking at alternatives.
+The first way to deal with missing data is the simplest - **complete case analysis**. Here we only use observations that have no missing data and drop the rest.  Unfortunately, this can lead to a lot of lost data, and can lead to biased statistical results if the data is not **missing completely at random** (missingness is not related to the observed or unobserved data).  There are special cases of some models that by their nature can ignore the missingness under an assumption of **missing at random** (missingness is not related to the unobserved data), but even those models would likely benefit from some sort of imputation. If you don't have much missing data though, dropping the missing data is fine for practical purposes[^dropmiss]. How much is too much? Unfortunately that depends on the context, but if you have more than 10% missing, you should probably be looking at alternatives.
 
 [^dropmiss]: While many statisticians will possibly huff and puff at the idea of dropping data, there are two things to consider. With minimal missingness you'll likely never come to a different conclusion unless you have very little data to come to a conclusion about, which is already the bigger problem. Secondly, it's impossible to prove one way or another if the data is missing at random, because doing so would require knowing the missing values.
 
 ### Single value imputation {#sec-data-missing-single}
 
-**Single value imputation**: Replace missing values with the mean, median, mode or some other typical value of the feature.This will probably rarely help your model for a variety of reasons. Consider a numeric feature that is 50% missing, and for which you replace the missing with the mean. How good do you think that feature will be when at least half the values are identical? Whatever variance it normally would have and share with the target is probably reduced, and possibly dramatically. Furthermore, you've also attenuated correlations it has with the other features, which may mute other modeling issues that you would otherwise deal with in some way (e.g. collinearity), or cause you to miss out on interactions. 
+**Single value imputation** involves replace missing values with a single value, such as the mean, median, mode or some other typical value of the feature. As common as an approach as this is, it will rarely help your model for a variety of reasons. Consider a numeric feature that is 50% missing, and for which you replace the missing with the mean. How good do you think that feature will be when at least half the values are identical? Whatever variance it normally would have and share with the target is probably reduced, and possibly dramatically. Furthermore, you've also attenuated correlations it has with the other features, which may mute other modeling issues that you would otherwise deal with in some way (e.g. collinearity), or cause you to miss out on interactions. 
 
-Single value imputation makes perfect sense if you *know* that the missingness should be a specific value, like a count feature where missing means a count of zero. If you don't have much missing data, it's unlikely this would have any real benefit over complete case analysis, *except* if it allows you to use all the other features that would otherwise be dropped. But then, why not just drop this feature and keep the others?
+Single value imputation makes perfect sense if you *know* that the missingness should be a specific value, like a count feature where missing means a count of zero. If you don't have much missing data, it's unlikely this would have any real benefit over complete case analysis. One exception is imputing the feature allows you to use all the other complete feature samples that would otherwise be dropped. But then, you could just drop this less informative feature while keeping the others, as it will likely not be very useful in the model.
 
 
 ### Model-based imputation {#sec-data-missing-model}
 
-**Model-based imputation** is more complicated, but can be very effective. In essence, you run a model for complete cases in which the feature with missing values is now the target, and all the other features and primary target are used to predict it. You then use that model to predict the missing values, and use those predictions as the imputed values. After these predictions are made, you move on to the next feature and do the same. There are no restrictions on which model you use for which feature. If the other features in the imputation model also have missing data, you can use something like mean imputation to get more complete data if necessary as a first step, and then when their turn comes, impute those values.
+**Model-based imputation** is more complicated, but can be very effective. In essence, you run a model for complete cases in which the feature with missing values is now the target, and all the other features and primary target are used to predict it. You then use that model to predict the missing values, using the predictions as the imputed values. After these predictions are made, you move on to the next feature and do the same. There are no restrictions on which model you use for which feature. If the other features in the imputation model also have missing data, you can use something like mean imputation to get more complete data if necessary as a first step, and then when their turn comes, impute those values.
 
-Although the implication is that you would have one model per feature and then be done, you can do this iteratively for several rounds, such that the initial imputed values are then used in subsequent models to reimpute other feature's missing values. You can do this as many times as you want, but the returns will diminish. In this setting, we are assuming you'll have a single value imputed for each missing one, but this approach is the precursor for our next method.
+Although the implication is that you would have one model per feature and then be done, you can do this iteratively for several rounds, such that the initial imputed values are then used in subsequent model rounds to reimpute other features' missing values. You can do this as many times as you want, but the returns will diminish. In this setting, we are assuming you'll ultimately end with a single imputed value for each missing one, which reflects the last round of imputation.
+
 
 ### Multiple imputation {#sec-data-missing-mi}
 
-**Multiple imputation** (MI) is a more complicated technique, but can be very useful under some situations, depending on what you're willing to sacrifice for having better uncertainty estimates versus a deeper dive into the model. The idea is that you create multiple imputed datasets, each of which is based on the **predictive distribution** of the model used in model-based imputation (See @sec-knowing-model-vis). Say we use a linear regression assuming a normal distribution to impute feature A. We would then draw repeatedly from the predictive distribution of that model to create multiple datasets with (randomly) imputed values for feature A.
+**Multiple imputation** (MI) is a more complicated technique, but can be very useful in some situations, depending on what you're willing to sacrifice for having better uncertainty estimates. The idea is that you create multiple imputed datasets, each of which is based on the **predictive distribution** of the model used in model-based imputation (See @sec-knowing-model-vis). Say we use a linear regression assuming a normal distribution to impute feature A. We would then draw repeatedly from the predictive distribution of that model to create multiple datasets with (randomly) imputed values for feature A.
 
-Let's say we do this 10 times, and we now have 10 imputed data sets, each with a now complete feature A. We now run our actual model on each of these datasets, and final model results are averaged in some way to get final parameter estimates. Doing so acknowledges that your single imputation methods have uncertainty in those imputed values, and that uncertainty is incorporated into the final model results. 
+Let's say we do this 10 times, and we now have 10 imputed data sets, each with a now complete feature A, but each with somewhat different imputed values. We now run our desired model on each of these datasets. Final model results are averaged in some way to get final parameter estimates. Doing so acknowledges that your single imputation methods have uncertainty in those imputed values, and that uncertainty is incorporated into the final model estimates, including the uncertainty in those estimates.
 
-MI can in theory handle any source of missingness and can be a very powerful technique. But it has some drawbacks that are often not mentioned. One is that you need a specified target distribution for all imputation models used, in order to generate random draws with appropriate uncertainty. Your final model presumably is also a probabilistic model with coefficients and variances you are trying to estimate and understand. MI probably isn't going to help boosting or deep learning models that have native methods for dealing with missing values, or at least offer little if anything over single value imputation. In addition, if you have very large data and a complicated model, you could be waiting a long time, and as modeling is an iterative process itself, this can be rather tedious to work through. Finally, few data or post-model processing tools that you commonly use will work with MI results, especially visualization tools. So you will have to hope that whatever package you use for MI has what you need. As an example, you'd have to figure out how you're going to impute interaction terms if you have them.
+MI can in theory handle any source of missingness and can be a very powerful technique. But it has some drawbacks that are often not mentioned, but which everyone that's used it has experienced. One is that you need a specified target distribution for all imputation models used, in order to generate random draws with appropriate uncertainty. Your final model presumably is also a probabilistic model with coefficients and variances you are trying to estimate and understand. MI probably isn't going to help boosting or deep learning models that have native methods for dealing with missing values, or at least, offers little over single value imputation for those approaches. In addition, if you have very large data and a complicated model, you could be spending a long time both waiting for the models and debugging them, because you still would need to assess the imputation models much like any other for the most part. Finally, few data or post-model processing tools that you commonly use will work with MI results, especially those regarding visualization. So you will have to hope that whatever package you use for MI will do what you need. As an example, you'd have to figure out how you're going to impute interaction or spline terms if you have them.
 
-*Practically speaking*, MI takes a lot of effort to often come to the same conclusions you would have with a single imputation method, or possibly fewer conclusions for anything beyond GLM coefficients and their standard errors. But if you want your uncertainty estimate for those models to be better, MI can be an option.
+*Practically speaking*, MI takes a lot of effort to often come to the same conclusions you would have with a single imputation method, or possibly fewer conclusions for anything beyond GLM coefficients and their standard errors. But if you want the best uncertainty estimates for those models, MI can be the way to go.
 
 
 ### Bayesian imputation {#sec-data-missing-bayesian}
 
-One final option is to run a Bayesian model where the missing values are treated as parameters to be estimated, and they would have priors just like other parameters as well. MI is basically a variant of Bayesian imputation that can be applied to the non-Bayesian model setting, so why not just use the actual Bayesian method? Some modeling packages can allow you to try this very easily, and it can be very effective. But it is also very computationally intensive, and can be very slow as you may be increasing the number of parameters to estimate dramatically. At least it would be more fun than standard MI!
+One final option is to run a Bayesian model where the missing values are treated as parameters to be estimated, and they would have priors just like other parameters as well. MI is basically a variant of Bayesian imputation that can be applied to the non-Bayesian model setting, so why not just use the actual Bayesian approach? Some modeling packages can allow you to try this very easily, and it can be very effective. But it is also very computationally intensive, and can be very slow as you may be increasing the number of parameters to estimate dramatically. At least it would be more fun than standard MI, so we recommend exploring it if you were going to do MI anyway.
 
 
 
@@ -1182,7 +1191,7 @@ Here are some additional resources to help you learn more about the topics cover
 **Transformations**
 
 - [About Feature Scaling and Normalization](https://sebastianraschka.com/Articles/2014_about_feature_scaling.html) (@raschka_about_2014)
-- [What are Embedding](https://vickiboykis.com/what_are_embeddings/) (@boykis_what_2023)
+- [What are Embeddings](https://vickiboykis.com/what_are_embeddings/) (@boykis_what_2023)
 
 **Class Imbalance**
 
