@@ -1,0 +1,63 @@
+---
+title: "Causal Modeling"
+format: html
+---
+
+### Confounding demo
+
+```{r}
+get_coefficients = function(n = 100, true = 1) {
+    U = rnorm(n)                 # Unmeasured confounder
+    X = 0.5 * U + rnorm(n)       # Treatment influenced by U
+    Y = true * X + U + rnorm(n)  # Outcome influenced by X and U
+    
+    data = data.frame(X = X, Y = Y)
+
+    # Fit a linear regression model with and 
+    # without adjusting for the unmeasured confounder
+    model = lm(Y ~ X, data = data)
+    model2 = lm(Y ~ X + U, data = data)
+    c(coef(model)['X'], coef(model2)['X'])
+}
+
+simulate_confounding = function(nreps, n, true) { 
+    results = replicate(nreps,  get_coefficients(n, true))
+    
+    results = rowMeans(results)
+
+    data.frame(
+        true = true,
+        estimate_1 = results[1],
+        estimate_2 = results[2]
+    )
+}
+
+simulate_confounding(nreps = 500, n = 1000, true = 1)
+```
+
+
+### Guided Exploration
+
+```{r}
+library(tidyverse)
+
+set.seed(42)
+
+# Generate synthetic data
+n = 2500
+x = rnorm(n)          # the feature
+y = rnorm(n)          # the target (no relation to x)
+z = x + y + rnorm(n)  # the collider
+
+data = tibble(x = x, y = y, z = z)
+
+# Fit linear models
+model_without_z = lm(y ~ x, data = data)
+model_with_z = lm(y ~ x + z, data = data)
+
+# Compare x coefficients
+tibble(
+    estimate_1 = coef(model_without_z)['x'],
+    estimate_2 = coef(model_with_z)['x']
+)
+```
