@@ -1324,27 +1324,12 @@ With 1000 observations, we see that having just 10 relatively extreme scores is 
 There are a few approaches we could take here, with common approaches being dropping those observations, [winsorizing](https://en.wikipedia.org/wiki/Winsorizing) them, or doing some transformation. Throwing away data because you don't like the way it behaves is almost statistical abuse, and winsorization is just replacing those extreme values with numbers that you like a little bit better. Transformations done independently of the model rarely work for this purpose either. So let's try something else!
 
 
-### The quantile loss function {#sec-quantile-loss}
 
-A better answer to this challenge might be to try a median-based approach instead. This is where a model like **quantile regression** becomes handy. Formally, the objective function for the model can be expressed as:
-
-
-:::{.content-visible when-format='html'}
-![Quantile Loss Function](img/eq-quantile-reg.png){#eq-quantile-loss-function}
-:::
-
-:::{.content-visible when-format='pdf'}
-$$
-\text{Value} =  \Sigma \left((\pmb{\tau} - 1)\sum_{\pmb{y_{i} < \hat{y}}}(y_{i} - \hat{y}) + \pmb{\tau} \sum_{\pmb{y_{i}\geq \hat{y}}}(y_{i} - \hat{y}) \right)
-$${#eq-quantile-loss-function}
-:::
-
-
-
-With quantile regression, we are given an extra parameter for the model: $\tau$. It's a  number between 0 and 1 representing the desired quantile (e.g., 0.5 for the median). The objective function treats positive residuals differently than negative residuals. If the residual is positive, then we multiply it by $\tau$. If the residual is negative, then we multiply it by $\tau -1$. The increased penalty for over-predictions for ensures that the estimated quantile $\hat{y}$ is such that $\tau$ proportion of the data falls below it, balancing the total loss and providing a robust estimate of the desired quantile.
 
 
 ### A standard quantile regression {#sec-quantile-standard}
+
+A better answer to this challenge might be to try a median-based approach instead. This is where a model like **quantile regression** becomes handy. Quantile regression is a type of regression that allows us to model the relationship between the features and the target at different quantiles of the target. For example, we can examine models at the 10th, 25th, 50th, 75th, and 90th percentiles of the target. This is very cool, as it allows us to model the relationship between the features and the target in a way that is robust to outliers and extreme scores. It's also a way to understand a type of nonlinearity that is not captured by a standard linear model, as the feature target relationship may change at different quantiles of the target.
 
 To demonstrate this type of model, let's use our movie reviews data. Let's say that we are curious about the relationship between the `word_count` and `rating`  to keep things simple. To make it even more straightforward, we will use the standardized (scaled) version of the feature. In our default approach, we will start with a median regression, in other words, a quantile associated with $\tau$ = .5[^leastabs].
 
@@ -1411,17 +1396,18 @@ broom::tidy(model_median) |>
     gt()
 ```
 
-Fortunately, our interpretation of this result isn't all that different from a standard linear model -- the rating should decrease by `r round(coef(model_median)['word_count_sc'],2)` for every bump in a standard deviation for the number of words, which in this case is about `r round(sd(df_reviews$word_count))` words. However, this concerns the expected median rating, not the mean, as would be the case with standard linear regression. 
+Fortunately, our interpretation of this result isn't all that different from a standard linear model - the rating should decrease by `r round(coef(model_median)['word_count_sc'],2)` for every bump in a standard deviation for the number of words, which in this case is about `r round(sd(df_reviews$word_count))` words. However, this concerns the expected *median* rating, not the mean, as would be the case with standard linear regression. 
 
-Quantile regression is not a one-trick-pony though. Being able to compute a median regression is just the default. We can also model different quantiles of the same data. It gives us the ability to answer brand new questions -- does the relationship between word count and their ratings change at different quantiles of rating? Very cool!
+Quantile regression is not a one-trick-pony though - being able to compute a median regression is just the default. As mentioned, we can also explore different quantiles, and this gives us the ability to answer brand new questions - does the relationship between word count and their ratings change at different quantiles of rating? Very cool!
 
 Let's now examine the trends within 5 different quantiles of the data - .1, .3 .5, .7, and .9[^morequants].  We aren't limited to just those quantiles though, and you can examine any of them that you might find interesting.  Here is a plot of the results of these models.
 
 [^morequants]: The R function can take a vector of quantiles, while the Python function can only take a single quantile, so you would need to loop through the quantiles.
 
-:::{.content-visible when-format='html'}
+
 ```{r}
 #| echo: false
+#| eval: false
 #| label: fig-quantile-lines
 #| fig-cap: Quantile Regression Lines
 tau_values = c(.1, .3, .5, .7, .9)
@@ -1470,10 +1456,8 @@ ggplot() +
 
 ggsave('img/lm-extend-quantile_lines.svg', width = 8, height = 6)
 ```
-:::
-:::{.content-visible when-format='pdf'}
+
 ![Quantile Regression Lines](img/lm-extend-quantile_lines.svg){#fig-quantile-lines}
-:::
 
 
 To interpret our visualization, we could start by saying that all of the model results suggest a negative relationship. The 10th and 90th quantiles seem weakest, while those in the middle show a notably stronger relationship. We can also see that the 90th percentile model is better able to capture those values that would otherwise be deemed as outliers using other standard techniques. The following table shows the estimated coefficients for each of the quantiles, and suggests that all word count relationships are statistically significant, since the confidence intervals do not include zero.
@@ -1483,6 +1467,7 @@ To interpret our visualization, we could start by saying that all of the model r
 #| echo: false
 #| label: tbl-quantile-model-output-multi-quants
 #| tbl-cap: Quantile Regression Model Results
+tau_values = c(.1, .3, .5, .7, .9)
 
 rq(
     rating ~ word_count_sc, 
@@ -1514,6 +1499,25 @@ rq(
 ```
 
 \normalsize
+
+
+
+### The quantile loss function {#sec-quantile-loss}
+
+Formally, the objective function for the quantile regression model can be expressed as:
+
+
+:::{.content-visible when-format='html'}
+![Quantile Loss Function](img/eq-quantile-reg.png){#eq-quantile-loss-function}
+:::
+
+:::{.content-visible when-format='pdf'}
+$$
+\text{Value} =  \Sigma \left((\pmb{\tau} - 1)\sum_{\pmb{y_{i} < \hat{y}}}(y_{i} - \hat{y}) + \pmb{\tau} \sum_{\pmb{y_{i}\geq \hat{y}}}(y_{i} - \hat{y}) \right)
+$${#eq-quantile-loss-function}
+:::
+
+Compared to a standard linear regression, we are given an extra parameter for the model: $\tau$. It's a  number between 0 and 1 representing the desired quantile (e.g., 0.5 for the median). The objective function treats positive residuals differently than negative residuals. If the residual is positive, then we multiply it by $\tau$. If the residual is negative, then we multiply it by $\tau -1$. The increased penalty for over-predictions for ensures that the estimated quantile $\hat{y}$ is such that $\tau$ proportion of the data falls below it, balancing the total loss and providing a robust estimate of the desired quantile.
 
 ### Rolling our own
 
