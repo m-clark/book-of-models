@@ -511,7 +511,7 @@ Many coming from a non-statistical background are not aware that their logistic 
 
 ### Interpretation and visualization {#sec-glm-binomial-interpret}
 
-If our modeling goal is not just producing predictions, we need to know what those results mean. The coefficients that we get from our model are in the log odds scale. Interpreting log odds is difficult at best, but we can at least get a feeling for them directionally. A log odds of 0 (odds ratio of 1) would indicate no relationship between the feature and target. A positive log odds would indicate that an increase in the feature will increase the log odds of moving from 'bad' to 'good', whereas a negative log odds would indicate that a decrease in the feature will decrease the log odds of moving from 'bad' to 'good'.  On the log odds scale, the coefficients are symmetric as well, such that, e.g., a +1 coefficient denotes a similar increase in the log odds as a -1 coefficient denotes a decrease. As we demonstrated, we can exponentiate them to get the odds ratio for additional interpretability.
+If our modeling goal is not just producing predictions, we need to know what those results mean. The coefficients that we get from our model are in the log odds scale. Interpreting log odds is difficult, but we can at least get a feeling for them directionally. A log odds of 0 (odds ratio of 1) would indicate no relationship between the feature and target. A positive log odds would indicate that an increase in the feature will increase the log odds of moving from 'bad' to 'good', whereas a negative log odds would indicate that a increase in the feature will decrease the log odds of moving from 'bad' to 'good'.  On the log odds scale, the coefficients are symmetric as well, such that, e.g., a +1 coefficient denotes a similar increase in the log odds as a -1 coefficient denotes a decrease. As we demonstrated, we can exponentiate them to get the odds ratio for additional interpretability.
 
 
 ```{r}
@@ -520,6 +520,8 @@ If our modeling goal is not just producing predictions, we need to know what tho
 #| tbl-cap: Raw Coefficients and Odds Ratios for a Logistic Regression
 lo_result = parameters::model_parameters(model_logistic) 
 or_result = exp(lo_result$Coefficient)
+me_logistic = marginaleffects::avg_slopes(model_logistic)
+me_logistic_wc = me_logistic$estimate[me_logistic$term == 'word_count']
 
 lo_result |> 
     as_tibble() |> 
@@ -531,7 +533,7 @@ lo_result |>
 
 The intercept provides a baseline odds of a 'good' review when word count is 0 and gender is 'female'. From there, we see that we've got a negative raw coefficient and odds ratio of `r round(or_result[2], 2)` for the word count variable. We have a positive raw coefficient and `r round(or_result[3], 2)` odds ratio for the male variable. This means that for every one unit increase in word count, the odds of a 'good' review decreases by about `r 100*round(1-or_result[2], 2)`%. Males are associated with an odds of a 'good' review that is `r 100*round(or_result[3] -1, 2)`% higher than females.
 
-We feel it is much more intuitive to interpret things on the probability scale, so we'll get predicted probabilities for different values of the features. The way we do this is through the (inverse) link function, which will convert our log odds of the linear predictor to probabilities. We can then plot these probabilities to see how they change with the features. For the word count feature, we hold gender at the reference group ('female'), and for the gender feature, we hold word count at its mean. In addition we convert the probability to the percentage chance of a 'good' review.
+We feel it is much more intuitive to interpret things on the probability scale, so we'll get predicted probabilities for different values of the features. The way we do this is through the (inverse) link function, which will convert our log odds of the linear predictor to probabilities. We can then look at specific predictions, calculate marginal effects, or plot these probabilities to see how they change with the features. For the word count feature in the following visualization, we hold gender at the reference group ('female'), and for the gender feature, we hold word count at its mean. In addition we convert the probability to the percentage chance of a 'good' review.
 
 :::{.content-visible when-format='html'}
 
@@ -540,6 +542,8 @@ We feel it is much more intuitive to interpret things on the probability scale, 
 #| label: fig-logistic-regression-word-count
 #| fig-cap: Model Predictions for Word Count Feature
 #| out-width: 100%
+
+
 p_prob = ggeffects::ggpredict(model_logistic, terms = c('word_count')) |>
     plot(color = okabe_ito['darkblue'], use_theme = FALSE) +
     annotate(geom = 'text', x = 20, y = plogis(1), label = 'Not so much!') +
@@ -606,7 +610,7 @@ ggsave(
 :::
 
 
-In @fig-logistic-regression-word-count, we can see a clear negative relationship between the number of words in a review and the probability of being considered a 'good' movie. As we get over 20 words, the predicted probability of being a 'good' movie is less than .2.
+In @fig-logistic-regression-word-count, we can see a clear negative relationship between the number of words in a review and the probability of being considered a 'good' movie. As we get over 20 words, the predicted probability of being a 'good' movie is less than .2. We also calculated the average marginal effect (@sec-avg-marginal-effects), or average slope, for word count. It suggests a `r round(me_logistic_wc, 2)` `r word_sign(me_logistic_wc, c('increase', 'decrease'))` in the probability of a 'good' rating for each additional word in the review (on average). 
 
 We also see the increase in the chance for a good rating with males vs. females, but our model results suggest this is not a statistically significant difference.
 
@@ -865,6 +869,8 @@ Now let's check out the results more deeply. Like with logistic, we can exponent
 
 log_result = parameters::model_parameters(model_poisson)
 rr_result = exp(log_result$Coefficient)
+me_poisson = marginaleffects::avg_slopes(model_poisson)
+me_poisson_wc = me_poisson$estimate[me_poisson$term == 'word_count']
 
 log_result |> 
     as_tibble() |> 
@@ -875,7 +881,8 @@ log_result |>
     gt(decimals = 2)
 ```
 
-For this model, an increase in one review word leads to an expected log count `r word_sign(log_result$Coefficient[2], c('increase', 'decrease'))` of ~`r round(log_result$Coefficient[2], 2)`. We can exponentiate this to get `r round(rr_result[2], 2)`, and this tells us that every added word in a review gets us a `r scales::label_percent()(round(rr_result[2], 2) - 1) ` `r word_sign(log_result$Coefficient[2], c('increase', 'decrease'))` in the number of possessive pronouns. This is probably not a surprising result - wordier stuff has more types of words! A similar, though slightly smaller increase is seen for males relative to females, but, as with our previous model, this is not statistically significant.
+For this model, an increase in one review word leads to an expected log count `r word_sign(log_result$Coefficient[2], c('increase', 'decrease'))` of ~`r round(log_result$Coefficient[2], 2)`. We can exponentiate this to get `r round(rr_result[2], 2)`, and this tells us that every added word in a review gets us a `r scales::label_percent()(round(rr_result[2], 2) - 1) ` `r word_sign(log_result$Coefficient[2], c('increase', 'decrease'))` in the number of possessive pronouns. This is probably not a surprising result - wordier stuff has more types of words! In addition, the average marginal effect (@sec-avg-marginal-effects), or average slope, for word count suggested a `r round(me_poisson_wc, 2)` `r word_sign(me_poisson_wc, c('increase', 'decrease'))` in the number of possessive pronouns per word on average. A similar, though slightly smaller, increase is seen for males relative to females, but, as with our previous model, this is not statistically significant.
+
 
 But as usual, the visualization tells the better story. Here is the relationship for word count. Notice that the predictions are not discrete like the raw count, but continuous. This is because predictions here are the same as with our other models, and reflect the expected, or average, count that we'd predict with this data.
 

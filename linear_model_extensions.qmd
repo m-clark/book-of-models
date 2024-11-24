@@ -767,7 +767,7 @@ ggsave("img/lm-extend-random_effects.svg", width = 8, height = 8)
 ![Estimated Random Effects](img/lm-extend-random_effects.svg){#fig-random-effects width=100%}
 
 
-How do we interpret these *deviations*? For starters, they are deviations from the fixed effect for the intercept and decade trend coefficient. So here that means anything negative is an intercept or slope below the corresponding fixed effect value, and anything positive is above that value. If we want the specific effect for a country, we just add the random effect value to the fixed effect value, and we can refer to those as **random coefficients**. 
+How do we interpret these *deviations*? For starters, they are deviations from the fixed effect for the intercept and decade trend coefficient. So here that means anything negative is an intercept or slope below the corresponding fixed effect value, and anything positive is above that value. If we want the specific effect for a country, we just add its random effect to the fixed effect, and we can refer to those as **random coefficients**. 
 
 For example, if we wanted to know the effects for the US, we would add its random effects to the population level fixed effects. This is exactly what we did in the previous section in our interpretation with the interaction model. However, you can typically get these from the package functionality directly. The result shows that the US starts at a very high happiness score, but actually has a negative trend over time[^lifeexpusa].
 
@@ -799,6 +799,13 @@ ranef_usa[1, c('(Intercept)',  'decade_0')] + fixef(model_ran_slope)
 ranef_usa = estimated_RE['United States'].rename({'Group': 'Intercept'})
 ranef_usa + model_ran_slope.fe_params
 ```
+:::
+
+
+:::{.callout-note title='Averages in Mixed Models' collapse='true'}
+In the linear mixed effect model setting with a random intercept, the fixed effects can be seen as the (population) average effects, but this is not exactly what you are getting from the mixed model. To make the distinction clear, consider family groups and a gender effect for males vs. females. The linear regression and some other types of models (e.g. estimated via generalized estimating equations) would give you the average effect male-female difference across all families. The mixed model actually tells you the male-female difference as if they were in the same family (e.g. siblings). Again, in the simplest mixed model setting these are the same. Beyond that that, when we start dealing with random slopes and non-gaussian distributions, they are not. 
+
+In general, if we set the random effect to 0 to get a prediction, that tells us what the prediction would be for a typical group, in this case, a typical country. Often we want to get something more like the average slope or prediction across countries that we would have with linear regression. This gets us back to the idea of the **marginal effect** we discussed earlier. While the mechanics are not straightforward for mixed models, the tool use generally takes no additional effort.
 :::
 
 Let's plot those random coefficients together to see how they relate to each other. 
@@ -1331,9 +1338,8 @@ There are a few approaches we could take here, with common approaches being drop
 
 A better answer to this challenge might be to try a median-based approach instead. This is where a model like **quantile regression** becomes handy. Quantile regression is a type of regression that allows us to model the relationship between the features and the target at different quantiles of the target. For example, we can examine models at the 10th, 25th, 50th, 75th, and 90th percentiles of the target. This is very cool, as it allows us to model the relationship between the features and the target in a way that is robust to outliers and extreme scores. It's also a way to understand a type of nonlinearity that is not captured by a standard linear model, as the feature target relationship may change at different quantiles of the target.
 
-To demonstrate this type of model, let's use our movie reviews data. Let's say that we are curious about the relationship between the `word_count` and `rating`  to keep things simple. To make it even more straightforward, we will use the standardized (scaled) version of the feature. In our default approach, we will start with a median regression, in other words, a quantile associated with $\tau$ = .5[^leastabs].
+To demonstrate this type of model, let's use our movie reviews data. Let's say that we are curious about the relationship between the `word_count` and `rating`  to keep things simple. To make it even more straightforward, we will use the standardized (scaled) version of the feature. In our default approach, we will start with a median regression.
 
-[^leastabs]: This is equivalent to using the least absolute deviation objective.
 
 
 :::{.panel-tabset}
@@ -1517,7 +1523,11 @@ $$
 $${#eq-quantile-loss-function}
 :::
 
-Compared to a standard linear regression, we are given an extra parameter for the model: $\tau$. It's a  number between 0 and 1 representing the desired quantile (e.g., 0.5 for the median). The objective function treats positive residuals differently than negative residuals. If the residual is positive, then we multiply it by $\tau$. If the residual is negative, then we multiply it by $\tau -1$. The increased penalty for over-predictions for ensures that the estimated quantile $\hat{y}$ is such that $\tau$ proportion of the data falls below it, balancing the total loss and providing a robust estimate of the desired quantile.
+Compared to a standard linear regression, we are given an extra parameter for the model: $\tau$. It's a  number between 0 and 1 representing the desired quantile (e.g., 0.5 for the median)[^leastabs]. The objective function treats positive residuals differently than negative residuals. If the residual is positive, then we multiply it by $\tau$. If the residual is negative, then we multiply it by $\tau -1$. The increased penalty for over-predictions for ensures that the estimated quantile $\hat{y}$ is such that $\tau$ proportion of the data falls below it, balancing the total loss and providing a robust estimate of the desired quantile.
+
+
+[^leastabs]: This is equivalent to using the least absolute deviation objective.
+
 
 ### Rolling our own
 
