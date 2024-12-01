@@ -1,6 +1,6 @@
 # book-of-models
 
-This is the repository for a book tentatively titled:
+This is the repository for a book ~~tentatively~~ titled:
 
 - Models Demystified
 - ~~- Models by Example~~
@@ -14,6 +14,6 @@ We've seen many people struggle with understanding how models work, just as we'v
 
 
 
-This should be out on CRC press in 2024. We welcome any feedback in the meantime as it develops, so please feel free to create an issue. For contributions, please see the [contributing](CONTRIBUTING.md) page for more information if available, other.
+This should be out on CRC press in 2024 or early 2025. We welcome any feedback in the meantime as it develops, so please feel free to create an issue. For contributions, please see the [contributing](CONTRIBUTING.md) page for more information if available, other.
 
 [Web Version of the book](https://m-clark.github.io/book-of-models/)
