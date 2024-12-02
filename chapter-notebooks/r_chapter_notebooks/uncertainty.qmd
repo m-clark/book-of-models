@@ -1,0 +1,327 @@
+---
+title: "Estimating Uncertainty"
+format: html
+---
+
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+df_happiness = read_csv('https://tinyurl.com/worldhappiness2018') |>
+    drop_na() |> 
+    rename(happiness = happiness_score) |> 
+    select(
+        country,
+        happiness,
+        contains('_sc')
+    )
+```
+
+## Standard Frequentist
+
+
+```{r}
+model = lm(happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc, data = df_happiness)
+
+confint(model)
+
+predict(model, interval = 'confidence')  # for an average prediction
+predict(model, interval = 'prediction')  # for a future observation (wider)
+```
+
+
+
+```{r}
+X = model.matrix(model)
+
+# get the prediction
+y_hat = X %*% coef(model)
+
+# get the standard error
+se = sqrt(diag(X %*% vcov(model) %*% t(X)))
+
+# critical value for 95% confidence
+cv = qt(0.975, df = model$df.residual)
+
+# get the confidence interval
+tibble(
+    prediction = y_hat[,1],
+    lower = y_hat[,1] - cv * se, 
+    upper = y_hat[,1] + cv * se
+) |> 
+    head()
+
+predict(model, interval = 'confidence') |> head()
+```
+
+
+```{r}
+# get the prediction interval
+se_pred = sqrt(se^2 + summary(model)$sigma^2)
+
+data.frame(
+    prediction = y_hat[,1],
+    lower = y_hat[,1] - cv * se_pred, 
+    upper = y_hat[,1] + cv * se_pred
+) |> 
+    head()
+
+predict(model, interval = 'prediction') |> head()
+```
+
+
+## Monte Carlo
+
+```{r}
+model = lm(happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc, data = df_happiness)
+
+# number of simulations
+mc_predictions = function(
+    model,
+    nsim = 2500,
+    seed = 42
+) {
+    set.seed(seed)
+
+    params_est = coef(model)
+    params = mvtnorm::rmvnorm(
+        n = nsim,
+        mean = params_est,
+        sigma = vcov(model)
+    )
+
+    sigma = summary(model)$sigma
+    X = model.matrix(model)
+
+    y_hat = X %*% t(params) + rnorm(n = nrow(X) * nsim, sd = sigma)
+
+    pred_int = apply(y_hat, 1, quantile, probs = c(.025, .975))
+
+    pred_int = tibble(lower = pred_int[1,], upper = pred_int[2,])
+    return(pred_int)
+}
+
+our_mc = mc_predictions(model)
+our_mc
+```
+
+
+## Bootstrap
+
+
+```{r}
+bootstrap = function(X, y, nboot = 100, seed = 123) {
+    
+    N = nrow(X)
+    p = ncol(X) + 1 # add one for intercept
+
+    # initialize
+    beta = matrix(NA, p*nboot, nrow = nboot, ncol = p)
+    colnames(beta) = c('Intercept', colnames(X))
+    mse = rep(NA, nboot)
+
+    # set seed
+    set.seed(seed)
+
+    for (i in 1:nboot) {
+        # sample with replacement
+        idx = sample(1:N, N, replace = TRUE)
+        Xi = X[idx,]
+        yi = y[idx]
+
+        # estimate model
+        mod = lm(yi ~., data = Xi)
+
+        # save results
+        beta[i, ] = coef(mod)
+        mse[i] = sum((mod$fitted - yi)^2) / N
+    }
+
+    # given mean estimates, calculate MSE
+    y_hat = cbind(1, as.matrix(X)) %*% colMeans(beta)
+    final_mse = sum((y - y_hat)^2) / N
+
+    output = list(
+        par = as_tibble(beta),
+        MSE = mse,
+        final_mse = final_mse
+    )
+
+    return(output)
+}
+
+X = df_happiness |>
+    select(life_exp_sc:gdp_pc_sc)
+
+y = df_happiness$happiness
+
+our_boot = bootstrap(
+    X = X,
+    y = y,
+    nboot = 1000
+)
+
+our_boot
+```
+
+## Bayesian
+
+### Example
+
+```{r}
+#| label: bayesian-demo-r
+pk = c(
+    'goal','goal','goal','miss','miss',
+    'goal','goal','miss','goal','goal'
+)
+
+# convert to numeric, arbitrarily picking goal=1, miss=0
+
+N = length(pk)               # sample size
+n_goal = sum(pk == 'goal')   # number of pk made
+n_miss = sum(pk == 'miss')   # number of those miss
+
+# grid of potential theta values
+theta = seq(
+    from = 1 / (N + 1),
+    to = N / (N + 1),
+    length = 10
+)
+
+### prior distribution
+# beta prior with mean = .5, but fairly diffuse
+# examine the prior
+# theta = rbeta(1000, 5, 5)
+# hist(theta, main = 'Prior Distribution', xlab = 'Theta', col = 'lightblue')
+p_theta = dbeta(theta, 5, 5)
+
+# Normalize so that values sum to 1
+p_theta = p_theta / sum(p_theta) 
+
+# likelihood (binomial)
+p_data_given_theta = choose(N, n_goal) * theta^n_goal * (1 - theta)^n_miss
+
+# posterior (combination of prior and likelihood)
+# p_data is the marginal probability of the data used for normalization
+p_data = sum(p_data_given_theta * p_theta)
+
+p_theta_given_data = p_data_given_theta*p_theta / p_data  # Bayes theorem
+
+# final estimate
+theta_est = sum(theta * p_theta_given_data)
+theta_est
+```
+
+## Conformal Prediction
+
+
+```{r}
+split_conformal = function(
+    X,
+    y,
+    new_data,
+    alpha = .05,
+    calibration_split = .5
+) {
+    # Splitting the data into training and calibration sets
+    idx = sample(1:nrow(X), size = floor(nrow(X) / 2))
+    
+    train_data = X |> slice(idx)
+    cal_data   = X |> slice(-idx)
+    train_y = y[idx]
+    cal_y   = y[-idx]
+
+    N = nrow(train_data)
+
+    # Train the base model
+    model = lm(train_y ~ ., data = train_data)
+
+    # Calculate residuals on calibration set
+    cal_preds = predict(model, newdata = cal_data)
+    residuals = abs(cal_y - cal_preds)
+
+    # Sort residuals and find the quantile corresponding to (1-alpha)
+    residuals = sort(residuals)
+    quantile  = quantile(residuals, (1 - alpha) * (N / (N + 1)))
+
+    # Make predictions on new data and calculate prediction intervals
+    preds = predict(model, newdata = new_data)
+    lower_bounds = preds - quantile
+    upper_bounds = preds + quantile
+
+    # Return predictions and prediction intervals
+    return(
+        list(
+            cp_error     = quantile, 
+            preds        = preds, 
+            lower_bounds = lower_bounds, 
+            upper_bounds = upper_bounds
+        )
+    )
+}
+```
+
+
+```{r}
+# split data
+set.seed(123)
+
+idx_train = sample(nrow(df_happiness), nrow(df_happiness) * .8)
+idx_test = setdiff(1:nrow(df_happiness), idx_train)
+
+df_train = df_happiness |> 
+    slice(idx_train) |> 
+    select(happiness, life_exp_sc, gdp_pc_sc, corrupt_sc)
+
+y_train = df_happiness$happiness[idx_train]
+
+df_test = df_happiness |> 
+    slice(idx_test) |> 
+    select(life_exp_sc, gdp_pc_sc, corrupt_sc)
+
+y_test = df_happiness$happiness[idx_test]
+
+# apply the function
+cp_error = split_conformal(
+    df_train |> select(-happiness),
+    y_train,
+    df_test,
+    alpha = .1
+)
+
+# cp_error[['cp_error']]
+
+tibble(
+    preds = cp_error[['preds']],
+    lower_bounds = cp_error[['lower_bounds']],
+    upper_bounds = cp_error[['upper_bounds']]
+) |> 
+    head()
+```
+
+## Guided Exploration
+
+```{r}
+#| eval: false
+mc_predictions = function(
+    model,
+    nsim = 2500,
+    seed = 42
+) {
+    ...
+    # we aren't dealing with a normal distribution for this
+    # how should we change this line?
+    yhat =  X %*% t(params) + rnorm(n = nrow(X) * nsim, sd = sigma)
+
+    # how do we get probabilities from this?
+    ???? = ????
+
+    # proceed as before    
+    pred_int = apply(y_hat, 1, quantile, probs = c(.025, .975))
+    
+    return(pred_int)
+}
+```
