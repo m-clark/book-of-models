@@ -18,6 +18,6 @@ For MLR stuff, we recommend updating to whatever the latest versions are availab
 `mlr3tuning==0.20.0`
 `mlr3torch==0.1.2`
 
-Note that you will also need the underlying model packages for some of the learners, such as `lightgbm` or `glmnet`.
+Note that you will also need the underlying model packages for some of the learners, such as `lightgbm` or `glmnet`. We'll probably add `tidymodels` examples to go with the mlr3 examples in the future.
 
 All data processing and most visualization was done via tidyverse packages.
