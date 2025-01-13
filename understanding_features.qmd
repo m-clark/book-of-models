@@ -1,6 +1,6 @@
 # Understanding the Features {#sec-knowing-feature}
 
-![](img/chapter_gp_plots/gp_plot_16.svg)
+![](img/chapter_gp_plots/gp_plot_16.svg){width=75%}
 
 Assuming our model is adequate, let's now turn our attention to the features. There's a lot to unpack here, so let's get started!
 
@@ -140,6 +140,7 @@ broom::tidy(model_lr_train, conf.int = TRUE) |>
     gt(decimals=2) 
 ```
 
+\vspace{1em}
 \normalsize
 
 We also noted how we can get a bit more relative comparison by using standardized coefficients, or some other scaling of the coefficients that allows for a bit of a more apples-to-apples comparison. But as we'll see, in the real world even if we have just apples, there are fuji, gala, granny smith, honeycrisp, and many other kinds, and some may be good for snacks, others for baking pies, some are good for cider, etc. In other words, **there is no one size fits all approach to understanding how a feature contributes to understanding the target**, and the sooner you grasp that, the better.
@@ -468,7 +469,11 @@ marginal_means = map_df(
 )
 
 # marginal_means 
-marginaleffects::avg_predictions(model_class_train, newdata = df_train, variables = "genre")
+marginaleffects::avg_predictions(
+    model_class_train,
+    newdata = df_train,
+    variables = "genre"
+)
 ```
 
 ##### Python
@@ -482,7 +487,9 @@ inv_logit = lambda x: 1 / (1 + np.exp(-x))
 marginal_means = pd.DataFrame({
     "genre": df_train.genre.unique(),
     "avg_pred": [
-        inv_logit(model_class_train.predict(df_train.assign(genre = g), which='linear')).mean()
+        inv_logit(
+            model_class_train.predict(df_train.assign(genre = g), which='linear')
+        ).mean()
         for g in df_train.genre.unique()
     ]
 })
@@ -617,9 +624,10 @@ base_predictions = model_happiness.predict(df_us_russia)
 # switch up their GDP and freedom!
 df_switch = df_us_russia.copy()
 
-df_switch[['log_gdp_per_capita', 'freedom_to_make_life_choices']] = (
-    df_switch[['log_gdp_per_capita', 'freedom_to_make_life_choices']].values[::-1]
-)    
+df_switch[['log_gdp_per_capita', 'freedom_to_make_life_choices']] = df_switch[
+    ['log_gdp_per_capita', 'freedom_to_make_life_choices']
+].values[::-1]
+
 
 switch_predictions = model_happiness.predict(df_switch)
 
@@ -758,18 +766,20 @@ pred_age_30 = predict(
 
 pred_year_2022 = predict(
     model_lr_3feat,
-    newdata = df_reviews |> mutate(release_year = obs_of_interest$release_year) 
+    newdata = df_reviews |>
+        mutate(release_year = obs_of_interest$release_year) 
 )
 
 pred_length_110 = predict(
     model_lr_3feat,
-    newdata = df_reviews |> mutate(length_minutes = obs_of_interest$length_minutes) 
+    newdata = df_reviews |>
+        mutate(length_minutes = obs_of_interest$length_minutes) 
 )
 
 # then we can calculate the shap values
 shap_value_ours = tibble(
-    age    = mean(pred_age_30) - avg_pred,
-    release_year   = mean(pred_year_2022) - avg_pred,
+    age = mean(pred_age_30) - avg_pred,
+    release_year = mean(pred_year_2022) - avg_pred,
     length_minutes = mean(pred_length_110) - avg_pred
 )
 ```
@@ -793,23 +803,20 @@ obs_of_interest = pd.DataFrame({
 
 # then we need to get the prediction for the feature value of interest
 # for all observations, and average them
-pred_age_30 = model_lr_3feat.predict(
-    df_reviews.assign(
-        age = obs_of_interest.loc['new_observation', 'age']
-    )
+pred_dat = df_reviews.assign(
+    age = obs_of_interest.loc['new_observation', 'age']
 )
+pred_age_30 = model_lr_3feat.predict(pred_dat)
 
-pred_year_2022 = model_lr_3feat.predict(
-    df_reviews.assign(
-        release_year = obs_of_interest.loc['new_observation', 'release_year']
-    )
+pred_dat = df_reviews.assign(
+    release_year = obs_of_interest.loc['new_observation', 'release_year']
 )
+pred_year_2022 = model_lr_3feat.predict(pred_dat)
 
-pred_length_110 = model_lr_3feat.predict(
-    df_reviews.assign(
-        length_minutes = obs_of_interest.loc['new_observation', 'length_minutes']
-    )
+pred_dat = df_reviews.assign(
+    length_minutes = obs_of_interest.loc['new_observation', 'length_minutes']
 )
+pred_length_110 = model_lr_3feat.predict(pred_dat)
 
 # then we can calculate the shap values
 shap_value_ours = pd.DataFrame({
@@ -1241,10 +1248,9 @@ To help us further understand this issue, consider the following two plots. On t
 [^interexplain]: To understand why, for the effect of Feature 1, just take the mean of the two points on the left vs. the mean of the two points on the right. It would basically be a straight line of no effect as you move from group 0 to group 1. For the effect of Feature 2, the two group means for A and B would be at the intersection of the two lines.
 
 
-:::{.content-visible when-format='html'}
-
 ```{r}
 #| echo: false
+#| eval: false
 #| fig-cap: Two plots showing the importance of understanding feature interactions and non-linear relationships
 #| label: fig-feature-importance
 #| out-width: 100%
@@ -1322,11 +1328,8 @@ interaction_plot +
 
 ggsave("img/knowing-feature-importance.svg", width = 8, height = 6)
 ```
-:::
 
-:::{.content-visible when-format='pdf'}
-![Two plots showing the importance of understanding feature interactions and non-linear relationships](img/knowing-feature-importance.svg){#fig-feature-importance}
-:::
+![Two plots showing the importance of understanding feature interactions and non-linear relationships](img/knowing-feature-importance.svg){#fig-feature-importance width=100%}
 
 All this is to say, as we get into measures of feature importance, we need to be very careful about how we interpret and use them!
 
@@ -1383,9 +1386,10 @@ Our first metric available for us to use is just the raw coefficient value, but 
 
 Another approach we can use comes from the SHAP value, which, as we saw, provides a measure of contribution of a feature to the prediction. These can be positive or negative and are specific to the observation. But if we take the **average absolute SHAP value** for each feature, we can maybe get a sense of the typical contribution size for the features. We can then rank order them accordingly. Here we see that the most important features here are the number of reviews and the length of the movie. Note that we can't speak to direction here, only magnitude.  We can also see that word count is relatively less important. 
 
-:::{.content-visible when-format='html'}
+
 ```{r}
 #| echo: false
+#| eval: false
 #| label: fig-shap-importance-bar
 #| fig-cap: SHAP Importance
 #| 
@@ -1418,8 +1422,8 @@ p_dat_shap |>
         aes(
             color = feature == 'word_count',
             fill  = feature == 'word_count',
-            alpha = I(ifelse(p_dat_shap$feature == "word_count", 0, 1)),
-            linewidth = I(ifelse(p_dat_shap$feature == "word_count", 0, .1))
+            alpha = I(ifelse(feature == "word_count", 0, 1)),
+            linewidth = I(ifelse(feature == "word_count", 0, .1))
         ),
         # color = okabe_ito[['darkblue']],
         # fill = okabe_ito[['darkblue']],
@@ -1473,11 +1477,8 @@ p_dat_shap |>
 
 ggsave("img/knowing-shap-importance.svg", width = 8, height = 5)
 ```
-:::
 
-:::{.content-visible when-format='pdf'}
 ![SHAP Importance](img/knowing-shap-importance.svg){#fig-shap-importance}
-:::
 
 Now here are some additional methods[^relaimpo]. Some of these decompose R^2^ into the relative contributions to it from each feature (car, lmg, and pratt). The others do not (SHAP, permutation-based, standardized coefficient squared). On the left, values represent the proportion of the R^2^ value that is attributable to the feature- their sum is equal to the overall R^2^ = `r round(summary(model_importance)$r.sq, 2)`. These are in agreement for the most part and seem to think more highly of word count as a feature, but they aren't actually the same value. 
 
@@ -1489,10 +1490,10 @@ The others on the right suggest word count and age should rank lower, and length
 [^relaimpo]: The car, lmg, pratt, and beta-squared values were provided by the [relaimpo]{.pack} package in R. See the documentation there for details. Permutation based importance was provided by the [iml]{.pack} package, though we supplied a custom function that returns the drop in R-squared value. SHAP values were calculated using the [fastshap]{.pack} package. In python you can use the [shap]{.pack} output, and [sklearn]{.pack} has a permutation-based importance function as well.
 
 
-:::{.content-visible when-format='html'}
+
 ```{r}
 #| echo: false
-#| eval: true
+#| eval: false
 #| label: fig-feature-importance-2
 #| fig-cap: Feature importance by various methods
 #| fig-height: 10
@@ -1620,9 +1621,9 @@ p_no_decompose = pdat_no_decompose |>
         aes(
             color = feature == "word_count",
             fill  = feature == "word_count",
-            alpha = I(ifelse(pdat_no_decompose$feature == "word_count", .25, 1)),
+            alpha = I(ifelse(feature == "word_count", .25, 1)),
         ),
-        width = I(ifelse(pdat_no_decompose$feature == "word_count", .25, .1)), # says it ignores this, but doesn't
+        width = I(ifelse(feature == "word_count", .25, .1)), # says it ignores this, but doesn't
         # alpha = .25,
         show.legend = FALSE
     ) +
@@ -1698,13 +1699,10 @@ p_decompose +
 #         strip.text = element_text(size = 10)
 #     )
 
-ggsave("img/knowing-feature-importance-2.svg", width = 8, height = 6)
+ggsave("img/knowing-feature-importance-2.svg", width = 8, height = 8)
 ```
-:::
 
-:::{.content-visible when-format='pdf'}
-![Feature Importance by Various Methods](img/knowing-feature-importance-2.svg){#fig-feature-importance-2}
-:::
+![Feature Importance by Various Methods](img/knowing-feature-importance-2.svg){#fig-feature-importance-2 width=100%}
 
 
 All of the metrics shown have uncertainty in their estimate, and some packages make it easy to plot or extract. As an example one could bootstrap a metric, or use the permutations as a means to get at the uncertainty. However, the behavior and distribution of these metrics is not always well understood, and in some cases, the computation would often be notable (e.g., with SHAP). You could also look at the range of the ranks created by bootstrapping or permuting, and take the upper bound as the worst case for a given feature. Although this might possibly be conservative, the usual problem is that people are too optimistic about their feature importance result, so this might be a good thing.
@@ -1842,7 +1840,13 @@ y = df_happiness_2018['happiness_score']
 X = df_happiness_2018[[MY_FEATURES]]
 model = LinearRegression().fit(X, y)
 
-importance = permutation_importance(model, X, y, n_repeats=30, random_state=0)
+importance = permutation_importance(
+    model,
+    X,
+    y,
+    n_repeats=30,
+    random_state=0
+)
 
 (
     pd.DataFrame(
