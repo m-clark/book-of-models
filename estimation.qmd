@@ -1,6 +1,6 @@
 # Model Estimation and Optimization {#sec-estimation}
 
-![](img/chapter_gp_plots/gp_plot_3.svg){width=75%}
+![](img/chapter_gp_plots/gp_plot_3.svg){width=75% fig-align='center'}
 
 ```{r}
 #| label: setup-estimation
@@ -63,11 +63,11 @@ We can use **estimation** as general term for finding parameters, while **optimi
 
 ### Why this matters {#sec-estim-why}
 
-When it comes to modeling, even knowing just a little bit about what goes on behind the scenes is a great demystifier. And if models are less of a mystery, you'll feel more confident using them. Much of what you see here is part of almost every common model used for statistics and machine learning, providing you even more of a foundation for expanding your modeling skills.
+When it comes to modeling, even knowing just a little bit about what goes on behind the scenes is a great demystifier. And if models are less of a mystery, you'll feel more confident using them. Much of what you see here is part of almost every common model used for statistics and machine learning, and adding this knowledge provides you a more solid foundation for expanding your modeling skills.
 
 ### Helpful context {#sec-estim-good-to-know}
 
-This chapter is more involved and technical than most of the others, so might be more suited for those who like to get their hands dirty. It's all about 'rolling your own', and so we'll be doing a lot of the work ourselves. If you're not one of those types of people that gets much out of that, that's ok, you can skip this chapter and still get a lot out of the rest of the book.  But if you're curious about how models work, or you want to be able to do more than just run a canned function, then we think you'll find the following useful. You'd want to at least have your linear model basics down (@sec-foundation).
+This chapter is more involved and technical than most of the others, so might be more suited for those who like to get their hands dirty. It's all about DIY, and so we'll be doing a lot of the work ourselves. If you're not one of those types of people that gets much out of that, that's ok, you can skip this chapter and still get a lot out of the rest of the book.  But if you're curious about how models work, or you want to be able to do more than just run a canned function, then we think you'll find the following useful. You'd want to at least have your linear model basics down (@sec-foundation).
 
 ## Data Setup {#sec-estim-data-setup}
 
@@ -253,12 +253,14 @@ tibble(
 y = df_happiness['happiness']
 
 # Calculate the error for the guess of four
-prediction = np.min(df_happiness['happiness']) + 1 * df_happiness['life_exp_sc']
-mse_model_A   = np.mean((y - prediction)**2)
+prediction = np.min(df_happiness['happiness']) + \
+    1 * df_happiness['life_exp_sc']
+
+mse_model_A = np.mean((y - prediction)**2)
 
 # Calculate the error for our other guess
 prediction = y.mean() + .5 * df_happiness['life_exp_sc']
-mse_model_B  = np.mean((y - prediction)**2)
+mse_model_B = np.mean((y - prediction)**2)
 
 pd.DataFrame({
     'Model': ['A', 'B'],
@@ -547,7 +549,10 @@ Now let's run the model using standard functions.
 model_lr_happy_life = lm(happiness ~ life_exp_sc, data = df_happiness)
 
 # not shown
-c(coef(model_lr_happy_life), performance::performance_mse(model_lr_happy_life))
+c(
+    coef(model_lr_happy_life),
+    performance::performance_mse(model_lr_happy_life)
+)
 ```
 
 ##### Python
@@ -828,7 +833,7 @@ our_max_like = optim(
 )
 
 our_max_like
-# logLik(model_lr_happy_life) # one way to extract the log likelihood from a model
+# logLik(model_lr_happy_life) # one way to extract the LL from a model
 ```
 
 
@@ -1030,8 +1035,8 @@ Now let's add a parameter. If we have more than one parameter, we now have an ob
 ::: {.content-visible when-format='html'}
 ```{r}
 #| echo: false
-#| label: fig-r-likelihood-plot-3d
-#| fig-cap: Likelihood Surface for Happiness and Life Expectancy (interactive)
+#| eval: false
+#| label: fig-r-likelihood-plot-3d-compute
 
 # evaluate for estimates used in subsequent plot
 mod_ = glm(scale(happiness) ~ life_exp_sc, data = df_happiness)
@@ -1103,8 +1108,7 @@ p = plot_ly(
     type = 'surface',
     # colors = viridis::plasma(500)
     colors = scico::scico(500, palette = 'lipari', direction = -1),
-    showscale = FALSE
-    # showlegend = FALSE
+    showlegend = FALSE
     ) |>
     # plotly may invert the axes for the marker, so we have to switch them
     add_trace(
@@ -1126,7 +1130,7 @@ p = plot_ly(
     #     z = estimates$ll,
     #     # marker = list(color = palettes$orange$complementary, size = 10),
     #     type = 'scatter3d',
-    #     mode = 'line',
+    #     mode = 'lines',
     #     line = list(shape = 'spline'),
     #     showlegend = FALSE
     # ) |>
@@ -1140,7 +1144,8 @@ p = plot_ly(
                 end = max(llsurf),
                 size = 1,
                 project = list(z = TRUE)
-            )
+            ),
+        showlegend = FALSE
         )
     ) |>
     visibly::theme_plotly() |>
@@ -1155,13 +1160,27 @@ p = plot_ly(
             paper_bgcolor = 'rgba(0,0,0,0)',
             plot_bgcolor = 'rgba(0,0,0,0)'
         )
-    )
+    ) |> 
+    hide_colorbar()
 p 
 
 save_image(p, file = 'img/estim-likelihood_surface.svg', width = 800, height = 600)
 
+# need estimates for path plot later
+save(estimates, p, file = 'img/estim-likelihood_surface.RData')
 detach(package:plotly)
 detach(package:bbmle)
+```
+
+```{r}
+#| echo: false
+#| label: fig-r-likelihood-plot-3d
+#| fig-cap: Likelihood Surface for Happiness and Life Expectancy (interactive)
+load('img/estim-likelihood_surface.RData')
+
+library(plotly)
+p
+detach(package:plotly)
 ```
 :::
 
@@ -2119,9 +2138,10 @@ tibble(
 
 Here's a plot of the estimates as they moved along the data. For this plot we don't include the intercept as it's on a notably different scale. We can see that the estimates are moving around a bit, but they appear to be converging to a solution. 
 
-:::{.content-visible when-format='html'}
+
 ```{r}
 #| echo: false
+#| eval: false
 #| label: fig-r-stochastic-gradient-descent
 #| fig-cap: Stochastic Gradient Descent Path
 #|
@@ -2168,10 +2188,10 @@ ggsave('img/estim-sgd.svg', p_sgd, width = 8, height = 6)
 #     gganimate::view_follow(fixed_y = TRUE)
 # gganimate::anim_save('img/sgd.gif', p_sgd_anim, fps = 10, width = 600, height = 400)
 ```
+
+:::{.content-visible when-format='html'}
+![Stochastic Gradient Descent Path](img/sgd.gif)
 :::
-
-
-<!-- ![Stochastic Gradient Descent Path](img/sgd.gif) -->
 
 :::{.content-visible when-format='pdf'}
 ![Stochastic Gradient Descent Path](img/estim-sgd.svg)

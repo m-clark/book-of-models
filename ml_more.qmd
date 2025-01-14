@@ -1,6 +1,6 @@
 # Extending Machine Learning {#sec-ml-more}
 
-![](img/chapter_gp_plots/gp_plot_8.svg){width=75%}
+![](img/chapter_gp_plots/gp_plot_8.svg){width=75% fig-align='center'}
 
 We've explored some fundamental aspects of machine learning (ML) for typical data settings and modeling objectives, but there are many other areas of machine learning that we haven't covered, and honestly, you just can't cover everything in a single book. The field is always evolving, progressing, and branching out, and covers every data domain, which is what makes it so fun!  Here we'll briefly discuss some of the other aspects of ML that you'll want to be aware of as you continue your journey.
 
@@ -283,14 +283,53 @@ While our focus in this book is on tabular data due to its ubiquity, there are m
 
 ### Spatial {#sec-ml-more-spatial}
 
+```{r}
+#| echo: false
+#| eval: false
+#| label: boston-spatial
+library(tidycensus)
+library(tmap)
+
+library(tigris)
+options(tigris_use_cache = TRUE)
+
+irs_data = read_csv("https://www.irs.gov/pub/irs-soi/18zpallnoagi.csv")
+
+self_employment = irs_data %>% 
+    select(ZIPCODE, self_emp = N09400, total = N1)
+
+boston_zctas = zctas(
+    cb = TRUE, 
+    starts_with = c("021", "022", "024"),
+    year = 2018
+)
+
+boston_se_data = boston_zctas %>%
+    left_join(self_employment, by = c("GEOID10" = "ZIPCODE")) %>%
+    mutate(pct_self_emp = 100 * (self_emp / total)) %>%
+    select(GEOID10, self_emp, pct_self_emp)
+
+p = tm_shape(boston_se_data, projection = 26918) + 
+    tm_fill(
+        col = "pct_self_emp", 
+        palette = "Purples", 
+        title = "% self-employed in Boston\n2018 IRS SOI data",
+    ) +
+    tm_layout(
+        frame = FALSE
+    )
+
+p
+
+tmap_save(p, 'img/ml-spatial-boston.svg', width = 8, height = 6)
+```
+
 :::{.content-visible when-format='html'}
-
 ![Spatial Data (code available from [Kyle Walker](https://walker-data.com/mapboxapi/articles/creating-tiles.html))](img/ml-spatial-tippecanoe-example.gif){width=75%}
-
 :::
 
 :::{.content-visible when-format='pdf'}
-![Spatial Data (code available from [Kyle Walker](https://github.com/walkerke/mb-immigrants))](img/ml-spatial-kw.png){width=75%}
+![Spatial Demographic Data (code available from [Kyle Walker](https://walker-data.com/census-r/mapping-census-data-with-r.html#map-making-with-ggplot2-and-geom_sf))](img/ml-spatial-boston.svg){width=75%}
 :::
 
 Spatial data, which includes geographic and similar information, can be quite complex. It often comes in specific formats (e.g., shapefiles), and may require specialized tools to work with it. Spatial specific features may include continuous variables like latitude and longitude, or tracking data from a device like a smartwatch. Other spatial features are more discrete, such as states or political regions within a country. 
@@ -301,7 +340,52 @@ We could use these spatial features as we would others in the tabular setting, b
 
 ### Audio {#sec-ml-more-audio}
 
-![Sound wave](img/wiki-colour_soundwave.svg)
+:::{.content-visible when-format='html'}
+![Sound wave](img/wikimedia_soundwave_color_cc0.svg)
+:::
+
+<!-- https://commons.wikimedia.org/wiki/File:Colour_soundwave.svg -->
+
+:::{.content-visible when-format='pdf'}
+![Sound wave](img/wikimedia_soundwave_cc0.svg)
+:::
+
+<!-- https://commons.wikimedia.org/wiki/File:Sound_wave_holding_shape_-_Large_01.svg -->
+
+```{r}
+#| echo: false
+#| eval: false
+
+# Generate a sound wave resembling a voice
+set.seed(123)
+time = seq(0, 1, by = 0.001)
+frequency = 300 + 100 * sin(20 * pi * 50 * time)
+amplitude = sin(20 * pi * frequency * time) * (.1 + 0.5 * sin(2 * pi * 5 * time)) + 
+    sin(2 * pi * (frequency + 50) * time) * (.1 + 0.5 * sin(2 * pi * 7 * time)) + 
+    sin(2 * pi * (frequency - 50) * time) * (.1 + 0.5 * sin(2 * pi * 3 * time))
+
+# Create a data frame
+sound_wave = tibble(time = time, amplitude = amplitude)
+
+# Plot the sound wave
+ggplot(sound_wave, aes(x = time, y = amplitude)) +
+    geom_line(aes(color = time), show.legend = FALSE) +
+    labs(
+        # title = "High Frequency and Variable Sound Wave",
+        x = "Time (s)",
+        y = "Amplitude"
+    ) +
+    scale_color_viridis_c() +
+    # coord_cartesian()
+    theme_void()
+
+ggsave(
+    "img/pseudo_sound_wave.png",
+    width = 8,
+    height = 4
+)
+
+```
 
 Audio data is a type of time series data that is also the focus for many modeling applications. Think of the sound of someone speaking or music playing, as it changes over time. Such data is often represented as a waveform, which is a plot of the amplitude of the sound wave over time. 
 
@@ -317,7 +401,9 @@ Deep learning methods have proven very effective for analyzing audio data, and c
 <!-- https://alexlenail.me/NN-SVG/LeNet.html -->
 
 <!-- ![Convolutional Neural Network](img/ml-resnet_architecture.png){#fig-cnn width=66%} -->
-![Convolutional Neural Network [LeNet](https://alexlenail.me/NN-SVG/LeNet.html)](img/cnn.png){#fig-cnn width=66%}
+![Convolutional Neural Network [LeNet](https://alexlenail.me/NN-SVG/LeNet.html)[^imglenet]](img/cnn.png){#fig-cnn width=66%}
+
+[^imglenet]: Image from [Alex Lenail](https://alexlenail.me/NN-SVG/LeNet.html) @lenail_lenet_2024.
 
 Computer vision involves a range of models and techniques for analyzing and interpreting image-based data. It includes tasks like image classification (labeling an image), object detection (finding the location of objects in an image), image segmentation (identifying the boundaries of objects in an image), and object tracking (following objects as they move over time).
 
@@ -369,7 +455,9 @@ As an example[^torch_frame], we added a transformer-based approach to process th
 
 ## Artificial Intelligence {#sec-ml-more-ai}
 
-![AI](img/ai_workshop_brain_3.jpeg){width=66%}
+![AI as envisioned by AI[^img-aibyai]](img/ai_workshop_brain_3.jpeg){width=66%}
+
+[^img-aibyai]: Image created by MC using Dalle-2.
 
 
 The prospect of combining models for computer vision, natural language processing, audio processing, and other domains can produce tools that mimic many aspects of what we call intelligence[^intel]. Current efforts in **artificial intelligence** produce models that can pass law and medical exams, create better explanations of images and text than average human effort, and produce conversation on par with humans.  AI even helped to create this book!
