@@ -178,7 +178,7 @@ gt = function(..., decimals = 2, title = NULL, subtitle = NULL) {
     gt::tab_style(
       style = gt::cell_text(color = 'gray25'),
       locations = gt::cells_body(
-        columns = c(   # TODO: update to c() or just drop vars
+        columns = c(
           where(is.numeric)
         )
       )
@@ -187,6 +187,8 @@ gt = function(..., decimals = 2, title = NULL, subtitle = NULL) {
     gtExtras::gt_theme_nytimes() |>
     tab_options(quarto.disable_processing = TRUE) # May have unintended consequences see https: //github.com/quarto-dev/quarto-cli/issues/6945
 }
+
+# opt_row_striping(data, row_striping = FALSE) # gt is false by default.
 
 
 
@@ -233,4 +235,3 @@ ggsave = function(filename, width = 8, height = 6, ...) {
 
 
 options(digits = 4) # number of digits of precision for floating point output
-
