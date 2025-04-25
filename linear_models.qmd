@@ -578,7 +578,7 @@ worst_prediction |>
 
 We can also look at the uncertainty of our predictions, which is a measure of how much we expect our predictions to vary. Not only are they off from the observed value, but also our predictions themselves are just a guess based on the data we have, and we'd like to know how much we can trust them.
 
-\index{interval!prediction} \index{interval!confidence}
+\index{interval!prediction}\index{interval!confidence}
 This trust is often expressed as an interval range of values that we expect our prediction to fall within, with a certain level of confidence. But! There are actually two types of intervals we can get. One is really about the mean prediction, or *expected value* we would get from the model at that observation. This is usually called a **confidence interval**. The other type of interval is based on the model's ability to predict new data, and it is typically called a **prediction interval**. This interval is about the actual prediction we would get from the model for any value, whether it was data we had seen before or not. Because of this, the prediction interval is always wider than the confidence interval, and it's the one we usually want to use when we're making predictions about new data.
 
 Here is how we can obtain these from our model.
@@ -740,18 +740,18 @@ broom::tidy(model_lr_rating, conf.int = TRUE) |>
 
 \normalsize
 
-Here, the main thing to look at are the actual feature coefficients and the direction of their relationship, positive or negative.  The coefficient for word count is `r wc_coef`, and this means that for every additional word in the review, the rating goes `r ifelse(sign(wc_coef) == 1, 'up', 'down')` by `r wc_coef`.  This interpretation gives us directional information, but how can we interpret the magnitude of the coefficient?
+Here, the main thing to look at is both the actual feature coefficient values and the direction of their relationship, positive or negative. The coefficient for word count is `r wc_coef`, and this means that for every additional word in the review, the rating goes `r ifelse(sign(wc_coef) == 1, 'up', 'down')` by `r wc_coef`.  This interpretation gives us directional information, but how can we interpret the magnitude of the coefficient?
 
 Let's try and use some context to help us. While a drop of `r round(wc_coef, 2)` might not mean much to us in terms of ratings, we might not be as sure about a change in one word for a review. However, we do know the standard deviation of the rating score, i.e., how much it moves around naturally on its own, is `r sd_y`.  So the coefficient is about `r round(abs(wc_coef) / sd_y * 100, 0)`% of the standard deviation of the target.  In other words, the addition of a single word to a review results in an expected `r word_sign(wc_coef, c('increase', 'decrease'))` of `r round(abs(wc_coef) / sd_y * 100, 0)`% of what the review would normally bounce around in value. We might not consider this large, but also, a single word change isn't much. What would be a significant change in word count? Let's consider the standard deviation of the feature. In this case, it's `r sd_x` for word count.  So if we increase the word count by one standard deviation, we expect the rating to `r word_sign(wc_coef, c('increase', 'decrease'))` by `r glue('{wc_coef} * {sd_x} = {round(wc_coef * sd_x, 2)}')`.  That decrease then translates to a change of `r round(wc_coef * sd_x, 2)`/`r sd_y` = `r  round(sd_x/sd_y * wc_coef, 2)` standard deviation units of the target. Without additional context, many would think that's a significant change[^effectsize]\index{effect size}, or at the very least, that the coefficient is not negligible, and that the feature is indeed related to the target. But we can also see that the coefficient is not so large that it's not believable in this context.
 
-[^effectsize]: Historically, people cite @cohen_statistical_2009 for effect size guidelines for simple models, but such guidelines are notoriously problematic. Rely on your own knowledge of the data, provide reasons for your conclusions, and let others draw their own.  If you cannot tell what would constitute a notable change in your outcome of interest, you probably don't know the target well enough to interpret the model regarding it, and need to do some more research.
+[^effectsize]: Historically, people cite @cohen_statistical_2009 for effect size guidelines for simple models, but such guidelines are notoriously problematic. Rely on your own knowledge of the data, provide reasons for your conclusions, and let others draw their own.  If you cannot tell what would constitute a notable change in your outcome of interest, you probably don't know the target well enough to interpret the model regarding it, and you need to do some more research.
 
 ::: {.callout-note title='Standardized Coefficients' collapse='true'}
 The calculation we just did results in what's often called a **standardized** or 'normalized' coefficient\index{coefficient!standardized}. In the case of the simplest model with only one feature like this, it is identical to the Pearson r correlation metric, which we invite you to check and confirm on your own. In the case of multiple features, it represents a (partial) correlation between the target and the feature, after adjusting for the other features. But before you start thinking of it as a measure of *importance*, it is not. It provides some measure of the feature-target linear relationship, but that does not entail *practical* importance, nor is it useful in the presence of nonlinear relationships, interactions, and a host of other interesting things that are typical to data and models.
 :::
 
 
-After assessing the coefficients, next up in our table is the **standard error**\index{standard error}\index{hypothesis testing}. The standard error is a measure of how much the coefficient varies from sample to sample. If we collected the data multiple times, even under practically identical circumstances, we wouldn't get the same value each time - it would bounce around a bit, and the standard error is an estimate of how much it would bounce around. In other words, the standard error is a measure of **uncertainty**, and along with the coefficients, it's used to calculate everything else in the table.
+After assessing the coefficients, next up in our table is the **standard error**\index{standard error}\index{hypothesis testing}. The standard error is a measure of how much the coefficient varies from sample to sample. If we collected the data multiple times, even under practically identical circumstances, we wouldn't get the same value each time.  The value would bounce around a bit, and the standard error is an estimate of how much it would bounce around. In other words, the standard error is a measure of **uncertainty**\index{uncertainty}, and along with the coefficients, it's used to calculate everything else in the table.
 
 
 <!-- tab_style is ignored for pdf so put a conditional to only display for html -->
@@ -774,12 +774,12 @@ broom::tidy(model_lr_rating, conf.int = TRUE) |>
 ```
 :::
 
-The statistic, here a t-statistic from the student t distribution[^coefstats], is the ratio of the coefficient to the standard error. This gives us a sense of the effect relative to its variability, but the statistic's primary use is to calculate the **p-value** related to its distribution[^pvaluet], which is the probability of seeing a coefficient as large (or larger) as the one we have, *if* we assume from the outset that the true value of the coefficient is zero, *and* the model assumptions are true as well. In this case, the p-value is `r scales::label_scientific()(summary(model_lr_rating)$coefficients[2, 4])`, which is extremely small. We can conclude that the coefficient is statistically different from zero, and that the feature is related to the target, at least statistically speaking.  However, the interpretation we used regarding the coefficient previously is far more useful than the p-value, as the p-value can be affected by many things not necessarily related to the feature-target relationship, such as sample size.
+The statistic, here a t-statistic from the Student t-distribution[^coefstats], is the ratio of the coefficient to the standard error. This gives us a sense of the effect relative to its variability, but the statistic's primary use is to calculate the **p-value** related to its distribution[^pvaluet], which is the probability of seeing a coefficient as large (or larger) as the one we have, *if* we assume from the outset that the true value of the coefficient is zero, *and* the model assumptions are true as well. In this case, the p-value is `r scales::label_scientific()(summary(model_lr_rating)$coefficients[2, 4])`, which is extremely small. We can conclude that the coefficient is statistically different from zero, and that the feature is related to the target, at least statistically speaking.  However, the interpretation we used regarding the coefficient previously is far more useful than the p-value, as the p-value can be affected by many things not necessarily related to the feature-target relationship, such as sample size.
 
 
-[^coefstats]: Most statistical tables of this sort will use a t (student t distribution), Z (normal distribution), or F (F distribution) statistic.  It doesn't really matter for your purposes which is used by default, but the distribution is used to provide the p-value of interest and claim statistical significance (or not). 
+[^coefstats]: Most statistical tables of this sort will use a t (Student t-distribution), Z (normal distribution), or F (F-distribution) statistic.  It doesn't really matter for your purposes which is used by default, but the distribution is used to provide the p-value of interest and claim statistical significance (or not). 
 
-[^pvaluet]: You can calculate this as `pt(stat, df = model degrees of freedom, lower=FALSE)*2` in R, or use`stats.t.cdf` in Python.  The model degrees of freedom provided in the summary output (a.k.a. residual degrees of freedom), are used when obtaining the two-sided p-value, which is what we want in this case. When it comes to t and Z statistics, anything over 2 is statistically significant by the common standard of a p-value of .05 or less. Note that even though output will round it to zero, the true p-value can never be zero.
+[^pvaluet]: You can calculate this as `pt(stat, df = model degrees of freedom, lower=FALSE)*2` in R, or use `stats.t.cdf` in Python.  The model degrees of freedom provided in the summary output (a.k.a. residual degrees of freedom) are used when obtaining the two-sided p-value, which is what we want in this case. When it comes to t and Z statistics, anything over 2 is statistically significant by the common standard of a p-value of .05 or less. Note that even though output will round it to zero, the true p-value can never be zero.
 
 Aside from the coefficients, the most important output is the **confidence interval** (CI). The CI is a range of values that encapsulates the uncertainty we have in our guess about the coefficients.  While our best guess for the effect of word count on rating is `r round(wc_coef, 2)`, we know it's not *exactly* that, and the CI gives us a range of reasonable values we might expect the effect to be based on the data at hand and the model we've employed.
 
@@ -801,7 +801,7 @@ broom::tidy(model_lr_rating, conf.int = TRUE) |>
 ```
 :::
 
-In this case, the default is a 95% confidence interval, and we can think of this particular confidence interval like [throwing horseshoes](https://en.wikipedia.org/wiki/Horseshoes_(game)). If we kept collecting data and running models, 95% of our CIs would capture the true value, and this is one of the many possible CIs we could have gotten. That's the technical definition, which is a bit abstract[^whatisaci], but we can also think of it more simply as a range of values that are good guesses for the true value.  In this case, the CI is `r paste(rl_ci[1])` to `r paste(rl_ci[2])`, and we can be 95% confident that it is a good ranged estimate for the true coefficient value, whatever it may be. We can also see that the CI is relatively narrow, which is also nice to see, as it implies that we have a good idea of what the coefficient is.  If it was very wide, we would have a lot of uncertainty about the coefficient, and we would not likely not want to base important decisions regarding it.
+In this case, the default is a 95% confidence interval, and we can think of this particular confidence interval like [throwing horseshoes](https://en.wikipedia.org/wiki/Horseshoes_(game)). If we kept collecting data and running models, 95% of our CIs would capture the true value, and this is one of the many possible CIs we could have gotten. That's the technical definition, which is a bit abstract[^whatisaci], but we can also think of it more simply as a range of values that are good guesses for the true value, whatever it may be.  In this case, the CI is `r paste(rl_ci[1])` to `r paste(rl_ci[2])` with 95% confidentce.  We can also see that the CI is relatively narrow, which is also nice to see, as it implies that we have a good idea of what the coefficient is.  If it was very wide, we would have a lot of uncertainty about the coefficient, and we may not want to base important decisions regarding it.
 
 [^whatisaci]: The interpretation regarding the CI is even more nuanced than this, but we'll leave that for another time. For now, we'll just say that the CI is a range of values that are good guesses for the true value. Your authors have used frequentist and Bayesian statistics for many years, and we are fine with both of them, because they both work well enough in the real world. Despite where this ranged estimate comes from, the vast majority use CIs in the same way, and they are a useful tool for understanding the uncertainty in our estimates.
 
@@ -825,11 +825,11 @@ Keep in mind that your chosen model has a great influence on what you'll be able
 
 
 ::: {.callout-note title='Hypothesis Testing' collapse='true'}
-The confidence interval and p-value will for coefficients in typical statistical linear models will coincide with one another in that, if for a given alpha significance level, if a 1-alpha% CI includes zero, then your p-value will be greater than alpha, and vice versa. This is because the same standard error is used to calculate both. However, the framework of using a CI vs. using the p-value for claiming statistical significance actually came from individuals that were philosophically opposed.  Modern day usage of both is a bit of a mess that would upset both Fisher (p-value guy) and Neyman (CI guy), but your authors find that this incorrect practical usage doesn't make much practical difference in the end.\index{hypothesis testing}
+\index{hypothesis testing}The confidence interval and p-value will for coefficients in typical statistical linear models will coincide with one another in that, for a given alpha significance level, if the 1-alpha% CI includes zero, then your p-value will be greater than alpha, and vice versa. This is because the same standard error is used to calculate both. However, the framework of using a CI vs. using the p-value for claiming statistical significance actually came from individuals that were philosophically opposed. Modern-day usage of both is a bit of a mess that would upset both Fisher (p-value guy) and Neyman (CI guy), but your authors find that this incorrect practical usage doesn't make much practical difference in the end.
 :::
 
 
-### Model level interpretation {#sec-lm-interpretation-model}
+### Model-level interpretation {#sec-lm-interpretation-model}
 
 ```{r}
 #| echo: false
@@ -846,7 +846,7 @@ aic = round(mr_metrics$AIC, 2)
 
 So far, we've focused on interpretation at the feature level. But knowing the interpretation of a feature doesn't do you much good if the model itself is poor! In that case, we also need to assess the model as a whole, and as with the feature level, we can go about this in a few ways. Before getting too carried away with asking whether your model is any good or not, you always need to ask yourself *relative to what*?  Many models claim top performance under various circumstances, but which are statistically indistinguishable from many other models. So we need to be careful about how we assess our model, and what we compare it to.
 
-#### Predictions versus observed {#sec-lm-interpretation-pred-obs .unnumbered}
+#### Predictions vs. observed {#sec-lm-interpretation-pred-obs .unnumbered}
 
 When we looked at the models previously in @fig-my-first-model-predictions-plot, we examined how well the predictions and target line up, and that gave us an initial feel for how well the model fits the data. Most model-level interpretation involves assessing and comparing model fit and variations on this theme. Here we show how easy it is to obtain such a plot.
 
@@ -923,11 +923,13 @@ p1 + p2
 #### Model metrics {#sec-lm-interpretation-model-metrics .unnumbered}
 
 \index{metrics|(}
-We can also get an overall assessment of the prediction error from a single metric. In the case of the linear model we've been looking at, we can express this as the sum or mean of our squared errors, the latter of which is a very commonly used modeling metric- **MSE** or **mean squared error** \index{mean squared error}. Its square root - **RMSE** or **root mean squared error**[^msermse] - is also very commonly used. We'll talk more about this and similar metrics elsewhere (@sec-knowing-model-metrics), but we can take a look at the RMSE for our model now.
+\index{model metrics|see{metrics}}
+\index{performance metrics|see{metrics}}
+We can also get an overall assessment of the prediction error from a single metric. In the case of the linear model we've been looking at, we can express this as the sum or mean of our squared errors, the latter of which is a very commonly used modeling metric: **MSE** or **mean squared error** \index{metrics!mean squared error} \index{metrics!root mean squared error}. Its square root, **RMSE** or **root mean squared error**[^msermse], is also very commonly used. We'll talk more about this and similar metrics elsewhere (@sec-knowing-model-metrics), but we can take a look at the RMSE for our model now.
 
 If we look back at our results, we can see this expressed as the part of the output or as an attribute of the model[^sigmanotrmse]. The RMSE is more interpretable, as it gives us a sense that our typical errors bounce around by about `r model_rmse`.  Given that the rating is on a 1-5 scale, this maybe isn't bad, but we could definitely hope to do better than get within roughly half a point on this scale. We'll talk about ways to improve this later.
 
-[^msermse]: Any time we're talking about MSE for performance, we're also talking about RMSE, as it's just the square root of MSE, so which you choose is mostly arbitrary. Taking the square root makes the metric more interpretable, as it's in the same units as the target, but it's not necessary to claim one model performs better than another.
+[^msermse]: Any time we're talking about MSE for performance, we're also talking about RMSE, as it's just the square root of MSE, so which one you choose is mostly arbitrary. Taking the square root makes the metric more interpretable, as it's in the same units as the target, but it's not necessary to claim one model performs better than another.
 
 [^sigmanotrmse]: The actual divisor for linear regression output depends on the complexity of the model, and in this case the sum of the squared errors is divided by N-2 (due to estimating the intercept and coefficient) instead of N. This is a technical detail that would only matter for data too small to generalize beyond anyway, and not important for our purposes here.
 
@@ -952,13 +954,13 @@ np.sqrt(model_lr_rating.scale)   # RMSE
 :::
 
 
-Another metric we can use to assess **model fit** in this particular situation is the **mean absolute error**\index{mean absolute error}(MAE). MAE is similar to the mean squared error, but instead of squaring the errors, we just take the absolute value. Conceptually it attempts to get at the same idea, how much our predictions miss the target on average, and here the value is `r mae`, which we actually showed in our residual plot (@fig-my-first-model-error-plot). With either metric, the closer to zero the better, since as we get closer, we are reducing prediction error.
+Another metric we can use to assess **model fit** in this particular situation is the **mean absolute error**\index{metrics!mean absolute error}(MAE). MAE is similar to the mean squared error, but instead of squaring the errors, we just take the absolute value. Conceptually it attempts to get at the same idea, how much our predictions miss the target on average, and here the value is `r mae`, which we actually showed in our residual plot (@fig-my-first-model-error-plot). With either metric, the closer to zero the better, since as we get closer, we are reducing prediction error.
 
-\index{R-squared|(}
+\index{metrics!R-squared|(}
 We can also look at the **R-squared** (R^2^) value of the model. R^2^ is possibly the most popular measure of model performance with linear regression and linear models in general. Before squaring, it's just the correlation of the predicted versus observed values that we saw in the previous plot (@fig-my-first-model-predictions-plot). When we square it, we can interpret it as a measure of how much of the variance in the target is explained by the model. In this case, our model shows the R^2^ is `r rsq`, which is not bad for a single feature model in this type of setting. We interpret the value as `r rsq_perc`% of the target variance is explained by our model, and more specifically by the features in the model. In addition, we can also interpret R^2^ as 1 - the proportion of error variance in the target, which we can calculate as $1 - \frac{\textrm{MSE}}{var(y)}$.  In other words the complement of R^2^ is the proportion of the variance in the target that is not explained by the model. Either way, since `r 100-rsq_perc`% is not explained by the model, our result suggests there is plenty of work left to do!
 
 Note also, that with R^2^ we get a sense of the variance shared between *all* features in the model and the target, however complex the model gets. As long as we use it descriptively as a simple correspondence assessment of our predictions and target, it's a fine metric. For various reasons, it's not a great metric for comparing models to each other, but again, as long as you don't get carried away, it's okay to use.
-\index{R-squared|)}
+\index{metrics!R-squared|)}
 \index{metrics|)}
 \index{features!vs. model level interpretation|)}
 
@@ -973,10 +975,10 @@ In those settings, statistical significance is often used as a proxy for importa
 
 If we are very interested in the coefficient or weight value specifically, it is better to focus on the range of possible values. This is provided by the confidence interval, along with the predictions that come about based on that coefficient's value, which will likewise have interval estimates. Like statistical significance, a confidence interval is also a 'loaded' description of a feature's relationship to the target, not without issues. However, we can use it in a very practical way as a range of possible values for that feature's weight, and more importantly, *think of possibilities rather than certainties*.
 
-Suffice it to say at this point, that how much one focuses on prediction versus explanation depends on the context and goals of the data endeavor. There are cases where predictive capability is of utmost importance, and we care less about explanatory details, but not to the point of ignoring it. For example, even with deep learning models for image classification, where the inputs are just RGB values from an image, we'd still like to know what the (notably complex) model is picking up on, otherwise we may be classifying images based on something like image backgrounds (e.g., outdoors vs. indoors) instead of the objects of actual interest (dogs vs. cats). In some business or other organizational settings, we are very, or even mostly, interested in the coefficients/weights, which might indicate how to allocate monetary resources in some fashion. But if those weights come from a model with no predictive power, placing much importance on them may be a fruitless endeavor.
+Suffice it to say at this point, that how much one focuses on prediction versus explanation depends on the context and goals of the data endeavor. There are cases where predictive capability is of utmost importance, and we care less about explanatory details, but not to the point of ignoring it. For example, even with deep learning models for image classification, where the inputs are just RGB values from an image, we'd still like to know what the (notably complex) model is picking up on.  Otherwise, we may be classifying images based on something like image backgrounds (e.g., outdoors vs. indoors) instead of the objects of actual interest (dogs vs. cats). In some business or other organizational settings, we are very, or even mostly, interested in the coefficients/weights, which might indicate how to allocate monetary resources in some fashion. But if those weights come from a model with no predictive power, placing much importance on them may be a fruitless endeavor.
 
-In the end we'll need to balance our efforts to suit the task at hand. Prediction and explanation are both fundamental to the modeling endeavor. We return to this topic again in the chapter on causal models (@sec-causal-prediction-explanation). \index{prediction!vs. explanation|)}
-
+In the end we'll need to balance our efforts to suit the task at hand. Prediction and explanation are both fundamental to the modeling endeavor. We return to this topic again in @sec-causal (@sec-causal-prediction-explanation).
+\index{prediction!vs. explanation|)}
 
 
 ## Adding Complexity {#sec-lm-complexity}
@@ -1020,16 +1022,17 @@ $$
 
 where $y$ is the target, $X$ is a 2-d matrix of features[^interceptones], where the rows are observations/instances and columns features, and $\beta$ is a vector of coefficients or weights corresponding to the number of columns in $X$. Matrix multiplication provides us an efficient way to get our expected value/prediction, and depicting the model in this way is a common practice that makes it more succinct.
 
-[^interceptones]: In the first depiction without $\alpha$, there is an additional column at the beginning of the matrix that is all ones, which is a way to incorporate the intercept into the model. However, most models that use a matrix as input will not have the intercept column, as it's either not part of the model estimation, is automatically added behind the scenes, and may be estimated separately.
+[^interceptones]: In the first depiction without $\alpha$, there is an additional column at the beginning of the matrix that is all 1s, which is a way to incorporate the intercept into the model. However, most models that use a matrix as input will not have the intercept column, as it's either not part of the model estimation, or is automatically added behind the scenes, and may be estimated separately.
 
 
 
 
 ::: {.callout-note title='Matrix Representation of a Linear Model' collapse='true'}
 
+\index{linear model!matrix representation}
 Here we'll show the matrix representation form of the linear model in more detail. In the following, $y$ is a vector of all target observations, and $X$ is a matrix of features.  The $\beta$ vector is the vector of coefficients. The column of 1s serves as a means to incorporate the intercept, as it's just multiplied by whatever the estimated intercept value is.  Matrix multiplication form can be seen as an efficient way to get the sum of the features multiplied by their coefficients.  
 
-Here is y as a vector of observations, n x 1.
+Here is $y$ as a vector of observations, $n \times 1$.
 
 $$
 \textbf{y} = \begin{bmatrix}
@@ -1040,7 +1043,7 @@ y_n
 \end{bmatrix}
 $$ {#eq-lm-mat-y}
 
-Here is the n x p matrix of features, including the intercept:
+Here is the $n \times p$ matrix of features, including the intercept:
 
 $$
 \textbf{X} = \begin{bmatrix}
@@ -1051,7 +1054,7 @@ $$
 \end{bmatrix}
 $$ {#eq-lm-mat-x}
 
-And finally, here is the p x 1 vector of coefficients:
+And finally, here is the $p \times 1$, vector of coefficients:
 
 $$
 \bf{\beta} = \begin{bmatrix}
@@ -1069,16 +1072,19 @@ $$
 \bf{y = X\beta + \epsilon}
 $$ {#eq-lm-mat-mult}
 
-You will also see it depicted in a transposed fashion, such that $y = \beta^\intercal X$, or $f(x) = w^\intercal X + b$, with the latter formula typically seen in the context of machine learning. This is just a matter of preference, except that it may assume the data is formatted in a different way, or possibly they are talking about matrix/vector operations for a single observation. You'll want to pay close attention to what the dimensions are[^dimsRwhut].
+You will also see it depicted in a transposed fashion, such that $y = \beta^\intercal X$, or $f(x) = w^\intercal X + b$, with the latter formula typically seen in the context of machine learning. This is just a matter of preference, except that it may assume the data is formatted in a different way, or possibly an author is talking about matrix/vector operations for a single observation. You'll want to pay close attention to what the dimensions are.
+<!-- [^dimsRwhut]. -->
 
 For the models considered here and almost all 'tabular data' scenarios, the data is stored in the fashion we've represented in this text, but you should be aware that other data settings will force you to think of multi-dimensional arrays[^arraytensor] instead of 2-d matrices, for example, with image processing. So it's good to be flexible.
 :::
 
-[^dimsRwhut]: It never ceases to amaze us how many papers show matrix/vector operations without clearly specifying the dimensions of what's involved and/or what those dimensions specifically represent in terms of actual data, even though it's key to understanding what's being depicted.
+<!-- quarto bug is not correctly numbering the dimsRwut, but correctly continues thereafter. -->
+
+<!-- [^dimsRwhut]: It never ceases to amaze us how many papers show matrix/vector operations without clearly specifying the dimensions of what's involved and/or what those dimensions specifically represent in terms of actual data, even though it's key to understanding what's being depicted. -->
 
 [^arraytensor]: In deep learning, model arrays are referred to as the more abstract representation of **tensors**, but for practical purposes the distinction doesn't really matter for modeling, as the tensors are always some n-dimensional array.
 
-With that in mind, let's get to our model! In what follows, we keep the word count, but now we add some aspects of the reviewer, such as age and the number of children in the household, and features related to the movie, like the release year, the length of the movie in minutes, and the total reviews received.  We'll use the same approach as before, and literally just add them as we depicted in our linear model formula (@eq-lm-observed) .
+With that in mind, let's get to our model! In what follows, we keep the word count, but now we add some aspects of the reviewer, such as age and the number of children in the household, and features related to the movie, like the release year, the length of the movie in minutes, and the total reviews received.  We'll use the same approach as before, and literally just add them as we depicted in our linear model formula (@eq-lm-observed).
 
 :::{.panel-tabset}
 
@@ -1173,11 +1179,11 @@ mre_metrics = round(performance::performance(model_lr_rating_extra), 2)
 mre_mae = round(performance::performance_mae(model_lr_rating_extra), 2)
 ```
 
-There is definitely more to unpack here than our simpler model, but it's important to note that it's just *more* stuff, not *different* stuff.  The model-level components are the same in that we still see R^2^ etc., although they are all 'better' (higher R^2^, lower error) because we have a model that more accurately predicts the observed target. 
+There is definitely more to unpack here than our simpler model, but it's important to note that it's just *more* stuff, not *different* stuff.  The model-level components are the same in that we still see R^2^, etc., although they are all 'better' (higher R^2^, lower error) because we have a model that more accurately predicts the observed target. 
 
 Our coefficients have the same output, and though they are on different scales we'd interpret them in the same way. Starting with word count, we see that it's still statistically significant, but it has been reduced just slightly from our previous model where it was the only feature (`r wc_coef` vs. `r mre_coef[['word_count']]`).  Why? This suggests that word count has some non-zero correlation, sometimes called **collinearity**, with other features that are also explaining the target to some extent. Our linear model shows the effect of each feature *controlling for other features*, or, *holding other features constant*, or *adjusted for other features*[^controllingfor]. Conceptually this means that the effect of word count is the effect of word count *after* we've accounted for the other features in the model. In this case, an increase of a single word results in a `r round(mre_coef[['word_count']], 2)` `r word_sign(mre_coef[['word_count']], c('increase', 'drop'))`, even after adjusting for the effect of other features. Looking at another feature, the addition of a child to the home is associated with `r mre_coef[['children_in_home']]` `r word_sign(mre_coef[['children_in_home']], c('increase', 'drop'))` in rating, again, accounting for the other features.
 
-[^controllingfor]: A lot of statisticians and causal modeling folks get very hung up on the terminology here, but we'll leave that to them as we'd like to get on with things. For our purposes, we'll just say that we're interested in the relationship of a feature with the target *after* we've accounted for the other features in the model. 
+[^controllingfor]: A lot of statisticians and causal modeling folks get very hung up on the terminology here, but we'll leave that to them, as we'd like to get on with things. Don't get us wrong, the distinctions are useful. But for our purposes, we'll just say that we're interested in the relationship of a feature with the target *after* we've accounted for the other features in the model. 
 
 ```{r}
 #| label: pred-text-values
@@ -1191,14 +1197,14 @@ children_txt = 'one'
 release_year = 2015
 length_minutes = 100
 total_reviews = 10000
-total_reviews_txt = '10000'
+total_reviews_txt = scales::comma_format()(total_reviews)
 ```
 
 :::{.callout-caution title='Features Scales Again' collapse='true'}
 The scales of the features are quite different, so we can't directly compare the coefficients. For example, the word count coefficient represents a movement of 1 word, and coefficient for release year represents a movement of 1 year. One way to get a better comparison is to standardize the features as we talked about previously (@sec-lm-interpretation-feature), and which we'll talk about more in the data chapter (@sec-data-transformations) and elsewhere.
 :::
 
-Thinking about prediction, how would we get a prediction for a movie rating with a review that is `r wc` words long, written in `r rev_year`, by a `r age` year old with `r children_txt` child, for a movie that is `r length_minutes` minutes long, released in `r release_year`, with `r total_reviews_txt` total reviews?  Exactly the same as we did before (@sec-lm-prediction-types)! We just create a data frame with the values we want, and predict accordingly.
+Thinking about prediction, how would we get a prediction for a movie rating with a review that is `r wc` words long, written in `r rev_year`, by a `r age`-year-old with `r children_txt` child, for a movie that is `r length_minutes` minutes long, released in `r release_year`, with `r total_reviews_txt` total reviews?  Exactly the same as we did before (@sec-lm-prediction-types)! We just create a dataframe with the values we want, and we predict accordingly.
 
 :::{.panel-tabset}
 
@@ -1244,7 +1250,7 @@ model_lr_rating_extra.predict(predict_observation)
 
 :::
 
-In our example we're just getting a single prediction, but don't let that hold you back! As we did before, you can predict an entire data set if you want, and use any values for the features you want. Feel free to try a different prediction of your choosing!
+In our example we're just getting a single prediction, but don't let that hold you back! As we did before, you can predict an entire dataset if you want and use any values for the features you want. Feel free to try a different prediction of your choosing!
 
 
 
@@ -1257,7 +1263,7 @@ Categorical features can be added to a model just like any other feature.  The m
 #| eval: true
 #| echo: false
 #| label: tbl-one-hot-r
-#| tbl-cap: One-hot encoding of the season feature
+#| tbl-cap: One-Hot Encoding of the Season Feature
 
 df_reviews |> 
     mutate(value = 1, idx = row_number()) |> 
@@ -1325,14 +1331,14 @@ model_lr_cat.summary(slim = True)
 
 :::
 
-We now see the usual output. There is word count again, with its slightly negative association with rating. And we have an effect for each season as well... except, wait a second, where is the fall effect? The coefficients are interpreted the same way - as we move one unit on x, we see a corresponding change in y. But moving from one category to another requires starting at some category in the first place - a reference point. So one category is chosen arbitrarily, but you would have control over this. In our model, 'fall' is chosen just because it is first alphabetically.  So if we look at, for example, the effect of summer, we see an increase in the rating of `r round(coef(model_lr_cat)[['seasonSummer']], 2)` relative to fall. The same goes for the other seasons, they all represent a change relative to fall. 
+We now see the usual output. There is word count again, with its slightly negative association with rating. And we have an effect for each season as well... except, wait a second, where is the fall effect? The coefficients are interpreted the same way. As we move one unit on x, we see a corresponding change in y. But moving from one category to another requires starting at some category in the first place: a reference point. So one category is chosen arbitrarily, but you would have control over this. In our model, 'fall' is chosen just because it is first alphabetically.  So if we look at, for example, the effect of summer, we see an increase in the rating of `r round(coef(model_lr_cat)[['seasonSummer']], 2)` relative to fall. The same goes for the other seasons, as they all represent a change relative to fall. 
 
 Recall also that an interpretation of the intercept is the expected value of the target when all features are zero. In this case, it's the expected value of the target when the word count is zero and the season is fall.
 
 
 #### Summarizing categorical features {#sec-lm-categorical-anova}
 
-When we have a lot of categories, it's often not practical to look at the coefficients for each one, and even when there aren't that many, we often prefer to get a sense of the total effect of the feature. For standard linear models, we can break down the target variance explained by the model into the variance explained by each feature, and this is called the **ANOVA**, or analysis of variance[^typess]. It is not without its issues, but it's one way to get a sense of whether a categorical (or other) feature as a whole is statistically significant. 
+When we have a lot of categories, it's often not practical to look at the coefficients for each one, and even when there aren't that many, we often prefer to get a sense of the total effect of the feature. For standard linear models, we can break down the target variance explained by the model into the variance explained by each feature, and this is called the **ANOVA**\index{ANOVA}, or analysis of variance[^typess]. It is not without its issues, but it's one way to get a sense of whether a categorical (or other) feature as a whole is statistically significant. 
 
 [^typess]: There are actually different types of ANOVA in this context, and different ways to calculate the variance values. One may notice the Python ANOVA result is different, even though the season coefficients and initial model are identical. R defaults with what is called Type II sums of squares, while the Python default uses Type I sums of squares. We won't bore you with the details of their differences, and the astute modeler will not come to different conclusions because of this sort of thing, and you now have enough detail to look it up.
 
@@ -1367,22 +1373,23 @@ sm.stats.anova_lm(model_lr_cat)
 broom::tidy(anova(model_lr_cat)) |> 
     rename(
         Feature = term,
-        `F stat.` = statistic
+        DF = df,
+        `F-stat.` = statistic
     ) |> 
     mutate(
         p.value = ifelse(!is.na(p.value), '< 0.001', '')
     ) |> 
-    gt(decimals=1) |> 
+    gt(decimals=2) |> 
     sub_missing(missing_text = '')
 ```
 
-A primary reason to use ANOVA is to make these sorts of summary claims of statistical significance. In this case, we can say that the relationship of season to rating is statistically significant. From the table, the DF (degrees of freedom) represents the number of categories minus 1, and the F-statistic is a measure of the (mean squared) variance explained by the feature relative to the (mean squared) variance not explained by the feature (F = mean square value divided by DF). The p-value is the probability of observing an F-statistic as extreme as the one observed, given that the null hypothesis is true. In this case, the null hypothesis is that the feature has no effect on the target. The p-value is less than 0.001, so we reject the null hypothesis and conclude that the observed feature-target relationship is statistically different from an assumption of no relationship. Note that nothing here is different from what we saw in our previous regression models, and we can run an `anova` function on those too[^anova_vs_t]. As a final note, it's good to be reminded that statistical significance is not the same as practical significance. Whether these group differences are meaningful is still left to be decided by the modeler given the context of the data.
+A primary reason to use ANOVA is to make these sorts of summary claims of statistical significance. In this case, we can say that the relationship of season to rating is statistically significant. From @tbl-anova-cat-feature, the DF (degrees of freedom) represents the number of categories minus 1, and the F-statistic is a measure of the mean squared variance explained by the feature relative to the (mean squared) variance not explained by the feature (F = mean square value divided by mean square error, or residual variance). The p-value is the probability of observing an F-statistic as extreme as the one observed, given that the null hypothesis is true. In this case, the null hypothesis is that the feature has no effect on the target. The p-value is less than 0.001, so we reject the null hypothesis and conclude that the observed feature-target relationship is statistically different from an assumption of no relationship. Note that nothing here is different from what we saw in our previous regression models, and we can run an `anova` function on those too[^anova_vs_t]. As a final note, it's good to be reminded that statistical significance is not the same as practical significance. Whether these group differences are meaningful is still left to be decided by the modeler given the context of the data.
 
 [^anova_vs_t]: For those interested, for those features with one degree of freedom, all else being equal the F statistic here would just be the square of the t-statistic for the coefficients, and the p-value would be the same.
 
 #### Group predictions
 
-A better approach to understanding categorical features for standard linear models is through what are called **marginal effects**, which can provide a kind of average prediction for each category while accounting for the other features in the model. Better still is to visualize these. It's actually tricky to define 'average' when there are multiple features and interactions involved, so be more cautious in those contexts. In this case, we expect the highest ratings for summer releases. We'll return more to this concept in @sec-marginal-effects.
+A better approach to understanding categorical features for standard linear models is through what are called **marginal effects**\index{marginal effects}, which can provide a kind of average prediction for each category while accounting for the other features in the model. Better still is to visualize these. It's actually tricky to define 'average' when there are multiple features and interactions involved, so be more cautious in those contexts. In this case, we expect the highest ratings for summer releases. We'll return more to this concept in @sec-marginal-effects.
 
 :::{.content-visible when-format='html'}
 ```{r}
