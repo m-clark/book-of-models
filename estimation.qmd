@@ -97,7 +97,13 @@ tbl_happy = Happiness |>
 gtsave_extra(tbl_happy, 'img/happiness_data_summary.png', expand = 0, zoom = 3)
 ```
 
+:::{.content-visible when-format="html"}
 ![World happiness data summary.](img/happiness_data_summary.png){#fig-r-happiness-data width=100%}
+:::
+
+:::{.content-visible when-format="pdf"}
+![World happiness data summary.](img/happiness_data_summary.png){#fig-r-happiness-data width=66%}
+:::
 
 Our happiness score has values from around 3-7, life expectancy and GDP appear to have some notable variability, and corruption perception is skewed toward lower values.  We can also see that the features and target are correlated, which is not surprising.
 
@@ -661,10 +667,11 @@ our_ols_optim
 
 Optimization functions typically return multiple values, including the best parameters found, the value of the objective function at that point, and sometimes other information like the number of iterations it took to reach the returned value and whether or not the process converged. This can be quite a bit of stuff, so we don't show the raw output, but we definitely encourage you to inspect it closely. The following table shows the estimated parameters and the objective value for our model, and we can compare it to the standard functions to see how we did.
 
+
 ```{r}
 #| echo: false
 #| label: tbl-r-optim-ols
-#| tbl-cap: Comparison of Our Results to a Standard Function
+#| tbl-cap: Comparison of OLS Results to a Standard Function
 
 our_result_tbl = tibble(
     'Parameter'  = c('Intercept', 'Life Exp. Coef.', 'Objective/MSE'),
@@ -676,7 +683,7 @@ our_result_tbl = tibble(
         `Our Result` = round(`Our Result`, 3)
     )
 our_result_tbl |>
-    gt(decimals = 4)
+    gt(decimals = 4) 
 ```
 
 
@@ -882,10 +889,11 @@ our_max_like
 
 We can compare our result to a built-in function that has capabilities beyond OLS, and the table shows we're duplicating the basic result. We show more decimal places on the log-likelihood estimate to prove we aren't getting *exactly* the same result.
 
+\scriptsize
 ```{r}
 #| echo: false
 #| label: tbl-r-likelihood
-#| tbl-cap: Comparison of Our Results to a Standard Function
+#| tbl-cap: Comparison of Max. Likelihood Results to a Standard Function
 
 glm_happy_life = glm(happiness ~ life_exp_sc, data = df_happiness)
 
@@ -898,17 +906,31 @@ our_result_tbl = tibble(
     gt::tab_footnote(
         footnote = "Parameter estimate is exponentiated for the by-hand approach.",
         locations = cells_body(
-            columns = vars(`Parameter`),
+            columns = c(`Parameter`),
             rows = `Parameter` == 'Sigma'
         ),
         placement = 'right'
-    ) |>
+    )  |> 
+    # though a long running GH issue, none of the following does anything with table font size
+    # for pdf; works great for html, or viewer so it's not the code
     tab_options(
-        footnotes.font.size = 10
-    )
+        # table.font.size = pct(5),
+        table.font.size = 'scriptsize',
+        # footnotes.font.size = pct(33),
+    ) |> 
+    tab_style(
+        style = cell_text(size = 'scriptsize'),
+        locations = cells_body(columns = c('Standard', 'Our Result'))
+    ) #|>
+    # tab_style(
+    #     style = cell_text(size = 'xx-small'),
+    #     locations = cells_footnotes()
+    # )
 
 our_result_tbl
 ```
+
+\normalsize
 
 To use a maximum likelihood approach for linear models, you can use functions like `glm` in R or `GLM` in Python, which is the reference used in the table above. We can also use different likelihoods corresponding to the binomial, Poisson and other distributions. Still other packages would allow even more distributions for consideration. In general, we choose a distribution that we feel best reflects the data generating process. For binary targets for example, we typically would feel a Bernoulli or binomial distribution is appropriate. For count data, we might choose a Poisson or negative binomial distribution. For targets that fall between 0 and 1, we might go for a beta distribution. You can see some of these demonstrated in [@sec-glm].
 
@@ -1027,7 +1049,7 @@ ggsave('img/estim-likelihood_one_param.svg', width = 8, height = 6)
 :::
 
 :::{.content-visible when-format='pdf'}
-![Likelihood function for one parameter.](img/estim-likelihood_one_param.svg){#fig-r-likelihood-plot width=100%}
+![Likelihood function for one parameter.](img/estim-likelihood_one_param.svg){#fig-r-likelihood-plot width=66%}
 :::
 
 Now let's add a parameter. If we have more than one parameter, we now have an objective surface to deal with. Given a starting point, an optimization procedure then travels along the surface looking for a minimum/maximum point. For simpler settings such as this, we can visualize the likelihood surface and its minimum point. However, even our simple model has three parameters plus the likelihood, so it would be difficult to visualize without additional complexity. Instead, we show the results for an alternate model where happiness is standardized also, which means the intercept is zero[^zerointorigin], and so it is not shown. 
@@ -1189,7 +1211,7 @@ detach(package:plotly)
 :::
 
 ::: {.content-visible when-format='pdf'}
-![Likelihood surface for two parameters.](img/estim-likelihood_surface.svg){#fig-r-likelihood-plot-3d width=100%}
+![Likelihood surface for two parameters.](img/estim-likelihood_surface.svg){#fig-r-likelihood-plot-3d width=66%}
 :::
 
 
@@ -1437,7 +1459,7 @@ our_ridge_tbl
 
 
 :::{.callout-note title='Analytical Solution for Ridge Regression' collapse='true'}
-It turns out that given a fixed $\lambda$ penalty ridge regression estimates can be derived analytically. @clark_model_2021 (one of your authors) has an example if interested in his [Model Estimation by Example](https://m-clark.github.io/models-by-example/penalized-maximum-likelihood.html#l2-ridge-regularization) demos.
+It turns out that given a fixed $\lambda$ penalty ridge regression estimates can be derived analytically. @clark_model_2021 (one of your authors) has an example in his [Model Estimation by Example](https://m-clark.github.io/models-by-example/penalized-maximum-likelihood.html#l2-ridge-regularization) demos.
 :::
 
 \index{lasso penalty|(}
@@ -1702,6 +1724,8 @@ Here are some of the options available in R's `optim` or scipy's `minimize` func
 - Simulated annealing
 - Newton's method
 
+\vspace{1em}
+
 Other common optimization methods include:
 
 - Genetic algorithms
@@ -1800,23 +1824,6 @@ gradient_descent = function(
 
     return(output)
 }
-
-X = df_happiness |>
-    select(life_exp_sc:gdp_pc_sc) |>
-    as.matrix()
-
-our_gd = gradient_descent(
-    par = c(0, 0, 0, 0),
-    X = X,
-    y = df_happiness$happiness,
-    learning_rate = 1e-3
-)
-```
-
-```{r}
-#| echo: false
-#| label: save-r-gradient-descent
-batch_result = our_gd
 ```
 
 ##### Python
@@ -1858,21 +1865,52 @@ def gradient_descent(
     }
 
     return output
-
-our_gd = gradient_descent(
-    par = np.array([0, 0, 0, 0]),
-    X = df_happiness[['life_exp_sc', 'corrupt_sc', 'gdp_pc_sc']].to_numpy(),
-    y = df_happiness['happiness'].to_numpy(),
-    learning_rate = 1e-3
-)
 ```
 
 :::
 
+\vspace{2em}
+
+With our functions in hand, let's apply them to the world happiness data. We'll keep the default settings, but feel free to play around with the `learning_rate` and `tolerance` parameters.
+
+:::{.panel-tabset}
+##### R
+
+```{r}
+#| label: r-gradient-descent-apply
+X = df_happiness |>
+    select(life_exp_sc:gdp_pc_sc) |>
+    as.matrix()
+
+our_gd = gradient_descent(
+    par = c(0, 0, 0, 0),
+    X = X,
+    y = df_happiness$happiness
+)
+```
+
+```{r}
+#| echo: false
+#| label: save-r-gradient-descent
+batch_result = our_gd
+```
+
+##### Python
+
+```{python}
+#| label: py-gradient-descent-apply
+our_gd = gradient_descent(
+    par = np.array([0, 0, 0, 0]),
+    X = df_happiness[['life_exp_sc', 'corrupt_sc', 'gdp_pc_sc']].to_numpy(),
+    y = df_happiness['happiness'].to_numpy()
+)
+```
+:::
+
+\vspace{2em}
 
 We compare our results in @tbl-gradient-descent. As usual, we see that the results are very similar to the standard linear regression approach. Once again, we have demystified a step in the modeling process!
 
-\vspace{.5cm}
 ```{r}
 #| echo: false
 #| label: tbl-gradient-descent
@@ -1887,6 +1925,8 @@ tibble(
 ) |>
     gt(decimals = 3)
 ```
+
+\vspace{2em}
 
 In addition, when we visualize the loss function across iterations, we see a smooth decline in the MSE value as we go along each iteration (@fig-r-gradient-descent). This is a good sign that we are converging to an optimal solution.
 
@@ -1909,7 +1949,7 @@ ggsave('img/estim-gradient_descent.svg', width = 8, height = 6)
 :::
 
 :::{.content-visible when-format='pdf'}
-![Loss with gradient descent.](img/estim-gradient_descent.svg){#fig-r-gradient-descent width=75%}
+![Loss with gradient descent.](img/estim-gradient_descent.svg){#fig-r-gradient-descent width=66%}
 :::
 \index{gradient descent|)}
 
@@ -2002,46 +2042,6 @@ stochastic_gradient_descent = function(
     
     return(output)
 }
-
-X = df_happiness |>
-    select(life_exp_sc, corrupt_sc, gdp_pc_sc) |>
-    as.matrix()
-
-y = df_happiness$happiness
-
-our_sgd = stochastic_gradient_descent(
-    par = c(mean(df_happiness$happiness), 0, 0, 0),
-    X = X,
-    y = y,
-    learning_rate = .15,
-    stepsize_tau = .1
-)
-
-c(our_sgd$par, our_sgd$MSE)
-```
-
-```{r}
-#| echo: false
-#| eval: false
-#| label: sgd-package comparison
-
-res = sgd::sgd(
-    happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc,
-    data = df_happiness,
-    model = 'lm',
-    model.control = list(),
-    sgd.control  = list(
-        npasses = 3,
-        method = 'sgd',
-        lr = 'adagrad',
-        lr.control = c(eta = .15, epsilon = .1),
-        start = c(mean(df_happiness$happiness), 0, 0, 0),
-        shuffle = TRUE
-    )
-)
-res$coefficients
-res$converged
-sum(res$residuals^2) / nrow(df_happiness)
 ```
 
 ##### Python
@@ -2117,7 +2117,64 @@ def stochastic_gradient_descent(
     }
 
     return output
+```
 
+:::
+
+Let's now use the functions as we did before. We'll show the results in @tbl-stochastic-gradient-descent.
+
+:::{.panel-tabset}
+##### R
+
+```{r}
+#| label: r-stochastic-gradient-descent-apply
+#| results: 'hide'
+X = df_happiness |>
+    select(life_exp_sc, corrupt_sc, gdp_pc_sc) |>
+    as.matrix()
+
+y = df_happiness$happiness
+
+our_sgd = stochastic_gradient_descent(
+    par = c(mean(df_happiness$happiness), 0, 0, 0),
+    X = X,
+    y = y,
+    learning_rate = .15,
+    stepsize_tau = .1
+)
+
+c(our_sgd$par, our_sgd$MSE)
+```
+
+```{r}
+#| echo: false
+#| eval: false
+#| label: sgd-package comparison
+
+res = sgd::sgd(
+    happiness ~ life_exp_sc + corrupt_sc + gdp_pc_sc,
+    data = df_happiness,
+    model = 'lm',
+    model.control = list(),
+    sgd.control  = list(
+        npasses = 3,
+        method = 'sgd',
+        lr = 'adagrad',
+        lr.control = c(eta = .15, epsilon = .1),
+        start = c(mean(df_happiness$happiness), 0, 0, 0),
+        shuffle = TRUE
+    )
+)
+res$coefficients
+res$converged
+sum(res$residuals^2) / nrow(df_happiness)
+```
+
+##### Python
+
+```{python}
+#| label: py-stochastic-gradient-descent-apply
+#| results: 'hide'
 X = df_happiness[['life_exp_sc', 'corrupt_sc', 'gdp_pc_sc']].to_numpy()
 y = df_happiness['happiness'].to_numpy()
 
@@ -2131,14 +2188,15 @@ our_sgd = stochastic_gradient_descent(
 
 our_sgd['par'], our_sgd['MSE']
 ```
-
 :::
 
-Next we'll compare it to OLS estimates and our previous 'batch' gradient descent results.  Even though SGD normally would not be used for such a small dataset, we at least get close[^closebutnosgd]!
+\vspace{1em}
+
+Now we'll compare it to OLS estimates and our previous 'batch' gradient descent results.  Even though SGD normally would not be used for such a small dataset, we at least get close[^closebutnosgd]!
 
 [^closebutnosgd]: You'd get better results in a couple of ways. The easiest is just to repeat the process a couple of times and average the results. This is a common approach in SGD. The initial shuffling that we did can help with convergence as well, and it would be done each repetition. With larger data and repeated runs/epochs, shuffling allows the samples/batches to be more representative of the entire dataset. Also, we 'hand-tune' our learning rate and step size here, but normally we'd use cross-validation to find the best values.
 
-\footnotesize
+
 ```{r}
 #| echo: false
 #| label: tbl-stochastic-gradient-descent
@@ -2154,8 +2212,6 @@ tibble(
 ) |>
     gt(decimals = 3)
 ```
-
-\normalsize
 
 @fig-r-stochastic-gradient-descent shows the estimates as they moved along the data. For this plot we don't include the intercept, as it's on a notably different scale. We can see that the estimates are moving around a bit, but they appear to be converging to a solution. 
 
@@ -2215,7 +2271,7 @@ ggsave('img/estim-sgd.svg', p_sgd, width = 8, height = 6)
 :::
 
 :::{.content-visible when-format='pdf'}
-![Stochastic gradient descent path.](img/estim-sgd.svg){#fig-r-stochastic-gradient-descent width=57%}
+![Stochastic gradient descent path.](img/estim-sgd.svg){#fig-r-stochastic-gradient-descent width=75%}
 :::
 
 
