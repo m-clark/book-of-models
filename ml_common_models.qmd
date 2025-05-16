@@ -216,21 +216,20 @@ Take a classification model, for example. In this case we might use a logistic r
 
 ### Why do we do this? {#sec-ml-common-baseline-why}
 
-Having a baseline model can help you avoid wasting time and resources implementing more complex tools, and to avoid mistakenly thinking performance is better than expected. It is probably rare, but sometimes relationships for the chosen features and target are mostly or nearly linear and have little interaction. In this case, no amount of fancy modeling will make complex feature targets exist if they don't already. Furthermore, if our baseline is a more complex model that actually incorporates nonlinear relationships and interactions (e.g., a GAMM), you'll often find that the more complex models often don't significantly improve on it. As a last example, in time series settings, a *moving average* can often be a difficult baseline to beat, and so it can be a good starting point. 
+Having a baseline model can help you avoid wasting time and resources implementing more complex models, and to avoid mistakenly thinking performance is better than expected. It is probably rare, but sometimes relationships for the selected features and target are mostly or nearly linear and have little interaction. In this case, no amount of fancy modeling will make complex feature targets exist if they don't already. Also, if our baseline is a more complex model that actually incorporates nonlinear relationships and interactions (e.g., a GAMM), you'll often find that the more complex models often don't significantly improve on it. As a last example, in time series settings\index{time series models}, a *moving average* can often be a difficult baseline to beat, so it can be a good starting point. 
 
-So in general, you may find that the initial baseline model is good enough for present purposes, and you can then move on to other problems to solve, like acquiring data that is more predictive. This is especially true if you are working in a situation with limited time and resources, but it should generally be kept in mind.
+So you may find that the initial baseline model is good enough for your purposes, and you can then move on to other problems to solve, like acquiring data that is more predictive. This is especially true if you are working in a situation with limited time and resources.
 
 ### How much better? {#sec-ml-common-baseline-how-much}
 
 In many settings, it often isn't enough to merely beat the baseline model. Your model should perform *statistically* better. For instance, if your advanced model accuracy is 75% and your baseline model's accuracy is 73%, that's great. But, it's good  to check if this 2% difference is statistically significant. Remember, accuracy and other metrics are *estimates* and come with uncertainty[^ifonlystatdiff]. This means you can get a ranged estimate for them, as well as test whether they are different from one another.  @tbl-prop-test-r shows an example comparison of 75% vs. 73% accuracy at different sample sizes. If the difference is not statistically significant, then it's possible you should stick with the baseline model, or maybe try a different approach to compete with it. This is because such a result means that the next time you run the model on new data, the baseline may actually perform better, or at least you can't be sure that it won't.
 
-[^ifonlystatdiff]: There would be far less hype and wasted time if those in ML and DL research simply did this rather than just reporting the chosen metric of their model 'winning' against other models. It's not that hard to do, yet many do not provide a ranged estimate for their metric, let alone test statistical comparisons among models. You don't even have to bootstrap many common metric estimates for binary classification, since they are just proportions. It'd also be nice if they used a more meaningful baseline than logistic regression, but that's a different story. And one more thing, although many papers also rank the competing models, ranks and mean ranks also have uncertainty, and ranks are typically very noisy.
+[^ifonlystatdiff]: There would be far less hype and wasted time if those in ML and DL research simply did this rather than just reporting the chosen metric of their model 'winning' against other models. It'd also be nice if they used a more meaningful baseline than logistic regression, but that's a different story. And one more thing, although many papers also rank the competing models, ranks and mean ranks also have uncertainty, and ranks are typically *very* noisy.
 
-\vspace{3em}
 ```{r}
 #| echo: false
 #| label: tbl-prop-test-r
-#| tbl-cap: Interval Estimates for Accuracy
+#| tbl-cap: Interval Estimates for Accuracy Differences
 
 # Sample size of 1000
 n_1000 = prop.test(x = c(750, 730), n = c(1000, 1000), correct = FALSE)$conf.int
@@ -254,8 +253,7 @@ tibble(
     gt() |>
     cols_label(Sample_Size = "Sample Size", Lower = "Lower Bound", Upper = "Upper Bound", p_value = "p-value") |> 
     tab_footnote(
-        md("Confidence intervals are for the difference in proportions at values of .75 and .73, and p-values are for the difference in proportions.")
-
+        md("Statistics regard the difference in proportions of .75 and .73.")
     ) |> 
     tab_options(
         footnotes.font.size =  9
@@ -294,7 +292,6 @@ model_elastic = LogisticRegression(
     verbose = False,
 )
 
-# use cross-validation to estimate performance
 model_elastic_cv = cross_validate(
     model_elastic,
     X,
@@ -555,7 +552,6 @@ tsk_boost = as_task_classif(
     target = "heart_disease"
 )
 
-# Define learner
 model_boost = lrn(
     "classif.lightgbm",
     num_iterations = 1000,
@@ -563,7 +559,6 @@ model_boost = lrn(
     max_depth = 5
 )
 
-# Cross-validation
 model_boost_cv = resample(
     task = tsk_boost,
     learner = model_boost,
@@ -671,7 +666,7 @@ At its core, a neural network can be seen as a series of matrix multiplications 
 
 One notable difference from models we've been seeing is that neural networks implement *multiple combinations of features*, where each combination is referred to as a hidden **node** or unit[^hidden]. In a neural network, each feature has a weight (or coefficient), just like in a linear model of the type we've used before. These features are multiplied by their weights and then added together. But we actually create multiple such combinations, as depicted in the 'H' or 'hidden' nodes in the following visualization.
 
-[^hidden]: The term 'hidden' is used because these nodes are between the input or output. It does not imply a latent/hidden variable in the sense it is used in structural equation or measurement models, state space models, and similar models that use latent variables, but there is a lot of common ground. See the connection with principal components analysis, for example (@sec-ml-more-pca-as-net).
+[^hidden]: The term 'hidden' is used because these nodes are between the input or output. It does not imply a latent/hidden variable in the sense used in many statistical models, but there is common ground. See the connection with principal components analysis, for example (@sec-ml-more-pca-as-net).
 
 
 
@@ -689,8 +684,13 @@ g |>
     rsvg::rsvg_svg("img/nn_first_hidden_layer.svg")
 ```
 
+:::{.content-visible when-format="html"}
+![The first hidden layer.](img/nn_first_hidden_layer.svg){#fig-first-layer}
+:::
 
+:::{.content-visible when-format="pdf"}
 ![The first hidden layer.](img/nn_first_hidden_layer.svg){#fig-first-layer width=20%}
+:::
 
 \index{activation functions}
 The next phase is where things can get more interesting. We take those hidden units and add in nonlinear transformations before moving deeper into the network. The transformations applied are typically referred to as **activation functions**[^relu]. So, the output of the current (typically linear) part is transformed in a way that allows the model to incorporate nonlinearities. While this might sound new, this is just like how we use link functions in generalized linear models (@sec-glm-distributions). Furthermore, these multiple combinations also allow us to incorporate interactions between features.
@@ -716,7 +716,13 @@ g |>
     rsvg::rsvg_svg("img/nn_activation2.svg")
 ```
 
+
+:::{.content-visible when-format="html"}
+![Activation function transforms node output before the next layer.](img/nn_activation2.svg){#fig-activate}
+:::
+:::{.content-visible when-format="html"}
 ![Activation function transforms node output before the next layer.](img/nn_activation2.svg){#fig-activate width=30%}
+:::
 
 But we can go even further! We can add more layers, and more nodes in each layer, even different types of layers, to create a **deep neural network**. We can also add components specific to certain types of processing, have some parts of the network only connected to certain other parts, apply specific computations to specific components, and more. The complexity really is only limited by our imagination, *and computational capacity*! This is what helps make neural networks so powerful. Given enough nodes, layers, and components, they can approximate ***any*** function, which could include the true function that connects our features to the target. Practically though, the feature inputs become an output or multiple outputs that can then be assessed in the same ways as other models.
 
@@ -1129,6 +1135,8 @@ glue("Test Accuracy: {round(test_acc, 3)}\nGuessing: {round(majority, 3)}")
 ```
 
 :::
+
+\vspace{1em}
 
 It looks like we've done a lot better than guessing. Even if we don't do better than our previously untuned model, we should feel better that we've done our due diligence in trying to find the best set of underlying parameters, rather than just going with defaults or what *seems* to work best.
 
